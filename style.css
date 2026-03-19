@@ -1,0 +1,892 @@
+:root {
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --secondary: #a855f7;
+      --bg: #020617;
+      --card: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@400;600;700&display=swap');
+
+    body {
+      font-family: 'Outfit', 'Inter', sans-serif;
+      background: radial-gradient(circle at top right, #1e1b4b, #020617 60%);
+      background-attachment: fixed;
+      color: var(--text);
+      margin: 0;
+      padding: 12px;
+      font-size: 12px;
+      box-sizing: border-box;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(210px, 230px) minmax(300px, 1fr) minmax(210px, 240px);
+      grid-template-rows: 440px minmax(0, 1fr);
+      grid-template-areas:
+        "order monthly settings"
+        "stats chart chart";
+      gap: 8px;
+      width: 100%;
+      height: calc(100vh - 16px);
+      animation: fadeIn 0.6s ease-out;
+      transition: all 0.2s ease;
+    }
+
+    .dashboard-grid.hide-order-panel {
+      grid-template-areas:
+        "monthly monthly settings"
+        "stats chart chart";
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 8px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .panel-order {
+      grid-area: order;
+      overflow-y: auto;
+    }
+
+    .panel-monthly {
+      grid-area: monthly;
+      overflow-y: auto;
+    }
+
+    .panel-settings {
+      grid-area: settings;
+      overflow-y: auto;
+    }
+
+    .panel-stats {
+      grid-area: stats;
+      overflow-y: auto;
+    }
+
+    .panel-chart {
+      grid-area: chart;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      position: relative;
+      padding: 0 !important;
+    }
+
+    .btn-action {
+      width: 100%;
+      height: 38px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+      color: white;
+      text-transform: uppercase;
+      font-size: 12px;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+
+    .btn-instant {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    }
+
+    .btn-perf {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    }
+
+    .btn-run {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-save {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .btn-adv {
+      background: rgba(51, 65, 85, 0.8);
+    }
+
+    .btn-mode {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+    }
+
+    .btn-action:hover {
+      transform: translateY(-3px);
+      filter: brightness(1.2);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-action:active {
+      transform: scale(0.96);
+    }
+
+    .input-group {
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      width: 60px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    input,
+    select {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--card-border);
+      border-radius: 4px;
+      padding: 2px 4px;
+      color: white;
+      font-size: 11px;
+      height: 22px;
+      min-width: 0;
+      outline: none;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      background: rgba(15, 23, 42, 0.8);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    /* 날짜 입력창 가운데 정렬을 위한 특수 CSS */
+    input[type="date"]::-webkit-datetime-edit,
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+      display: flex;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 4px;
+      font-size: 11px;
+    }
+
+    .data-table th {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 8px 2px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .data-table td {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 8px 2px;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .data-table tr:hover td {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .data-table tr td:first-child {
+      border-radius: 10px 0 0 10px;
+    }
+
+    .data-table tr td:last-child {
+      border-radius: 0 10px 10px 0;
+    }
+
+    .section-header {
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 4px;
+    }
+
+    .panel-header-stats {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn-icon-sub {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-icon-sub:hover {
+      color: var(--primary);
+      transform: scale(1.1);
+    }
+    .btn-icon-sub.active {
+      color: var(--primary);
+      filter: drop-shadow(0 0 8px var(--primary-glow));
+    }
+
+    .header-qty-tag {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 0;
+    }
+
+    .metric-card {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 4px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .metric-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
+    }
+    .metric-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 1px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      line-height: 1.1;
+    }
+    .metric-value {
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .btn-layout-toggle {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-left: 8px;
+    }
+    .btn-layout-toggle:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 0;
+      background: none;
+      -webkit-text-fill-color: initial;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    h2:hover {
+      opacity: 0.8;
+    }
+
+    .switch-container {
+      background: rgba(99, 102, 241, 0.05);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      height: 32px;
+      backdrop-filter: blur(8px);
+      flex-shrink: 0;
+    }
+
+    .user-id-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .user-id-box:hover {
+      filter: brightness(1.2);
+    }
+
+    .auto-save-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-right: 6px;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 16px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    html {
+      height: 100%;
+      -webkit-text-size-adjust: 100%;
+      -moz-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #334155;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    input:checked+.slider {
+      background-color: var(--success);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(18px);
+    }
+
+    .login-container {
+      background: var(--card);
+      padding: 50px;
+      border-radius: 32px;
+      width: 100%;
+      max-width: 400px;
+      margin: 12vh auto;
+      backdrop-filter: blur(30px);
+      border: 1px solid var(--card-border);
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    .login-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+
+    .login-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--card-border);
+      padding: 16px;
+      border-radius: 14px;
+      color: white;
+      margin-bottom: 16px;
+      box-sizing: border-box;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .login-input:focus {
+      border-color: var(--primary);
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border: none;
+      border-radius: 14px;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 15px;
+      transition: all 0.3s;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.5);
+    }
+
+    .val-plus {
+      color: var(--success) !important;
+      font-weight: 700;
+    }
+
+    .val-minus {
+      color: var(--danger) !important;
+      font-weight: 700;
+    }
+
+    .buy {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .sell {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    #settingsWrapper {
+      display: flex;
+      flex-direction: column;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 4px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .mode-table th {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-muted);
+      padding: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .mode-table td {
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 6px;
+    }
+
+    .mode-table input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      text-align: center;
+      color: white;
+      padding: 4px;
+      border-radius: 6px;
+    }
+
+    .mode-table input:focus {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .chart-container {
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+    }
+
+    .chart-title-floating {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: 0.5px;
+      z-index: 10;
+      pointer-events: none;
+      text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .btn-toggle {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-toggle:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .status-icon {
+      transition: all 0.3s;
+      opacity: 0.3;
+      font-size: 14px;
+    }
+
+    .status-ready {
+      opacity: 1 !important;
+      color: var(--success);
+      filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6));
+    }
+
+    .tier-footer {
+      margin-top: auto;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    .tier-footer span {
+      color: #fff;
+    }
+
+    .btn-action {
+      padding: 9px !important;
+      margin-bottom: 6px !important;
+    }
+
+    .input-group {
+      margin-bottom: 4px !important;
+    }
+
+    input,
+    select {
+      text-align: center;
+    }
+
+    .seed-input {
+      max-width: 40px !important;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr);
+        grid-template-areas: "order settings" "monthly stats" "chart chart";
+      }
+
+      .dashboard-grid.order-expanded {
+        grid-template-areas: "order settings" "order stats" "chart chart" !important;
+      }
+
+      .dashboard-grid.hide-order-panel {
+        grid-template-areas: "monthly settings" "stats stats" "chart chart";
+      }
+    }
+
+    /* 수동 레이아웃 강제 모드 */
+    .dashboard-grid.force-3-col {
+      grid-template-columns: minmax(210px, 230px) minmax(300px, 1fr) minmax(210px, 240px) !important;
+      grid-template-rows: 380px minmax(0, 1fr) !important;
+      grid-template-areas: "order stats settings" "monthly chart chart" !important;
+      height: calc(100vh - 8px) !important;
+    }
+    .dashboard-grid.force-2-col {
+      grid-template-columns: 1fr 1fr !important;
+      grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr) !important;
+      grid-template-areas: "order settings" "monthly stats" "chart chart" !important;
+      height: auto !important;
+    }
+
+    html.is-cover .dashboard-grid {
+      display: grid !important;
+      grid-template-columns: 50% 50% !important;
+      grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr) !important;
+      grid-template-areas: "order settings" "monthly stats" "chart chart" !important;
+      gap: 1vh !important;
+      height: calc(100vh - 2vh) !important;
+      min-height: 0 !important;
+    }
+
+    html.is-cover .dashboard-grid.hide-order-panel {
+      grid-template-areas: "monthly settings" "stats stats" "chart chart" !important;
+    }
+
+    /* 폴드 내부/데스크톱 UI의 높이 비율을 유지하며 가로만 압축한 커버 모드 */
+    html.is-cover .dashboard-grid {
+      grid-template-columns: 1fr 1fr !important;
+      grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr) !important;
+      gap: 0.3vh !important;
+      padding: 0.2vh !important;
+      height: calc(100vh - 0.4vh) !important;
+    }
+
+    html.is-cover .card {
+      padding: 0.5vh 0.4vh !important;
+      border-radius: 0.5vh !important;
+    }
+
+    /* 카드 제목 폰트 적정화 (1.8vh -> 1.6vh) */
+    html.is-cover h2 {
+      font-size: 1.6vh !important;
+      margin-bottom: 0.1vh !important;
+    }
+
+    /* 모든 버튼 높이 및 폰트 크기 강제 통일 (높이 3.8vh) */
+    html.is-cover button,
+    html.is-cover .btn-action,
+    html.is-cover .btn-adv,
+    html.is-cover .btn-save,
+    html.is-cover .btn-icon-sub,
+    html.is-cover .btn-perf,
+    html.is-cover .login-btn,
+    html.is-cover .btn-mode,
+    html.is-cover .btn-run,
+    html.is-cover .btn-instant {
+      height: 3.8vh !important;
+      min-height: 3.8vh !important;
+      max-height: 3.8vh !important;
+      font-size: 1.4vh !important;
+      border-radius: 0.4vh !important;
+      margin-bottom: 0.2vh !important;
+      padding: 0 0.5vh !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      line-height: 1 !important;
+      width: 100% !important; /* 기본 width 100% */
+      letter-spacing: -0.02em !important;
+    }
+
+    /* 특수한 가로 배치 버튼들 */
+    html.is-cover #layoutToggleBtnSide,
+    html.is-cover #btnSaveTop,
+    html.is-cover #btnToggleSettings,
+    html.is-cover #runBtn {
+      width: auto !important;
+      flex: 1 !important;
+      margin-bottom: 0 !important;
+    }
+
+    html.is-cover .input-group {
+      margin-bottom: 0.2vh !important;
+      gap: 0.2vh !important;
+    }
+
+    html.is-cover .input-group label,
+    html.is-cover label {
+      font-size: 1.2vh !important;
+      min-width: 6vh !important;
+    }
+
+    /* 테이블 데이터 및 성과 내부 지표(소제목+값) 폰트 크기 전면 확대 및 통일 (1.4vh) */
+    html.is-cover .data-table th,
+    html.is-cover .data-table td,
+    html.is-cover .metric-value,
+    html.is-cover .metric-label,
+    html.is-cover .tier-footer div,
+    html.is-cover #layoutModeText,
+    html.is-cover .user-id-box,
+    html.is-cover .auto-save-label {
+      font-size: 1.4vh !important;
+      line-height: 1.1 !important;
+    }
+
+    /* 성과(panel-stats) 내부 지표 간격 최적화 */
+    html.is-cover .grid-metrics {
+      gap: 0.5vh !important;
+      padding: 0.2vh 0 !important;
+    }
+
+    html.is-cover .input-group input,
+    html.is-cover .input-group select,
+    html.is-cover input,
+    html.is-cover select {
+      height: 3vh !important;
+      font-size: 1.3vh !important;
+      border-radius: 0.4vh !important;
+      padding: 0 0.4vh !important;
+    }
+
+    /* 성과 내부 지표 폰트 크기 통일 (1.4vh = 테이블 데이터와 동일) */
+    html.is-cover .metric-value,
+    html.is-cover .metric-label {
+      font-size: 1.4vh !important;
+      line-height: 1.1 !important;
+    }
+
+    /* 2열(is-cover) 주문표 확장: 월별성과만 숨기고 주문표가 아래로 확장 */
+    html.is-cover .dashboard-grid.order-expanded .panel-monthly {
+      display: none !important;
+    }
+    html.is-cover .dashboard-grid.order-expanded {
+      grid-template-areas:
+        "order settings"
+        "order stats"
+        "chart chart" !important;
+    }
+
+    /* 헤더 측면 지표 (수익률, 현재 MDD) 1단계 확대 (1.2vh) */
+    html.is-cover #statsQuickStats,
+    html.is-cover #statsQuickStats *,
+    html.is-cover .panel-header-stats,
+    html.is-cover .panel-header-stats * {
+      font-size: 1.2vh !important;
+      font-weight: 800 !important;
+      opacity: 1 !important;
+    }
+
+
+    /* 2열(is-cover) 모드에서 월별성과의 '총자산' 열만 숨기고 수익률은 유지 */
+    html.is-cover .panel-monthly .data-table th:nth-child(2),
+    html.is-cover .panel-monthly .data-table td:nth-child(2) {
+      display: none !important;
+    }
+
+    html.is-cover .data-table {
+      border-spacing: 0 1px !important;
+    }
+
+    html.is-cover .data-table th,
+    html.is-cover .data-table td {
+      padding: 0.3vh !important;
+    }
+
+    /* metric-label: is-cover에서도 1.4vh 유지 (덩어쓰기 제거) */
+
+    html.is-cover .user-id-box {
+      padding: 0.2vh !important;
+      border-radius: 0.4vh !important;
+    }
+
+    html.is-cover .auto-save-label {
+      font-size: 1.2vh !important;
+    }
+
+    html.is-cover .switch {
+      width: 3.2vh !important;
+      height: 1.6vh !important;
+    }
+
+    html.is-cover .slider:before {
+      height: 1.2vh !important;
+      width: 1.2vh !important;
+      left: 0.2vh !important;
+      bottom: 0.2vh !important;
+    }
+
+    /* 2열(is-cover) 주문표 확장: 월별성과 숨기고 주문표가 그 자리 + 아래까지 차지 */
+    html.is-cover .dashboard-grid.order-expanded {
+      grid-template-rows: 1fr 1fr 40fr !important;
+      grid-template-areas:
+        "order order"
+        "order order"
+        "chart chart" !important;
+    }
+
+    /* 스위치 슬라이더 이동 */
+    html.is-cover .switch input:checked + .slider:before {
+      transform: translateX(1.4vh) !important;
+      -webkit-transform: translateX(1.4vh) !important;
+    }
+  </style>

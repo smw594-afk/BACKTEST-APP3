@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html id="docHtml">
+
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2103/2103633.png">
+  <title>V-TOTAL MASTER2</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" defer></script>
+</head>
+
+<body>
+
+  <div id="loginScreen" class="login-container hidden">
+    <div class="login-title">📊 V-TOTAL MASTER2</div>
+    <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
+    <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
+    <input type="password" id="loginPw" class="login-input" placeholder="비밀번호 입력"
+      onkeypress="if(event.key==='Enter') handleLogin()">
+    <button id="loginBtn" onclick="handleLogin()" class="login-btn">로그인</button>
+  </div>
+
+  <div class="dashboard-grid hidden" id="mainGrid">
+    <div class="card panel-settings">
+      <div class="switch-container">
+        <div class="user-id-box" id="userDisplay" onclick="confirmLogout()" title="클릭하여 로그아웃">⚪ 로딩중...</div>
+        <div style="display:flex; align-items:center;">
+          <span class="auto-save-label">자동</span>
+          <label class="switch"><input type="checkbox" id="autoToggle"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <button id="btnInstant" class="btn-action btn-instant" onclick="handleInstantOrder()"><span id="icoInstant"
+          class="status-icon">⚡</span> 퉁치기 주문표</button>
+      <button id="btnPerf" class="btn-action btn-perf" onclick="handlePerformance()"><span id="icoPerf"
+          class="status-icon">📈</span> 내 성과분석</button>
+      
+      <div style="display:flex; gap:4px; margin-bottom:6px;">
+        <button id="runBtn" class="btn-action btn-run" onclick="runEngine()" style="flex:1; margin-bottom:0;">
+          <span id="icoRun" class="status-icon">🚀</span> 실행
+        </button>
+        <button id="layoutToggleBtnSide" class="btn-action btn-save" onclick="toggleLayoutMode()" style="width:14%; margin-bottom:0; font-size:10px; padding: 0 1px;">
+          <span id="layoutModeText">AUTO</span>
+        </button>
+      </div>
+
+      <div style="display:flex; gap:4px; margin-bottom:6px; flex-shrink:0;">
+        <button id="btnToggleSettings" class="btn-action btn-adv" onclick="toggleSettings()"
+          style="margin-bottom:0; flex:1;">⚙️ 설정 (열기)</button>
+        <button id="btnSaveTop" class="btn-action btn-save" onclick="handleSave()"
+          style="margin-bottom:0; width:14%; font-size:11px; padding: 0 1px;">적용</button>
+      </div>
+
+      <div id="alwaysVisibleInputs" style="margin-top:4px;">
+        <div class="input-group"><label>티커</label><input type="text" id="ticker"></div>
+        <div class="input-group"><label>시작일</label><input type="date" id="startDate"></div>
+        <div class="input-group"><label>종료일</label><input type="date" id="endDate"></div>
+        <div class="input-group"><label>초기자산($)</label><input type="number" id="initialCash"></div>
+        <div class="input-group"><label>갱신금($)</label><input type="number" id="renewCash"></div>
+      </div>
+
+      <div id="settingsWrapper" style="display:none;">
+        <div id="extraInputs"></div>
+        <button class="btn-action btn-mode" onclick="toggleAdvanced()" style="margin-top:8px;">🛠️ 고급 설정
+          (조건/티어/분할)</button>
+        <div id="advancedSettings" style="display:none; overflow-x:hidden;">
+          <div id="advancedExtraInputs"
+            style="margin-top:4px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed #cbd5e1;"></div>
+          <div id="modeInputs"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card panel-order" id="panelOrder">
+      <div class="section-header">
+        <h2 id="orderTitle" style="margin:0; color:var(--primary);" onclick="toggleOrderView()" title="클릭하여 주문/보유 전환">⚡ 주문표</h2>
+        <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+          <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub" title="주문표 세로 확장">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="orderView" style="display:block;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>구분</th>
+              <th>방식</th>
+              <th>가격</th>
+              <th>수량</th>
+            </tr>
+          </thead>
+          <tbody id="orderBody">
+            <tr>
+              <td colspan="4" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="holdingsView" style="display:none;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th title="Tier">T</th>
+              <th title="Model">M</th>
+              <th title="Buy Price">B</th>
+              <th title="Sell Price" class="hide-on-cover">S</th>
+              <th title="Quantity">Q</th>
+              <th title="Hold Limit">H</th>
+            </tr>
+          </thead>
+          <tbody id="holdingsBody">
+            <tr>
+              <td colspan="6" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tier-footer" id="tierFooter" style="display:none; justify-content: center; gap:10px; padding: 6px 0;">
+        <div>T: <span id="tierCountVal" style="color:var(--success);">-</span></div>
+        <div>M: <span id="modeCountVal" style="color:var(--success);">-</span></div>
+        <div>W: <span id="weightCountVal" style="color:var(--success);">-</span>%</div>
+        <div>Q: <span id="qtyCountVal" style="color:var(--success);">-</span></div>
+      </div>
+    </div>
+
+    <div class="card panel-stats" id="panelStats">
+      <div class="section-header">
+        <h2 id="statsTitle" style="flex-shrink:0;">📊 성과</h2>
+        <div id="statsQuickStats" class="panel-header-stats" style="margin-left:auto;"></div>
+      </div>
+      <div class="grid-metrics" id="statsGrid">
+        <div style="grid-column: 1 / -1; text-align: center; color: #94a3b8; padding-top: 10px;">데이터 대기 중...</div>
+      </div>
+    </div>
+
+    <div class="card panel-monthly" id="panelMonthly">
+      <div class="section-header">
+        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별 전환">📅 월별 성과</h2>
+        <div id="monthlyQuickStats" class="panel-header-stats"></div>
+      </div>
+      <div id="periodView" style="display:block; overflow-y: auto; flex: 1; min-height: 0;">
+        <table class="data-table">
+          <thead>
+            <tr id="periodTableHead">
+              <th>년/월</th>
+              <th class="hide-on-narrow">총자산</th>
+              <th>수익률</th>
+              <th>수익금</th>
+              <th class="hide-on-cover">MDD</th>
+            </tr>
+          </thead>
+          <tbody id="periodBody">
+            <tr>
+              <td colspan="5" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card panel-chart">
+      <div class="chart-container" id="chartBox"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
