@@ -1,4 +1,15 @@
-:root {
+* {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      background: #020617;
+      overscroll-behavior: none;
+    }
+
+    :root {
       --primary: #6366f1;
       --primary-glow: rgba(99, 102, 241, 0.4);
       --secondary: #a855f7;
@@ -40,24 +51,233 @@
       }
     }
 
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: minmax(210px, 230px) minmax(300px, 1fr) minmax(210px, 240px);
-      grid-template-rows: 440px minmax(0, 1fr);
-      grid-template-areas:
-        "order monthly settings"
-        "stats chart chart";
-      gap: 8px;
-      width: 100%;
-      height: calc(100vh - 16px);
-      animation: fadeIn 0.6s ease-out;
-      transition: all 0.2s ease;
+    /* 🔴 [v2.42 수정] 모든 추가 애니메이션 제거 (기존 방식으로 복구) */
+    .view-transition {
+      /* 효과 없음 */
     }
 
-    .dashboard-grid.hide-order-panel {
-      grid-template-areas:
-        "monthly monthly settings"
-        "stats chart chart";
+    .grabbing {
+      cursor: grabbing !important;
+      transition: none !important;
+      /* 드래그 중에는 애니메이션 끔 */
+    }
+
+    .snap-back {
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    }
+
+    .data-table,
+    .data-table *,
+    .card,
+    .slim-scroll,
+    #orderScroll1,
+    #orderScroll2,
+    #orderScroll3,
+    #monthlySlot1,
+    #monthlySlot2,
+    #monthlySlot3 {
+      touch-action: pan-x pan-y;
+      overscroll-behavior: none;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: 1.5fr 1fr 1.5fr;
+      grid-template-areas: "order" "monthly" "chart";
+      gap: 8px;
+      width: 100%;
+      height: calc(100vh - 48px);
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    .dashboard-grid.hide-order-panel .panel-order {
+      display: none !important;
+    }
+
+    .dashboard-grid.perf-metrics-layout {
+      grid-template-areas: "stats" "monthly" "chart";
+    }
+
+    .dashboard-grid.perf-metrics-layout .panel-order {
+      display: none !important;
+    }
+
+    .dashboard-grid.perf-metrics-layout .panel-stats {
+      display: flex !important;
+      grid-area: stats;
+    }
+
+    .dashboard-grid.order-expanded {
+      grid-template-areas: "order" "order" "chart";
+    }
+
+    .dashboard-grid.monthly-expanded {
+      grid-template-areas: "order" "monthly" "chart";
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 36px;
+      background: rgba(30, 41, 59, 0.5);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0 16px;
+      margin-bottom: 4px;
+      border-radius: 12px;
+    }
+
+    .top-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .led-lamp {
+      width: 10px;
+      height: 10px;
+      background: #475569;
+      border-radius: 50%;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s;
+      flex-shrink: 0;
+      display: block;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .led-on {
+      background: #10b981 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.5);
+    }
+
+    .led-loading {
+      background: #f59e0b !important;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.5);
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .top-icon-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 18px;
+      padding: 5px 8px;
+      gap: 5px;
+      font-family: inherit;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .top-icon-btn .btn-text {
+      font-size: 12px;
+    }
+
+    .top-icon-btn:hover {
+      color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .top-icon-btn.active {
+      color: var(--primary);
+      filter: drop-shadow(0 0 8px var(--primary-glow));
+    }
+
+    .settings-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(2, 6, 23, 0.8);
+      backdrop-filter: blur(15px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.3s forwards;
+    }
+
+    .settings-modal {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .settings-modal h3 {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      color: var(--primary);
+      text-align: center;
+    }
+
+    .dashboard-grid:not(.force-2-col):not(.is-cover) .panel-order h2,
+    .dashboard-grid:not(.force-2-col):not(.is-cover) .panel-monthly h2,
+    .dashboard-grid.force-3-col .panel-order h2,
+    .dashboard-grid.force-3-col .panel-monthly h2 {
+      font-size: 14px !important;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+
+    .dashboard-grid:not(.force-2-col):not(.is-cover) .data-table th,
+    .dashboard-grid:not(.force-2-col):not(.is-cover) .metric-label,
+    .dashboard-grid.force-3-col .data-table th,
+    .dashboard-grid.force-3-col .metric-label {
+      font-size: 11px !important;
+    }
+
+    .dashboard-grid:not(.force-2-col):not(.is-cover) .data-table td,
+    .dashboard-grid:not(.force-2-col):not(.is-cover) .metric-value,
+    .dashboard-grid.force-3-col .data-table td,
+    .dashboard-grid.force-3-col .metric-value {
+      font-size: 11px !important;
+    }
+
+    .sub-actions-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    html.is-cover .sub-actions-container,
+    .dashboard-grid.force-2-col .sub-actions-container {
+      flex-direction: row;
+    }
+
+    html.is-cover .sub-actions-container button,
+    .dashboard-grid.force-2-col .sub-actions-container button {
+      flex: 1;
+      margin-bottom: 0 !important;
+    }
+
+    html.is-cover .panel-order h2,
+    html.is-cover .panel-monthly h2,
+    .dashboard-grid.force-2-col .panel-order h2,
+    .dashboard-grid.force-2-col .panel-monthly h2 {
+      font-size: 12px !important;
     }
 
     .hidden {
@@ -76,16 +296,26 @@
       overflow: hidden;
       min-width: 0;
       min-height: 0;
+      height: 100%;
+    }
+
+    .panel-settings,
+    #alwaysVisibleInputs {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .panel-settings>* {
+      margin: 0 !important;
     }
 
     .panel-order {
       grid-area: order;
-      overflow-y: auto;
     }
 
     .panel-monthly {
       grid-area: monthly;
-      overflow-y: auto;
     }
 
     .panel-settings {
@@ -102,7 +332,13 @@
       grid-area: chart;
       border: 1px solid rgba(99, 102, 241, 0.2);
       position: relative;
-      padding: 0 !important;
+    }
+
+    #chartBox {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      position: relative;
     }
 
     .btn-action {
@@ -112,7 +348,7 @@
       border-radius: 6px;
       font-weight: 700;
       cursor: pointer;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -144,10 +380,6 @@
 
     .btn-adv {
       background: rgba(51, 65, 85, 0.8);
-    }
-
-    .btn-mode {
-      background: linear-gradient(135deg, #6366f1, #a855f7);
     }
 
     .btn-action:hover {
@@ -198,7 +430,6 @@
       box-shadow: 0 0 0 3px var(--primary-glow);
     }
 
-    /* 날짜 입력창 가운데 정렬을 위한 특수 CSS */
     input[type="date"]::-webkit-datetime-edit,
     input[type="date"]::-webkit-datetime-edit-fields-wrapper {
       display: flex;
@@ -209,25 +440,34 @@
     .data-table {
       width: 100%;
       border-collapse: separate;
-      border-spacing: 0 4px;
-      font-size: 11px;
+      border-spacing: 0 1px;
     }
 
     .data-table th {
       color: var(--text-muted);
-      font-size: 11px;
+      font-size: 11px !important;
       font-weight: 700;
-      padding: 8px 2px;
+      padding: 1px 0.5px;
       text-align: center;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: -0.1px;
+    }
+
+    .slot-title {
+      text-align: center;
+      padding: 4px 0;
+      font-weight: bold;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     .data-table td {
       background: rgba(255, 255, 255, 0.04);
-      padding: 8px 2px;
+      padding: 2px 0.5px;
       text-align: center;
-      border-top: 1px solid rgba(255, 255, 255, 0.03);
+      border-top: 1px solid rgba(255, 255, 255, 0.02);
+      font-size: 11px !important;
+      line-height: 1;
     }
 
     .data-table tr:hover td {
@@ -235,11 +475,11 @@
     }
 
     .data-table tr td:first-child {
-      border-radius: 10px 0 0 10px;
+      border-radius: 3px 0 0 3px;
     }
 
     .data-table tr td:last-child {
-      border-radius: 0 10px 10px 0;
+      border-radius: 0 3px 3px 0;
     }
 
     .section-header {
@@ -271,22 +511,15 @@
       justify-content: center;
       transition: all 0.2s;
     }
+
     .btn-icon-sub:hover {
       color: var(--primary);
       transform: scale(1.1);
     }
+
     .btn-icon-sub.active {
       color: var(--primary);
       filter: drop-shadow(0 0 8px var(--primary-glow));
-    }
-
-    .header-qty-tag {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 0;
     }
 
     .metric-card {
@@ -298,43 +531,28 @@
       align-items: center;
       justify-content: center;
       border: 1px solid rgba(255, 255, 255, 0.03);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.2s;
     }
+
     .metric-card:hover {
       background: rgba(255, 255, 255, 0.08);
       transform: translateY(-1px);
     }
+
     .metric-label {
-      color: var(--text-muted);
-      font-size: 10px;
-      font-weight: 700;
-      margin-bottom: 1px;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      line-height: 1.1;
-    }
-    .metric-value {
       color: #fff;
       font-size: 11px;
-      font-weight: 800;
-      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      line-height: 1.1;
     }
 
-    .btn-layout-toggle {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: var(--text-muted);
-      font-size: 10px;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-left: 8px;
-    }
-    .btn-layout-toggle:hover {
-      background: rgba(255, 255, 255, 0.12);
+    .metric-value {
       color: #fff;
+      font-size: 10px;
+      font-weight: 400;
     }
 
     h2 {
@@ -343,8 +561,6 @@
       font-weight: 700;
       color: var(--primary);
       margin: 0;
-      background: none;
-      -webkit-text-fill-color: initial;
       cursor: pointer;
       transition: opacity 0.2s;
     }
@@ -357,13 +573,11 @@
       background: rgba(99, 102, 241, 0.05);
       border: 1px solid rgba(99, 102, 241, 0.15);
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       padding: 0 10px;
       border-radius: 10px;
-      margin-bottom: 6px;
-      height: 32px;
-      backdrop-filter: blur(8px);
+      height: 38px;
       flex-shrink: 0;
     }
 
@@ -374,86 +588,40 @@
       font-weight: 700;
       color: var(--primary);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 16px;
     }
 
     .user-id-box:hover {
       filter: brightness(1.2);
     }
 
-    .auto-save-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--primary);
-      margin-right: 6px;
-    }
-
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 30px;
-      height: 16px;
-    }
-
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    html {
-      height: 100%;
-      -webkit-text-size-adjust: 100%;
-      -moz-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-    }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
+    .login-container {
+      position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: #334155;
-      transition: .4s;
-      border-radius: 34px;
+      background: radial-gradient(circle at top right, #1e1b4b, #020617 60%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      padding: 20px;
+      box-sizing: border-box;
+      animation: fadeIn 0.8s ease-out;
     }
 
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 12px;
-      width: 12px;
-      left: 2px;
-      bottom: 2px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    }
-
-    input:checked+.slider {
-      background-color: var(--success);
-      box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
-    }
-
-    input:checked+.slider:before {
-      transform: translateX(18px);
-    }
-
-    .login-container {
+    .login-container .login-inner {
       background: var(--card);
       padding: 50px;
       border-radius: 32px;
       width: 100%;
       max-width: 400px;
-      margin: 12vh auto;
       backdrop-filter: blur(30px);
       border: 1px solid var(--card-border);
       text-align: center;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-      animation: fadeIn 0.8s ease-out;
     }
 
     .login-title {
@@ -480,10 +648,6 @@
       outline: none;
     }
 
-    .login-input:focus {
-      border-color: var(--primary);
-    }
-
     .login-btn {
       width: 100%;
       padding: 16px;
@@ -495,11 +659,6 @@
       cursor: pointer;
       font-size: 15px;
       transition: all 0.3s;
-    }
-
-    .login-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.5);
     }
 
     .val-plus {
@@ -522,50 +681,6 @@
       font-weight: 700;
     }
 
-    #settingsWrapper {
-      display: flex;
-      flex-direction: column;
-      margin-top: 4px;
-      padding-top: 4px;
-      border-top: 1px dashed rgba(255, 255, 255, 0.1);
-    }
-
-    .mode-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-      margin-top: 4px;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .mode-table th {
-      background: rgba(255, 255, 255, 0.07);
-      color: var(--text-muted);
-      padding: 8px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .mode-table td {
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 6px;
-    }
-
-    .mode-table input {
-      width: 100%;
-      background: transparent;
-      border: none;
-      text-align: center;
-      color: white;
-      padding: 4px;
-      border-radius: 6px;
-    }
-
-    .mode-table input:focus {
-      background: rgba(255, 255, 255, 0.05);
-    }
-
     .chart-container {
       position: absolute;
       left: 0;
@@ -574,47 +689,21 @@
       bottom: 0;
     }
 
-    .chart-title-floating {
-      position: absolute;
-      top: 10px;
-      left: 12px;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--primary);
-      font-family: 'Outfit', sans-serif;
-      letter-spacing: 0.5px;
-      z-index: 10;
-      pointer-events: none;
-      text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    }
-
-    .btn-toggle {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--card-border);
-      color: var(--text);
-      padding: 4px 12px;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .btn-toggle:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
     ::-webkit-scrollbar {
       width: 5px;
+      height: 16px;
+      /* 터치 영역 넉넉하게 확보 */
     }
 
     ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.25);
       border-radius: 10px;
+      border: 5px solid transparent;
+      background-clip: padding-box;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     ::-webkit-scrollbar-track {
@@ -635,6 +724,7 @@
 
     .tier-footer {
       margin-top: auto;
+      /* 상단 여백을 자동으로 밀어내서 최하단에 고정 */
       padding-top: 4px;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
       text-align: center;
@@ -644,249 +734,266 @@
       justify-content: center;
       gap: 12px;
       color: var(--text-muted);
+      flex-shrink: 0;
+      /* 스크롤바가 생겨도 푸터 영역이 찌그러지지 않게 보호 */
     }
 
     .tier-footer span {
       color: #fff;
     }
 
-    .btn-action {
-      padding: 9px !important;
-      margin-bottom: 6px !important;
-    }
-
-    .input-group {
-      margin-bottom: 4px !important;
-    }
-
-    input,
-    select {
-      text-align: center;
-    }
-
-    .seed-input {
-      max-width: 40px !important;
-    }
-
-    @media (max-width: 1024px) {
+    @media (max-width: 500px) {
       .dashboard-grid {
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr);
-        grid-template-areas: "order settings" "monthly stats" "chart chart";
+        grid-template-columns: 1fr;
+        grid-template-rows: 1.5fr 1fr 1.5fr;
+        grid-template-areas: "order" "monthly" "chart";
       }
 
       .dashboard-grid.order-expanded {
-        grid-template-areas: "order settings" "order stats" "chart chart" !important;
+        grid-template-areas: "order" "order" "chart" !important;
       }
 
       .dashboard-grid.hide-order-panel {
-        grid-template-areas: "monthly settings" "stats stats" "chart chart";
+        grid-template-areas: "monthly" "monthly" "chart";
+      }
+
+      .panel-stats {
+        display: none !important;
       }
     }
 
-    /* 수동 레이아웃 강제 모드 */
     .dashboard-grid.force-3-col {
       grid-template-columns: minmax(210px, 230px) minmax(300px, 1fr) minmax(210px, 240px) !important;
-      grid-template-rows: 380px minmax(0, 1fr) !important;
-      grid-template-areas: "order stats settings" "monthly chart chart" !important;
-      height: calc(100vh - 8px) !important;
+      grid-template-rows: 1fr 1fr !important;
+      grid-template-areas: "order monthly settings" "chart chart chart" !important;
+      height: calc(100vh - 16px) !important;
     }
+
     .dashboard-grid.force-2-col {
       grid-template-columns: 1fr 1fr !important;
       grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr) !important;
-      grid-template-areas: "order settings" "monthly stats" "chart chart" !important;
+      grid-template-areas: "order settings" "monthly monthly" "chart chart" !important;
       height: auto !important;
     }
 
     html.is-cover .dashboard-grid {
       display: grid !important;
-      grid-template-columns: 50% 50% !important;
-      grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr) !important;
-      grid-template-areas: "order settings" "monthly stats" "chart chart" !important;
-      gap: 1vh !important;
-      height: calc(100vh - 2vh) !important;
-      min-height: 0 !important;
+      grid-template-columns: 1fr !important;
+      grid-template-rows: 1.5fr 1fr 1.5fr !important;
+      grid-template-areas: "order" "monthly" "chart" !important;
+      gap: 5px !important;
+      height: calc(100vh - 65px) !important;
+      overflow-y: auto !important;
+      max-width: 500px !important;
+      margin: 0 auto !important;
     }
 
-    html.is-cover .dashboard-grid.hide-order-panel {
-      grid-template-areas: "monthly settings" "stats stats" "chart chart" !important;
+    html.is-cover .top-bar {
+      padding: 0 8px !important;
+      height: 38px !important;
+      font-size: 11px !important;
+      margin-bottom: 5px !important;
     }
 
-    /* 폴드 내부/데스크톱 UI의 높이 비율을 유지하며 가로만 압축한 커버 모드 */
-    html.is-cover .dashboard-grid {
-      grid-template-columns: 1fr 1fr !important;
-      grid-template-rows: minmax(0, 36fr) minmax(0, 32fr) minmax(0, 32fr) !important;
-      gap: 0.3vh !important;
-      padding: 0.2vh !important;
-      height: calc(100vh - 0.4vh) !important;
+    html.is-cover .top-bar .btn-text {
+      display: none !important;
     }
 
     html.is-cover .card {
-      padding: 0.5vh 0.4vh !important;
-      border-radius: 0.5vh !important;
+      padding: 8px !important;
+      border-radius: 12px !important;
     }
 
-    /* 카드 제목 폰트 적정화 (1.8vh -> 1.6vh) */
-    html.is-cover h2 {
-      font-size: 1.6vh !important;
-      margin-bottom: 0.1vh !important;
+    html.is-cover .dashboard-grid.order-expanded {
+      grid-template-areas: "order" "order" "chart" !important;
+      grid-template-rows: 1fr 1.5fr 1.5fr !important;
     }
 
-    /* 모든 버튼 높이 및 폰트 크기 강제 통일 (높이 3.8vh) */
-    html.is-cover button,
-    html.is-cover .btn-action,
-    html.is-cover .btn-adv,
-    html.is-cover .btn-save,
-    html.is-cover .btn-icon-sub,
-    html.is-cover .btn-perf,
-    html.is-cover .login-btn,
-    html.is-cover .btn-mode,
-    html.is-cover .btn-run,
-    html.is-cover .btn-instant {
-      height: 3.8vh !important;
-      min-height: 3.8vh !important;
-      max-height: 3.8vh !important;
-      font-size: 1.4vh !important;
-      border-radius: 0.4vh !important;
-      margin-bottom: 0.2vh !important;
-      padding: 0 0.5vh !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      line-height: 1 !important;
-      width: 100% !important; /* 기본 width 100% */
-      letter-spacing: -0.02em !important;
-    }
-
-    /* 특수한 가로 배치 버튼들 */
-    html.is-cover #layoutToggleBtnSide,
-    html.is-cover #btnSaveTop,
-    html.is-cover #btnToggleSettings,
-    html.is-cover #runBtn {
-      width: auto !important;
-      flex: 1 !important;
-      margin-bottom: 0 !important;
-    }
-
-    html.is-cover .input-group {
-      margin-bottom: 0.2vh !important;
-      gap: 0.2vh !important;
-    }
-
-    html.is-cover .input-group label,
-    html.is-cover label {
-      font-size: 1.2vh !important;
-      min-width: 6vh !important;
-    }
-
-    /* 테이블 데이터 및 성과 내부 지표(소제목+값) 폰트 크기 전면 확대 및 통일 (1.4vh) */
-    html.is-cover .data-table th,
-    html.is-cover .data-table td,
-    html.is-cover .metric-value,
-    html.is-cover .metric-label,
-    html.is-cover .tier-footer div,
-    html.is-cover #layoutModeText,
-    html.is-cover .user-id-box,
-    html.is-cover .auto-save-label {
-      font-size: 1.4vh !important;
-      line-height: 1.1 !important;
-    }
-
-    /* 성과(panel-stats) 내부 지표 간격 최적화 */
-    html.is-cover .grid-metrics {
-      gap: 0.5vh !important;
-      padding: 0.2vh 0 !important;
-    }
-
-    html.is-cover .input-group input,
-    html.is-cover .input-group select,
-    html.is-cover input,
-    html.is-cover select {
-      height: 3vh !important;
-      font-size: 1.3vh !important;
-      border-radius: 0.4vh !important;
-      padding: 0 0.4vh !important;
-    }
-
-    /* 성과 내부 지표 폰트 크기 통일 (1.4vh = 테이블 데이터와 동일) */
-    html.is-cover .metric-value,
-    html.is-cover .metric-label {
-      font-size: 1.4vh !important;
-      line-height: 1.1 !important;
-    }
-
-    /* 2열(is-cover) 주문표 확장: 월별성과만 숨기고 주문표가 아래로 확장 */
     html.is-cover .dashboard-grid.order-expanded .panel-monthly {
       display: none !important;
     }
-    html.is-cover .dashboard-grid.order-expanded {
-      grid-template-areas:
-        "order settings"
-        "order stats"
-        "chart chart" !important;
-    }
 
-    /* 헤더 측면 지표 (수익률, 현재 MDD) 1단계 확대 (1.2vh) */
-    html.is-cover #statsQuickStats,
-    html.is-cover #statsQuickStats *,
-    html.is-cover .panel-header-stats,
-    html.is-cover .panel-header-stats * {
-      font-size: 1.2vh !important;
-      font-weight: 800 !important;
-      opacity: 1 !important;
-    }
-
-
-    /* 2열(is-cover) 모드에서 월별성과의 '총자산' 열만 숨기고 수익률은 유지 */
-    html.is-cover .panel-monthly .data-table th:nth-child(2),
-    html.is-cover .panel-monthly .data-table td:nth-child(2) {
+    html.is-cover #monthlySlot1 .data-table th:nth-child(2),
+    html.is-cover #monthlySlot1 .data-table td:nth-child(2) {
       display: none !important;
     }
 
+    #monthlySlot2 .data-table th:first-child,
+    #monthlySlot2 .data-table td:first-child {
+      display: none;
+    }
+
+    @media (max-width: 1200px) {
+      .panel-monthly.dual-active .hide-on-narrow {
+        display: none;
+      }
+    }
+
     html.is-cover .data-table {
-      border-spacing: 0 1px !important;
+      border-spacing: 0 0px !important;
     }
 
     html.is-cover .data-table th,
     html.is-cover .data-table td {
-      padding: 0.3vh !important;
+      font-size: 11px !important;
+      padding: 2px 0.5px !important;
     }
 
-    /* metric-label: is-cover에서도 1.4vh 유지 (덩어쓰기 제거) */
-
-    html.is-cover .user-id-box {
-      padding: 0.2vh !important;
-      border-radius: 0.4vh !important;
+    html.is-cover .dashboard-grid.perf-metrics-layout {
+      grid-template-areas: "stats" "monthly" "chart" !important;
+      grid-template-rows: 1.5fr 1fr 1.5fr !important;
     }
 
+    html.is-cover .dashboard-grid.perf-metrics-layout .panel-stats {
+      display: flex !important;
+    }
+
+    html.is-cover .dashboard-grid.perf-metrics-layout .panel-order {
+      display: none !important;
+    }
+
+    html.is-cover .panel-stats {
+      display: none;
+    }
+
+    html.is-cover .panel-settings label {
+      width: 48px !important;
+      font-size: 10px !important;
+    }
+
+    html.is-cover .panel-settings input,
+    html.is-cover .panel-settings select {
+      font-size: 10px !important;
+      padding: 1px 2px !important;
+    }
+
+    html.is-cover .panel-settings .btn-action {
+      font-size: 11px !important;
+      padding: 0 4px !important;
+    }
+
+    html.is-cover .user-id-box,
     html.is-cover .auto-save-label {
-      font-size: 1.2vh !important;
+      font-size: 14px !important;
     }
 
-    html.is-cover .switch {
-      width: 3.2vh !important;
-      height: 1.6vh !important;
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      pointer-events: none;
     }
 
-    html.is-cover .slider:before {
-      height: 1.2vh !important;
-      width: 1.2vh !important;
-      left: 0.2vh !important;
-      bottom: 0.2vh !important;
+    .toast {
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--primary);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 99px;
+      margin-bottom: 10px;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.5);
+      animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 2s forwards;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    /* 2열(is-cover) 주문표 확장: 월별성과 숨기고 주문표가 그 자리 + 아래까지 차지 */
-    html.is-cover .dashboard-grid.order-expanded {
-      grid-template-rows: 1fr 1fr 40fr !important;
-      grid-template-areas:
-        "order order"
-        "order order"
-        "chart chart" !important;
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
-    /* 스위치 슬라이더 이동 */
-    html.is-cover .switch input:checked + .slider:before {
-      transform: translateX(1.4vh) !important;
-      -webkit-transform: translateX(1.4vh) !important;
+    @keyframes toastOut {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      to {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
     }
-  </style>
+
+    @keyframes icon-rotate {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.4) rotate(15deg);
+      }
+
+      100% {
+        transform: scale(1) rotate(0);
+      }
+    }
+
+    .icon-rotate {
+      animation: icon-rotate 0.6s ease-out;
+      display: inline-block;
+    }
+
+    /* 고급 투명 스크롤바 */
+    .slim-scroll::-webkit-scrollbar {
+      height: 12px;
+      width: 4px;
+    }
+
+    .slim-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .slim-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+
+    .slim-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .slim-scroll {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+    }
+
+    /* 📊 월별/연별 성과 차트 전용 스타일 추가 */
+    #periodChartContainer {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 200px; /* 최소 높이 확보 */
+      padding: 10px 0;
+    }
+
+    #periodBarChartWrapper {
+      flex: 1;
+      width: 100%;
+      height: 100% !important;
+      position: relative;
+    }
+
+    #periodBarChart {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* 반응형 레이아웃 보정 */
+    @media (max-width: 500px) {
+      #periodChartContainer {
+        min-height: 180px;
+      }
+    }
