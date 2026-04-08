@@ -146,14 +146,18 @@ function showOrderView() {
 
 function shouldAutoRefresh() {
   if (!myUserId) return false;
+  
   const now = new Date();
-  const kst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-  const kstDateStr = kst.getFullYear() + '-' + (kst.getMonth() + 1) + '-' + kst.getDate();
-  const kstHour = kst.getHours();
-  const kstMin = kst.getMinutes();
-  const lastDate = localStorage.getItem('vtotal_last_auto_kst_' + myUserId);
-  if (kstHour > 6 || (kstHour === 6 && kstMin >= 30)) {
-    if (lastDate !== kstDateStr) return true;
+  const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+  const nyDateStr = formatDateNY(now); 
+  const lastDate = localStorage.getItem('vtotal_last_auto_ny_' + myUserId);
+
+  // ⭐️ 뉴욕 시간 오후 5시(17시) 이후에만 갱신 발동! (서머타임 시 한국 아침 6시, 해제 시 아침 7시)
+  if (nyHour >= 17) {
+    if (lastDate !== nyDateStr) {
+      localStorage.setItem('vtotal_last_auto_ny_' + myUserId, nyDateStr);
+      return true;
+    }
   }
   return false;
 }
@@ -552,21 +556,26 @@ async function checkAndSyncWithServer(isInitial) {
         const realData = processRealLogData(perfSlotData, confData.basics.strategy);
 
         if (realData) {
-          // 🛠️ 대망의 퓨전(Merge)! 
-          // 과거 데이터(차트, 월별성과 등)는 시트의 것을 쓰고, 미래 데이터(오늘 주문표)는 엔진의 것을 씁니다!
+          // 🛠️ 대망의 퓨전(Merge) 수정본!
           let mergedSnap = {
-            ...realData,
+            ...realData, // 과거 차트, 월별 성과 등은 시트 원본 유지
+            
+            // ⭐️ [핵심 픽스] 현재 상태(총자산, 예수금, 보유종목, 거래내역)는 무조건 100% 정확한 엔진 값을 씁니다!
+            summary: engineRes ? engineRes.summary : realData.summary,
+            inv: engineRes ? engineRes.inv : realData.inv,
+            trades: engineRes ? engineRes.trades : realData.trades,
+
+            // 미래의 주문표와 상태 역시 엔진 값을 씁니다.
             orders: (engineRes && engineRes.orders && engineRes.orders.length > 0) ? engineRes.orders : realData.orders,
-            nextOrderInfo: (engineRes && engineRes.nextOrderInfo) ? engineRes.nextOrderInfo : null,
-            orderDateStr: (engineRes && engineRes.orderDateStr) ? engineRes.orderDateStr : realData.orderDateStr,
-            dailyStates: (engineRes && engineRes.dailyStates) ? engineRes.dailyStates : []
+            nextOrderInfo: engineRes ? engineRes.nextOrderInfo : null,
+            orderDateStr: engineRes ? engineRes.orderDateStr : realData.orderDateStr,
+            dailyStates: engineRes ? engineRes.dailyStates : realData.dailyStates
           };
 
           if (slotNum === 1) { lastBTResult1 = mergedSnap; lastBTResult = mergedSnap; }
           else if (slotNum === 2) { lastBTResult2 = mergedSnap; }
           else if (slotNum === 3) { lastBTResult3 = mergedSnap; }
 
-          // 화면 지표를 완벽한 퓨전 데이터로 스르륵 교체하고 폰 캐시에 영구 박제!
           updateUIWithResult(mergedSnap, confData, slotNum, false);
         }
       }
@@ -595,18 +604,19 @@ async function checkAndSyncWithServer(isInitial) {
 
 // 🟢 [최종 진화] 시트의 빈 공백(누락된 날짜)만 핀셋으로 골라서 서버로 쏘는 스마트 자동저장
 function checkAndRunAutoSave() {
-  // 1. 각 슬롯별로 시트에 적혀있던 "가장 마지막 날짜"를 꺼내옵니다.
+  // ⭐️ [버그 해결] 마스터님 지적대로, 시간 제한을 아예 없앴습니다!
+  // 야후 데이터 문지기가 이미 확정된 데이터만 넘겨주므로, 언제 켜든 빈칸만 있으면 즉시 저장합니다.
+
   let sheetLastDate1 = localStorage.getItem(`vtotal_sheet_last_date_1_${myUserId}`) || "1900-01-01";
   let sheetLastDate2 = localStorage.getItem(`vtotal_sheet_last_date_2_${myUserId}`) || "1900-01-01";
   let sheetLastDate3 = localStorage.getItem(`vtotal_sheet_last_date_3_${myUserId}`) || "1900-01-01";
 
   let combinedMap = {};
-
-  // 2. 엔진이 다시 계산한 기록(dailyStates) 중, 시트 날짜보다 "큰(최신)" 날짜만 골라냅니다!
   const addStates = (res, slotKey, lastDate) => {
     if (!res || !res.dailyStates) return;
     res.dailyStates.forEach(state => {
-      if (state.date > lastDate) { // ⭐️ 시트에 있는 날짜면 무시, 없으면 장바구니에 담음
+      // 시트의 마지막 날짜보다 최신인 '확정 데이터'만 쏙쏙 골라냅니다.
+      if (state.date > lastDate) {
         if (!combinedMap[state.date]) combinedMap[state.date] = { date: state.date, s1: null, s2: null, s3: null };
         combinedMap[state.date][slotKey] = state;
       }
@@ -617,31 +627,21 @@ function checkAndRunAutoSave() {
   addStates(lastBTResult2, 's2', sheetLastDate2);
   addStates(lastBTResult3, 's3', sheetLastDate3);
 
-  // 날짜순으로 정렬
   let batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
-
-  // 3. 만약 시트가 이미 최신이라 보낼 데이터가 0개라면? 쿨하게 종료! (시간 락 필요 없음)
-  if (batchLogs.length === 0) return;
+  
+  // 저장할 누락분이 없으면 조용히 종료 (시간 락 필요 없음!)
+  if (batchLogs.length === 0) return; 
 
   setLED('loading');
-
-  const payload = {
-    action: "AUTO_DAILY_SAVE",
-    id: myUserId,
-    logs: batchLogs // ⭐️ 2/26부터가 아닌, 누락된 날짜(예: 4/7)만 담겨서 전송됩니다.
-  };
-
-  fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+  fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "AUTO_DAILY_SAVE", id: myUserId, logs: batchLogs }) })
     .then(() => {
-      // ⭐️ 성공적으로 보냈다면, 방금 보낸 날짜를 '시트 마지막 날짜'로 업데이트하여 중복 전송 차단!
       let finalDate = batchLogs[batchLogs.length - 1].date;
       if (batchLogs.some(b => b.s1)) localStorage.setItem(`vtotal_sheet_last_date_1_${myUserId}`, finalDate);
       if (batchLogs.some(b => b.s2)) localStorage.setItem(`vtotal_sheet_last_date_2_${myUserId}`, finalDate);
       if (batchLogs.some(b => b.s3)) localStorage.setItem(`vtotal_sheet_last_date_3_${myUserId}`, finalDate);
-
       setLED('on');
       const header = document.getElementById('userDisplayHeader');
-      if (header) header.innerText = myUserId + " (공백 채우기 완료!)";
+      if (header) header.innerText = myUserId + " (누락 데이터 자동 백업 완료!)";
     })
     .catch(() => { setLED('off'); });
 }
@@ -672,7 +672,17 @@ function triggerOptimisticSave() {
 
 // 💡 [개조 2] 4열 압축 동기화용 통신 함수
 async function handleSave() {
-  if (!confirm("현재 기기의 설정값과 데이터를 시트에 최종본으로 반영하시겠습니까?")) return;
+  const now = new Date();
+  const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+  
+  // ⭐️ [이중 잠금 2] 수동 저장 버튼을 눌렀을 때, 시간대별로 다른 경고를 띄웁니다.
+  if (nyHour < 17) {
+    if (!confirm("🚨 [치명적 경고: 데이터 확정 전!]\n\n아직 종가가 확정되지 않은 시간(NY 17시 이전)입니다.\n지금 시트에 강제로 저장하면 '불완전한 엉터리 데이터'가 영구 보존되어 장부가 꼬일 위험이 매우 높습니다!\n\n정말 강제로 덮어쓰시겠습니까? (절대 권장하지 않음)")) {
+      return; // 취소하면 안전하게 도망갑니다.
+    }
+  } else {
+    if (!confirm("현재 기기의 설정값과 데이터를 시트에 최종본으로 반영하시겠습니까?")) return;
+  }
 
   const btn = document.getElementById('btnSaveTop');
   const orgText = btn.innerHTML;
@@ -684,8 +694,8 @@ async function handleSave() {
   const runAndUI = async (cfg, isActive, slotNum) => {
     if (!isActive) return null;
     const res = await runBacktestMemory(cfg, false, slotNum);
-    if (res && res.status !== "error") updateUIWithResult(res, cfg, slotNum);
-    return res; // 저장용 결과 반환
+    if (res && res.status !== "error") updateUIWithResult(res, cfg, slotNum, false);
+    return res; 
   };
 
   const [res1, res2, res3] = await Promise.all([
@@ -699,7 +709,7 @@ async function handleSave() {
   const current_phone_time = new Date().toLocaleString('sv-SE');
   localStorage.setItem('vtotal_last_sync_time', current_phone_time);
 
-  // 🚀 [마스터 아키텍처] 모든 슬롯의 데이터를 s1, s2, s3 꾸러미에 담아 전송
+  // 🚀 [마스터 아키텍처] 수동 저장 시에도 소수점 쓰레기를 청소하고 보냅니다.
   let payload = {
     action: "BACKUP_AND_SAVE_V4",
     id: myUserId,
@@ -712,9 +722,9 @@ async function handleSave() {
       asset: res1.summary.totalAssets,
       inout: res1.summary.inout,
       json: JSON.stringify({
-        cash: res1.summary.cash,
-        base_principal: res1.summary.base,
-        realizedProfit: res1.summary.realizedProfit,
+        cash: Math.round(res1.summary.cash * 100) / 100,
+        base_principal: Math.round(res1.summary.base * 100) / 100,
+        realizedProfit: Math.round(res1.summary.realizedProfit * 100) / 100,
         holdings: res1.inv
       })
     } : null,
@@ -722,9 +732,9 @@ async function handleSave() {
       asset: res2.summary.totalAssets,
       inout: res2.summary.inout,
       json: JSON.stringify({
-        cash: res2.summary.cash,
-        base_principal: res2.summary.base,
-        realizedProfit: res2.summary.realizedProfit,
+        cash: Math.round(res2.summary.cash * 100) / 100,
+        base_principal: Math.round(res2.summary.base * 100) / 100,
+        realizedProfit: Math.round(res2.summary.realizedProfit * 100) / 100,
         holdings: res2.inv
       })
     } : null,
@@ -732,9 +742,9 @@ async function handleSave() {
       asset: res3.summary.totalAssets,
       inout: res3.summary.inout,
       json: JSON.stringify({
-        cash: res3.summary.cash,
-        base_principal: res3.summary.base,
-        realizedProfit: res3.summary.realizedProfit,
+        cash: Math.round(res3.summary.cash * 100) / 100,
+        base_principal: Math.round(res3.summary.base * 100) / 100,
+        realizedProfit: Math.round(res3.summary.realizedProfit * 100) / 100,
         holdings: res3.inv
       })
     } : null
@@ -932,11 +942,17 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
           }
         }
 
-        const todayNYStr = formatDateNY(new Date()); const nowNYHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date()));
+        const todayNYStr = formatDateNY(new Date()); 
+        const nowNY = new Date();
+        const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));
+
         if (cached.dates.length > 0) {
           const lastDayNY = formatDateNY(new Date(cached.dates[cached.dates.length - 1]));
-          if (lastDayNY === todayNYStr && nowNYHour < 17) {
-            cached.dates.pop(); cached.close.pop(); cached.open.pop();
+          // ⭐️ [수정] 뉴욕 시간 오후 5시(장 마감 1시간 뒤) 전에는 당일 봉 불안정 취급, 5시 정각부터 확정본 인정!
+          if (lastDayNY === todayNYStr) {
+            if (nyHour < 17) {
+              cached.dates.pop(); cached.close.pop(); cached.open.pop();
+            }
           }
         }
         await setDB(cached);
@@ -1040,6 +1056,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
     let cumulativeInOut = 0;
+    let cumulativeRealizedProfit = 0; // ⭐️ [기억 장치 추가] 누적 실현수익이 날아가지 않도록 보존!
     let res = { S: [], BA: [], BF: [], AV: [], dailyStates: [] }; // ⭐️ dailyStates 추가
 
     let activeSlot = slotNum || activeSettingsTab;
@@ -1063,20 +1080,27 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
         cash = snap.summary.cash;
         peak = snap.summary.peak || (res.BA.length > 0 ? Math.max(...res.BA) : initialCash);
+        // ⭐️ [핵심] 이어하기(force=false)일 때 과거 누적 수익금을 불러와서 장착!
+        cumulativeRealizedProfit = snap.summary.realizedProfit || 0; 
+
+        // ⭐️ [스마트 입출금 감지 로직]
+        let oldBase = snap.summary.base || initialCash;
         cumulativeInOut = snap.summary.inout || 0;
 
-        // ⭐️ [마스터님 지적사항 완벽 수정] 갱신금(base) 복원 로직
-        let oldBase = snap.summary.base || initialCash;
+        // 마스터님이 지금까지 이 시스템에 투입한 '순수 원금 총합'을 계산합니다.
+        // (수익/손실로 인한 변동이 전혀 없는 아주 깨끗한 기준점입니다)
+        let pastTotalInjected = initialCash + cumulativeInOut;
 
-        if (basePrincipal > oldBase) {
-          // 1. 마스터님이 설정창에서 갱신금을 '수동으로 증액'한 경우 (Delta 계산)
-          let delta = basePrincipal - oldBase;
-          cash += delta;
-          cumulativeInOut += delta;
-          base = basePrincipal; // 증액된 새 갱신금을 사용
+        // 설정창의 금액(basePrincipal)이 순수 원금 총합보다 크다면? = "진짜 추가 입금!"
+        if (basePrincipal > pastTotalInjected) {
+          let realDeposit = basePrincipal - pastTotalInjected;
+          cash += realDeposit; // 예수금에 진짜 입금액 추가
+          base = oldBase + realDeposit; // 어제까지 굴러가던 갱신금에 입금액만 얹어줌
+          cumulativeInOut += realDeposit; // 누적 입금액 장부에 기록
+          console.log(`💰 실제 추가 입금 감지: $${realDeposit} 반영 완료`);
         } else {
-          // 2. ⭐️ [버그 해결] 일반적인 경우: 시트 꾸러미에 저장된 '복리로 커진 진짜 갱신금(예: 85441.55)'을 그대로 이어서 사용!
-          base = oldBase;
+          // 설정창 금액을 안 건드렸다면? (매매 손실로 갱신금이 깎인 상황 포함)
+          base = oldBase; // 어제 갱신금을 그대로 이어서 복리 계산 진행
         }
 
         startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
@@ -1151,19 +1175,22 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       }
       cash = t2(cash + d_cf);
       let pl_f = t2(d_sell_net - d_buy_cost), compA = 0.0; if (pl_f > 0) { compA = pl_f * compR; base += compA; } else if (pl_f < 0) { compA = pl_f * lossR; base += compA; } base = t2(base);
+      
+      cumulativeRealizedProfit += pl_f; // ⭐️ 매일매일 발생한 수익(손실)을 영구 누적!
+
       let evalVal = inv.reduce((s, p_i) => s + (p_i.qty * close), 0);
       let totalBalance = t2(cash + t2(evalVal)); prev_total = totalBalance; if (totalBalance > peak) peak = totalBalance;
       let currentMdd = peak > 0 ? truncPct5((totalBalance - peak) / peak) : 0;
 
-      // ⭐️ 매일의 장부 상태(JSON용)를 기록
+      // ⭐️ 매일의 장부 상태(JSON용)를 기록할 때, 미세한 소수점 쓰레기를 완벽히 잘라냅니다.
       res.dailyStates.push({
         date: dtStr,
         asset: totalBalance,
         inout: cumulativeInOut,
         json: JSON.stringify({
-          cash: cash,
-          base_principal: base,
-          realizedProfit: pl_f,
+          cash: Math.round(cash * 100) / 100,
+          base_principal: Math.round(base * 100) / 100,
+          realizedProfit: Math.round(cumulativeRealizedProfit * 100) / 100,
           holdings: JSON.parse(JSON.stringify(inv))
         })
       });
@@ -1263,7 +1290,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       nextOrderInfo = { tier: tTier, mode: today_m, weight: (currentW * 100).toFixed(1), qty: todayBuyQty };
     }
 
-    let lastIdx = res.BA.length - 1, tAssets = res.BA[lastIdx], totalRealizedProfit = res.AV.reduce((acc, cur) => acc + cur, 0);
+    let lastIdx = res.BA.length - 1, tAssets = res.BA[lastIdx];
+    let totalRealizedProfit = cumulativeRealizedProfit; // ⭐️ 과거 값이 날아가던 reduce 삭제하고 누적 변수로 대체!
     let tQty = inv.reduce((s, p) => s + p.qty, 0), avgPrice = tQty > 0 ? (inv.reduce((s, p) => s + p.cost, 0) / tQty) : 0;
     let currPrice = full_c.length > 0 ? full_c[full_c.length - 1] : 0;
     let evalVal = inv.reduce((s, p_i) => s + (p_i.qty * currPrice), 0);
@@ -1393,6 +1421,17 @@ function calculateYearlyData(dates, balances, mdds, initialCash) {
 }
 
 async function handlePerformance(isForce = false) {
+  // ⭐️ [이중 잠금 1] 강제 갱신(3초 꾹) 시 데이터 확정 시간(NY 17:00)을 검사합니다.
+  if (isForce) {
+    const now = new Date();
+    const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+    if (nyHour < 17) {
+      if (!confirm("🚨 [데이터 보호 모드]\n\n아직 뉴욕 시장 종가(오후 5시)가 확정되지 않은 시간입니다.\n지금 강제로 불러오면 불완전한 엉뚱한 값이 섞일 수 있습니다.\n그래도 무시하고 강제 갱신하시겠습니까?")) {
+        return; // 마스터님이 취소를 누르면 안전하게 중단!
+      }
+    }
+  }
+
   const grid = document.getElementById('mainGrid');
   if (grid) {
     grid.classList.add('perf-metrics-layout');
@@ -1418,7 +1457,7 @@ async function handlePerformance(isForce = false) {
 
     // 캐시가 없거나 오늘 데이터가 아니면 서버 통신 시작
     setLED('loading');
-    const response = await fetch(`${GAS_URL}?action=GET_MY_PERF&id=${myUserId}&strat1=${encodeURIComponent(strat1Name)}&strat2=${encodeURIComponent(strat2Name)}&strat3=${encodeURIComponent(strat3Name)}&force=${isForce}`);
+    const response = await fetch(`${GAS_URL}?action=GET_MY_PERF&id=${myUserId}&strat1=${encodeURIComponent(strat1Name)}&strat2=${encodeURIComponent(strat2Name)}&strat3=${encodeURIComponent(strat3Name)}`);
     const data = await response.json();
 
     if (!data || data.status === "error") throw new Error(data.message || "데이터가 없습니다.");
@@ -1444,13 +1483,30 @@ function processRealLogData(d, currentStrat) {
 
   let restoredInv = [];
   let restoredBase = parseFloat(meta.totalPrincipal) || 0;
+  
+  // ⭐️ [버그 픽스 1] 옛날 헤더(meta) 대신 최신 데이터(JSON)에서 우선적으로 값을 가져옵니다.
+  let realizedProfit = parseFloat(meta.realizedProfit) || 0;
+  let cash = parseFloat(meta.currentCash) || 0;
+
   if (d.json && d.json.trim() !== "") {
     try {
       const parsed = JSON.parse(d.json);
       if (parsed.holdings) restoredInv = parsed.holdings;
       if (parsed.base_principal) restoredBase = parsed.base_principal;
+      
+      // 최신 JSON에 수익금과 예수금이 있다면 무조건 덮어씌움!
+      if (parsed.realizedProfit !== undefined) realizedProfit = parsed.realizedProfit;
+      if (parsed.cash !== undefined) cash = parsed.cash;
     } catch (e) { console.error("JSON 파싱 실패", e); }
   }
+
+  // ⭐️ [버그 픽스 2] 수량과 평단가도 낡은 meta 대신 '복원된 실제 보유 종목'에서 실시간으로 완벽하게 다시 계산!
+  let qty = 0, totalCost = 0;
+  restoredInv.forEach(item => {
+    qty += item.qty;
+    totalCost += item.cost;
+  });
+  let avgPrice = qty > 0 ? totalCost / qty : 0;
 
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;
@@ -1516,10 +1572,6 @@ function processRealLogData(d, currentStrat) {
     totalPrincipal = firstAsset + (totalInoutSum - firstInout);
   }
 
-  const realizedProfit = parseFloat(meta.realizedProfit) || 0;
-  const cash = parseFloat(meta.currentCash) || 0;
-  const qty = parseFloat(meta.qty) || 0;
-  const avgPrice = parseFloat(meta.avgPrice) || 0;
 
   const evalVal = lastAsset - cash;
   const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0;
@@ -2407,43 +2459,45 @@ function renderPeriodBarChart() {
 }
 
 function calculateCombinedSummary(r1, r2, r3) {
-  if (!r1 && !r2 && !r3) return null;
-  const results = [r1, r2, r3].filter(r => r != null);
-  if (results.length === 0) return null;
-  if (results.length === 1) return results[0].summary;
+  // 1. 활성화된(데이터가 있는) 슬롯만 필터링합니다.
+  const activeResults = [];
+  if (isSlot1Active() && r1) activeResults.push(r1);
+  if (isSlot2Active() && r2) activeResults.push(r2);
+  if (isSlot3Active() && r3) activeResults.push(r3);
 
-  let tAssets = 0, base = 0, evalVal = 0, currPriceSum = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0, evalReturnSum = 0, avgPriceSum = 0, yieldSum = 0, cagrSum = 0, calmarSum = 0;
-  let count = results.length;
+  if (activeResults.length === 0) return null;
+  if (activeResults.length === 1) return activeResults[0].summary;
 
-  for (const r of results) {
+  let tAssets = 0, base = 0, evalVal = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0;
+  let currPriceSum = 0, avgPriceSum = 0;
+  let count = activeResults.length;
+
+  for (const r of activeResults) {
     const s = r.summary || {};
     base += (s.base || 0);
     tAssets += (s.totalAssets || 0);
     evalVal += (s.evalVal || 0);
-    currPriceSum += (s.currPrice || 0);
     totalProfit += (s.totalProfit || 0);
     realizedProfit += (s.realizedProfit || 0);
     cash += (s.cash || 0);
-    evalReturnSum += (s.evalReturn || 0);
     qty += (s.qty || 0);
-    avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0)); // 👑 가중 합산 (가중 평균용)
-    currPriceSum += (s.currPrice || 0); // 👑 단순 합산 (현재가 평균용)
-    yieldSum += (s.yield || 0);
-    cagrSum += (s.cagr || 0);
-    calmarSum += (s.calmar || 0);
+    
+    // 👑 현재가 평균을 위한 단순 합산
+    currPriceSum += (s.currPrice || 0);
+    // 👑 평균단가 가중 합산
+    avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0)); 
   }
 
   // ⭐️ [핵심] 합산 MDD 계산: 일별 총자산의 합계를 구한 뒤 그 합계 라인의 MDD를 산출!
   let combinedMdd = 0;
   let combinedCurrentMdd = 0;
-  const portfoliosBA = results.map(r => r.chartBalances).filter(ba => ba && ba.length > 0);
+  const portfoliosBA = activeResults.map(r => r.chartBalances).filter(ba => ba && ba.length > 0);
 
   if (portfoliosBA.length > 0) {
     const maxLen = Math.max(...portfoliosBA.map(ba => ba.length));
     let dailySummed = new Array(maxLen).fill(0);
 
     for (const ba of portfoliosBA) {
-      // 끝에서부터 채우거나 엔진 시작점이 같다고 가정 (보통 같음)
       for (let i = 0; i < ba.length; i++) {
         dailySummed[i] += ba[i];
       }
@@ -2463,24 +2517,23 @@ function calculateCombinedSummary(r1, r2, r3) {
 
   return {
     totalAssets: tAssets,
-    yield: base > 0 ? (tAssets - base) / base : 0, // ⭐️ [사용자 요청] 전체 자산 및 원금 합산 기준으로 수익률 산출
+    yield: base > 0 ? (tAssets - base) / base : 0,
     currentMdd: combinedCurrentMdd,
     depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
     totalProfit: totalProfit,
     realizedProfit: realizedProfit,
     evalVal: evalVal,
     cash: cash,
-    evalReturn: avgPriceSum > 0 ? (evalVal - avgPriceSum) / avgPriceSum : 0, // ⭐️ [사용자 요청] 전체 평가금 및 매수원금 기준으로 산출
+    evalReturn: avgPriceSum > 0 ? (evalVal - avgPriceSum) / avgPriceSum : 0,
     qty: qty,
-    currPrice: currPriceSum / count,
+    currPrice: currPriceSum / count, // 👑 [매우 중요] 마스터님 요청대로 평균가로 계산!
     avgPrice: qty > 0 ? avgPriceSum / qty : (avgPriceSum / count),
     base: base,
     mdd: combinedMdd,
     cagr: (function() {
-      // 🏆 [합산 CAGR] 개별 평균이 아닌, 전체 기간과 총수익률을 기준으로 산출
       if (base <= 0 || tAssets <= 0) return 0;
       let earliest = Infinity, latest = -Infinity;
-      results.forEach(r => {
+      activeResults.forEach(r => {
         if (r.chartDates && r.chartDates.length > 0) {
           const s = new Date(r.chartDates[0]).getTime();
           const e = new Date(r.chartDates[r.chartDates.length - 1]).getTime();
@@ -2497,10 +2550,9 @@ function calculateCombinedSummary(r1, r2, r3) {
       return 0;
     })(),
     calmar: combinedMdd !== 0 ? Math.abs((function() {
-      // CAGR 일관성 유지
       if (base <= 0 || tAssets <= 0) return 0;
       let earliest = Infinity, latest = -Infinity;
-      results.forEach(r => {
+      activeResults.forEach(r => {
         if (r.chartDates && r.chartDates.length > 0) {
           const s = new Date(r.chartDates[0]).getTime();
           const e = new Date(r.chartDates[r.chartDates.length - 1]).getTime();
@@ -2867,10 +2919,6 @@ window.addEventListener('DOMContentLoaded', () => {
       for (let child of node.children) applyTouchAction(child);
     };
     applyTouchAction(el);
-    // 월별 성과 패널의 경우 특히 더 확실하게 적용
-    if (elementId === 'panelMonthly') {
-      // 통합 테이블/차트로 변경됨: 별도 슬롯 없음
-    }
     el.style.userSelect = 'none';
 
     const mc = new Hammer.Manager(el, {
@@ -2952,3 +3000,151 @@ function triggerIconAnim(iconId) {
     icon.classList.add('icon-rotate');
   }
 }
+
+/**
+ * 🕒 S-Quant Flanger 스마트 예약 시스템
+ * 뉴욕 시간 17:00(장 마감 1시간 후)을 계산하여 다음 자동 저장을 예약합니다.
+ */
+function scheduleNextAutoSave() {
+  const now = new Date();
+  
+  // 1. 현재 뉴욕 시간 확인
+  const nyFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+    hour12: false
+  });
+  
+  const parts = nyFormatter.formatToParts(now);
+  const nyDate = {};
+  parts.forEach(p => nyDate[p.type] = p.value);
+
+  // 2. 오늘의 뉴욕 17시 05분(여유 시간 포함) 객체 생성
+  let targetNY = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  targetNY.setHours(17, 5, 0, 0);
+
+  // 3. 만약 이미 오늘 17시가 지났다면? 내일 17시로 설정
+  if (now.getTime() >= targetNY.getTime()) {
+    targetNY.setDate(targetNY.getDate() + 1);
+  }
+
+  // 4. 지금부터 타겟 시간까지 남은 밀리초(ms) 계산
+  const delay = targetNY.getTime() - now.getTime();
+  
+  const hours = Math.floor(delay / (1000 * 60 * 60));
+  const mins = Math.floor((delay % (1000 * 60 * 60)) / (1000 * 60));
+
+  console.log(`[스케줄러] 다음 데이터 확정까지 ${hours}시간 ${mins}분 남았습니다. (예약 완료)`);
+
+  // 5. 정확한 시간에 실행 예약
+  setTimeout(() => {
+    console.log("🕒 예약된 시간이 되었습니다. 자동 저장을 시작합니다.");
+    checkAndRunAutoSave();
+    // 저장이 끝나면 다시 다음 날 시간을 예약 (무한 반복)
+    scheduleNextAutoSave(); 
+  }, delay);
+}
+
+window.addEventListener('load', () => {
+  scheduleNextAutoSave();
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  const m1 = document.getElementById('monthlySlot1');
+  const m2 = document.getElementById('monthlySlot2');
+  let mIsSync = false;
+  if (m1 && m2) {
+    const syncMScroll = function (e) {
+      if (mIsSync) return; mIsSync = true;
+      const top = this.scrollTop;
+      if (m1 !== this) m1.scrollTop = top;
+      if (m2 !== this) m2.scrollTop = top;
+      setTimeout(() => { mIsSync = false; }, 20);
+    };
+    m1.addEventListener('scroll', syncMScroll);
+    m2.addEventListener('scroll', syncMScroll);
+  }
+
+  const o1 = document.getElementById('orderScroll1');
+  const o2 = document.getElementById('orderScroll2');
+  let oIsSync1 = false, oIsSync2 = false;
+  if (o1 && o2) {
+    o1.addEventListener('scroll', function () {
+      if (!oIsSync1) { oIsSync2 = true; o2.scrollTop = this.scrollTop; }
+      oIsSync1 = false;
+    });
+    o2.addEventListener('scroll', function () {
+      if (!oIsSync2) { oIsSync1 = true; o1.scrollTop = this.scrollTop; }
+      oIsSync2 = false;
+    });
+  }
+
+  const setupSwipe = (elementId, callback) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const applyTouchAction = (node) => {
+      if (!node || !node.style) return;
+      // 스크롤이 필요한 영역은 pan-y 유지, 나머지는 제약 해제
+      node.style.touchAction = 'pan-y';
+      for (let child of node.children) applyTouchAction(child);
+    };
+    applyTouchAction(el);
+    // 월별 성과 패널의 경우 특히 더 확실하게 적용
+    if (elementId === 'panelMonthly') {
+      // 통합 테이블/차트로 변경됨: 별도 슬롯 없음
+    }
+    el.style.userSelect = 'none';
+
+    const mc = new Hammer.Manager(el, {
+      touchAction: 'pan-y',
+      recognizers: [
+        [Hammer.Pan, { direction: Hammer.DIRECTION_HORIZONTAL, threshold: 30 }]
+      ]
+    });
+
+    mc.on('panend', (ev) => {
+      const absX = Math.abs(ev.deltaX);
+      const absY = Math.abs(ev.deltaY);
+
+      // 가로 스크롤 가능한 영역 내부면 스와이프 차단
+      const srcEl = ev.srcEvent?.target;
+      if (srcEl) {
+        let node = srcEl;
+        while (node && node !== el) {
+          if (node.scrollWidth > node.clientWidth + 2) return; // 가로 스크롤 가능 → 차단
+          node = node.parentElement;
+        }
+      }
+
+      if (absX > absY && absX > 40) {
+        callback(ev.deltaX < 0 ? 'left' : 'right');
+        if (navigator.vibrate) navigator.vibrate(8);
+      }
+    });
+  };
+
+  // 1. 주문표 패널: 주문표 <-> 보유계좌 전환
+  setupSwipe('panelOrder', () => toggleOrderView());
+
+  // 2. 월별성과 패널: 월별 <-> 년별 성과 전환
+  setupSwipe('panelMonthly', () => togglePeriodView());
+
+  // 3. 차트 패널: 전체 -> 투자법1 -> 투자법2 -> 투자법3 순환 전환
+  setupSwipe('panelChart', (dir) => {
+    if (dir === 'left') {
+      chartViewMode = (chartViewMode + 1) % 4;
+      if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = 0;
+      if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 0;
+    } else {
+      chartViewMode = (chartViewMode - 1 + 4) % 4;
+      if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = isSlot2Active() ? 2 : 1;
+      if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 1;
+    }
+    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+  });
+
+  // 4. 성과지표 패널 (Stats): 성과지표 화면에서도 스와이프하면 주문표로 돌아감
+  setupSwipe('panelStats', () => showOrderView());
+});
