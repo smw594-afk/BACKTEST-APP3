@@ -1,784 +1,2954 @@
-function detectLayout() {
-      const g = document.getElementById('mainGrid');
-      const txt = document.getElementById('layoutModeText');
-      // 수동 모드가 아닐 때만 자동 감지 수행
-      if (!g.classList.contains('force-3-col') && !g.classList.contains('force-2-col')) {
-        const sw = window.innerWidth;
-        if (sw <= 1024) {
-          document.documentElement.classList.add('is-cover');
-        } else {
-          document.documentElement.classList.remove('is-cover');
-        }
-      }
+const APP_VERSION = "3.000";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbw1si6V_02Ua0trHlZdvT_EnFLDGA6-0hNtEaZhq2W-UGXMVo0e9K5mI3jH5IqQ4KOi9Q/exec";
+
+const MASTER_STRATEGIES = {
+  "2M3D1-1P": {
+    config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: true, useMid3: false },
+    modes: {
+      SF: { buy: [0.046, 0.046, 0.046, 0.046, 0.046, 0.046], sell: [0.018, 0.018, 0.018, 0.018, 0.018, 0.018], hold: [34, 34, 34, 34, 34, 34], weight: [0.138, 0.116, 0.289, 0.05, 0.273, 0.05] },
+      Middle: { buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [6, 6, 6, 6, 6, 6], weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] },
+      AG: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.022, 0.022, 0.022, 0.022, 0.022, 0.022], hold: [7, 7, 7, 7, 7, 7], weight: [0.17, 0.08, 0.052, 0.3, 0.072, 0.247] },
+      Middle2: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [12, 12, 12, 12, 12, 12], weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05] },
+      Middle3: { buy: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [0, 0, 0, 0, 0, 0], weight: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }
     }
-    window.addEventListener('resize', () => { detectLayout(); if(window.myChart) window.myChart.resize(); });
-    window.addEventListener('load', detectLayout);
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbw3OXD0thasfEHZWSUp8x06h-Z28YNs5_6L2YrPAeTc6wGPEgDwH33Hccg2CAgGIwjG/exec";
-    let myUserId = "";
-    let myChart = null;
-    let currentOrderDate = "";
-    let isOrderView = true;
+  },
+  "2M3D2(2.0)": {
+    config: { compR: 0.814, lossR: 0.286, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    modes: {
+      SF: { buy: [0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.001] },
+      Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [20, 20, 20, 20, 20, 20, 20], weight: [0.355, 0.355, 0.355, 0.355, 0.355, 0.355, 0.355] },
+      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.047, 0.39, 0.042, 0.043, 0.217, 0.22, 0.31, 0.45] },
+      Middle2: { buy: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [0, 0, 0, 0, 0, 0], weight: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] },
+      Middle3: { buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131] }
+    }
+  },
+  "2M3D2(1.2)": {
+    config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    modes: {
+      SF: { buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.046] },
+      Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [21, 21, 21, 21, 21, 21, 21, 21], weight: [0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352] },
+      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096] },
+      Middle2: { buy: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [0, 0, 0, 0, 0, 0], weight: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] },
+      Middle3: { buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [13, 13, 13, 13, 13, 13, 13, 13], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
+    }
+  }
+};
 
-    let isMonthlyView = true;
-    let globalMonthlyData = [];
-    let globalYearlyData = [];
+function forceUpdateApp() {
+  if (confirm(`현재 버전: ${APP_VERSION}\n데이터를 강제로 초기화할까요?`)) {
+    try { indexedDB.deleteDatabase(DB_NAME); localStorage.clear(); } catch (e) { }
+    window.location.reload();
+  }
+}
 
-    window.onload = function () {
-      const isAuth = localStorage.getItem('vtotal_auth');
-      const savedId = localStorage.getItem('vtotal_id');
-      if (isAuth === 'true' && savedId) { myUserId = savedId; enterAppDirectly(); }
-      else { document.getElementById('loginScreen').classList.remove('hidden'); }
-      
-      setupLongPress();
+function toggleSettings() {
+  const screen = document.getElementById('settingsScreen');
+  const isVisible = screen.style.display === 'flex';
+  if (!isVisible) updateSettingsTabButtons();
+  screen.style.display = isVisible ? 'none' : 'flex';
+}
+
+function setLED(status) {
+  const lamp = document.getElementById('ledLamp');
+  if (!lamp) return;
+  lamp.className = 'led-lamp';
+  if (status === 'on') lamp.classList.add('led-on');
+  else if (status === 'loading') lamp.classList.add('led-loading');
+  else if (status === 'off' || status === 'error') { lamp.style.background = '#ef4444'; lamp.style.boxShadow = '0 0 10px #ef4444'; }
+}
+
+let myUserId = ""; let myChart = null; let currentOrderDate = ""; let isOrderView = true; let isStatsMode = false;
+let isViewingHistory = false;
+let lastMyPerfData = null;
+let perfLastCheckTime = 0;
+
+function restoreSimulationUI() {
+  // 백테스트 중이 아니었으면 무시
+  if (!isViewingHistory) return;
+
+  try {
+    const id = myUserId ? myUserId : localStorage.getItem('vtotal_id');
+    const s1Raw = localStorage.getItem(`vtotal_snap1_${id}`);
+    const s2Raw = localStorage.getItem(`vtotal_snap2_${id}`);
+    const s3Raw = localStorage.getItem(`vtotal_snap3_${id}`);
+
+    if (s1Raw) {
+      const snap1 = JSON.parse(s1Raw);
+      lastBTResult1 = snap1; lastBTResult = snap1;
+      // true 옵션 = "화면만 바꾸고 저장(덮어쓰기)은 하지 마라"
+      updateUIWithResult(snap1, slot1Config, 1, true);
+
+      if (s2Raw && isSlot2Active()) {
+        const snap2 = JSON.parse(s2Raw);
+        lastBTResult2 = snap2;
+        updateUIWithResult(snap2, slot2Config, 2, true);
+      } else { lastBTResult2 = null; }
+
+      if (s3Raw && isSlot3Active()) {
+        const snap3 = JSON.parse(s3Raw);
+        lastBTResult3 = snap3;
+        updateUIWithResult(snap3, slot3Config, 3, true);
+      } else { lastBTResult3 = null; }
+
+      renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+    }
+    showToast("실전(캐시) 데이터로 복귀 완료", "⚡");
+  } catch (e) {
+    console.error("Restore Failed:", e);
+  } finally {
+    isViewingHistory = false; // 시뮬레이션 모드 종료
+  }
+}
+
+function isPerfCacheValid() {
+  if (!lastMyPerfData) return false;
+  const now = new Date();
+  const last = new Date(perfLastCheckTime);
+  return now.getFullYear() === last.getFullYear() &&
+    now.getMonth() === last.getMonth() &&
+    now.getDate() === last.getDate();
+}
+
+// 🔴 [추가] 중복 코드를 밖으로 분리한 성과 렌더링 도우미 함수
+function renderPerfFromCache(strat1Name, strat2Name, strat3Name) {
+  if (!lastMyPerfData) return;
+  const strats = [
+    { key: 'strat1', name: strat1Name, cfg: slot1Config },
+    { key: 'strat2', name: strat2Name, cfg: slot2Config },
+    { key: 'strat3', name: strat3Name, cfg: slot3Config }
+  ];
+  strats.forEach((s, i) => {
+    const slotNum = i + 1;
+    const d = lastMyPerfData[s.key];
+    if (d && d.logs && d.logs.length > 0) {
+      const res = processRealLogData(d, s.name);
+      if (res) updateUIWithResult(res, s.cfg, slotNum, true);
+    }
+  });
+  updateCombinedMetrics();
+  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+}
+
+function showOrderView() {
+  restoreSimulationUI();
+  isStatsMode = false;
+  isOrderView = true;
+  document.getElementById('mainGrid').classList.remove('perf-metrics-layout');
+  const btnStats = document.getElementById('btnStatsShow');
+  if (btnStats) btnStats.classList.remove('active');
+
+  if (shouldAutoRefresh()) {
+    handleInstantOrder();
+  } else {
+    refreshOrderViewUI();
+  }
+}
+
+function shouldAutoRefresh() {
+  if (!myUserId) return false;
+  const now = new Date();
+  const kst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const kstDateStr = kst.getFullYear() + '-' + (kst.getMonth() + 1) + '-' + kst.getDate();
+  const kstHour = kst.getHours();
+  const kstMin = kst.getMinutes();
+  const lastDate = localStorage.getItem('vtotal_last_auto_kst_' + myUserId);
+  if (kstHour > 6 || (kstHour === 6 && kstMin >= 30)) {
+    if (lastDate !== kstDateStr) return true;
+  }
+  return false;
+}
+
+function showStatsView() {
+  restoreSimulationUI();
+  isStatsMode = true;
+  document.getElementById('mainGrid').classList.add('perf-metrics-layout');
+  const btnStats = document.getElementById('btnStatsShow');
+  if (btnStats) btnStats.classList.add('active');
+}
+
+function toggleOrderHoldings() {
+  isOrderView = !isOrderView;
+  refreshOrderViewDisplay();
+}
+
+function refreshOrderViewDisplay() {
+  refreshOrderViewUI();
+}
+
+let currentActiveConfigStr = ""; let lastBTResult = null;
+let activeSettingsTab = 1;
+let slot1Config = null;
+let slot2Config = null;
+let slot3Config = null;
+let lastBTResult1 = null;
+let lastBTResult2 = null;
+let lastBTResult3 = null;
+let globalMonthlyData1 = []; let globalYearlyData1 = [];
+let globalMonthlyData2 = []; let globalYearlyData2 = [];
+let globalMonthlyData3 = []; let globalYearlyData3 = [];
+let globalMonthlyData4 = []; let globalYearlyData4 = [];
+
+const DB_NAME = "VTotalDB_Cache"; const DB_VERSION = 2; const STORE_NAME = "YahooDataStore";
+async function openDB() { return new Promise((resolve, reject) => { const req = indexedDB.open(DB_NAME, DB_VERSION); req.onupgradeneeded = e => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: "ticker" }); }; req.onsuccess = e => resolve(e.target.result); req.onerror = e => reject(e.target.error); }); }
+async function getDB(tk) { try { const db = await openDB(); return new Promise((resolve, reject) => { const tx = db.transaction(STORE_NAME, "readonly"); const req = tx.objectStore(STORE_NAME).get(tk); req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null); }); } catch (e) { return null; } }
+async function setDB(data) { try { const db = await openDB(); const tx = db.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).put(data); } catch (e) { } }
+
+function formatComma(val) { if (!val && val !== 0) return ''; let s = String(val).replace(/[^0-9.]/g, ''); let parts = s.split('.'); parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ","); return parts.join('.'); }
+function unformatComma(val) { return String(val).replace(/,/g, ''); }
+
+let periodViewState = 0; let isMonthlyExpanded = false; let globalMonthlyData = []; let globalYearlyData = [];
+let chartViewMode = 0;
+
+function toggleChartView() {
+  if (!lastBTResult1) return;
+  chartViewMode = (chartViewMode + 1) % 4;
+  if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = 0;
+  if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 0;
+  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+}
+
+function switchSettingsTab(tabNum) {
+  saveCurrentFormToSlot(activeSettingsTab);
+  activeSettingsTab = tabNum;
+  loadSlotToForm(tabNum);
+  updateSettingsTabButtons();
+  document.getElementById('tabSlot1').style.background = (tabNum === 1) ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(51,65,85,0.8)';
+  document.getElementById('tabSlot2').style.background = (tabNum === 2) ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(51,65,85,0.8)';
+  document.getElementById('tabSlot3').style.background = (tabNum === 3) ? 'linear-gradient(135deg, #ec4899, #db2777)' : 'rgba(51,65,85,0.8)';
+}
+
+function updateSettingsTabButtons() {
+  const s1 = slot1Config?.basics?.strategy || "투자법 1";
+  const s2 = slot2Config?.basics?.strategy || "투자법 2";
+  const s3 = slot3Config?.basics?.strategy || "투자법 3";
+  document.getElementById('tabSlot1').innerText = s1;
+  document.getElementById('tabSlot2').innerText = s2;
+  document.getElementById('tabSlot3').innerText = s3;
+}
+
+function saveCurrentFormToSlot(slotNum) {
+  const cfg = gatherParams();
+  if (slotNum === 1) { slot1Config = cfg; localStorage.setItem('vtotal_conf1_' + myUserId, JSON.stringify(cfg)); }
+  else if (slotNum === 2) { slot2Config = cfg; localStorage.setItem('vtotal_conf2_' + myUserId, JSON.stringify(cfg)); }
+  else { slot3Config = cfg; localStorage.setItem('vtotal_conf3_' + myUserId, JSON.stringify(cfg)); }
+}
+
+function loadSlotToForm(slotNum) {
+  const cfg = (slotNum === 1) ? slot1Config : (slotNum === 2) ? slot2Config : slot3Config;
+  if (cfg && cfg.basics) {
+    initData(cfg);
+  } else {
+    document.getElementById('ticker').value = '';
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    document.getElementById('initialCash').value = '';
+    document.getElementById('renewCash').value = '';
+    document.getElementById('strategySelect').value = '';
+    document.getElementById('fBase').value = '';
+    document.getElementById('fSec').value = '';
+  }
+}
+
+function isStrategySet(cfg) { return cfg && cfg.basics && cfg.basics.strategy && cfg.basics.strategy !== ""; }
+function isSlot1Active() { return isStrategySet(slot1Config); }
+function isSlot2Active() { return isStrategySet(slot2Config); }
+function isSlot3Active() { return isStrategySet(slot3Config); }
+
+function updateSlotsVisibility() {
+  const statuses = [isSlot1Active(), isSlot2Active(), isSlot3Active()];
+  statuses.forEach((active, i) => {
+    const num = i + 1;
+    const v = document.getElementById('orderSlot' + num); if (v) v.style.display = active ? 'flex' : 'none';
+    const m = document.getElementById('monthlySlot' + num); if (m) m.style.display = active ? 'block' : 'none';
+  });
+
+  const m4 = document.getElementById('monthlySlot4');
+  if (m4) m4.style.display = (statuses[0] && (statuses[1] || statuses[2])) ? 'block' : 'none';
+
+  const panel = document.getElementById('panelMonthly');
+  if (panel) {
+    if (statuses[0] && (statuses[1] || statuses[2])) panel.classList.add('dual-active');
+    else panel.classList.remove('dual-active');
+  }
+  updatePeriodTitle();
+  refreshStatsTable();
+}
+
+function toggleSlot2Visibility(show) {
+  updateSlotsVisibility();
+}
+
+window.onload = function () {
+  const isAuth = localStorage.getItem('vtotal_auth'); const savedId = localStorage.getItem('vtotal_id');
+  if (isAuth === 'true' && savedId) { myUserId = savedId; enterAppDirectly(); }
+  else { document.getElementById('loginScreen').classList.remove('hidden'); }
+};
+
+async function handleLogin() {
+  const id = document.getElementById('loginId').value.trim(), pw = document.getElementById('loginPw').value.trim(), btn = document.getElementById('loginBtn');
+  if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요."); btn.innerText = "서버 통신 중..."; btn.disabled = true;
+  try {
+    const [loginResp, initResp] = await Promise.all([
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "LOGIN_OR_REGISTER", id: id, pw: pw }) }),
+      fetch(`${GAS_URL}?action=GET_INIT&id=${id}`).catch(() => null)
+    ]);
+    const res = await loginResp.json();
+    if (res.result === "success") {
+      localStorage.setItem('vtotal_auth', 'true'); localStorage.setItem('vtotal_id', id); myUserId = id;
+      if (initResp) {
+        try {
+          const initData = await initResp.json();
+          if (initData && initData.config) {
+            localStorage.setItem(`vtotal_conf1_${id}`, JSON.stringify(initData.config));
+            localStorage.setItem(`vtotal_conf_${id}`, JSON.stringify(initData.config));
+          }
+          if (initData && initData.config2) {
+            localStorage.setItem(`vtotal_conf2_${id}`, JSON.stringify(initData.config2));
+          }
+          if (initData && initData.config3) {
+            localStorage.setItem(`vtotal_conf3_${id}`, JSON.stringify(initData.config3));
+          }
+        } catch (e) { }
+      }
+      enterAppDirectly();
+    }
+    else { alert(res.msg); btn.innerText = "로그인"; btn.disabled = false; }
+  } catch (e) { alert("서버 연결 실패. 네트워크를 확인하세요."); btn.innerText = "로그인"; btn.disabled = false; }
+}
+
+function enterAppDirectly() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('topBar').classList.remove('hidden');
+  document.getElementById('mainGrid').classList.remove('hidden');
+  detectLayout();
+
+  const userHeader = document.getElementById('userDisplayHeader');
+  if (userHeader) userHeader.innerText = myUserId;
+  if (document.getElementById('loginVersion')) document.getElementById('loginVersion').innerText = `v${APP_VERSION}`;
+  if (document.getElementById('settingsVersion')) document.getElementById('settingsVersion').innerText = APP_VERSION;
+
+  const savedConf1Str = localStorage.getItem('vtotal_conf1_' + myUserId) || localStorage.getItem(`vtotal_conf_${myUserId}`);
+  const savedConf2Str = localStorage.getItem('vtotal_conf2_' + myUserId);
+  const savedConf3Str = localStorage.getItem('vtotal_conf3_' + myUserId);
+  if (savedConf1Str) { try { slot1Config = JSON.parse(savedConf1Str); } catch (e) { } }
+  if (savedConf2Str) { try { slot2Config = JSON.parse(savedConf2Str); } catch (e) { } }
+  if (savedConf3Str) { try { slot3Config = JSON.parse(savedConf3Str); } catch (e) { } }
+
+  const snapStr = localStorage.getItem('vtotal_snap1_' + myUserId);
+  const snapStr2 = localStorage.getItem('vtotal_snap2_' + myUserId);
+  const snapStr3 = localStorage.getItem('vtotal_snap3_' + myUserId);
+
+  const processSnap = (snapStr, slotNum, isActive) => {
+    if (!snapStr || !isActive) {
+      if (slotNum === 1 && isActive) { initData(slot1Config); setLED('loading'); }
+      return;
+    }
+    try {
+      const snap = JSON.parse(snapStr);
+      if (slotNum === 1) {
+        initData(slot1Config);
+        lastBTResult = snap; lastBTResult1 = snap;
+        document.getElementById('mainGrid').classList.remove('hide-order-panel');
+        const op = document.getElementById('panelOrder'); if (op) op.classList.remove('hidden');
+        globalMonthlyData = snap.monthlyData; globalYearlyData = snap.yearlyData;
+        globalMonthlyData1 = snap.monthlyData; globalYearlyData1 = snap.yearlyData;
+        if (snap.chartDates) renderChart(snap, null, null);
+        setLED('loading');
+      } else if (slotNum === 2) {
+        lastBTResult2 = snap; globalMonthlyData2 = snap.monthlyData; globalYearlyData2 = snap.yearlyData;
+      } else if (slotNum === 3) {
+        lastBTResult3 = snap; globalMonthlyData3 = snap.monthlyData; globalYearlyData3 = snap.yearlyData;
+      }
+      renderOrderViewSlot(snap, slotNum);
+      renderPeriodTableSlot(slotNum);
+    } catch (e) { }
+  };
+
+  processSnap(snapStr, 1, isSlot1Active());
+  processSnap(snapStr2, 2, isSlot2Active());
+  processSnap(snapStr3, 3, isSlot3Active());
+
+  updateSlotsVisibility();
+  updatePeriodTitle();
+  refreshStatsTable();
+
+  // 💾 [합산 캐시 로드] 엔진 실행 전, 저장되어있던 합산 데이터를 즉시 보여줍니다.
+  const cachedCombined = localStorage.getItem(`vtotal_snap_combined_${myUserId}`);
+  if (cachedCombined) {
+    try {
+      const c = JSON.parse(cachedCombined);
+      globalMonthlyData4 = c.m || [];
+      globalYearlyData4 = c.y || [];
+      if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+    } catch (e) { }
+  }
+
+  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+
+  checkAndSyncWithServer(!slot1Config);
+  checkPendingSync();
+  setLED('on');
+  initInstantButtonEvents();
+  initStatsButtonEvents(); // 📊 성과지표 버튼 이벤트 초기화
+}
+
+function initStatsButtonEvents() {
+  const btn = document.getElementById('btnStatsShow');
+  if (!btn) return;
+  let pressTimer, isLongPress = false;
+  const start = (e) => {
+    isLongPress = false;
+    pressTimer = setTimeout(() => {
+      isLongPress = true;
+      if (navigator.vibrate) navigator.vibrate(40);
+      handlePerformance(true); // 📊 길게 누르면 강제 동기화
+    }, 800);
+  };
+  const cancel = () => clearTimeout(pressTimer);
+  const click = (e) => {
+    if (isLongPress) return;
+    showStatsView(); // 📊 짧게 누르면 성과지표 탭 전환
+  };
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('touchstart', start, { passive: true });
+  btn.addEventListener('mouseup', cancel);
+  btn.addEventListener('touchend', cancel);
+  btn.addEventListener('mouseleave', cancel);
+  btn.onclick = click; 
+}
+
+function initInstantButtonEvents() {
+  const btn = document.getElementById('btnInstant');
+  if (!btn) return;
+  let pressTimer, isLongPress = false;
+  const start = (e) => {
+    isLongPress = false;
+    pressTimer = setTimeout(() => {
+      isLongPress = true;
+      if (navigator.vibrate) navigator.vibrate(40);
+      handleInstantOrder();
+    }, 800);
+  };
+  const cancel = () => clearTimeout(pressTimer);
+  const click = (e) => {
+    if (isLongPress) return;
+    showOrderView();
+  };
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('touchstart', start, { passive: true });
+  btn.addEventListener('mouseup', cancel);
+  btn.addEventListener('touchend', cancel);
+  btn.addEventListener('click', click);
+}
+
+// 🟢 [V4 완벽 개조] 로그인 시 '내 성과' 데이터(JSON 포함)를 강제로 즉시 가져와서 로컬 엔진에 주입
+// 🟢 [V4.1 투트랙 부팅] 야후 주가 먼저 가져와서 화면부터 1초 만에 띄우고, 시트 동기화는 뒤에서 조용히 처리!
+// 🟢 [V4.2 완벽 통합본] 로그인 시 엔진의 주문표(미래)와 시트의 성과(과거)를 하나로 완벽하게 병합(Merge)합니다!
+async function checkAndSyncWithServer(isInitial) {
+  setLED('loading');
+  const userHeader = document.getElementById('userDisplayHeader');
+  if (userHeader) userHeader.innerText = myUserId + ' (초고속 로딩 중...)';
+
+  try {
+    // 🚀 Track 1: 앱을 켜자마자 야후 주가를 가져와 1~2초 만에 '오늘의 주문표(엔진)'를 띄웁니다.
+    const runFastEngine = async (cfg, isActive, slotNum) => {
+      if (!isActive) return null;
+      const res = await runBacktestMemory(cfg, false, slotNum);
+      if (res && res.status !== "error") {
+        if (slotNum === 1) { lastBTResult1 = res; lastBTResult = res; }
+        else if (slotNum === 2) { lastBTResult2 = res; toggleSlot2Visibility(true); }
+        else if (slotNum === 3) { lastBTResult3 = res; }
+
+        // ⭐️ [핵심 1] 화면 백지화 방지: 엔진이 계산한 빵빵한 상태(orders 포함)를 일단 캐시에 꽉 채워 저장합니다!
+        updateUIWithResult(res, cfg, slotNum, false);
+        return res;
+      }
+      return null;
     };
 
-    async function handleLogin() {
-      const id = document.getElementById('loginId').value.trim();
-      const pw = document.getElementById('loginPw').value.trim();
-      const btn = document.getElementById('loginBtn');
-      if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
-      btn.innerText = "서버 통신 중..."; btn.disabled = true;
+    // 🚀 [병렬 처리 적용] 엔진 실행(Track 1)과 서버 데이터 호출(Track 2)을 동시에 시작합니다!
+    // (기존에는 1이 끝날 때까지 2가 대기하여 총 4초 이상 소요되던 것을 1~2초 내외로 단축)
+    const track1Promise = Promise.all([
+      runFastEngine(slot1Config, isSlot1Active(), 1),
+      runFastEngine(slot2Config, isSlot2Active(), 2),
+      runFastEngine(slot3Config, isSlot3Active(), 3)
+    ]);
+
+    const track2Promise = (async () => {
       try {
-        const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "LOGIN_OR_REGISTER", id: id, pw: pw }) });
-        const res = await resp.json();
-        if (res.result === "success") {
-          localStorage.setItem('vtotal_auth', 'true'); localStorage.setItem('vtotal_id', id); myUserId = id;
-          enterAppDirectly();
-        } else { alert(res.msg); btn.innerText = "로그인"; btn.disabled = false; }
-      } catch (e) { alert("서버 연결 실패. 네트워크를 확인하세요."); btn.innerText = "로그인"; btn.disabled = false; }
-    }
+        const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
+        const dataInit = await resInit.json();
 
-    function enterAppDirectly() {
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('mainGrid').classList.remove('hidden');
-      document.getElementById('userDisplay').innerHTML = `⚪ ${myUserId}`;
+        const s1Name = dataInit.config?.basics?.strategy || slot1Config?.basics?.strategy || "";
+        const s2Name = dataInit.config2?.basics?.strategy || slot2Config?.basics?.strategy || "";
+        const s3Name = dataInit.config3?.basics?.strategy || slot3Config?.basics?.strategy || "";
 
-      const autoToggle = document.getElementById('autoToggle');
-      autoToggle.checked = localStorage.getItem(`vtotal_auto_${myUserId}`) === 'true';
-      autoToggle.onchange = function () { localStorage.setItem(`vtotal_auto_${myUserId}`, this.checked); };
+        const resPerf = await fetch(`${GAS_URL}?action=GET_MY_PERF&id=${myUserId}&strat1=${encodeURIComponent(s1Name)}&strat2=${encodeURIComponent(s2Name)}&strat3=${encodeURIComponent(s3Name)}`);
+        const dataPerf = await resPerf.json();
+        return { dataInit, dataPerf };
+      } catch (e) { console.error("Track 2 Error:", e); return null; }
+    })();
 
-      fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`).then(res => res.json()).then(async data => {
-        if (data.config) {
-          initData(data.config);
-          document.getElementById('userDisplay').innerHTML = `🟢 ${myUserId}`;
+    // 일단 로컬 엔진 결과가 나오는 대로 1초 컷으로 화면부터 띄웁니다.
+    await track1Promise;
+    if (!isSlot2Active()) toggleSlot2Visibility(false);
+    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
 
-          const resBT = await runBacktestMemory(data.config);
-          if (resBT.status !== "error") {
-            const hasEndDate = data.config.basics.endDate !== '';
-            if (hasEndDate) document.getElementById('mainGrid').classList.add('hide-order-panel');
-            else { document.getElementById('mainGrid').classList.remove('hide-order-panel'); renderOrderView(resBT); }
+    isStatsMode = false;
+    isOrderView = true;
+    document.getElementById('mainGrid').classList.remove('perf-metrics-layout');
+    const btnStats = document.getElementById('btnStatsShow');
+    if (btnStats) btnStats.classList.remove('active');
+    refreshOrderViewUI();
 
-            globalMonthlyData = resBT.monthlyData; globalYearlyData = resBT.yearlyData;
-            renderPeriodTable(); renderMetrics(resBT.summary, resBT.chartDates.length); renderChart(resBT);
+    if (userHeader) userHeader.innerText = myUserId + ' (백그라운드 동기화 중...)';
 
-            if (autoToggle.checked) {
-              fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "BACKUP_AND_SAVE", id: myUserId, summary: resBT.summary, orders: resBT.orders }) });
-            }
-          }
-        } else { throw new Error("데이터 없음"); }
-      }).catch(err => { document.getElementById('userDisplay').innerHTML = `🔴 ${myUserId}`; });
-    }
+    // 이제 뒤에서 조용히 오던 서버 데이터(track2)가 도착하면 화면을 교정합니다.
+    const serverResult = await track2Promise;
+    if (!serverResult) throw new Error("Server Sync Failed");
+    const { dataInit, dataPerf } = serverResult;
 
-    function confirmLogout() {
-      if (confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem('vtotal_auth'); localStorage.removeItem('vtotal_id'); location.reload(); }
-    }
+    // ⭐️ [핵심 2] 지표 불일치 해결: 구글 서버에서 가져온 100% 퓨어 시트 데이터 저장
+    lastMyPerfData = dataPerf;
+    perfLastCheckTime = new Date().getTime();
 
-    function formatDateNY(dateObj) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dateObj); }
-    function pyRound2(num) { let factor = 100, temp = num * factor, rounded = Math.round(temp); if (Math.abs(temp % 1) === 0.5) rounded = (Math.floor(temp) % 2 === 0) ? Math.floor(temp) : Math.ceil(temp); return rounded / factor; }
-
-    const yahooCache = {};
-
-    async function fetchYahooData(t, p1, p2, rnd) {
-      if (!t) throw new Error("티커가 비어있습니다. 설정이 불러와졌는지 확인해주세요.");
-      const cacheKey = `${t}_${p1}_${p2}`;
-      if (yahooCache[cacheKey]) return yahooCache[cacheKey];
-
-      const yUrl = `${GAS_URL}?action=GET_YAHOO&t=${t}&p1=${p1}&p2=${p2}`;
-      try {
-        const response = await fetch(yUrl);
-        if (!response.ok) throw new Error("네트워크 오류");
-        const res = await response.json();
-        if (res.error) throw new Error(res.error);
-        if (!res.chart || !res.chart.result) throw new Error("야후 데이터 응답 오류");
-
-        const r = res.chart.result[0], ts = r.timestamp, cls = r.indicators.quote[0].close, ops = r.indicators.quote[0].open;
-        let d = [], c = [], o = [], lastDay = "";
-
-        for (let i = 0; i < ts.length; i++) {
-          if (cls[i] !== null) {
-            let dateObj = new Date(ts[i] * 1000); let dayStr = formatDateNY(dateObj);
-            let cVal = rnd ? pyRound2(cls[i]) : cls[i];
-            let oVal = rnd ? pyRound2(ops[i]) : ops[i];
-            if (dayStr !== lastDay) {
-              d.push(dateObj); c.push(cVal); o.push(oVal); lastDay = dayStr;
-            } else {
-              c[c.length - 1] = cVal;
-              o[o.length - 1] = oVal;
-            }
-          }
-        }
-        const finalData = { dates: d, close: c, open: o };
-        
-        // 종가 기준 필터링: 미국 시간(NY) 기준으로 오늘 날짜의 데이터가 있고 장 마감(16:00) 전이면 제거
-        const todayNY = formatDateNY(new Date());
-        const nowNYHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date()));
-        if (finalData.dates.length > 0) {
-          const lastDayNY = formatDateNY(finalData.dates[finalData.dates.length - 1]);
-          if (lastDayNY === todayNY && nowNYHour < 16) {
-            finalData.dates.pop();
-            finalData.close.pop();
-            finalData.open.pop();
-          }
-        }
-
-        yahooCache[cacheKey] = finalData; return finalData;
-      } catch (e) { throw new Error("야후 데이터 수집 실패: " + e.message); }
-    }
-
-    function calculateWRSI_WFRI(qData) {
-      let dD = qData.dates, qC = qData.close, weeklyData = {}, wP = [], wD = [];
-      function getFridayEnd(d) { let date = new Date(d.getTime()), day = date.getDay(), diff = (day <= 5) ? (5 - day) : (5 + 7 - day); date.setDate(date.getDate() + diff); date.setHours(0, 0, 0, 0); return date.getTime(); }
-      for (let i = 0; i < dD.length; i++) weeklyData[getFridayEnd(dD[i])] = { close: qC[i], date: dD[i] };
-      let sortedFri = Object.keys(weeklyData).sort();
-      for (let i = 0; i < sortedFri.length; i++) { wP.push(weeklyData[sortedFri[i]].close); wD.push(weeklyData[sortedFri[i]].date); }
-      let p = 14, wRsi = [];
-      for (let i = 0; i < wP.length; i++) { if (i < p) { wRsi.push(50); continue; } let g = 0, l = 0; for (let j = i - p + 1; j <= i; j++) { let df = wP[j] - wP[j - 1]; if (df > 0) g += df; else l -= df; } wRsi.push(l === 0 ? 100 : 100 - (100 / (1 + (g / p) / (l / p)))); }
-      let wRMap = {};
-      for (let i = 0; i < dD.length; i++) { let ds = formatDateNY(dD[i]), friEnd = getFridayEnd(dD[i]), wIdx = sortedFri.indexOf(friEnd.toString()); wRMap[ds] = { dR: (wIdx >= 1) ? wRsi[wIdx - 1] : 50, dRR: (wIdx >= 2) ? wRsi[wIdx - 2] : 50 }; }
-      return wRMap;
-    }
-
-    function run_tungchigi_master(paramsArr) {
-      if (!paramsArr || paramsArr.length === 0) return [];
-      let g = new Float64Array(100), h = new Float64Array(100), i_p = new Float64Array(100), j = new Float64Array(100), k = new Array(100).fill(false);
-      for (let idx = 0; idx < paramsArr.length; idx++) {
-        if (idx >= 100) break;
-        let side = paramsArr[idx][0], method = paramsArr[idx][1], price = parseFloat(paramsArr[idx][2]), qty = parseFloat(paramsArr[idx][3]);
-        if (side === '매수') { g[idx] = price; h[idx] = qty; } else { i_p[idx] = price; j[idx] = qty; if (method.toUpperCase() === 'MOC') k[idx] = true; }
+    const parseDateStr = (ds) => {
+      if (!ds) return formatDateNY(new Date());
+      let str = String(ds).trim().replace(/\([가-힣a-zA-Z]\)/g, "").trim();
+      str = str.replace(/[년월.\/]/g, '-').replace(/일/g, '').replace(/\s+/g, '');
+      if (str.endsWith('-')) str = str.slice(0, -1);
+      if (str.includes('T')) str = str.split('T')[0];
+      let p = str.split('-');
+      if (p.length >= 3) {
+        let y = p[0]; if (y.length === 2) y = "20" + y;
+        let m = p[1].padStart(2, '0'); let d = p[2].padStart(2, '0');
+        return `${y}-${m}-${d}`;
       }
-      let u_g = Array.from(g).filter(v => v > 0), adj_sell = Array.from(i_p).map((val, i) => k[i] ? 0.01 : val), u_i = adj_sell.filter(v => v > 0);
-      let m_prices = [...new Set([...u_g, ...u_i])].sort((a, b) => b - a), m_col = new Array(100).fill(NaN); m_prices.forEach((val, i) => m_col[i] = val);
-      let n_col = new Float64Array(100), o_col = new Float64Array(100);
-      for (let idx = 0; idx < 100; idx++) {
-        if (isNaN(m_col[idx])) continue; let mv = m_col[idx], count_m = m_col.slice(0, idx + 1).filter(v => v === mv).length;
-        if (count_m > 1) { n_col[idx] = 0; } else { let sum_h = 0; for (let x = 0; x < 100; x++) if (g[x] === mv) sum_h += h[x]; n_col[idx] = sum_h; }
-        if (n_col[idx] > 0) { o_col[idx] = 0; } else if (mv === 0.01) { let sum_j = 0; for (let x = 0; x < 100; x++) if (k[x]) sum_j += j[x]; o_col[idx] = -sum_j; } else { let sum_j = 0; for (let x = 0; x < 100; x++) if (!k[x] && i_p[x] === mv) sum_j += j[x]; o_col[idx] = -sum_j; }
-      }
-      let p_col = new Float64Array(100), cumsum_n = 0; for (let idx = 0; idx < 99; idx++) { cumsum_n += n_col[idx]; p_col[idx + 1] = cumsum_n; }
-      let q_col = new Float64Array(100), cumsum_o = 0; for (let idx = 98; idx >= 0; idx--) { cumsum_o += o_col[idx]; q_col[idx] = cumsum_o; }
-      let r_col = new Float64Array(100); for (let idx = 0; idx < 100; idx++) r_col[idx] = p_col[idx] + q_col[idx];
-      let s_col = new Float64Array(100);
-      for (let idx = 0; idx < 100; idx++) {
-        let curr = r_col[idx], prev = idx > 0 ? r_col[idx - 1] : 0, nxt = idx < 99 ? r_col[idx + 1] : 0;
-        if (curr === 0) s_col[idx] = 0; else if (curr < 0) s_col[idx] = (nxt < 0) ? (curr - nxt) : curr; else s_col[idx] = (prev < 0) ? curr : (curr - prev);
-      }
-      let y_raw = [], z_raw = [];
-      for (let idx = 0; idx < 99; idx++) { let mv = m_col[idx]; if (isNaN(mv)) continue; y_raw.push(o_col[idx] < 0 ? mv - 0.01 : mv); z_raw.push(n_col[idx] > 0 ? mv + 0.01 : mv); }
-      let y_sorted = y_raw.sort((a, b) => b - a), z_sorted = z_raw.sort((a, b) => b - a), y_final = new Array(100).fill(NaN), z_final = new Array(100).fill(NaN);
-      for (let i = 0; i < z_sorted.length; i++) z_final[i] = z_sorted[i];
-      for (let i = 0; i < y_sorted.length; i++) if (i + 1 < 100) y_final[i + 1] = y_sorted[i];
-      let grouped = {};
-      for (let idx = 0; idx < 100; idx++) {
-        let s = s_col[idx]; if (s === 0) continue; let side = s > 0 ? "매수" : "매도", price = s > 0 ? y_final[idx] : z_final[idx]; if (isNaN(price) || price <= 0) continue;
-        let method = (price === 0.01 && side === "매도") ? "MOC" : "LOC", key = side + "|" + method + "|" + price.toFixed(4);
-        if (!grouped[key]) grouped[key] = { side: side, method: method, price: price, qty: Math.abs(s) }; else grouped[key].qty += Math.abs(s);
-      }
-      return Object.values(grouped).sort((a, b) => b.price - a.price).map(r => [r.side, r.method, r.price, r.qty]);
-    }
+      return str;
+    };
 
-    async function runBacktestMemory(params) {
-      try {
-        let ticker = params.basics.ticker.toString().trim(), startDate = new Date(params.basics.startDate), endDate = params.basics.endDate ? new Date(params.basics.endDate) : new Date(); endDate.setHours(23, 59, 59, 999);
-        function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : Number((num / 100.0).toFixed(8)); } function n(val, def) { return (val === "" || isNaN(val)) ? def : parseFloat(val); }
-        let initialCash = n(params.basics.initialCash, 10000), compR = p(params.basics.compR), lossR = p(params.basics.lossR), fBase = p(params.basics.fBase), fSec = p(params.basics.fSec);
-        let basePrincipal = n(params.basics.renewCash, initialCash), tierAssign = params.basics.tierMethod, dLimit = p(params.basics.dLimit), cDn3 = p(params.basics.cDn3), cDn2 = p(params.basics.cDn2), cDn1 = p(params.basics.cDn1);
-
-        let useMid1 = params.basics.useMid1 !== 'OFF';
-        let useMid3 = params.basics.useMid3 === 'ON';
-        let useMid2 = params.basics.useMid2 !== 'OFF';
-
-        const getM = (mName) => {
-          const alts = { 'SF': ['SF'], 'Middle': ['Middle', 'Mid', 'Mid1'], 'AG': ['AG'], 'Middle2': ['Middle2', 'Mid2'], 'Middle3': ['Middle3', 'Mid3'] };
-          for (let a of alts[mName]) { if (params.modes && params.modes[a]) return params.modes[a]; }
-          return Array(12).fill([0, 0, 0, 20]);
-        };
-        const m3Data = getM('Middle3');
-
-        let MODES = {
-          'SF': { weight: getM('SF').map(r => p(r[0])), buy: getM('SF').map(r => p(r[1])), sell: getM('SF').map(r => p(r[2])), hold: getM('SF').map(r => n(r[3], 20)) },
-          'Middle': { weight: getM('Middle').map(r => p(r[0])), buy: getM('Middle').map(r => p(r[1])), sell: getM('Middle').map(r => p(r[2])), hold: getM('Middle').map(r => n(r[3], 20)) },
-          'AG': { weight: getM('AG').map(r => p(r[0])), buy: getM('AG').map(r => p(r[1])), sell: getM('AG').map(r => p(r[2])), hold: getM('AG').map(r => n(r[3], 20)) },
-          'Middle2': { weight: getM('Middle2').map(r => p(r[0])), buy: getM('Middle2').map(r => p(r[1])), sell: getM('Middle2').map(r => p(r[2])), hold: getM('Middle2').map(r => n(r[3], 20)) },
-          'Middle3': { weight: m3Data.map(r => p(r[0])), buy: m3Data.map(r => p(r[1])), sell: m3Data.map(r => p(r[2])), hold: m3Data.map(r => n(r[3], 20)) }
-        };
-        let startTs = Math.floor(startDate.getTime() / 1000) - (365 * 86400);
-        let todayFixed = new Date(); todayFixed.setHours(23, 59, 59, 999);
-        let endTs = Math.floor(todayFixed.getTime() / 1000);
-
-        let [mainDataAll, qqqData] = await Promise.all([fetchYahooData(ticker, startTs, endTs, true), fetchYahooData("QQQ", startTs, endTs, true)]);
-        window.globalMainData = mainDataAll;
-        let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = 0;
-        let firstPrevClose = (startIndex > 0) ? mainDataAll.close[startIndex - 1] : mainDataAll.open[0], wRsiMap = calculateWRSI_WFRI(qqqData);
-        let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, order_count = 0, inv = [];
-
-        let res = { S: [], BA: [], BF: [], AV: [] }; let fBuy = fBase, fSellT = fBase + fSec, EPS = 0.0000001;
-        function t2(v) { let s = (v >= 0 ? EPS : -EPS); return Math.trunc((v + s) * 100) / 100.0; } function c2(v) { return Math.ceil((v * 100) - EPS) / 100.0; } function R2(v) { return Number(Math.round((v + EPS) * 100) / 100); } function truncPct5(v) { let sign = v >= 0 ? 1e-11 : -1e-11; return Math.trunc((v + sign) * 100000) / 100000; }
-
-        let bDates = mainDataAll.dates.filter(d => d <= endDate && d >= startDate), full_c = mainDataAll.close, rsi_m = 'SF';
-        let finalTodayMode = "-", finalTodayTier = "-", finalTodayWeight = 0, currPrice = 0, evalVal = 0;
-        let allLogs = [];
-
-        for (let i = 0; i < bDates.length; i++) {
-          let idx = startIndex + i, close = full_c[idx], dtStr = formatDateNY(bDates[i]), prev = (idx === 0) ? firstPrevClose : full_c[idx - 1];
-          let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
-          if (rv !== 0) { if (rrv <= 35 && rrv < rv) rsi_m = 'AG'; else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF'; else if (rrv <= 50 && rv > 50) rsi_m = 'AG'; else if (rrv >= 50 && rv < 50) rsi_m = 'SF'; else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG'; else if (rrv > 65 && rrv > rv) rsi_m = 'SF'; }
-
-          let curr_m = rsi_m;
-          if (idx >= 4) {
-            let pct_m1 = truncPct5((full_c[idx - 1] - full_c[idx - 2]) / full_c[idx - 2]);
-            let pct_m2 = truncPct5((full_c[idx - 2] - full_c[idx - 3]) / full_c[idx - 3]);
-            let pct_m3 = truncPct5((full_c[idx - 3] - full_c[idx - 4]) / full_c[idx - 4]);
-
-            let is3Drop = (pct_m1 <= cDn1 && pct_m2 <= cDn2 && pct_m3 <= cDn3);
-            let isPlunge = (pct_m1 <= dLimit);
-
-            let applied_m = null;
-            if (is3Drop) {
-              if (useMid1 && useMid3) {
-                applied_m = (curr_m === 'AG') ? 'Middle3' : 'Middle';
-              } else if (useMid1) {
-                applied_m = 'Middle';
-              } else if (useMid3) {
-                applied_m = 'Middle3';
-              }
-            }
-            if (!applied_m && isPlunge && useMid2) {
-              applied_m = 'Middle2';
-            }
-
-            if (applied_m) curr_m = applied_m;
-          }
-
-          let t = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p => p.tier); t = 1; while (used.indexOf(t) !== -1) t++; }
-          let b_qty = 0, b_tgt = 0, seed = 0.0, w_list = MODES[curr_m].weight;
-          if (t <= w_list.length) { seed = t2(Math.min(base * w_list[t - 1], cash)); b_tgt = t2(prev * (1 + MODES[curr_m].buy[t - 1])); if (b_tgt > 0 && close <= b_tgt) b_qty = Math.floor(seed / (b_tgt * (1 + fBuy)) + 1e-12); }
-
-          let d_sell_net = 0.0, d_buy_cost = 0.0, d_cf = 0.0, n_inv = [];
-          for (let p_idx = 0; p_idx < inv.length; p_idx++) {
-            let p_inv = inv[p_idx]; p_inv.days++; let s_tgt = c2(p_inv.buy_price * (1 + (MODES[p_inv.mode].sell[p_inv.tier - 1] || MODES[p_inv.mode].sell[0])));
-            if (close >= s_tgt || p_inv.days >= (MODES[p_inv.mode].hold[p_inv.tier - 1] || MODES[p_inv.mode].hold[0])) { 
-              let net = (p_inv.qty * close) * (1 - fSellT); 
-              d_sell_net += net; d_buy_cost += p_inv.cost; d_cf += net; 
-              if (p_inv.log) { p_inv.log[10] = dtStr; p_inv.log[11] = close; p_inv.log[12] = p_inv.qty; p_inv.log[13] = t2(net - p_inv.cost); }
-            } else n_inv.push(p_inv);
-          }
-          inv = n_inv; let totalBC = 0;
-          if (b_qty > 0) { 
-            totalBC = (b_qty * close) * (1 + fBuy); 
-            if (totalBC <= cash) { 
-              d_cf -= totalBC; 
-              let s_tgt_expected = c2(close * (1 + (MODES[curr_m].sell[t - 1] || MODES[curr_m].sell[0])));
-              let logEntry = [dtStr, curr_m, t, seed, b_tgt, close, truncPct5((close - prev)/prev), s_tgt_expected, close, b_qty, "", "", "", "", 0, 0, 0, 0, 0, 0];
-              allLogs.push(logEntry);
-              inv.push({ buy_price: close, qty: b_qty, cost: totalBC, mode: curr_m, tier: t, days: 0, log: logEntry, buyDate: dtStr }); 
-              order_count++; 
-            } 
-          }
-          let hasEntryForToday = allLogs.some(l => l[0] === dtStr);
-          if (!hasEntryForToday) {
-            let dailyEntry = [dtStr, curr_m, "-", 0, 0, close, truncPct5((close - prev)/prev), 0, close, 0, "", "", "", "", 0, 0, 0, 0, 0, 0];
-            allLogs.push(dailyEntry);
-          }
-          cash = t2(cash + d_cf);
-          let pl_f = t2(d_sell_net - d_buy_cost), compA = 0.0; if (pl_f > 0) { compA = pl_f * compR; base += compA; } else if (pl_f < 0) { compA = pl_f * lossR; base += compA; } base = t2(base);
-          evalVal = inv.reduce((s, p_i) => s + (p_i.qty * close), 0);
-          let pct_from_prev = prev_total > 0 ? ((cash + t2(evalVal)) - prev_total) / prev_total : 0;
-          let totalBalance = t2(cash + t2(evalVal)); prev_total = totalBalance; if (totalBalance > peak) peak = totalBalance;
-          let currentMdd = peak > 0 ? truncPct5((totalBalance - peak) / peak) : 0;
-
-          for (let l of allLogs) {
-            if (l[0] === dtStr && l[14] === 0) {
-              l[14] = t2(evalVal); l[15] = cash; l[16] = totalBalance; l[17] = base; l[18] = truncPct5(pct_from_prev); l[19] = currentMdd;
-            }
-          }
-
-          currPrice = close; res.S.push(dtStr); res.BF.push(currentMdd); res.BA.push(R2(totalBalance)); res.AV.push(pl_f);
-        }
-
-        let rawOrderOutput = [], orderDateStr = "날짜 확인 불가";
-        const todayNY = formatDateNY(new Date());
-        let tIdx = full_c.length;
-        if (tIdx > 0 && (!params.basics.endDate || params.basics.endDate === "" || formatDateNY(new Date(params.basics.endDate)) >= todayNY)) {
-          let lastDateObj = new Date(mainDataAll.dates[tIdx - 1].getTime());
-          let dayOfWeek = lastDateObj.getDay();
-          if (dayOfWeek === 5) { lastDateObj.setDate(lastDateObj.getDate() + 3); }
-          else if (dayOfWeek === 6) { lastDateObj.setDate(lastDateObj.getDate() + 2); }
-          else { lastDateObj.setDate(lastDateObj.getDate() + 1); }
-          orderDateStr = (lastDateObj.getMonth() + 1) + "/" + lastDateObj.getDate();
-
-          let lastDataClose = full_c[tIdx - 1];
-          // tp1_h(어제), tp2_h(그저께), tp3_h(그그저께) 등락률 계산
-          let tp1_h = truncPct5((full_c[tIdx - 2] - (full_c[tIdx - 3] || full_c[tIdx - 2])) / (full_c[tIdx - 3] || full_c[tIdx - 2]));
-          let tp2_h = truncPct5(((full_c[tIdx - 3] || full_c[tIdx - 2]) - (full_c[tIdx - 4] || full_c[tIdx - 3])) / (full_c[tIdx - 4] || full_c[tIdx - 3]));
-          let tp3_h = truncPct5(((full_c[tIdx - 4] || full_c[tIdx - 3]) - (full_c[tIdx - 5] || full_c[tIdx - 4])) / (full_c[tIdx - 5] || full_c[tIdx - 4]));
-          // Plunge 체크용 (어제 등락률)
-          let tp_plunge = tp1_h;
-
-          let today_m = rsi_m;
-          if (tIdx >= 5) {
-            let is3Drop_t = (tp1_h <= cDn1 && tp2_h <= cDn2 && tp3_h <= cDn3);
-            let isPlunge_t = (tp_plunge <= dLimit);
-            let applied_m_t = null;
-            if (is3Drop_t) {
-              if (useMid1 && useMid3) {
-                applied_m_t = (today_m === 'AG') ? 'Middle3' : 'Middle';
-              } else if (useMid1) {
-                applied_m_t = 'Middle';
-              } else if (useMid3) {
-                applied_m_t = 'Middle3';
-              }
-            }
-            if (!applied_m_t && isPlunge_t && useMid2) {
-              applied_m_t = 'Middle2';
-            }
-            if (applied_m_t) today_m = applied_m_t;
-          }
-
-          let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
-
-          finalTodayMode = today_m; finalTodayTier = tTier;
-          let currentW = MODES[today_m].weight[tTier - 1] !== undefined ? MODES[today_m].weight[tTier - 1] : (MODES[today_m].weight[0] || 0);
-          finalTodayWeight = Math.round(currentW * 10000) / 100;
-
-          let tSeed = t2(Math.min(base * currentW, cash)), tTgt = t2(lastDataClose * (1 + (MODES[today_m].buy[tTier - 1] !== undefined ? MODES[today_m].buy[tTier - 1] : (MODES[today_m].buy[0] || 0)))), todayBuyQty = (tTgt > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 1e-12) : 0;
-          if (todayBuyQty > 0) rawOrderOutput.push(["매수", "LOC", tTgt, todayBuyQty]);
-          inv.forEach(p_i => { let s_tgt = c2(p_i.buy_price * (1 + (MODES[p_i.mode].sell[p_i.tier - 1] || MODES[p_i.mode].sell[0]))); rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); });
-        }
-
-        let lastIdx = res.BA.length - 1, tAssets = res.BA[lastIdx], totalRealizedProfit = res.AV.reduce((acc, cur) => acc + cur, 0);
-        let tQty = inv.reduce((s, p) => s + p.qty, 0), avgPrice = tQty > 0 ? (inv.reduce((s, p) => s + p.cost, 0) / tQty) : 0;
-        let yrs = (endDate - startDate) / (1000 * 60 * 60 * 24 * 365), cagr = yrs > 0 ? (Math.pow((tAssets / initialCash), (1 / yrs)) - 1) : 0, oMdd = res.BF.length > 0 ? Math.min(...res.BF) : 0;
-        let summary = { totalAssets: tAssets, yield: (tAssets - initialCash) / initialCash, cagr: cagr, mdd: oMdd, calmar: oMdd !== 0 ? Math.abs(cagr / oMdd) : 0, totalProfit: tAssets - initialCash, realizedProfit: totalRealizedProfit, qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0, evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0, currPrice: currPrice, currentMdd: res.BF[lastIdx], base: base, todayMode: finalTodayMode, todayTier: finalTodayTier, todayWeight: finalTodayWeight };
-        let finalOrders = run_tungchigi_master(rawOrderOutput);
-
-        window.latestHistory = allLogs;
-
-        return { status: "success", inv: inv, orders: finalOrders, orderDateStr: orderDateStr, summary: summary, chartDates: res.S, chartBalances: res.BA, chartMdd: res.BF, monthlyData: calculateMonthlyData(res.S, res.BA, res.BF, initialCash), yearlyData: calculateYearlyData(res.S, res.BA, res.BF, initialCash) };
-      } catch (e) { return { status: "error", message: e.toString() }; }
-    }
-
-    function calculateMonthlyData(dates, balances, mdds, initialCash) {
-      let monthly = [], currentMonth = "", monthStartBalance = initialCash, currentMonthMinMdd = 0;
-      for (let i = 0; i < dates.length; i++) {
-        let monthKey = dates[i].substring(0, 7), dMdd = mdds[i];
-        if (currentMonth === "") { currentMonth = monthKey; currentMonthMinMdd = dMdd; }
-        if (monthKey !== currentMonth) { let endBalance = balances[i - 1], monthProfit = endBalance - monthStartBalance; monthly.push({ period: currentMonth, asset: endBalance, rate: monthProfit / monthStartBalance, profit: monthProfit, mdd: currentMonthMinMdd }); currentMonth = monthKey; monthStartBalance = endBalance; currentMonthMinMdd = dMdd; } else if (dMdd < currentMonthMinMdd) currentMonthMinMdd = dMdd;
-        if (i === dates.length - 1) { let endBalance = balances[i], monthProfit = endBalance - monthStartBalance; monthly.push({ period: currentMonth, asset: endBalance, rate: monthProfit / monthStartBalance, profit: monthProfit, mdd: currentMonthMinMdd }); }
-      } return monthly.reverse();
-    }
-
-    function calculateYearlyData(dates, balances, mdds, initialCash) {
-      let yearly = [], currentYear = "", yearStartBalance = initialCash, currentYearMinMdd = 0;
-      for (let i = 0; i < dates.length; i++) {
-        let yearKey = dates[i].substring(0, 4), dMdd = mdds[i];
-        if (currentYear === "") { currentYear = yearKey; currentYearMinMdd = dMdd; }
-        if (yearKey !== currentYear) { let endBalance = balances[i - 1], yearProfit = endBalance - yearStartBalance; yearly.push({ period: currentYear, asset: endBalance, rate: yearProfit / yearStartBalance, profit: yearProfit, mdd: currentYearMinMdd }); currentYear = yearKey; yearStartBalance = endBalance; currentYearMinMdd = dMdd; } else if (dMdd < currentYearMinMdd) currentYearMinMdd = dMdd;
-        if (i === dates.length - 1) { let endBalance = balances[i], yearProfit = endBalance - yearStartBalance; yearly.push({ period: currentYear, asset: endBalance, rate: yearProfit / yearStartBalance, profit: yearProfit, mdd: currentYearMinMdd }); }
-      } return yearly.reverse();
-    }
-
-    function setBtnLoading(btnId, loadingText) { const btn = document.getElementById(btnId); const orgText = btn.innerHTML; btn.innerText = loadingText; btn.disabled = true; return function () { btn.innerHTML = orgText; btn.disabled = false; }; }
-    function triggerIconAnim(id) { const el = document.getElementById(id); el.classList.add('icon-rotate', 'status-ready'); setTimeout(() => el.classList.remove('icon-rotate'), 600); }
-
-    async function runEngine() {
-      const ticker = document.getElementById('ticker').value; const startDate = document.getElementById('startDate').value;
-      if (!ticker || !startDate) return alert("데이터를 완전히 불러온 후 실행해주세요.");
-      const restoreBtn = setBtnLoading('runBtn', '⏳ 계산 중...'); const params = gatherParams(); const res = await runBacktestMemory(params); restoreBtn();
-      if (res.status === "error") return alert("❌ 에러:
-" + res.message);
-      ['icoInstant', 'icoPerf', 'icoRun'].forEach(id => document.getElementById(id).classList.remove('status-ready')); triggerIconAnim('icoRun');
-      const hasEndDate = document.getElementById('endDate').value !== '';
-      if (hasEndDate) document.getElementById('mainGrid').classList.add('hide-order-panel'); else { document.getElementById('mainGrid').classList.remove('hide-order-panel'); renderOrderView(res); }
-      globalMonthlyData = res.monthlyData; globalYearlyData = res.yearlyData; renderPeriodTable(); renderMetrics(res.summary, res.chartDates.length); renderChart(res);
-    }
-
-    async function handlePerformance() {
-      const restoreBtn = setBtnLoading('btnPerf', '⏳ 계산 중...'); const res = await runBacktestMemory(gatherParams()); restoreBtn(); document.getElementById('icoPerf').classList.add('status-ready');
-      if (res.status !== "error") { globalMonthlyData = res.monthlyData; globalYearlyData = res.yearlyData; renderPeriodTable(); renderMetrics(res.summary, res.chartDates.length); renderChart(res); } else alert(res.message);
-    }
-
-    async function handleInstantOrder() {
-      const restoreBtn = setBtnLoading('btnInstant', '⏳ 계산 중...'); const res = await runBacktestMemory(gatherParams()); restoreBtn(); document.getElementById('icoInstant').classList.add('status-ready');
-      if (res.status !== "error") { document.getElementById('mainGrid').classList.remove('hide-order-panel'); renderOrderView(res); } else alert(res.message);
-    }
-
-    let settingsTimer = null;
-    function setupLongPress() {
-      const btn = document.getElementById('btnToggleSettings');
-      if (!btn) return;
-      btn.onmousedown = btn.ontouchstart = (e) => {
-        settingsTimer = setTimeout(() => {
-          handleSaveHistoryAll();
-          settingsTimer = null;
-        }, 3000);
-      };
-      btn.onmouseup = btn.onmouseleave = btn.ontouchend = (e) => {
-        if (settingsTimer) { clearTimeout(settingsTimer); settingsTimer = null; }
-      };
-    }
-
-    function handleSaveHistoryAll() {
-      if (!window.latestHistory || window.latestHistory.length === 0) return alert("백테스트 결과가 없습니다.");
-      if (!confirm("전체 매매기록을 서버 시트(S5부터)에 모두 덮어쓰시겠습니까?")) return;
-      const btn = document.getElementById('btnToggleSettings'), orgText = btn.innerHTML; 
-      btn.innerText = '⏳ 전체 저장 중'; btn.disabled = true;
-      let payload = { action: "FULL_OVERWRITE", id: myUserId, logs: window.latestHistory };
-      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-        .then(() => { btn.innerText = '✅ 저장 완료'; setTimeout(() => { btn.innerHTML = orgText; btn.disabled = false; }, 2000); })
-        .catch(() => { btn.innerText = '❌ 오류'; setTimeout(() => { btn.innerHTML = orgText; btn.disabled = false; }, 2000); });
-    }
-
-    function handleSave() {
-      if (!confirm("현재 설정 및 매매기록(새로운 날짜만)을 서버에 저장하시겠습니까?")) return;
-      const btn = document.getElementById('btnSaveTop'), orgText = btn.innerHTML; btn.innerText = '⏳ 저장 중'; btn.disabled = true;
-      let payload = { action: "BACKUP_AND_SAVE", id: myUserId, params: gatherParams(), logs: window.latestHistory || [] };
-      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-        .then(() => { btn.innerText = '✅ 적용 완료'; setTimeout(() => { btn.innerHTML = orgText; btn.disabled = false; }, 1500); }).catch(() => { btn.innerText = '❌ 오류'; setTimeout(() => { btn.innerHTML = orgText; btn.disabled = false; }, 1500); });
-    }
-
-    function initData(d) {
-      if (!d || !d.basics) return; const b = d.basics;
-      document.getElementById('ticker').value = b.ticker || ''; document.getElementById('startDate').value = b.startDate || ''; document.getElementById('endDate').value = b.endDate || ''; document.getElementById('initialCash').value = b.initialCash || ''; document.getElementById('renewCash').value = b.renewCash || '';
-
-      document.getElementById('extraInputs').innerHTML = `
-      <div class="input-group"><label>투자법</label><select id="strategySelect" onchange="handleStrategyChange(this.value)"><option value="2M3D1-1P" ${(b.strategy || '2M3D1-1P') === '2M3D1-1P' ? 'selected' : ''}>2M3D1-1P</option><option value="2M3D2(1.2)" ${b.strategy === '2M3D2(1.2)' ? 'selected' : ''}>2M3D2(1.2)</option><option value="2M3D2(2.0)" ${b.strategy === '2M3D2(2.0)' || b.strategy === '2M3D2' ? 'selected' : ''}>2M3D2(2.0)</option></select></div>
-      <div class="input-group"><label>이익복리(%)</label><input type="number" id="compR" value="${b.compR}" step="any"></div>
-      <div class="input-group"><label>손실복리(%)</label><input type="number" id="lossR" value="${b.lossR}" step="any"></div>
-      <div class="input-group"><label>수수료(%)</label><input type="number" id="fBase" value="${b.fBase}" step="any"></div>
-      <div class="input-group"><label>SEC(%)</label><input type="number" id="fSec" value="${b.fSec}" step="any"></div>
-      <div class="input-group"><label>티어배정</label><select id="tierMethod"><option value="최소(빈자리)" ${b.tierMethod === '최소(빈자리)' ? 'selected' : ''}>최소(빈자리)</option><option value="보유" ${b.tierMethod === '보유' ? 'selected' : ''}>보유</option></select></div>
-      <div class="input-group"><label>3떨 미들1</label><select id="useMid1"><option value="ON" ${(b.useMid1 || 'ON') === 'ON' ? 'selected' : ''}>ON</option><option value="OFF" ${b.useMid1 === 'OFF' ? 'selected' : ''}>OFF</option></select></div>
-      <div class="input-group"><label>3떨 미들3</label><select id="useMid3"><option value="ON" ${b.useMid3 === 'ON' ? 'selected' : ''}>ON</option><option value="OFF" ${(b.useMid3 || 'OFF') === 'OFF' ? 'selected' : ''}>OFF</option></select></div>
-      <div class="input-group"><label>미들2(폭락)</label><select id="useMid2"><option value="ON" ${(b.useMid2 || 'ON') === 'ON' ? 'selected' : ''}>ON</option><option value="OFF" ${b.useMid2 === 'OFF' ? 'selected' : ''}>OFF</option></select></div>
-    `;
-
-      document.getElementById('advancedExtraInputs').innerHTML = `<div class="input-group"><label>폭락점(%)</label><input type="number" id="dLimit" value="${b.dLimit}" step="any"></div><div class="input-group"><label>떨기준3(%)</label><input type="number" id="cDn3" value="${b.cDn3}" step="any"></div><div class="input-group"><label>떨기준2(%)</label><input type="number" id="cDn2" value="${b.cDn2}" step="any"></div><div class="input-group"><label>떨기준1(%)</label><input type="number" id="cDn1" value="${b.cDn1}" step="any"></div>`;
-
-      const mC = document.getElementById('modeInputs'); mC.innerHTML = "";
-      const modeKeyMap = {
-        'SF': ['SF'],
-        'Middle': ['Middle', 'Mid', 'Mid1'],
-        'AG': ['AG'],
-        'Middle2': ['Middle2', 'Mid2'],
-        'Middle3': ['Middle3', 'Mid3']
-      };
-      const seedTargetMap = { 'SF': 'seedSF', 'Middle': 'seedMid', 'AG': 'seedAG', 'Middle2': 'seedMid2', 'Middle3': 'seedMid3' };
-
-      const findData = (obj, keys) => {
-        if (!obj) return null;
-        const objKeys = Object.keys(obj);
-        for (let k of keys) {
-          const foundKey = objKeys.find(ok => ok.toLowerCase() === k.toLowerCase());
-          if (foundKey) return obj[foundKey];
-        }
-        return null;
-      };
-
-      window.renderSingleModeTable = function (m, sData, mDataRaw = []) {
-        const table = document.getElementById(`table-${m}`); if (!table) return;
-        let mData = Array(sData).fill(null).map((_, i) => {
-          let row = mDataRaw[i];
-          if (!row) return [0, 0, 0, 20];
-          return row.length === 5 ? row.slice(1) : (row.length === 4 ? row : [0, 0, 0, 20]);
-        });
-        let h = `<tr><th class="th-t">티어</th><th class="th-w">비중</th><th class="th-b">매수</th><th class="th-s">매도</th><th class="th-h">손절</th></tr>`;
-        mData.forEach((r, i) => { h += `<tr><td>${i + 1}</td><td><input type="number" class="weight" value="${r[0]}" step="any"></td><td><input type="number" class="buy" value="${r[1]}" step="any"></td><td><input type="number" class="sell" value="${r[2]}" step="any"></td><td><input type="number" class="hold" value="${r[3]}"></td></tr>`; });
-        table.innerHTML = h;
-      };
-
-      ['SF', 'Middle', 'AG', 'Middle2', 'Middle3'].forEach(m => {
-        const alts = modeKeyMap[m].concat([m, m.toLowerCase(), m.toUpperCase(), 'm3', 'mid3', 'middle3']);
-        let sData = findData(d.seeds, alts) || 10;
-        if (m === 'Middle3' && b.seedMid3 !== undefined) sData = parseInt(b.seedMid3);
-        if (isNaN(sData) || sData < 1) sData = 10;
-        let mDataRaw = findData(d.modes, alts) || findData(d, alts) || [];
-
-        const seedId = seedTargetMap[m];
-        let h = `<div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><h3 style="margin:0; font-size:12px; color:#6366f1;">${m}</h3><div style="display:flex; gap:4px; align-items:center;"><label style="width:auto; margin:0; font-size:10px;">분할</label><input type="number" id="${seedId}" value="${sData}" class="seed-input" oninput="renderSingleModeTable('${m}', parseInt(this.value)||1)"></div></div><table class="mode-table" id="table-${m}"></table>`;
-        mC.innerHTML += h;
-        renderSingleModeTable(m, sData, mDataRaw);
-      });
-    }
-
-    function handleStrategyChange(strategyName) {
-      if (!strategyName) return;
-      const sName = strategyName.trim();
-      if (!confirm(`[${sName}] 투자법 설정값을 시트에서 즉시 불러오시겠습니까?
-(현재 화면에 입력된 값은 새로 불러온 값으로 덮어씌워집니다)`)) {
+    const syncSlotWithSheet = (confData, perfSlotData, slotNum, engineRes) => {
+      if (!confData || !confData.basics || !confData.basics.strategy) {
+        localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
+        localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
         return;
       }
 
-      const orgText = document.getElementById('userDisplay').innerHTML;
-      document.getElementById('userDisplay').innerHTML = `🔄 ${sName} 불러오는 중...`;
+      localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
+      if (slotNum === 1) slot1Config = confData;
+      else if (slotNum === 2) slot2Config = confData;
+      else if (slotNum === 3) slot3Config = confData;
 
-      // GAS의 GET_STRATEGY가 doPost에 정의되어 있으므로 POST 방식으로 요청
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "GET_STRATEGY", strategy: sName }) })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.config) {
-            initData(data.config);
-            document.getElementById('strategySelect').value = sName;
-            document.getElementById('userDisplay').innerHTML = `🟢 ${myUserId}`;
-            alert(`[${sName}] 설정값을 성공적으로 불러왔습니다.`);
-          } else {
-            const rawMsg = data ? JSON.stringify(data) : "응답 없음";
-            alert(`[${sName}] 시트에서 설정값을 불러오지 못했습니다.
-(서버 응답: ${rawMsg})
+      let sheetLastDate = "1900-01-01";
 
-구글 시트의 탭 이름과 빈칸 없이 정확히 일치하는지 확인해 주세요.`);
-            document.getElementById('userDisplay').innerHTML = orgText;
-            document.getElementById('strategySelect').value = ""; 
-          }
-        })
-        .catch(e => {
-          alert("서버와 통신 중 오류가 발생했습니다. 네트워크 상태 또는 GAS 배포 설정을 확인해 주세요.");
-          document.getElementById('userDisplay').innerHTML = orgText;
+      if (perfSlotData && perfSlotData.logs && perfSlotData.logs.length > 0) {
+        perfSlotData.logs.forEach(r => {
+          let dt = parseDateStr(r[0]);
+          if (dt && dt > sheetLastDate) sheetLastDate = dt;
         });
-    }
+        localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
 
-    function gatherParams() {
-      const mData = {};
-      ['SF', 'Middle', 'AG', 'Middle2', 'Middle3'].forEach(m => {
-        const rows = document.querySelectorAll(`#table-${m} tr:not(:first-child)`);
-        mData[m] = Array.from(rows).map(r => [
-          r.querySelector('.weight').value,
-          r.querySelector('.buy').value,
-          r.querySelector('.sell').value,
-          r.querySelector('.hold').value
-        ]);
-      });
-      return {
-        basics: {
-          ticker: document.getElementById('ticker').value,
-          startDate: document.getElementById('startDate').value,
-          endDate: document.getElementById('endDate').value,
-          initialCash: document.getElementById('initialCash').value,
-          strategy: document.getElementById('strategySelect') ? document.getElementById('strategySelect').value : '2M3D1-1P',
-          compR: document.getElementById('compR').value,
-          lossR: document.getElementById('lossR').value,
-          fBase: document.getElementById('fBase').value,
-          fSec: document.getElementById('fSec').value,
-          tierMethod: document.getElementById('tierMethod').value,
-          renewCash: document.getElementById('renewCash').value,
-          dLimit: document.getElementById('dLimit').value,
-          cDn3: document.getElementById('cDn3').value,
-          cDn2: document.getElementById('cDn2').value,
-          cDn1: document.getElementById('cDn1').value,
-          useMid1: document.getElementById('useMid1').value,
-          useMid3: document.getElementById('useMid3').value,
-          useMid2: document.getElementById('useMid2').value,
-          seedMid3: document.getElementById('seedMid3') ? document.getElementById('seedMid3').value : 10
-        },
-        seeds: {
-          SF: document.getElementById('seedSF') ? document.getElementById('seedSF').value : 10,
-          Middle: document.getElementById('seedMid') ? document.getElementById('seedMid').value : 10,
-          AG: document.getElementById('seedAG') ? document.getElementById('seedAG').value : 10,
-          Middle2: document.getElementById('seedMid2') ? document.getElementById('seedMid2').value : 10,
-          Middle3: document.getElementById('seedMid3') ? document.getElementById('seedMid3').value : 10
-        },
-        modes: mData
-      };
-    }
+        // ⭐️ [핵심 3] 시트 원본을 'processRealLogData'로 파싱하여 100% 정확한 월별/년별 성과를 뽑아냅니다.
+        const realData = processRealLogData(perfSlotData, confData.basics.strategy);
 
-    function renderOrderView(res) {
-      if (!res) return; currentOrderDate = res.orderDateStr || ""; renderOrderTable(res.orders); renderHoldingsTable(res.inv || []); refreshOrderViewUI();
-      if (res.summary) {
-        const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
-        if (document.getElementById('modeCountVal')) document.getElementById('modeCountVal').innerText = (res.summary.todayMode && res.summary.todayMode !== "-") ? (modeMap[res.summary.todayMode] || res.summary.todayMode) : "-";
-        if (document.getElementById('tierCountVal')) document.getElementById('tierCountVal').innerText = res.summary.todayTier || "-";
-        if (document.getElementById('weightCountVal')) document.getElementById('weightCountVal').innerText = res.summary.todayWeight || "0";
-        
-        const currentQty = (res.summary.qty || 0);
-        if (document.getElementById('qtyCountVal')) document.getElementById('qtyCountVal').innerText = currentQty;
-        
-        document.getElementById('tierFooter').style.display = 'flex';
-      } else {
-        document.getElementById('tierFooter').style.display = 'none';
-      }
-    }
+        if (realData) {
+          // 🛠️ 대망의 퓨전(Merge)! 
+          // 과거 데이터(차트, 월별성과 등)는 시트의 것을 쓰고, 미래 데이터(오늘 주문표)는 엔진의 것을 씁니다!
+          let mergedSnap = {
+            ...realData,
+            orders: (engineRes && engineRes.orders && engineRes.orders.length > 0) ? engineRes.orders : realData.orders,
+            nextOrderInfo: (engineRes && engineRes.nextOrderInfo) ? engineRes.nextOrderInfo : null,
+            orderDateStr: (engineRes && engineRes.orderDateStr) ? engineRes.orderDateStr : realData.orderDateStr,
+            dailyStates: (engineRes && engineRes.dailyStates) ? engineRes.dailyStates : []
+          };
 
-    function toggleOrderView() { isOrderView = !isOrderView; refreshOrderViewUI(); }
-    function toggleOrderExpansion() {
-      const grid = document.getElementById('mainGrid');
-      const btn = document.getElementById('btnExpandOrder');
-      const isExpanded = grid.classList.toggle('order-expanded');
-      if (isExpanded) {
-        btn.classList.add('active');
-        // if (grid.classList.contains('force-3-col')) toggleLayoutMode(); // 3열 모드 해제 로직 제거
-      } else btn.classList.remove('active');
-      if (myChart) setTimeout(() => myChart.resize(), 100);
-    }
-    
-    function toggleLayoutMode() {
-      const grid = document.getElementById('mainGrid');
-      const txt = document.getElementById('layoutModeText');
-      if (grid.classList.contains('force-3-col')) {
-        grid.classList.remove('force-3-col');
-        grid.classList.add('force-2-col');
-        document.documentElement.classList.add('is-cover'); // 2열 강제 시 cover 스타일 적용
-        txt.innerText = "2열";
-      } else if (grid.classList.contains('force-2-col')) {
-        grid.classList.remove('force-2-col');
-        txt.innerText = "AUTO";
-        detectLayout(); // 자동 감지 즉시 실행
-      } else {
-        grid.classList.add('force-3-col');
-        document.documentElement.classList.remove('is-cover'); // 3열 강제 시 cover 스타일 제거
-        txt.innerText = "3열";
-        grid.classList.remove('order-expanded');
-        document.getElementById('btnExpandOrder').classList.remove('active');
-      }
-      if (myChart) setTimeout(() => myChart.resize(), 100);
-    }
-    function refreshOrderViewUI() {
-      document.getElementById('orderView').style.display = isOrderView ? 'block' : 'none';
-      document.getElementById('holdingsView').style.display = isOrderView ? 'none' : 'block';
-      document.getElementById('orderTitle').innerText = isOrderView ? "⚡ 주문표 (" + currentOrderDate + ")" : "📦 보유 잔량 (" + currentOrderDate + ")";
-    }
+          if (slotNum === 1) { lastBTResult1 = mergedSnap; lastBTResult = mergedSnap; }
+          else if (slotNum === 2) { lastBTResult2 = mergedSnap; }
+          else if (slotNum === 3) { lastBTResult3 = mergedSnap; }
 
-    // 손절 진행률 직관적 표시 처리 추가
-    function renderHoldingsTable(inv) {
-      const tbody = document.getElementById('holdingsBody'); if (!inv || inv.length === 0) { tbody.innerHTML = "<tr><td colspan='6' style='padding:20px; color:#64748b;'>보유 잔량 없음</td></tr>"; return; } const p = gatherParams();
-      const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
-      tbody.innerHTML = inv.map(o => {
-        let sellPriceStr = "-";
-        let stopDateStr = "-";
-        try {
-          const modeData = p.modes[o.mode];
-          const tierData = modeData[o.tier - 1] || modeData[0];
-          const sellPct = parseFloat(tierData[2]) / 100;
-          sellPriceStr = "$" + (Math.ceil((o.buy_price * (1 + sellPct) * 100) - 0.000001) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
-          holdLimit = parseInt(tierData[3]);
-          if (o.buyDate && window.globalMainData && window.globalMainData.dates) {
-            const bIdx = window.globalMainData.dates.findIndex(d => formatDateNY(d) === o.buyDate);
-            if (bIdx !== -1) {
-              const targetIdx = bIdx + holdLimit;
-              if (targetIdx < window.globalMainData.dates.length) {
-                const sDate = window.globalMainData.dates[targetIdx];
-                stopDateStr = (sDate.getMonth() + 1) + "/" + sDate.getDate();
-              } else {
-                const buyDateObj = new Date(window.globalMainData.dates[bIdx]);
-                buyDateObj.setDate(buyDateObj.getDate() + Math.round(holdLimit * 1.45));
-                stopDateStr = (buyDateObj.getMonth() + 1) + "/" + buyDateObj.getDate();
-              }
-            }
-          }
-        } catch (e) { }
-        return `<tr><td>${o.tier}</td><td>${modeMap[o.mode] || o.mode}</td><td>$${Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="hide-on-cover" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td>${stopDateStr}</td></tr>`;
-      }).join('');
-    }
-
-    function renderOrderTable(orders) {
-      const tbody = document.getElementById('orderBody'); if (!orders || orders.length === 0) { tbody.innerHTML = "<tr><td colspan='4' style='padding:20px; color:#64748b;'>주문 없음</td></tr>"; return; }
-      tbody.innerHTML = orders.map(o => `<tr><td class="${o[0] === '매수' ? 'buy' : 'sell'}">${o[0]}</td><td>${o[1]}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`).join('');
-    }
-
-    function togglePeriodView() {
-      isMonthlyView = !isMonthlyView;
-      document.getElementById('periodTitle').innerHTML = isMonthlyView ? "📅 월별 성과" : "📆 년별 성과";
-      document.getElementById('periodTableHead').innerHTML = isMonthlyView ?
-        `<th>년/월</th><th class="hide-on-narrow">총자산</th><th>수익률</th><th>수익금</th><th class="hide-on-cover">MDD</th>` :
-        `<th>연도</th><th class="hide-on-narrow">총자산</th><th>수익률</th><th>수익금</th><th class="hide-on-cover">MDD</th>`;
-      renderPeriodTable();
-    }
-
-    function renderPeriodTable() {
-      const data = isMonthlyView ? globalMonthlyData : globalYearlyData; const tbody = document.getElementById('periodBody'); if (!data || data.length === 0) { tbody.innerHTML = "<tr><td colspan='5'>데이터가 없습니다.</td></tr>"; return; } const isCoverMode = document.documentElement.classList.contains('is-cover');
-      tbody.innerHTML = data.map(row => {
-        const rateStr = row.rate > 0 ? '+' + (row.rate * 100).toFixed(1) + '%' : (row.rate * 100).toFixed(1) + '%';
-        const profitStr = row.profit > 0 ? '+$' + Math.round(row.profit).toLocaleString() : '$' + Math.round(row.profit).toLocaleString();
-        let displayPeriod = row.period;
-        if (isMonthlyView && isCoverMode && displayPeriod.length === 7) { displayPeriod = displayPeriod.substring(2).replace('-', '/'); }
-        return `<tr><td>${displayPeriod}</td><td class="hide-on-narrow">$${Math.round(row.asset).toLocaleString()}</td><td class="${row.rate > 0 ? 'val-plus' : 'val-minus'}" style="font-size:1.15em; font-weight:800;">${rateStr}</td><td class="${row.profit > 0 ? 'val-plus' : 'val-minus'}">${profitStr}</td><td class="hide-on-cover">${(row.mdd * 100).toFixed(1)}%</td></tr>`;
-      }).join('');
-    }
-
-    // 상세지표 순서 위치 바꿈 반영
-    function renderMetrics(s, days) {
-      if (!s) return; document.getElementById('statsTitle').innerText = `📊 성과`; const isValid = (v) => v !== undefined && v !== null && !isNaN(v) && isFinite(v);
-      const fmt = (v) => isValid(v) ? '$' + Math.round(Number(v)).toLocaleString() : '-';
-      const fmtColor = (v, p) => { if (!isValid(v)) return `<span>-</span>`; let num = Number(v), str = p ? (Math.abs(num) * 100).toFixed(2) + '%' : '$' + Math.round(Math.abs(num)).toLocaleString(); return num > 0 ? `<span class="val-plus">+${str}</span>` : (num < 0 ? `<span class="val-minus">-${str}</span>` : `<span>${str}</span>`); };
-      
-      const currentMddVal = fmtColor(s.currentMdd, true);
-      const monthlyQuick = document.getElementById('monthlyQuickStats');
-      if (monthlyQuick) monthlyQuick.innerHTML = `<span class="hide-rate-mobile"><span style="color:var(--text-muted); font-size:1em;">수익률:</span> <span style="font-size:1.1em; font-weight:800;">${fmtColor(s.yield, true)}</span></span>`;
-      
-      const statsQuick = document.getElementById('statsQuickStats');
-      if (statsQuick) statsQuick.innerHTML = `<span style="color:var(--text-muted); font-size:1em;">현재 MDD:</span> <span style="font-weight:800; color:#fff; font-size:1.1em;">${currentMddVal}</span>`;
-
-      const metrics = [
-        { label: "총자산", value: fmt(s.totalAssets) },
-        { label: "수익률", value: fmtColor(s.yield, true) },
-        { label: "전체 MDD", value: fmtColor(s.mdd, true) },
-        { label: "진행율", value: fmtColor(s.depletion, true) },
-        { label: "총수익금", value: fmtColor(s.totalProfit) },
-        { label: "실현수익", value: fmtColor(s.realizedProfit) },
-        { label: "평가금", value: fmt(s.evalVal) },
-        { label: "칼마비율", value: isValid(s.calmar) ? Number(s.calmar).toFixed(2) : '-' },
-        { label: "예수금", value: fmt(s.cash) },
-        { label: "평가수익", value: fmtColor(s.evalReturn, true) },
-        { label: "주식수", value: (s.qty || 0) + '주' },
-        { label: "현재가", value: isValid(s.currPrice) ? '$' + Number(s.currPrice).toFixed(2) : '-' },
-        { label: "평균단가", value: isValid(s.avgPrice) ? '$' + Number(s.avgPrice).toFixed(2) : '-' },
-        { label: "CAGR", value: fmtColor(s.cagr, true) },
-        { label: "갱신금", value: fmt(s.base) }
-      ];
-
-      let html = '<div style="display:flex; flex-direction:column; width:100%; gap:2px;">';
-      // 3열씩 묶어서 헤더 행 + 값 행(음영 커버)으로 표시
-      for (let i = 0; i < metrics.length; i += 3) {
-        // 헤더 행 (음영 위)
-        html += '<div style="display:flex; padding:0 4px;">';
-        for (let j = 0; j < 3; j++) {
-          const m = metrics[i + j];
-          html += m ? `<div class="metric-label" style="flex:1; text-align:center;">${m.label}</div>` : '<div style="flex:1;"></div>';
+          // 화면 지표를 완벽한 퓨전 데이터로 스르륵 교체하고 폰 캐시에 영구 박제!
+          updateUIWithResult(mergedSnap, confData, slotNum, false);
         }
-        html += '</div>';
-        // 값 행 (음영 커버)
-        html += '<div style="display:flex; background:rgba(255,255,255,0.04); border-radius:6px; padding:4px 0;">';
-        for (let j = 0; j < 3; j++) {
-          const m = metrics[i + j];
-          html += m ? `<div class="metric-value" style="flex:1; text-align:center;">${m.value}</div>` : '<div style="flex:1;"></div>';
-        }
-        html += '</div>';
-      }
-      html += '</div>';
-      document.getElementById('statsGrid').innerHTML = html;
-
-    }
-
-    const peakAnnotationPlugin = {
-      id: 'peakAnnotation',
-      afterDatasetsDraw(chart) {
-        const { ctx, scales: { x, y, y1 }, data } = chart; const assetData = data.datasets[0].data, mddData = data.datasets[1].data; if (!assetData || !assetData.length) return;
-        let maxAsset = -Infinity, maxAssetIdx = -1, maxMdd = Infinity, maxMddIdx = -1;
-        assetData.forEach((val, i) => { if (val > maxAsset) { maxAsset = val; maxAssetIdx = i; } }); mddData.forEach((val, i) => { if (val < maxMdd) { maxMdd = val; maxMddIdx = i; } });
-        const fontSize = document.documentElement.classList.contains('is-cover') ? (1.1 * window.innerHeight) / 100 : 12; ctx.save(); ctx.font = `bold ${fontSize}px "Segoe UI", sans-serif`;
-        function drawLabel(text, px, py, color, isAsset) { ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill(); let textX = px - 8, textY = isAsset ? py - 8 : py + 12; ctx.textAlign = 'right'; ctx.textBaseline = isAsset ? 'bottom' : 'top'; if (px < 60) { textX = px + 8; ctx.textAlign = 'left'; } ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; ctx.strokeText(text, textX, textY); ctx.fillStyle = color; ctx.fillText(text, textX, textY); }
-        if (maxAssetIdx >= 0 && isFinite(maxAsset)) drawLabel(`$${Math.round(maxAsset).toLocaleString()}`, x.getPixelForValue(maxAssetIdx), y.getPixelForValue(maxAsset), '#6366f1', true);
-        if (maxMddIdx >= 0 && isFinite(maxMdd)) drawLabel(`${maxMdd.toFixed(2)}%`, x.getPixelForValue(maxMddIdx), y1.getPixelForValue(maxMdd), '#ef4444', false); ctx.restore();
       }
     };
 
-    function renderChart(res) {
-      if (!res || !res.chartDates) return; if (myChart) myChart.destroy(); document.getElementById('chartBox').innerHTML = '<canvas id="balanceChart"></canvas>'; const ctx = document.getElementById('balanceChart').getContext('2d'); var mddValues = res.chartMdd.map(v => v * 100), worstMdd = Math.min.apply(null, mddValues); var dynamicMddMin = isFinite(worstMdd) ? Math.floor(worstMdd) - 10 : -50; const chartFontSize = document.documentElement.classList.contains('is-cover') ? (1.1 * window.innerHeight) / 100 : 12; Chart.defaults.font.size = chartFontSize;
+    syncSlotWithSheet(dataInit.config, dataPerf.strat1, 1, lastBTResult1);
+    syncSlotWithSheet(dataInit.config2, dataPerf.strat2, 2, lastBTResult2);
+    syncSlotWithSheet(dataInit.config3, dataPerf.strat3, 3, lastBTResult3);
 
-      const assetGradient = ctx.createLinearGradient(0, 0, 0, 400);
-      assetGradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
-      assetGradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+    updateCombinedMetrics();
 
-      myChart = new Chart(ctx, { type: 'line', data: { labels: res.chartDates, datasets: [{ label: '자산', data: res.chartBalances, borderColor: '#6366f1', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient, tension: 0.2 }, { label: 'MDD', data: mddValues, borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { enabled: true, backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 12, titleFont: { family: 'Outfit', size: chartFontSize + 2, weight: '700' }, bodyFont: { family: 'Inter', size: chartFontSize }, cornerRadius: 12, displayColors: true }, zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } }, scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: chartFontSize }, color: '#94a3b8' } }, y: { position: 'left', grace: '10%', grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { font: { family: 'Inter', size: chartFontSize }, color: '#94a3b8' } }, y1: { position: 'right', min: dynamicMddMin, max: 0, grid: { display: false }, ticks: { font: { family: 'Inter', size: chartFontSize }, color: '#ef4444' } } } }, plugins: [peakAnnotationPlugin] });
+    // 📡 동기화 및 렌더링이 무사히 끝났다면 누락된 날짜(4/7 등) 시트로 백업 발사!
+    if (dataInit.hasSheet) {
+      checkAndRunAutoSave();
     }
 
-    function toggleSettings() { const w = document.getElementById('settingsWrapper'), grid = document.getElementById('mainGrid'), btn = document.getElementById('btnToggleSettings'), isOpening = (w.style.display === 'none' || w.style.display === ''); w.style.display = isOpening ? 'flex' : 'none'; btn.innerText = isOpening ? '⚙️ 설정 (닫기)' : '⚙️ 설정 (열기)'; if (isOpening) { grid.classList.add('expanded-settings'); } else { grid.classList.remove('expanded-settings'); } if (myChart) { setTimeout(() => myChart.resize(), 100); } }
-    function toggleAdvanced() { const a = document.getElementById('advancedSettings'); a.style.display = a.style.display === 'none' ? 'block' : 'none'; if (myChart) { setTimeout(() => myChart.resize(), 100); } }
+  } catch (e) {
+    console.error("초기화/동기화 에러:", e);
+    setLED('error');
+  } finally {
+    if (userHeader) userHeader.innerText = myUserId;
+    setLED('on');
+  }
+}
+
+// 🟢 [최종 진화] 시트의 빈 공백(누락된 날짜)만 핀셋으로 골라서 서버로 쏘는 스마트 자동저장
+function checkAndRunAutoSave() {
+  // 1. 각 슬롯별로 시트에 적혀있던 "가장 마지막 날짜"를 꺼내옵니다.
+  let sheetLastDate1 = localStorage.getItem(`vtotal_sheet_last_date_1_${myUserId}`) || "1900-01-01";
+  let sheetLastDate2 = localStorage.getItem(`vtotal_sheet_last_date_2_${myUserId}`) || "1900-01-01";
+  let sheetLastDate3 = localStorage.getItem(`vtotal_sheet_last_date_3_${myUserId}`) || "1900-01-01";
+
+  let combinedMap = {};
+
+  // 2. 엔진이 다시 계산한 기록(dailyStates) 중, 시트 날짜보다 "큰(최신)" 날짜만 골라냅니다!
+  const addStates = (res, slotKey, lastDate) => {
+    if (!res || !res.dailyStates) return;
+    res.dailyStates.forEach(state => {
+      if (state.date > lastDate) { // ⭐️ 시트에 있는 날짜면 무시, 없으면 장바구니에 담음
+        if (!combinedMap[state.date]) combinedMap[state.date] = { date: state.date, s1: null, s2: null, s3: null };
+        combinedMap[state.date][slotKey] = state;
+      }
+    });
+  };
+
+  addStates(lastBTResult1, 's1', sheetLastDate1);
+  addStates(lastBTResult2, 's2', sheetLastDate2);
+  addStates(lastBTResult3, 's3', sheetLastDate3);
+
+  // 날짜순으로 정렬
+  let batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
+
+  // 3. 만약 시트가 이미 최신이라 보낼 데이터가 0개라면? 쿨하게 종료! (시간 락 필요 없음)
+  if (batchLogs.length === 0) return;
+
+  setLED('loading');
+
+  const payload = {
+    action: "AUTO_DAILY_SAVE",
+    id: myUserId,
+    logs: batchLogs // ⭐️ 2/26부터가 아닌, 누락된 날짜(예: 4/7)만 담겨서 전송됩니다.
+  };
+
+  fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+    .then(() => {
+      // ⭐️ 성공적으로 보냈다면, 방금 보낸 날짜를 '시트 마지막 날짜'로 업데이트하여 중복 전송 차단!
+      let finalDate = batchLogs[batchLogs.length - 1].date;
+      if (batchLogs.some(b => b.s1)) localStorage.setItem(`vtotal_sheet_last_date_1_${myUserId}`, finalDate);
+      if (batchLogs.some(b => b.s2)) localStorage.setItem(`vtotal_sheet_last_date_2_${myUserId}`, finalDate);
+      if (batchLogs.some(b => b.s3)) localStorage.setItem(`vtotal_sheet_last_date_3_${myUserId}`, finalDate);
+
+      setLED('on');
+      const header = document.getElementById('userDisplayHeader');
+      if (header) header.innerText = myUserId + " (공백 채우기 완료!)";
+    })
+    .catch(() => { setLED('off'); });
+}
+
+function triggerOptimisticSave() {
+  const currentParams = gatherParams();
+  saveCurrentFormToSlot(activeSettingsTab);
+
+  const updateSlot = (slotNum, setConfigFunc, isActiveFunc, setResFunc) => {
+    setConfigFunc(currentParams);
+    if (isActiveFunc()) {
+      runBacktestMemory(currentParams, false).then(res => {
+        if (res.status !== "error") updateUIWithResult(res, currentParams, slotNum);
+      });
+    } else {
+      setResFunc(null);
+      updateSlotsVisibility();
+      renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+    }
+  };
+
+  if (activeSettingsTab === 1) updateSlot(1, v => slot1Config = v, isSlot1Active, v => lastBTResult1 = v);
+  else if (activeSettingsTab === 2) updateSlot(2, v => slot2Config = v, isSlot2Active, v => lastBTResult2 = v);
+  else updateSlot(3, v => slot3Config = v, isSlot3Active, v => lastBTResult3 = v);
+
+  updateSlotsVisibility();
+}
+
+// 💡 [개조 2] 4열 압축 동기화용 통신 함수
+async function handleSave() {
+  if (!confirm("현재 기기의 설정값과 데이터를 시트에 최종본으로 반영하시겠습니까?")) return;
+
+  const btn = document.getElementById('btnSaveTop');
+  const orgText = btn.innerHTML;
+  btn.innerText = '⏳ 저장 중';
+
+  saveCurrentFormToSlot(activeSettingsTab);
+  lastMyPerfData = null;
+
+  const runAndUI = async (cfg, isActive, slotNum) => {
+    if (!isActive) return null;
+    const res = await runBacktestMemory(cfg, false, slotNum);
+    if (res && res.status !== "error") updateUIWithResult(res, cfg, slotNum);
+    return res; // 저장용 결과 반환
+  };
+
+  const [res1, res2, res3] = await Promise.all([
+    runAndUI(slot1Config, slot1Config !== null, 1),
+    runAndUI(slot2Config, isSlot2Active(), 2),
+    runAndUI(slot3Config, isSlot3Active(), 3)
+  ]);
+
+  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+
+  const current_phone_time = new Date().toLocaleString('sv-SE');
+  localStorage.setItem('vtotal_last_sync_time', current_phone_time);
+
+  // 🚀 [마스터 아키텍처] 모든 슬롯의 데이터를 s1, s2, s3 꾸러미에 담아 전송
+  let payload = {
+    action: "BACKUP_AND_SAVE_V4",
+    id: myUserId,
+    sync_time: current_phone_time,
+    date: res1 ? res1.chartDates[res1.chartDates.length - 1] : formatDateNY(new Date()),
+    params: slot1Config,
+    params2: isSlot2Active() ? slot2Config : null,
+    params3: isSlot3Active() ? slot3Config : null,
+    s1: res1 ? {
+      asset: res1.summary.totalAssets,
+      inout: res1.summary.inout,
+      json: JSON.stringify({
+        cash: res1.summary.cash,
+        base_principal: res1.summary.base,
+        realizedProfit: res1.summary.realizedProfit,
+        holdings: res1.inv
+      })
+    } : null,
+    s2: res2 ? {
+      asset: res2.summary.totalAssets,
+      inout: res2.summary.inout,
+      json: JSON.stringify({
+        cash: res2.summary.cash,
+        base_principal: res2.summary.base,
+        realizedProfit: res2.summary.realizedProfit,
+        holdings: res2.inv
+      })
+    } : null,
+    s3: res3 ? {
+      asset: res3.summary.totalAssets,
+      inout: res3.summary.inout,
+      json: JSON.stringify({
+        cash: res3.summary.cash,
+        base_principal: res3.summary.base,
+        realizedProfit: res3.summary.realizedProfit,
+        holdings: res3.inv
+      })
+    } : null
+  };
+
+  if (!navigator.onLine) {
+    handleOfflineSave(payload);
+    btn.innerHTML = orgText;
+    return;
+  }
+
+  try {
+    await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    btn.innerText = '✅ 반영됨';
+    showToast(`시트에 압축 반영되었습니다. (${current_phone_time.split(' ')[1]})`);
+    localStorage.removeItem('vtotal_pending_sync');
+    setTimeout(() => { btn.innerHTML = orgText; }, 1500);
+  } catch (e) {
+    handleOfflineSave(payload);
+    btn.innerHTML = orgText;
+  }
+}
+
+// 오프라인 저장 로직
+function handleOfflineSave(payload) {
+  localStorage.setItem('vtotal_pending_sync', JSON.stringify(payload));
+  alert("현재 오프라인입니다.\n데이터는 폰에 우선 저장되었으며, 인터넷이 연결되면 다시 반영할 수 있도록 안내해 드립니다.");
+  showToast("오프라인: 폰에 우선 저장됨", "💾");
+}
+
+// 온라인 복구 확인 로직
+function checkPendingSync() {
+  const pendingData = localStorage.getItem('vtotal_pending_sync');
+  if (pendingData && navigator.onLine) {
+    if (confirm("오프라인 상태에서 저장된 최신 데이터가 있습니다. 지금 시트에 반영하시겠습니까?")) {
+      const payload = JSON.parse(pendingData);
+      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+        .then(() => {
+          localStorage.removeItem('vtotal_pending_sync');
+          showToast("대기 중이던 데이터가 시트에 성공적으로 반영되었습니다.");
+        }).catch(e => {
+          showToast("서버 오류로 반영이 지연되었습니다.", "❌");
+        });
+    }
+  }
+}
+
+window.addEventListener('online', checkPendingSync);
+
+function initData(d) {
+  if (!d || !d.basics) return; const b = d.basics;
+  document.getElementById('ticker').value = b.ticker || '';
+  document.getElementById('startDate').value = b.startDate || '';
+  document.getElementById('endDate').value = b.endDate || '';
+  document.getElementById('initialCash').value = formatComma(b.initialCash || '');
+  document.getElementById('renewCash').value = formatComma(b.renewCash || '');
+  document.getElementById('strategySelect').value = b.strategy || '';
+  document.getElementById('fBase').value = b.fBase !== undefined ? b.fBase : '';
+  document.getElementById('fSec').value = b.fSec !== undefined ? b.fSec : '';
+}
+
+function handleStrategyChange(strategyName) {
+  document.getElementById('strategySelect').value = strategyName;
+  triggerOptimisticSave();
+}
+
+function gatherParams() {
+  return {
+    basics: {
+      ticker: document.getElementById('ticker').value,
+      startDate: document.getElementById('startDate').value,
+      endDate: document.getElementById('endDate').value,
+      initialCash: unformatComma(document.getElementById('initialCash').value),
+      strategy: document.getElementById('strategySelect').value,
+      renewCash: unformatComma(document.getElementById('renewCash').value),
+      fBase: document.getElementById('fBase').value,
+      fSec: document.getElementById('fSec').value
+    }
+  };
+}
+
+function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
+  if (slotNum === 1) {
+    currentActiveConfigStr = JSON.stringify(config);
+    lastBTResult = resBT; lastBTResult1 = resBT;
+    const op = document.getElementById('panelOrder'); if (op) op.classList.remove('hidden');
+    globalMonthlyData = resBT.monthlyData; globalYearlyData = resBT.yearlyData;
+  }
+  if (slotNum === 2) toggleSlot2Visibility(true);
+
+  if (slotNum === 1) { lastBTResult1 = resBT; globalMonthlyData1 = resBT.monthlyData; globalYearlyData1 = resBT.yearlyData; }
+  else if (slotNum === 2) { lastBTResult2 = resBT; globalMonthlyData2 = resBT.monthlyData; globalYearlyData2 = resBT.yearlyData; }
+  else if (slotNum === 3) { lastBTResult3 = resBT; globalMonthlyData3 = resBT.monthlyData; globalYearlyData3 = resBT.yearlyData; }
+
+  renderOrderViewSlot(resBT, slotNum);
+  renderPeriodTableSlot(slotNum);
+  renderMetrics(resBT.summary, resBT.chartDates ? resBT.chartDates.length : 0, slotNum);
+  updateCombinedMetrics();
+  if (skipSave) return;
+
+  try {
+    const snapshot = {
+      orders: resBT.orders,
+      orderDateStr: resBT.orderDateStr,
+      summary: resBT.summary,
+      inv: (resBT.inv || []).map(p => ({ tier: p.tier, mode: p.mode, buy_price: p.buy_price, qty: p.qty, cost: p.cost, days: p.days, buyDate: p.buyDate })),
+      monthlyData: resBT.monthlyData,
+      yearlyData: resBT.yearlyData,
+      chartDates: resBT.chartDates,
+      chartBalances: resBT.chartBalances,
+      chartMdd: resBT.chartMdd,
+      currentStrat: resBT.currentStrat,
+      nextOrderInfo: resBT.nextOrderInfo // T, M, W, Q 보존
+    };
+    localStorage.setItem(`vtotal_snap${slotNum}_` + myUserId, JSON.stringify(snapshot));
+    localStorage.setItem('vtotal_snap_date_' + myUserId, formatDateNY(new Date()));
+
+    const kst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const kstDateStr = kst.getFullYear() + '-' + (kst.getMonth() + 1) + '-' + kst.getDate();
+    localStorage.setItem('vtotal_last_auto_kst_' + myUserId, kstDateStr);
+  } catch (e) { }
+}
+
+function confirmLogout() { if (confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem('vtotal_auth'); localStorage.removeItem('vtotal_id'); location.reload(); } }
+function formatDateNY(dateObj) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dateObj); }
+
+function isUSMarketHoliday(dateStr) {
+  const parts = dateStr.split('-'); const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]); const targetDate = new Date(y, m - 1, d); const dow = targetDate.getDay();
+  const getObs = (yy, mm, dd) => { let dc = new Date(yy, mm - 1, dd); if (dc.getDay() === 0) dc.setDate(dc.getDate() + 1); else if (dc.getDay() === 6) dc.setDate(dc.getDate() - 1); return `${yy}-${String(dc.getMonth() + 1).padStart(2, '0')}-${String(dc.getDate()).padStart(2, '0')}`; };
+  const getNth = (yy, mm, wd, nth) => { let dc; if (nth > 0) { dc = new Date(yy, mm - 1, 1); let diff = (wd - dc.getDay() + 7) % 7; dc.setDate(1 + diff + (nth - 1) * 7); } else { dc = new Date(yy, mm, 0); let diff = (dc.getDay() - wd + 7) % 7; dc.setDate(dc.getDate() - diff); } return `${yy}-${String(dc.getMonth() + 1).padStart(2, '0')}-${String(dc.getDate()).padStart(2, '0')}`; };
+  const getGF = (yy) => { let a = yy % 19, b = Math.floor(yy / 100), c = yy % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451); let month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1; let gf = new Date(yy, month - 1, day); gf.setDate(gf.getDate() - 2); return `${yy}-${String(gf.getMonth() + 1).padStart(2, '0')}-${String(gf.getDate()).padStart(2, '0')}`; };
+  const hols = [getObs(y, 1, 1), getNth(y, 1, 1, 3), getNth(y, 2, 1, 3), getGF(y), getNth(y, 5, 1, -1), getObs(y, 6, 19), getObs(y, 7, 4), getNth(y, 9, 1, 1), getNth(y, 11, 4, 4), getObs(y, 12, 25)];
+  return hols.includes(dateStr);
+}
+function pyRound2(num) { let factor = 100, temp = num * factor, rounded = Math.round(temp); if (Math.abs(temp % 1) === 0.5) rounded = (Math.floor(temp) % 2 === 0) ? Math.floor(temp) : Math.ceil(temp); return rounded / factor; }
+
+const yahooCache = {};
+const pendingFetches = {};
+
+async function fetchYahooData(t, p1, p2, rnd, force = false) {
+  if (!t) throw new Error("티커가 비어있습니다.");
+  const memKey = `${t}_${p1}_${p2}`;
+  if (!force && yahooCache[memKey]) return yahooCache[memKey];
+  if (!force && pendingFetches[memKey]) return await pendingFetches[memKey];
+
+  const fetchPromise = (async () => {
+    let cached = await getDB(t);
+    if (!cached) { cached = { ticker: t, dates: [], close: [], open: [] }; }
+    const requestedStart = p1 * 1000, requestedEnd = p2 * 1000;
+    const lastCachedTs = cached.dates.length > 0 ? (new Date(cached.dates[cached.dates.length - 1])).getTime() : 0;
+    const firstCachedTs = cached.dates.length > 0 ? (new Date(cached.dates[0])).getTime() : Infinity;
+    let fetchP1 = p1, fetchP2 = p2, isDelta = false;
+    const now = Date.now();
+    // ⚠️ 캐시 무력화 및 야후 실시간 강제 연동
+    // 1시간 캐싱 등 복잡한 우회 로직을 제거하고 확실하게 최신 데이터를 보장
+    const enoughOld = (firstCachedTs <= requestedStart + 43200000);
+
+    if (force || !enoughOld || (requestedEnd - lastCachedTs > 86400000)) {
+      // 데이터가 하루 이상 비어있거나, 강제 고침일 경우 깔끔하게 델타 무시하고 전체 최신화
+      fetchP1 = p1; fetchP2 = p2; isDelta = false;
+
+      // 야후 서버 타임스탬프 오류 방지를 위해 3일 뒤까지 마진 제공
+      fetchP2 = fetchP2 + (86400 * 3);
+      const yUrl = `${GAS_URL}?action=GET_YAHOO&t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
+      try {
+        const response = await fetch(yUrl); const res = await response.json(); if (res.error) throw new Error(res.error);
+        const r = res.chart.result[0], ts = r.timestamp, cls = r.indicators.quote[0].close, ops = r.indicators.quote[0].open;
+        let newDates = [], newClose = [], newOpen = [], lastDay = "";
+        for (let i = 0; i < ts.length; i++) {
+          if (cls[i] !== null) {
+            let dateObj = new Date(ts[i] * 1000); let dayStr = formatDateNY(dateObj); let cVal = rnd ? pyRound2(cls[i]) : cls[i]; let oVal = rnd ? pyRound2(ops[i]) : ops[i];
+            if (dayStr !== lastDay) { newDates.push(dateObj); newClose.push(cVal); newOpen.push(oVal); lastDay = dayStr; } else { newClose[newClose.length - 1] = cVal; newOpen[newOpen.length - 1] = oVal; }
+          }
+        }
+        if (isDelta) {
+          const lastStr = formatDateNY(new Date(lastCachedTs));
+          const freshIdx = newDates.findIndex(d => formatDateNY(d) > lastStr);
+          if (freshIdx !== -1) {
+            cached.dates = cached.dates.concat(newDates.slice(freshIdx));
+            cached.close = cached.close.concat(newClose.slice(freshIdx));
+            cached.open = cached.open.concat(newOpen.slice(freshIdx));
+          }
+        } else {
+          // ⚠️ [야후 증분 보호 로직] 야후 서버 장애로 과거 날짜까지만 넘어온 경우 (예: 4/7이 내려오다 4/6으로 후퇴)
+          // 기존 캐시에 있던 소중한 최신 날짜(4/7)를 날려버리지 않도록 MERGE(방어)합니다.
+          let existingLastStr = cached.dates.length > 0 ? formatDateNY(new Date(cached.dates[cached.dates.length - 1])) : "1900-01-01";
+          let newLastStr = newDates.length > 0 ? formatDateNY(newDates[newDates.length - 1]) : "1900-01-01";
+
+          if (existingLastStr > newLastStr) {
+            // 야후 데이터가 오히려 더 과거로 퇴보했다면, 안전하게 기존 캐시를 보존
+            console.warn(`야후 데이터 누락 감지! (DB: ${existingLastStr}, 야후: ${newLastStr}). 기존 캐시를 보호합니다.`);
+          } else {
+            // 정상적으로 전체 업데이트 진행
+            cached.dates = newDates; cached.close = newClose; cached.open = newOpen;
+          }
+        }
+
+        const todayNYStr = formatDateNY(new Date()); const nowNYHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date()));
+        if (cached.dates.length > 0) {
+          const lastDayNY = formatDateNY(new Date(cached.dates[cached.dates.length - 1]));
+          if (lastDayNY === todayNYStr && nowNYHour < 17) {
+            cached.dates.pop(); cached.close.pop(); cached.open.pop();
+          }
+        }
+        await setDB(cached);
+        localStorage.setItem('vtotal_last_fetch_' + t, now.toString());
+      } catch (e) { throw new Error("데이터 수집 실패: " + e.message); }
+    }
+    const finalResult = { dates: [], close: [], open: [] };
+    const reqS = requestedStart, reqE = requestedEnd;
+    // 최종 반환할 때 범위 내 데이터만 정제해서 전송
+    for (let i = 0, len = cached.dates.length; i < len; i++) {
+      const d = cached.dates[i];
+      const ts = (d instanceof Date) ? d.getTime() : new Date(d).getTime();
+      // API 시간 오차를 감안해 끝쪽 마진을 넉넉하게 줌
+      if (ts >= reqS && ts <= reqE + (86400 * 1000 * 5)) {
+        finalResult.dates.push(d);
+        finalResult.close.push(cached.close[i]);
+        finalResult.open.push(cached.open[i]);
+      }
+    }
+    yahooCache[memKey] = finalResult;
+    return finalResult;
+  })();
+  pendingFetches[memKey] = fetchPromise;
+  const result = await fetchPromise;
+  delete pendingFetches[memKey];
+  return result;
+}
+
+function getFridayEnd(d) {
+  const nyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const [y, m, dayVal] = nyStr.split('-').map(Number);
+  const date = new Date(y, m - 1, dayVal); const day = date.getDay(); const diff = (day <= 5) ? (5 - day) : (5 + 7 - day); date.setDate(date.getDate() + diff); date.setHours(0, 0, 0, 0); return date.getTime();
+}
+
+function calculateWRSI_WFRI(qData) {
+  let dD = qData.dates, qC = qData.close, weeklyData = {}, wP = [], wD = [];
+  for (let i = 0; i < dD.length; i++) weeklyData[getFridayEnd(dD[i])] = { close: qC[i], date: dD[i] };
+  let sortedFri = Object.keys(weeklyData).sort((a, b) => Number(a) - Number(b));
+  for (let i = 0; i < sortedFri.length; i++) { wP.push(weeklyData[sortedFri[i]].close); wD.push(weeklyData[sortedFri[i]].date); }
+  let p = 14, wRsi = [];
+  for (let i = 0; i < wP.length; i++) { if (i < p) { wRsi.push(50); continue; } let g = 0, l = 0; for (let j = i - p + 1; j <= i; j++) { let df = wP[j] - wP[j - 1]; if (df > 0) g += df; else l -= df; } wRsi.push(l === 0 ? 100 : 100 - (100 / (1 + (g / p) / (l / p)))); }
+  let wRMap = {};
+  for (let i = 0; i < dD.length; i++) { let ds = formatDateNY(dD[i]), friEnd = getFridayEnd(dD[i]), wIdx = sortedFri.indexOf(friEnd.toString()); wRMap[ds] = { dR: (wIdx >= 1) ? wRsi[wIdx - 1] : 50, dRR: (wIdx >= 2) ? wRsi[wIdx - 2] : 50, dCurrent: wRsi[wIdx] }; }
+  return wRMap;
+}
+
+function run_tungchigi_master(paramsArr) {
+  if (!paramsArr || paramsArr.length === 0) return [];
+  let g = new Float64Array(100), h = new Float64Array(100), i_p = new Float64Array(100), j = new Float64Array(100), k = new Array(100).fill(false);
+  for (let idx = 0; idx < paramsArr.length; idx++) { if (idx >= 100) break; let side = paramsArr[idx][0], method = paramsArr[idx][1], price = parseFloat(paramsArr[idx][2]), qty = parseFloat(paramsArr[idx][3]); if (side === '매수') { g[idx] = price; h[idx] = qty; } else { i_p[idx] = price; j[idx] = qty; if (method.toUpperCase() === 'MOC') k[idx] = true; } }
+  let u_g = Array.from(g).filter(v => v > 0), adj_sell = Array.from(i_p).map((val, i) => k[i] ? 0.01 : val), u_i = adj_sell.filter(v => v > 0);
+  let m_prices = [...new Set([...u_g, ...u_i])].sort((a, b) => b - a), m_col = new Array(100).fill(NaN); m_prices.forEach((val, i) => m_col[i] = val);
+  let n_col = new Float64Array(100), o_col = new Float64Array(100);
+  for (let idx = 0; idx < 100; idx++) { if (isNaN(m_col[idx])) continue; let mv = m_col[idx], count_m = m_col.slice(0, idx + 1).filter(v => v === mv).length; if (count_m > 1) { n_col[idx] = 0; } else { let sum_h = 0; for (let x = 0; x < 100; x++) if (g[x] === mv) sum_h += h[x]; n_col[idx] = sum_h; } if (n_col[idx] > 0) { o_col[idx] = 0; } else if (mv === 0.01) { let sum_j = 0; for (let x = 0; x < 100; x++) if (k[x]) sum_j += j[x]; o_col[idx] = -sum_j; } else { let sum_j = 0; for (let x = 0; x < 100; x++) if (!k[x] && i_p[x] === mv) sum_j += j[x]; o_col[idx] = -sum_j; } }
+  let p_col = new Float64Array(100), cumsum_n = 0; for (let idx = 0; idx < 99; idx++) { cumsum_n += n_col[idx]; p_col[idx + 1] = cumsum_n; }
+  let q_col = new Float64Array(100), cumsum_o = 0; for (let idx = 98; idx >= 0; idx--) { cumsum_o += o_col[idx]; q_col[idx] = cumsum_o; }
+  let r_col = new Float64Array(100); for (let idx = 0; idx < 100; idx++) r_col[idx] = p_col[idx] + q_col[idx];
+  let s_col = new Float64Array(100); for (let idx = 0; idx < 100; idx++) { let curr = r_col[idx], prev = idx > 0 ? r_col[idx - 1] : 0, nxt = idx < 99 ? r_col[idx + 1] : 0; if (curr === 0) s_col[idx] = 0; else if (curr < 0) s_col[idx] = (nxt < 0) ? (curr - nxt) : curr; else s_col[idx] = (prev < 0) ? curr : (curr - prev); }
+  let y_raw = [], z_raw = []; for (let idx = 0; idx < 99; idx++) { let mv = m_col[idx]; if (isNaN(mv)) continue; y_raw.push(o_col[idx] < 0 ? mv - 0.01 : mv); z_raw.push(n_col[idx] > 0 ? mv + 0.01 : mv); }
+  let y_sorted = y_raw.sort((a, b) => b - a), z_sorted = z_raw.sort((a, b) => b - a), y_final = new Array(100).fill(NaN), z_final = new Array(100).fill(NaN); for (let i = 0; i < z_sorted.length; i++) z_final[i] = z_sorted[i]; for (let i = 0; i < y_sorted.length; i++) if (i + 1 < 100) y_final[i + 1] = y_sorted[i];
+  let grouped = {}; for (let idx = 0; idx < 100; idx++) { let s = s_col[idx]; if (s === 0) continue; let side = s > 0 ? "매수" : "매도", price = s > 0 ? y_final[idx] : z_final[idx]; if (isNaN(price) || price <= 0) continue; let method = (price === 0.01 && side === "매도") ? "MOC" : "LOC", key = side + "|" + method + "|" + price.toFixed(4); if (!grouped[key]) grouped[key] = { side: side, method: method, price: price, qty: Math.abs(s) }; else grouped[key].qty += Math.abs(s); }
+  return Object.values(grouped).sort((a, b) => b.price - a.price).map(r => [r.side, r.method, r.price, r.qty]);
+}
+
+async function runBacktestMemory(params, force = false, slotNum = null) {
+  try {
+    let ticker = params.basics.ticker.toString().trim(), startDate = new Date(params.basics.startDate);
+    let endDateInput = params.basics.endDate;
+    let endDate = (endDateInput && endDateInput.trim() !== "") ? new Date(endDateInput) : new Date();
+    endDate.setHours(23, 59, 59, 999);
+
+    function n(val, def) { return (val === "" || isNaN(val)) ? def : parseFloat(val); }
+    function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : Number((num / 100.0).toFixed(8)); }
+
+    let initialCash = n(params.basics.initialCash, 10000);
+    let basePrincipal = n(params.basics.renewCash, initialCash);
+
+    let curStrat = params.basics.strategy || '2M3D1-1P';
+    if (!MASTER_STRATEGIES[curStrat]) curStrat = '2M3D1-1P';
+    let M_STRAT = MASTER_STRATEGIES[curStrat];
+    let cfg = M_STRAT.config;
+    let MODES = M_STRAT.modes;
+
+    let compR = cfg.compR, lossR = cfg.lossR, EPS = 0.0000001;
+    let fBuy = p(params.basics.fBase);
+    let fSellT = p(params.basics.fBase) + p(params.basics.fSec);
+    let tierAssign = cfg.tierMethod, dLimit = cfg.dLimit, cDn3 = cfg.cDn3, cDn2 = cfg.cDn2, cDn1 = cfg.cDn1;
+    let useMid1 = cfg.useMid1, useMid2 = cfg.useMid2, useMid3 = cfg.useMid3;
+
+    let startTs = Math.floor(startDate.getTime() / 1000) - (365 * 86400);
+    let todayFixed = new Date(); todayFixed.setHours(23, 59, 59, 999);
+    let endTs = Math.floor(todayFixed.getTime() / 1000);
+
+    let [mainDataAll, qqqData] = await Promise.all([
+      fetchYahooData(ticker, startTs, endTs, true, force),
+      fetchYahooData("QQQ", startTs, endTs, true, force)
+    ]);
+    window.globalMainData = mainDataAll;
+    let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = 0;
+    let firstPrevClose = (startIndex > 0) ? mainDataAll.close[startIndex - 1] : mainDataAll.open[0], wRsiMap = calculateWRSI_WFRI(qqqData);
+
+    let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
+    let cumulativeInOut = 0;
+    let res = { S: [], BA: [], BF: [], AV: [], dailyStates: [] }; // ⭐️ dailyStates 추가
+
+    let activeSlot = slotNum || activeSettingsTab;
+    let snapStr = localStorage.getItem(`vtotal_snap${activeSlot}_` + myUserId);
+    let bDates = mainDataAll.dates.filter(d => d <= endDate && d >= startDate);
+    let startLoopIdx = 0;
+    let maxBuyDate = ""; // ⭐️ 중복 매수 방어선
+
+    // 🚀 [마스터 아키텍처 V4] 로컬 캐시(또는 시트에서 받아온 JSON) 완벽 복원
+    if (!force && snapStr) {
+      let snap = JSON.parse(snapStr);
+      if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
+        res.S = snap.chartDates;
+        res.BA = snap.chartBalances;
+        res.BF = snap.chartMdd;
+
+        inv = snap.inv || [];
+        inv.forEach(h => { if (h.buyDate > maxBuyDate) maxBuyDate = h.buyDate; });
+        let lastSnapDateStr = res.S[res.S.length - 1];
+        if (lastSnapDateStr > maxBuyDate) maxBuyDate = lastSnapDateStr;
+
+        cash = snap.summary.cash;
+        peak = snap.summary.peak || (res.BA.length > 0 ? Math.max(...res.BA) : initialCash);
+        cumulativeInOut = snap.summary.inout || 0;
+
+        // ⭐️ [마스터님 지적사항 완벽 수정] 갱신금(base) 복원 로직
+        let oldBase = snap.summary.base || initialCash;
+
+        if (basePrincipal > oldBase) {
+          // 1. 마스터님이 설정창에서 갱신금을 '수동으로 증액'한 경우 (Delta 계산)
+          let delta = basePrincipal - oldBase;
+          cash += delta;
+          cumulativeInOut += delta;
+          base = basePrincipal; // 증액된 새 갱신금을 사용
+        } else {
+          // 2. ⭐️ [버그 해결] 일반적인 경우: 시트 꾸러미에 저장된 '복리로 커진 진짜 갱신금(예: 85441.55)'을 그대로 이어서 사용!
+          base = oldBase;
+        }
+
+        startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
+        if (startLoopIdx === -1) startLoopIdx = bDates.length;
+      }
+    }
+
+    let full_c = mainDataAll.close, rsi_m = 'SF';
+    function t2(v) { let s = (v >= 0 ? EPS : -EPS); return Math.trunc((v + s) * 100) / 100.0; } function c2(v) { return Math.ceil((v * 100) - EPS) / 100.0; } function R2(v) { return Number(Math.round((v + EPS) * 100) / 100); } function truncPct5(v) { let sign = v >= 0 ? 1e-11 : -1e-11; return Math.trunc((v + sign) * 100000) / 100000; }
+
+    for (let i = startLoopIdx; i < bDates.length; i++) {
+      let idx = startIndex + i, close = full_c[idx], dtStr = formatDateNY(bDates[i]), prev = (idx === 0) ? firstPrevClose : full_c[idx - 1];
+
+      // ⭐️ [수정] 무작정 스킵하지 말고, '장부(S 배열)에 이미 기록된 날짜'만 스킵합니다!
+      if (res.S.includes(dtStr)) continue;
+
+      let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
+      if (rv !== 0) { if (rrv <= 35 && rrv < rv) rsi_m = 'AG'; else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF'; else if (rrv <= 50 && rv > 50) rsi_m = 'AG'; else if (rrv >= 50 && rv < 50) rsi_m = 'SF'; else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG'; else if (rrv > 65 && rrv > rv) rsi_m = 'SF'; }
+
+      let curr_m = rsi_m;
+      if (idx >= 4) {
+        let pct_m1 = truncPct5((full_c[idx - 1] - full_c[idx - 2]) / full_c[idx - 2]);
+        let pct_m2 = truncPct5((full_c[idx - 2] - full_c[idx - 3]) / full_c[idx - 3]);
+        let pct_m3 = truncPct5((full_c[idx - 3] - full_c[idx - 4]) / full_c[idx - 4]);
+
+        let is3Drop = (pct_m1 <= cDn1 && pct_m2 <= cDn2 && pct_m3 <= cDn3);
+        let isPlunge = (pct_m1 <= dLimit);
+        let applied_m = null;
+
+        if (is3Drop) {
+          if (useMid1 && useMid3) applied_m = (curr_m === 'AG') ? 'Middle3' : 'Middle';
+          else if (useMid1) applied_m = 'Middle';
+          else if (useMid3) applied_m = 'Middle3';
+        }
+        if (!applied_m && isPlunge && useMid2) {
+          applied_m = 'Middle2';
+        }
+        if (applied_m) curr_m = applied_m;
+      }
+
+      let t = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p => p.tier); t = 1; while (used.indexOf(t) !== -1) t++; }
+      let b_qty = 0, b_tgt = 0, seed = 0.0;
+
+      let w_list = MODES[curr_m].weight;
+      if (t <= w_list.length) {
+        let w_val = w_list[t - 1];
+        seed = t2(Math.min(base * w_val, cash));
+        b_tgt = t2(prev * (1 + MODES[curr_m].buy[t - 1]));
+        if (b_tgt > 0 && close <= b_tgt) b_qty = Math.floor(seed / (b_tgt * (1 + fBuy)) + 1e-12);
+      }
+
+      let d_sell_net = 0.0, d_buy_cost = 0.0, d_cf = 0.0, n_inv = [];
+      for (let p_idx = 0; p_idx < inv.length; p_idx++) {
+        let p_inv = inv[p_idx]; p_inv.days++;
+        let p_mode = MODES[p_inv.mode] || MODES['SF'];
+        let sellRate = p_mode.sell[p_inv.tier - 1] || p_mode.sell[0] || 0;
+        let s_tgt = c2(p_inv.buy_price * (1 + sellRate));
+        let h_limit = (p_mode.hold[p_inv.tier - 1] || p_mode.hold[0]);
+
+        if (close >= s_tgt || p_inv.days >= h_limit) {
+          let net = (p_inv.qty * close) * (1 - fSellT);
+          d_sell_net += net; d_buy_cost += p_inv.cost; d_cf += net;
+        } else n_inv.push(p_inv);
+      }
+      inv = n_inv;
+      if (b_qty > 0) {
+        let totalBC = (b_qty * close) * (1 + fBuy);
+        if (totalBC <= cash) {
+          d_cf -= totalBC;
+          inv.push({ buy_price: close, qty: b_qty, cost: totalBC, mode: curr_m, tier: t, days: 0, buyDate: dtStr });
+        }
+      }
+      cash = t2(cash + d_cf);
+      let pl_f = t2(d_sell_net - d_buy_cost), compA = 0.0; if (pl_f > 0) { compA = pl_f * compR; base += compA; } else if (pl_f < 0) { compA = pl_f * lossR; base += compA; } base = t2(base);
+      let evalVal = inv.reduce((s, p_i) => s + (p_i.qty * close), 0);
+      let totalBalance = t2(cash + t2(evalVal)); prev_total = totalBalance; if (totalBalance > peak) peak = totalBalance;
+      let currentMdd = peak > 0 ? truncPct5((totalBalance - peak) / peak) : 0;
+
+      // ⭐️ 매일의 장부 상태(JSON용)를 기록
+      res.dailyStates.push({
+        date: dtStr,
+        asset: totalBalance,
+        inout: cumulativeInOut,
+        json: JSON.stringify({
+          cash: cash,
+          base_principal: base,
+          realizedProfit: pl_f,
+          holdings: JSON.parse(JSON.stringify(inv))
+        })
+      });
+
+      res.S.push(dtStr); res.BF.push(currentMdd); res.BA.push(R2(totalBalance)); res.AV.push(pl_f);
+    }
+
+    let rawOrderOutput = [], orderDateStr = "날짜 확인 불가";
+    let nextOrderInfo = { tier: "-", mode: "-", weight: "-", qty: "-" };
+
+    let tIdx = full_c.length;
+    if (tIdx > 0 && res.S.length > 0) {
+      const lastDateDaily = mainDataAll.dates[tIdx - 1];
+      const lastDateNYStr = formatDateNY(lastDateDaily);
+      const lp = lastDateNYStr.split('-');
+      const lastDateNY = new Date(parseInt(lp[0]), parseInt(lp[1]) - 1, parseInt(lp[2]), 20);
+      const dayOfWeekNY = lastDateNY.getDay();
+      const lastFriTS = getFridayEnd(lastDateDaily);
+
+      lastDateNY.setDate(lastDateNY.getDate() + (dayOfWeekNY === 5 ? 3 : 1));
+      while (true) {
+        const dateStr = formatDateNY(lastDateNY);
+        const dow = lastDateNY.getDay();
+        if (dow === 0 || dow === 6 || isUSMarketHoliday(dateStr)) {
+          lastDateNY.setDate(lastDateNY.getDate() + 1);
+        } else { break; }
+      }
+      const nextFriTS = getFridayEnd(lastDateNY);
+      orderDateStr = (lastDateNY.getMonth() + 1) + "/" + lastDateNY.getDate();
+
+      // ⭐️ [버그 수정] 루프 스킵(이어하기) 시 rsi_m이 기본값('SF')으로 굳어버리는 현상 해결
+      // 마지막 날짜(lastDateNYStr)의 주간 지표(dR, dRR)를 뜯어와서 현재 모드를 직접 재계산합니다.
+      let today_m = 'SF';
+      if (wRsiMap[lastDateNYStr]) {
+        let base_rv = wRsiMap[lastDateNYStr].dR;
+        let base_rrv = wRsiMap[lastDateNYStr].dRR;
+        if (base_rv !== 0) {
+          if (base_rrv <= 35 && base_rrv < base_rv) today_m = 'AG';
+          else if (base_rrv >= 40 && base_rrv < 50 && base_rrv > base_rv) today_m = 'SF';
+          else if (base_rrv <= 50 && base_rv > 50) today_m = 'AG';
+          else if (base_rrv >= 50 && base_rv < 50) today_m = 'SF';
+          else if (base_rrv >= 50 && base_rrv < 60 && base_rrv < base_rv) today_m = 'AG';
+          else if (base_rrv > 65 && base_rrv > base_rv) today_m = 'SF';
+        }
+      }
+
+      // 만약 다음 주문일이 '다음 주'로 넘어갔다면, 이번 주 종가(dCurrent)를 바탕으로 한 번 더 갱신!
+      if (nextFriTS !== lastFriTS) {
+        const lastBarInfo = wRsiMap[lastDateNYStr];
+        if (lastBarInfo) {
+          const rv = lastBarInfo.dCurrent; // 다음주의 dR이 될 값
+          const rrv = lastBarInfo.dR;      // 다음주의 dRR이 될 값
+          if (rv !== 0) {
+            if (rrv <= 35 && rrv < rv) today_m = 'AG';
+            else if (rrv >= 40 && rrv < 50 && rrv > rv) today_m = 'SF';
+            else if (rrv <= 50 && rv > 50) today_m = 'AG';
+            else if (rrv >= 50 && rv < 50) today_m = 'SF';
+            else if (rrv >= 50 && rrv < 60 && rrv < rv) today_m = 'AG';
+            else if (rrv > 65 && rrv > rv) today_m = 'SF';
+          }
+        }
+      }
+
+      let lastDataClose = full_c[tIdx - 1];
+      let tp1_h = truncPct5((full_c[tIdx - 1] - (full_c[tIdx - 2] || full_c[tIdx - 1])) / (full_c[tIdx - 2] || full_c[tIdx - 1]));
+      let tp2_h = truncPct5(((full_c[tIdx - 2] || full_c[tIdx - 1]) - (full_c[tIdx - 3] || full_c[tIdx - 2])) / (full_c[tIdx - 3] || full_c[tIdx - 2]));
+      let tp3_h = truncPct5(((full_c[tIdx - 3] || full_c[tIdx - 2]) - (full_c[tIdx - 4] || full_c[tIdx - 3])) / (full_c[tIdx - 4] || full_c[tIdx - 3]));
+
+      if (tIdx >= 5) {
+        let is3Drop_t = (tp1_h <= cDn1 && tp2_h <= cDn2 && tp3_h <= cDn3);
+        let isPlunge_t = (tp1_h <= dLimit);
+        let applied_m_t = null;
+        if (is3Drop_t) {
+          if (useMid1 && useMid3) applied_m_t = (today_m === 'AG') ? 'Middle3' : 'Middle';
+          else if (useMid1) applied_m_t = 'Middle';
+          else if (useMid3) applied_m_t = 'Middle3';
+        }
+        if (!applied_m_t && isPlunge_t && useMid2) applied_m_t = 'Middle2';
+        if (applied_m_t) today_m = applied_m_t;
+      }
+
+      let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
+      let currentW = MODES[today_m].weight[tTier - 1] || 0;
+      let tSeed = t2(Math.min(base * currentW, cash));
+      let bTgtVal = MODES[today_m].buy[tTier - 1] || 0;
+      let tTgt = t2(lastDataClose * (1 + bTgtVal));
+      let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 1e-12) : 0;
+      if (todayBuyQty > 0) rawOrderOutput.push(["매수", "LOC", tTgt, todayBuyQty]);
+
+      inv.forEach(p_i => {
+        let p_mode = MODES[p_i.mode] || MODES['SF'];
+        let sellRate = p_mode.sell[p_i.tier - 1] || p_mode.sell[0] || 0;
+        let s_tgt = c2(p_i.buy_price * (1 + sellRate));
+        rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]);
+      });
+
+      nextOrderInfo = { tier: tTier, mode: today_m, weight: (currentW * 100).toFixed(1), qty: todayBuyQty };
+    }
+
+    let lastIdx = res.BA.length - 1, tAssets = res.BA[lastIdx], totalRealizedProfit = res.AV.reduce((acc, cur) => acc + cur, 0);
+    let tQty = inv.reduce((s, p) => s + p.qty, 0), avgPrice = tQty > 0 ? (inv.reduce((s, p) => s + p.cost, 0) / tQty) : 0;
+    let currPrice = full_c.length > 0 ? full_c[full_c.length - 1] : 0;
+    let evalVal = inv.reduce((s, p_i) => s + (p_i.qty * currPrice), 0);
+    let realPrincipal = initialCash + cumulativeInOut;
+    let yrs = (endDate - startDate) / (1000 * 60 * 60 * 24 * 365);
+    let cagr = yrs > 0 ? (Math.pow((tAssets / realPrincipal), (1 / yrs)) - 1) : 0;
+    let oMdd = res.BF.length > 0 ? Math.min(...res.BF) : 0;
+
+    let summary = {
+      totalAssets: tAssets, yield: (tAssets - realPrincipal) / realPrincipal, cagr: cagr,
+      mdd: oMdd, calmar: oMdd !== 0 ? Math.abs(cagr / oMdd) : 0,
+      totalProfit: tAssets - realPrincipal, realizedProfit: totalRealizedProfit,
+      qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
+      evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
+      currPrice: currPrice, currentMdd: res.BF[lastIdx],
+      base: base, inout: cumulativeInOut, peak: peak
+    };
+
+    let finalOrders = run_tungchigi_master(rawOrderOutput);
+
+    return {
+      status: "success",
+      inv: inv,
+      orders: finalOrders,
+      orderDateStr: orderDateStr,
+      summary: summary,
+      chartDates: res.S,
+      chartBalances: res.BA,
+      chartMdd: res.BF,
+      monthlyData: calculateMonthlyData(res.S, res.BA, res.BF, initialCash),
+      yearlyData: calculateYearlyData(res.S, res.BA, res.BF, initialCash),
+      currentStrat: curStrat,
+      nextOrderInfo: nextOrderInfo,
+      dailyStates: res.dailyStates // ⭐️ [필수 추가] 이 줄이 없어서 시트 저장이 안 됐던 겁니다!
+    };
+  } catch (e) { return { status: "error", message: e.toString() }; }
+}
+
+function calculateMonthlyData(dates, balances, mdds, initialCash) {
+  if (!dates || dates.length === 0) return [];
+  let monthly = [];
+  let currentMonth = dates[0].substring(0, 7);
+  // ⭐️ 1. 시트의 시작날짜(첫번째 날짜)의 총자산이 1개월 차의 원금!
+  let monthStartBalance = balances[0];
+  let currentMonthMinMdd = mdds[0];
+
+  for (let i = 0; i < dates.length; i++) {
+    let monthKey = dates[i].substring(0, 7);
+    let dMdd = mdds[i];
+
+    if (monthKey !== currentMonth) {
+      let endBalance = balances[i - 1]; // 방금 끝난 달의 말일 자산
+      let monthProfit = endBalance - monthStartBalance;
+      monthly.push({
+        period: currentMonth,
+        asset: endBalance,
+        rate: monthStartBalance > 0 ? monthProfit / monthStartBalance : 0,
+        profit: monthProfit,
+        mdd: currentMonthMinMdd
+      });
+      currentMonth = monthKey;
+      // ⭐️ 2. 다음 달의 시작 원금은 '전월 말일 값 기준'
+      monthStartBalance = endBalance;
+      currentMonthMinMdd = dMdd;
+    } else {
+      if (dMdd < currentMonthMinMdd) currentMonthMinMdd = dMdd;
+    }
+
+    if (i === dates.length - 1) {
+      let endBalance = balances[i];
+      let monthProfit = endBalance - monthStartBalance;
+      monthly.push({
+        period: currentMonth,
+        asset: endBalance,
+        rate: monthStartBalance > 0 ? monthProfit / monthStartBalance : 0,
+        profit: monthProfit,
+        mdd: currentMonthMinMdd
+      });
+    }
+  }
+  return monthly;
+}
+
+function calculateYearlyData(dates, balances, mdds, initialCash) {
+  if (!dates || dates.length === 0) return [];
+  let yearly = [];
+  let currentYear = dates[0].substring(0, 4);
+  // ⭐️ 1. 시트 시작날짜 총자산이 1년 차의 원금!
+  let yearStartBalance = balances[0];
+  let currentYearMinMdd = mdds[0];
+
+  for (let i = 0; i < dates.length; i++) {
+    let yearKey = dates[i].substring(0, 4);
+    let dMdd = mdds[i];
+
+    if (yearKey !== currentYear) {
+      let endBalance = balances[i - 1]; // 방금 끝난 연도의 말일 자산
+      let yearProfit = endBalance - yearStartBalance;
+      yearly.push({
+        period: currentYear,
+        asset: endBalance,
+        rate: yearStartBalance > 0 ? yearProfit / yearStartBalance : 0,
+        profit: yearProfit,
+        mdd: currentYearMinMdd
+      });
+      currentYear = yearKey;
+      // ⭐️ 2. 다음 해의 시작 원금은 '전월 말일 값 기준'
+      yearStartBalance = endBalance;
+      currentYearMinMdd = dMdd;
+    } else {
+      if (dMdd < currentYearMinMdd) currentYearMinMdd = dMdd;
+    }
+
+    if (i === dates.length - 1) {
+      let endBalance = balances[i];
+      let yearProfit = endBalance - yearStartBalance;
+      yearly.push({
+        period: currentYear,
+        asset: endBalance,
+        rate: yearStartBalance > 0 ? yearProfit / yearStartBalance : 0,
+        profit: yearProfit,
+        mdd: currentYearMinMdd
+      });
+    }
+  }
+  return yearly;
+}
+
+async function handlePerformance(isForce = false) {
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.add('perf-metrics-layout');
+    grid.classList.remove('hidden');
+  }
+  isStatsMode = true;
+  const btnStats = document.getElementById('btnStatsShow');
+  if (btnStats) btnStats.classList.add('active');
+
+  const restoreBtn = setBtnLoading('btnPerf', '📥...');
+  const strat1Name = slot1Config?.basics?.strategy || "";
+  const strat2Name = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
+  const strat3Name = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+
+  try {
+    // 💡 강제 갱신이 아니고, 날짜 캐시가 유효하다면 즉시 0.1초 로딩!
+    if (!isForce && isPerfCacheValid()) {
+      renderPerfFromCache(strat1Name, strat2Name, strat3Name);
+      isViewingHistory = true; restoreBtn(); triggerIconAnim('icoPerf');
+      showToast("⚡ 당일 성과 즉시 로딩");
+      return;
+    }
+
+    // 캐시가 없거나 오늘 데이터가 아니면 서버 통신 시작
+    setLED('loading');
+    const response = await fetch(`${GAS_URL}?action=GET_MY_PERF&id=${myUserId}&strat1=${encodeURIComponent(strat1Name)}&strat2=${encodeURIComponent(strat2Name)}&strat3=${encodeURIComponent(strat3Name)}&force=${isForce}`);
+    const data = await response.json();
+
+    if (!data || data.status === "error") throw new Error(data.message || "데이터가 없습니다.");
+
+    lastMyPerfData = data;
+    perfLastCheckTime = new Date().getTime(); // 오늘 통신 시도 시간 기록
+
+    renderPerfFromCache(strat1Name, strat2Name, strat3Name);
+    setLED('on');
+    showToast(isForce ? "🔄 3초 강제 업데이트 완료" : "✅ 최신 성과 갱신 완료");
+  } catch (e) {
+    console.error("성과 데이터 갱신 실패:", e);
+    setLED('off');
+  } finally {
+    isViewingHistory = true; restoreBtn(); triggerIconAnim('icoPerf');
+  }
+}
+
+function processRealLogData(d, currentStrat) {
+  if (!d || !d.logs || d.logs.length === 0) return null;
+  const logs = d.logs;
+  const meta = d.meta;
+
+  let restoredInv = [];
+  let restoredBase = parseFloat(meta.totalPrincipal) || 0;
+  if (d.json && d.json.trim() !== "") {
+    try {
+      const parsed = JSON.parse(d.json);
+      if (parsed.holdings) restoredInv = parsed.holdings;
+      if (parsed.base_principal) restoredBase = parsed.base_principal;
+    } catch (e) { console.error("JSON 파싱 실패", e); }
+  }
+
+  const parseAndFormatYYMMDD = (ds) => {
+    if (!ds) return null;
+    let str = String(ds).trim();
+    // ⭐️ 요일 문자열(화) 강제 제거 로직 추가
+    str = str.replace(/\([가-힣a-zA-Z]\)/g, "").trim();
+    str = str.replace(/[년월.\/]/g, '-').replace(/일/g, '').replace(/\s+/g, '');
+    if (str.endsWith('-')) str = str.slice(0, -1);
+    if (str.includes('T')) str = str.split('T')[0];
+
+    let p = str.split('-');
+    if (p.length >= 3) {
+      let y = p[0];
+      if (y.length === 2) y = "20" + y;
+      let m = p[1].padStart(2, '0');
+      let d = p[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    } else if (p.length === 2) {
+      let y = p[0];
+      if (y.length === 2) y = "20" + y;
+      let m = p[1].padStart(2, '0');
+      return `${y}-${m}-01`;
+    }
+    return str;
+  };
+
+  let chartDates = [], chartBalances = [], chartMdd = [], chartInout = [];
+  let peak = -Infinity;
+
+  for (let i = 0; i < logs.length; i++) {
+    let r = logs[i];
+    let dateStr = r[0];
+    let asset = parseFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0;
+
+    if (dateStr && asset > 0) {
+      let exactDate = parseAndFormatYYMMDD(dateStr);
+      let inout = parseFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0;
+
+      chartDates.push(exactDate);
+      chartBalances.push(asset);
+      chartInout.push(inout);
+
+      if (asset > peak) peak = asset;
+      chartMdd.push(peak > 0 ? (asset - peak) / peak : 0);
+    }
+  }
+
+  const lastAsset = chartBalances[chartBalances.length - 1] || 0;
+  const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
+
+  // ⭐️ [이중 합산 방기 및 정합성 패치] 
+  const firstAsset = chartBalances[0] || 0;
+  const firstInout = chartInout[0] || 0;
+  let totalInoutSum = 0;
+  chartInout.forEach(v => totalInoutSum += v);
+
+  let totalPrincipal = 0;
+  // 첫날 입출금(Inout)이 첫날 자산(Balance)과 거의 같다면, 입출금 열에 초기 자본이 포함된 것이므로 입출금 합계만 원금으로 사용.
+  // 다르다면, 시트가 자산 기록부터 시작하고 입출금은 별도 추가금만 적힌 것이므로 '첫날 자산 + 이후 입출금'으로 계산.
+  if (firstInout > 0 && Math.abs(firstAsset - firstInout) < 10) {
+    totalPrincipal = totalInoutSum;
+  } else {
+    totalPrincipal = firstAsset + (totalInoutSum - firstInout);
+  }
+
+  const realizedProfit = parseFloat(meta.realizedProfit) || 0;
+  const cash = parseFloat(meta.currentCash) || 0;
+  const qty = parseFloat(meta.qty) || 0;
+  const avgPrice = parseFloat(meta.avgPrice) || 0;
+
+  const evalVal = lastAsset - cash;
+  const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0;
+
+  const investPrincipal = qty * avgPrice;
+  const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0;
+  const currPrice = parseFloat(meta.tickerPrice) || (qty > 0 ? evalVal / qty : 0);
+  const totalProfit = lastAsset - totalPrincipal;
+  const simpleYield = totalPrincipal > 0 ? totalProfit / totalPrincipal : 0;
+
+  let cagr = 0;
+  if (chartDates.length > 1) {
+    const toDateObj = (str) => {
+      let p = str.split('-');
+      let year = parseInt(p[0], 10);
+      if (year < 100) year += 2000;
+      return new Date(year, parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    };
+    const sDate = toDateObj(chartDates[0]);
+    const eDate = toDateObj(chartDates[chartDates.length - 1]);
+    let days = Math.max(1, Math.round((eDate - sDate) / (1000 * 60 * 60 * 24)) - 1);
+    let years = days / 365;
+    if (years > 0) cagr = Math.pow(1 + simpleYield, 1 / years) - 1;
+  }
+
+  const calcPeriod = (type) => {
+    if (chartDates.length === 0) return [];
+    let periods = {};
+
+    for (let i = 0; i < chartDates.length; i++) {
+      let parts = chartDates[i].split('-');
+      let periodKey = type === 'month' ? `${parts[0]}-${parts[1]}` : parts[0];
+
+      if (!periods[periodKey]) {
+        periods[periodKey] = { startIdx: i, endIdx: i, indices: [], inout: 0 };
+      }
+      periods[periodKey].endIdx = i;
+      periods[periodKey].indices.push(i);
+      periods[periodKey].inout += (chartInout[i] || 0); // 기간 내 입출금 합산
+    }
+
+    let result = [];
+    let pKeys = Object.keys(periods).sort();
+
+    for (let i = 0; i < pKeys.length; i++) {
+      let key = pKeys[i];
+      let pData = periods[key];
+      let startAsset = 0;
+      let startInout = 0;
+
+      if (i === 0) {
+        startAsset = chartBalances[0];
+        startInout = chartInout[0] || 0;
+      } else {
+        startAsset = chartBalances[periods[pKeys[i - 1]].endIdx];
+        startInout = 0; // 이전 기간 말일 자산 기준이므로 해당일 입출금은 고려하지 않음
+      }
+
+      let endAsset = chartBalances[pData.endIdx];
+      let inoutSum = pData.inout;
+
+      // ⭐️ [입출금 보정 및 이중 합산 방지]
+      let profit = 0;
+      let profitBasis = 0;
+
+      if (i === 0) {
+        // 첫 구간은 요약 로직과 동일하게 처리
+        if (startInout > 0 && Math.abs(startAsset - startInout) < 10) {
+          profit = endAsset - inoutSum;
+          profitBasis = inoutSum;
+        } else {
+          profit = endAsset - startAsset - (inoutSum - startInout);
+          profitBasis = startAsset + (inoutSum - startInout);
+        }
+      } else {
+        // 두번째 구간부터는 '기말 - 기초 - 구간입출금'
+        profit = endAsset - startAsset - inoutSum;
+        profitBasis = startAsset + inoutSum;
+      }
+
+      let minMddVal = 0;
+      for (let idx of pData.indices) {
+        if (chartMdd[idx] < minMddVal) minMddVal = chartMdd[idx];
+      }
+
+      result.push({
+        period: key,
+        asset: endAsset,
+        rate: profitBasis > 0 ? profit / profitBasis : 0,
+        profit: profit,
+        mdd: minMddVal
+      });
+    }
+    return result.reverse();
+  };
+
+  const summary = {
+    totalAssets: lastAsset, yield: simpleYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0,
+    totalProfit: lastAsset - totalPrincipal, realizedProfit: realizedProfit, qty: qty, avgPrice: avgPrice,
+    evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice,
+    currentMdd: chartMdd[chartMdd.length - 1], base: totalPrincipal
+  };
+
+  let rawOrderOutput = [];
+  let M_STRAT = MASTER_STRATEGIES[currentStrat] || MASTER_STRATEGIES["2M3D1-1P"];
+  let MODES = M_STRAT.modes;
+  function c2(v) { return Math.ceil((v * 100) - 0.0000001) / 100.0; }
+
+  if (restoredInv.length > 0) {
+    restoredInv.forEach(p_i => {
+      let modeData = MODES[p_i.mode] || MODES['SF'];
+      let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0;
+      let s_tgt = c2(p_i.buy_price * (1 + sellRate));
+      rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]);
+    });
+  }
+
+  const finalOrders = rawOrderOutput.sort((a, b) => b[2] - a[2]);
+
+  return {
+    status: "success", S: chartDates, BA: chartBalances, BF: chartMdd,
+    inv: restoredInv, orders: finalOrders, orderDateStr: chartDates[chartDates.length - 1] + " (동기화됨)",
+    summary: summary, chartDates: chartDates, chartBalances: chartBalances, chartMdd: chartMdd,
+    monthlyData: calcPeriod('month'), yearlyData: calcPeriod('year'), currentStrat: currentStrat
+  };
+}
+
+async function runEngine() {
+  const ticker = document.getElementById('ticker').value;
+  const startDate = document.getElementById('startDate').value;
+  if (!ticker || !startDate) return alert("데이터를 완전히 불러온 후 실행해주세요.");
+
+  const restoreBtn = setBtnLoading('runBtnSettings', '⏳...');
+
+  // ⭐️ 백테스트 시뮬레이션 모드 진입 선언
+  isViewingHistory = true;
+
+  const executeSlot = async (cfg, isActive, setRes, slotNum) => {
+    if (isActive) {
+      // ⭐️ force=true(처음부터 다시 계산), skipSave=true(진짜 캐시 덮어쓰기 방지)
+      const res = await runBacktestMemory(cfg, true, slotNum);
+      if (res.status !== "error") {
+        setRes(res);
+        updateUIWithResult(res, cfg, slotNum, true); // true = 캐시 저장 생략
+      }
+    } else {
+      setRes(null);
+    }
+  };
+
+  await Promise.all([
+    executeSlot(slot1Config, isSlot1Active(), v => lastBTResult1 = v, 1),
+    executeSlot(slot2Config, isSlot2Active(), v => lastBTResult2 = v, 2),
+    executeSlot(slot3Config, isSlot3Active(), v => lastBTResult3 = v, 3)
+  ]);
+
+  updateSlotsVisibility();
+  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+
+  // ⭐️ 백테스트 전용 UI 전환 (주문표 강제 숨김, 성과지표 레이아웃 강제 적용)
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.add('perf-metrics-layout');
+    grid.classList.remove('order-expanded');
+  }
+  isStatsMode = true;
+  isOrderView = false;
+  const btnStats = document.getElementById('btnStatsShow');
+  if (btnStats) btnStats.classList.add('active');
+
+  // 설정창 닫기
+  toggleSettings();
+
+  restoreBtn();
+  triggerIconAnim('icoRun');
+  showToast("백테스트 시뮬레이션 완료 (주문표 제외)");
+}
+
+async function handleInstantOrder() {
+  const grid = document.getElementById('mainGrid');
+  if (grid) grid.classList.remove('hide-order-panel', 'perf-metrics-layout');
+  const restoreBtn = setBtnLoading('btnInstant', '⏳...');
+
+  const executeSlot = async (cfg, isActive, setRes, slotNum) => {
+    if (isActive) {
+      // ⭐️ force=false 로 설정해야 내 진짜 장부(JSON)를 이어서 오늘 주문을 계산함!
+      const res = await runBacktestMemory(cfg, false, slotNum);
+      if (res.status !== "error") {
+        setRes(res);
+        updateUIWithResult(res, cfg, slotNum); // 이건 진짜 실전이므로 캐시에 저장(덮어쓰기 허용)
+      }
+    } else {
+      setRes(null);
+    }
+  };
+
+  await Promise.all([
+    executeSlot(slot1Config, isSlot1Active(), v => lastBTResult1 = v, 1),
+    executeSlot(slot2Config, isSlot2Active(), v => lastBTResult2 = v, 2),
+    executeSlot(slot3Config, isSlot3Active(), v => lastBTResult3 = v, 3)
+  ]);
+
+  updateSlotsVisibility();
+  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+  restoreBtn();
+  triggerIconAnim('icoInstant');
+  showToast("실전 주문표 최신화 완료");
+  refreshOrderViewUI();
+}
+
+function updateUIWithResult(res, cfg, slotNum, skipSave = false) {
+  if (!res) return;
+
+  if (slotNum === 1) {
+    lastBTResult1 = res;
+    globalMonthlyData1 = res.monthlyData || [];
+    globalYearlyData1 = res.yearlyData || [];
+  } else if (slotNum === 2) {
+    lastBTResult2 = res;
+    globalMonthlyData2 = res.monthlyData || [];
+    globalYearlyData2 = res.yearlyData || [];
+  } else if (slotNum === 3) {
+    lastBTResult3 = res;
+    globalMonthlyData3 = res.monthlyData || [];
+    globalYearlyData3 = res.yearlyData || [];
+  }
+
+  // 캐시 저장
+  if (!skipSave && myUserId) {
+    localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(res));
+  }
+
+  // UI 렌더링
+  renderOrderViewSlot(res, slotNum);
+
+  // 합산 데이터 갱신
+  calculateCombinedPeriodData();
+}
+
+function calculateCombinedPeriodData() {
+  const results = [lastBTResult1, lastBTResult2, lastBTResult3].filter(r => r != null && r.chartDates && r.chartDates.length > 0);
+  if (results.length < 2) {
+    globalMonthlyData4 = []; globalYearlyData4 = [];
+    return;
+  }
+
+  // 🕵️ 최적화 전략: indexOf 대신 Map을 사용하여 검색 속도를 O(1)로 개선 (초고속 부팅용)
+  const allDatesSet = new Set();
+  const maps = results.map(r => {
+    const dateMap = new Map();
+    r.chartDates.forEach((d, i) => {
+      dateMap.set(d, i);
+      allDatesSet.add(d);
+    });
+    return { map: dateMap, balances: r.chartBalances, inouts: r.chartInout || [] };
+  });
+
+  const sortedDates = [...allDatesSet].sort();
+  const combinedBalances = new Array(sortedDates.length).fill(0);
+  const combinedMdd = new Array(sortedDates.length).fill(0);
+  const combinedInout = new Array(sortedDates.length).fill(0);
+
+  // 1. 일별 합산 (최적화 루프)
+  sortedDates.forEach((date, i) => {
+    let daySum = 0;
+    let dayInout = 0;
+    maps.forEach(obj => {
+      const idx = obj.map.get(date);
+      if (idx !== undefined) {
+        daySum += obj.balances[idx];
+        dayInout += (obj.inouts[idx] || 0);
+      }
+    });
+    combinedBalances[i] = daySum;
+    combinedInout[i] = dayInout;
+  });
+
+  // 2. 합산 MDD 계산
+  let peak = -Infinity;
+  combinedBalances.forEach((val, i) => {
+    if (val > peak) peak = val;
+    combinedMdd[i] = (peak > 0) ? (val - peak) / peak : 0;
+  });
+
+  // 3. 구간별(월/년) 데이터 집계 최최적화
+  const calc = (type) => {
+    const periods = {};
+    for (let i = 0; i < sortedDates.length; i++) {
+      const d = sortedDates[i];
+      const periodKey = type === 'month' ? d.substring(0, 7) : d.substring(0, 4);
+      if (!periods[periodKey]) {
+        periods[periodKey] = { startIdx: i, endIdx: i, inout: 0, indices: [] };
+      }
+      periods[periodKey].endIdx = i;
+      periods[periodKey].inout += combinedInout[i];
+      periods[periodKey].indices.push(i);
+    }
+
+    return Object.keys(periods).sort().reverse().map((key, i, keys) => {
+      const p = periods[key];
+      const prevKey = Object.keys(periods).sort()[Object.keys(periods).sort().indexOf(key) - 1];
+
+      const startAsset = prevKey ? combinedBalances[periods[prevKey].endIdx] : combinedBalances[0];
+      const startInout = prevKey ? 0 : combinedInout[0];
+      const endAsset = combinedBalances[p.endIdx];
+      const inoutSum = p.inout;
+
+      let profit = 0, basis = 0;
+      if (!prevKey) { // 첫 구간
+        if (startInout > 0 && Math.abs(startAsset - startInout) < 10) {
+          profit = endAsset - inoutSum; basis = inoutSum;
+        } else {
+          profit = endAsset - startAsset - (inoutSum - startInout);
+          basis = startAsset + (inoutSum - startInout);
+        }
+      } else {
+        profit = endAsset - startAsset - inoutSum;
+        basis = startAsset + inoutSum;
+      }
+
+      let minMdd = 0;
+      p.indices.forEach(idx => { if (combinedMdd[idx] < minMdd) minMdd = combinedMdd[idx]; });
+
+      return { period: key, asset: endAsset, rate: basis > 0 ? profit / basis : 0, profit: profit, mdd: minMdd };
+    });
+  };
+
+  globalMonthlyData4 = calc('month');
+  globalYearlyData4 = calc('year');
+
+  // ⭐️ [UI 즉시 동기화] 계산이 끝나는 즉시 화면의 테이블들을 강제로 다시 그립니다.
+  // (이 로직이 있어야 로그인 직후나 탭 전환 없이도 합산 데이터가 바로 나타납니다)
+  if (isSlot1Active()) renderPeriodTableText(1);
+  if (isSlot2Active()) renderPeriodTableText(2);
+  if (isSlot3Active()) renderPeriodTableText(3);
+  if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+
+  // 💾 [캐시 저장] 계산된 합산 데이터를 로컬 스토리지에 저장하여 다음 부팅 시 즉시 노출되게 함
+  if (myUserId) {
+    localStorage.setItem(`vtotal_snap_combined_${myUserId}`, JSON.stringify({ m: globalMonthlyData4, y: globalYearlyData4 }));
+  }
+}
+
+function renderOrderViewSlot(res, slotNum) {
+  if (!res) return;
+  const suffix = slotNum;
+  renderOrderTableSlot(res.orders, suffix);
+  renderHoldingsTableSlot(res.inv || [], res.currentStrat, suffix);
+
+  if (res.nextOrderInfo) {
+    const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
+    document.getElementById('tierCountVal' + suffix).innerText = res.nextOrderInfo.tier;
+    document.getElementById('modeCountVal' + suffix).innerText = modeMap[res.nextOrderInfo.mode] || res.nextOrderInfo.mode;
+    document.getElementById('weightCountVal' + suffix).innerText = res.nextOrderInfo.weight;
+    document.getElementById('qtyCountVal' + suffix).innerText = res.nextOrderInfo.qty;
+  }
+
+  const orderDate = res.orderDateStr || "";
+  if (slotNum === 1) currentOrderDate = orderDate;
+  refreshOrderViewUI();
+}
+
+function toggleOrderView() {
+  isOrderView = !isOrderView;
+  refreshOrderViewUI();
+}
+function toggleOrderExpansion() {
+  const grid = document.getElementById('mainGrid');
+  const btn = document.getElementById('btnExpandOrder');
+  const isExpanded = grid.classList.toggle('order-expanded');
+  if (isExpanded) { btn.classList.add('active'); grid.classList.remove('monthly-expanded'); }
+  else { btn.classList.remove('active'); if (periodViewState === 2) grid.classList.add('monthly-expanded'); }
+  if (myChart) setTimeout(() => myChart.resize(), 100);
+}
+
+function refreshOrderViewUI() {
+  const s1 = (slot1Config?.basics?.strategy || "");
+  const s2 = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
+  const s3 = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+  const sArr = [];
+  if (s1) sArr.push(s1);
+  if (s2) sArr.push(s2);
+  if (s3) sArr.push(s3);
+  const stratDisplay = sArr.join(' / ');
+  const date1 = lastBTResult1?.orderDateStr || currentOrderDate || "";
+
+  document.getElementById('orderView1').style.display = isOrderView ? 'block' : 'none';
+  document.getElementById('holdingsView1').style.display = isOrderView ? 'none' : 'block';
+
+  const footer1 = document.getElementById('tierFooter1');
+  if (footer1) footer1.style.display = 'flex';
+
+  if (isSlot2Active()) {
+    document.getElementById('orderView2').style.display = isOrderView ? 'block' : 'none';
+    document.getElementById('holdingsView2').style.display = isOrderView ? 'none' : 'block';
+
+    const footer2 = document.getElementById('tierFooter2');
+    if (footer2) footer2.style.display = 'flex';
+  }
+
+  if (isSlot3Active()) {
+    document.getElementById('orderView3').style.display = isOrderView ? 'block' : 'none';
+    document.getElementById('holdingsView3').style.display = isOrderView ? 'none' : 'block';
+
+    const footer3 = document.getElementById('tierFooter3');
+    if (footer3) footer3.style.display = 'flex';
+  }
+
+  const icon = isOrderView ? "⚡" : "📦";
+  const labelText = isOrderView ? "주문표" : "보유계좌";
+  const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
+
+  let titleStr = `${icon} ${labelText}<span ${smallStyle}>(${stratDisplay})</span>`;
+  titleStr += ` <span style="font-size:0.75em; font-weight:normal; opacity:0.6; margin-left:8px;">(${date1})</span>`;
+
+  // 🔴 [v2.42 수정] 타임존 이중 오차 해결: 현재 날짜와 시간을 뉴욕 기준으로 안전하게 획득
+  const now = new Date();
+  const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+
+  let dForTag = now;
+  // 장 마감(오후 4시) 이후에는 다음 날 상태를 미리 보여줌
+  if (nyHour >= 16) {
+    dForTag = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  const checkDateStrForTag = formatDateNY(dForTag);
+  const isHoliday = isUSMarketHoliday(checkDateStrForTag);
+
+  // 요일(DOW)도 뉴욕 기준으로 정확히 판별
+  const nyDayStr = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(dForTag);
+  const isWeekend = (nyDayStr === 'Sat' || nyDayStr === 'Sun');
+
+  if (isHoliday || isWeekend) {
+    const statusText = isHoliday ? "[휴장일]" : "[주말]";
+    titleStr += ` <span style="color:var(--danger); font-size:0.75em; font-weight:700; margin-left:8px;">${statusText}</span>`;
+  }
+
+  document.getElementById('orderTitle').innerHTML = titleStr;
+
+  const targetIds = ['orderView1', 'holdingsView1', 'orderView2', 'holdingsView2', 'orderView3', 'holdingsView3'];
+  targetIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.remove('view-transition');
+      void el.offsetWidth; // 리플로우 강제 트리거
+      el.classList.add('view-transition');
+    }
+  });
+}
+
+function renderHoldingsTableSlot(inv, stratName, slotNum) {
+  const tbody = document.getElementById('holdingsBody' + slotNum);
+  if (!inv || inv.length === 0) { tbody.innerHTML = "<tr><td colspan='6' style='padding:20px; color:#64748b;'>보유 잔량 없음</td></tr>"; return; }
+  const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
+  tbody.innerHTML = inv.map(o => {
+    let sellPriceStr = "-", stopDateStr = "-";
+    try {
+      const modeData = MASTER_STRATEGIES[stratName].modes[o.mode];
+      const sellPct = modeData.sell[o.tier - 1] || modeData.sell[0];
+      sellPriceStr = "$" + (Math.ceil((o.buy_price * (1 + sellPct) * 100) - 0.000001) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+      let holdLimit = modeData.hold[o.tier - 1] || modeData.hold[0];
+      if (o.buyDate && window.globalMainData && window.globalMainData.dates) {
+        const bIdx = window.globalMainData.dates.findIndex(d => formatDateNY(d) === o.buyDate);
+        if (bIdx !== -1) {
+          let curr = new Date(window.globalMainData.dates[bIdx]); let dCount = 0;
+          while (dCount < holdLimit) {
+            curr.setDate(curr.getDate() + 1); const dStr = formatDateNY(curr); const dow = curr.getDay();
+            if (dow !== 0 && dow !== 6 && !isUSMarketHoliday(dStr)) dCount++;
+          }
+          stopDateStr = (curr.getMonth() + 1) + "/" + curr.getDate();
+        }
+      }
+    } catch (e) { }
+    return `<tr><td>${o.tier}</td><td>${modeMap[o.mode] || o.mode}</td><td>$${Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="hide-on-cover" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td>${stopDateStr}</td></tr>`;
+  }).join('');
+}
+
+function renderOrderTableSlot(orders, slotNum) {
+  const tbody = document.getElementById('orderBody' + slotNum);
+  if (!orders || orders.length === 0) { tbody.innerHTML = "<tr><td colspan='3' style='padding:20px; color:#64748b;'>주문 없음</td></tr>"; return; }
+  tbody.innerHTML = orders.map(o => `<tr><td class="${o[0] === '매수' ? 'buy' : 'sell'}">${o[0]}</td><td class="hidden">${o[1]}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`).join('');
+}
+
+function updatePeriodTitle() {
+  const periodTitle = document.getElementById('periodTitle');
+  if (!periodTitle) return;
+  const s1 = isSlot1Active() ? (slot1Config?.basics?.strategy || "") : "";
+  const s2 = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
+  const s3 = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+  let sArr = [];
+  if (s1) sArr.push(s1);
+  if (s2) sArr.push(s2);
+  if (s3) sArr.push(s3);
+  let currentStratName = sArr.join(' / ');
+  const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
+
+  if (periodViewState === 0) periodTitle.innerHTML = `📅 월별 성과<span ${smallStyle}>(${currentStratName})</span>`;
+  else periodTitle.innerHTML = `📆 년별 성과<span ${smallStyle}>(${currentStratName})</span>`;
+}
+
+let periodBarChartInstance = null;
+let periodDisplayMode = 'chart'; // 'chart' or 'table'
+
+function togglePeriodDisplayMode() {
+  periodDisplayMode = (periodDisplayMode === 'chart') ? 'table' : 'chart';
+  const chartC = document.getElementById('periodChartContainer');
+  const tableC = document.getElementById('periodTableContainer');
+  const ico = document.getElementById('icoPeriodMode');
+  if (periodDisplayMode === 'chart') {
+    if (chartC) chartC.style.display = 'block';
+    if (tableC) tableC.style.display = 'none';
+    if (ico) ico.innerHTML = '<rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/>';
+    renderPeriodBarChart();
+  } else {
+    if (chartC) chartC.style.display = 'none';
+    if (tableC) tableC.style.display = 'block';
+    if (ico) ico.innerHTML = '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>';
+    renderPeriodTableText(1);
+    if (isSlot2Active()) {
+      renderPeriodTableText(2);
+    }
+    if (isSlot3Active()) {
+      renderPeriodTableText(3);
+    }
+    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) {
+      renderPeriodTableText(4);
+    }
+  }
+}
+
+function togglePeriodView() {
+  periodViewState = (periodViewState + 1) % 2;
+  updatePeriodTitle();
+  if (periodDisplayMode === 'chart') {
+    renderPeriodBarChart();
+  } else {
+    const head1Str = periodViewState === 0
+      ? `<th>년/월</th><th class="hide-on-narrow">총자산</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>`
+      : `<th>연도</th><th class="hide-on-narrow">총자산</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>`;
+    const headStr = periodViewState === 0
+      ? `<th>년/월</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>`
+      : `<th>연도</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>`;
+    const head3Str = `<th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>`;
+
+    ['1', '2', '3', '4'].forEach(s => {
+      const h = document.getElementById('periodTableHead' + s);
+      if (h) h.innerHTML = (s === '1') ? head1Str : (s === '4' ? head3Str : headStr);
+    });
+
+    renderPeriodTableText(1);
+    if (isSlot2Active()) {
+      renderPeriodTableText(2);
+    }
+    if (isSlot3Active()) {
+      renderPeriodTableText(3);
+    }
+    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) {
+      renderPeriodTableText(4);
+    }
+  }
+  if (myChart) setTimeout(() => myChart.resize(), 100);
+}
+
+function renderPeriodTableText(slotNum) {
+  const tbody = document.getElementById('periodBody' + slotNum);
+  if (!tbody) return;
+
+  const isCoverMode = document.documentElement.classList.contains('is-cover');
+  const s1Active = isSlot1Active();
+  const s2Active = isSlot2Active();
+  const s3Active = isSlot3Active();
+
+  if (slotNum === 1) {
+    const titleEl = document.getElementById('slot1TableName');
+    if (titleEl) titleEl.innerText = slot1Config?.basics?.strategy || '투자법1';
+  }
+
+  if (slotNum === 2) {
+    const titleEl = document.getElementById('slot2TableName');
+    if (titleEl) titleEl.innerText = slot2Config?.basics?.strategy || '투자법2';
+  }
+
+  if (slotNum === 3) {
+    const titleEl = document.getElementById('slot3TableName');
+    if (titleEl) titleEl.innerText = slot3Config?.basics?.strategy || '투자법3';
+  }
+
+  // 4번 슬롯(합산)은 사전에 계산된 globalMonthlyData4 / globalYearlyData4 사용
+  if (slotNum === 4) {
+    if (!s1Active || (!s2Active && !s3Active)) return;
+    const data = (periodViewState === 1) ? globalYearlyData4 : globalMonthlyData4;
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='3'>데이터가 없습니다.</td></tr>";
+      return;
+    }
+
+    const fmtRate = (r) => { const v = (r * 100); return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
+    const fmtProfit = (p) => { const v = Math.round(p); return (v > 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(); };
+    const fmtMdd = (m) => (m * 100).toFixed(1) + '%';
+    const cls = (v) => v > 0 ? 'val-plus' : 'val-minus';
+
+    tbody.innerHTML = data.map(row => {
+      let displayPeriod = row.period;
+      if (periodViewState === 0 && isCoverMode && displayPeriod.length === 7) {
+        displayPeriod = displayPeriod.substring(2).replace('-', '/');
+      }
+      return `<tr>
+            <td class="${cls(row.profit)}" style="font-weight:600;">${fmtProfit(row.profit)}</td>
+            <td class="${cls(row.rate)}" style="font-weight:600;">${fmtRate(row.rate)}</td>
+            <td class="hide-on-cover ${row.mdd < 0 ? 'val-minus' : ''}" style="font-weight:600;">${fmtMdd(row.mdd)}</td>
+          </tr>`;
+    }).join('');
+    return;
+  }
+
+  // 1, 2, 3번 슬롯 개별 데이터 렌더링
+  const mData = (slotNum === 1) ? globalMonthlyData1 : (slotNum === 2) ? globalMonthlyData2 : globalMonthlyData3;
+  const yData = (slotNum === 1) ? globalYearlyData1 : (slotNum === 2) ? globalYearlyData2 : globalYearlyData3;
+  let data = (periodViewState === 1) ? yData : mData;
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${slotNum === 1 ? 5 : 4}">데이터가 없습니다.</td></tr>`;
+    return;
+  }
+
+  // 내림차순(최신순) 정렬
+  data.sort((a, b) => b.period.localeCompare(a.period));
+
+  const fmtRate = (r) => { const v = (r * 100); return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
+  const fmtProfit = (p) => { const v = Math.round(p); return (v > 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(); };
+  const fmtMdd = (m) => (m * 100).toFixed(1) + '%';
+  const cls = (v) => v > 0 ? 'val-plus' : 'val-minus';
+
+  tbody.innerHTML = data.map(row => {
+    let displayPeriod = row.period;
+    if (periodViewState === 0 && isCoverMode && displayPeriod.length === 7) {
+      displayPeriod = displayPeriod.substring(2).replace('-', '/');
+    }
+
+    let rowHtml = `<td>${displayPeriod}</td>`;
+    if (slotNum === 1) {
+      rowHtml += `<td class="hide-on-narrow">$${Math.round(row.asset).toLocaleString()}</td>`;
+    }
+    rowHtml += `<td class="${cls(row.profit)}">${fmtProfit(row.profit)}</td>`;
+    rowHtml += `<td class="${cls(row.rate)}">${fmtRate(row.rate)}</td>`;
+    rowHtml += `<td class="hide-on-cover ${row.mdd < 0 ? 'val-minus' : ''}">${fmtMdd(row.mdd)}</td>`;
+    return `<tr>${rowHtml}</tr>`;
+  }).join('');
+}
+
+function renderPeriodTable() { if (periodDisplayMode === 'chart') renderPeriodBarChart(); else renderPeriodTableText(1); }
+function renderPeriodTableSlot(slotNum) {
+  if (periodDisplayMode === 'chart') {
+    renderPeriodBarChart();
+  } else {
+    renderPeriodTableText(slotNum);
+    if (isSlot1Active() && isSlot2Active()) {
+      renderPeriodTableText(3);
+    }
+  }
+}
+
+function renderPeriodBarChart() {
+  const canvas = document.getElementById('periodBarChart');
+  const wrapper = document.getElementById('periodBarChartWrapper');
+  if (!canvas || !wrapper) return;
+
+  if (periodBarChartInstance) { periodBarChartInstance.destroy(); periodBarChartInstance = null; }
+
+  const s1Active = isSlot1Active();
+  const s2Active = isSlot2Active();
+  const s3Active = isSlot3Active();
+
+  const mData1 = s1Active ? globalMonthlyData1 : null;
+  const yData1 = s1Active ? globalYearlyData1 : null;
+  const mData2 = s2Active ? globalMonthlyData2 : null;
+  const yData2 = s2Active ? globalYearlyData2 : null;
+  const mData3 = s3Active ? globalMonthlyData3 : null;
+  const yData3 = s3Active ? globalYearlyData3 : null;
+
+  const data1 = (periodViewState === 1) ? yData1 : mData1;
+  const data2 = (periodViewState === 1) ? yData2 : mData2;
+  const data3 = (periodViewState === 1) ? yData3 : mData3;
+
+  if ((!data1 || data1.length === 0) && (!data2 || data2.length === 0) && (!data3 || data3.length === 0)) return;
+
+  const sorted1 = data1 ? [...data1] : [];
+  const sorted2 = data2 ? [...data2] : [];
+  const sorted3 = data3 ? [...data3] : [];
+
+  const allPeriods = new Set();
+  sorted1.forEach(r => allPeriods.add(r.period));
+  sorted2.forEach(r => allPeriods.add(r.period));
+  sorted3.forEach(r => allPeriods.add(r.period));
+  const sortedPeriods = [...allPeriods].sort().reverse();
+
+  const labels = sortedPeriods.map(p => {
+    if (periodViewState === 0 && p.length === 7) return p.substring(2).replace('-', '/');
+    return p;
+  });
+
+  const map1 = {}; sorted1.forEach(r => { map1[r.period] = r; });
+  const map2 = {}; sorted2.forEach(r => { map2[r.period] = r; });
+  const map3 = {}; sorted3.forEach(r => { map3[r.period] = r; });
+
+  const profits1 = sortedPeriods.map(p => map1[p] ? Math.round(map1[p].profit) : 0);
+  const profits2 = sortedPeriods.map(p => map2[p] ? Math.round(map2[p].profit) : 0);
+  const profits3 = sortedPeriods.map(p => map3[p] ? Math.round(map3[p].profit) : 0);
+
+  const rates1 = sortedPeriods.map(p => map1[p] ? Number((map1[p].rate * 100).toFixed(2)) : 0);
+  const rates2 = sortedPeriods.map(p => map2[p] ? Number((map2[p].rate * 100).toFixed(2)) : 0);
+  const rates3 = sortedPeriods.map(p => map3[p] ? Number((map3[p].rate * 100).toFixed(2)) : 0);
+
+  const s1Name = slot1Config?.basics?.strategy || '투자법1';
+  const s2Name = slot2Config?.basics?.strategy || '투자법2';
+  const s3Name = slot3Config?.basics?.strategy || '투자법3';
+  const isYearly = (periodViewState === 1);
+
+  let datasets = [];
+
+  // --- 수익금 막대 데이터 (Stacked Bar) ---
+  if (s1Active) {
+    datasets.push({
+      label: s1Name + ' 수익금',
+      data: profits1,
+      backgroundColor: 'rgba(99, 102, 241, 0.5)',
+      borderColor: 'rgba(99, 102, 241, 1)',
+      borderWidth: 1,
+      borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4 },
+      yAxisID: 'y',
+      stack: 'profit',
+      order: 2 // 막대를 뒤로
+    });
+  }
+  if (s2Active) {
+    datasets.push({
+      label: s2Name + ' 수익금',
+      data: profits2,
+      backgroundColor: 'rgba(16, 185, 129, 0.5)',
+      borderColor: 'rgba(16, 185, 129, 1)',
+      borderWidth: 1,
+      borderRadius: { topLeft: s3Active ? 0 : 4, topRight: s3Active ? 0 : 4, bottomLeft: 0, bottomRight: 0 },
+      yAxisID: 'y',
+      stack: 'profit',
+      order: 2
+    });
+  }
+  if (s3Active) {
+    datasets.push({
+      label: s3Name + ' 수익금',
+      data: profits3,
+      backgroundColor: 'rgba(236, 72, 153, 0.5)',
+      borderColor: 'rgba(236, 72, 153, 1)',
+      borderWidth: 1,
+      borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+      yAxisID: 'y',
+      stack: 'profit',
+      order: 2
+    });
+  }
+
+  // --- 평균 수익률 꺾은선 (단일 라인으로 깔끔하게 표시) ---
+  const activeCount = (s1Active ? 1 : 0) + (s2Active ? 1 : 0) + (s3Active ? 1 : 0);
+  if (activeCount > 0) {
+    const combinedRates = sortedPeriods.map((p, i) => {
+      let sum = 0;
+      if (s1Active) sum += rates1[i];
+      if (s2Active) sum += rates2[i];
+      if (s3Active) sum += rates3[i];
+      return Number((sum / activeCount).toFixed(2));
+    });
+
+    datasets.push({
+      label: '평균 수익률',
+      data: combinedRates,
+      type: 'line',
+      borderColor: '#fbbf24',
+      backgroundColor: '#fbbf24',
+      borderWidth: 3,
+      pointRadius: 2,
+      pointBackgroundColor: '#fbbf24',
+      tension: 0.3,
+      yAxisID: 'yRate',
+      order: 1 // 선을 막대 앞으로
+    });
+  }
+
+  if (datasets.length === 0) return;
+
+  const profitLabelPlugin = {
+    id: 'periodProfitLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      ctx.save();
+      ctx.font = `bold 10px "Inter", sans-serif`;
+      ctx.textAlign = 'center';
+      const meta = chart.getDatasetMeta(datasets.findIndex(d => d.stack === 'profit'));
+      if (!meta || !meta.data) { ctx.restore(); return; }
+
+      // 스택 최상단 막대의 위치를 찾아 합산 라벨 표시
+      const stackMetas = chart.data.datasets.map((d, i) => d.stack === 'profit' ? chart.getDatasetMeta(i) : null).filter(m => m !== null);
+      const topMeta = stackMetas[stackMetas.length - 1];
+
+      topMeta.data.forEach((bar, i) => {
+        const total = (s1Active ? profits1[i] : 0) + (s2Active ? profits2[i] : 0) + (s3Active ? profits3[i] : 0);
+        if (total === 0) return;
+        const label = (total > 0 ? '+$' : '-$') + Math.abs(total).toLocaleString();
+        const yPos = total >= 0 ? bar.y - 6 : bar.y + 12;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillText(label, bar.x, yPos);
+      });
+      ctx.restore();
+    }
+  };
+
+  const minBarWidth = isYearly ? 100 : 70;
+  const containerWidth = wrapper.parentElement.clientWidth;
+  const neededWidth = labels.length * minBarWidth;
+  wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';
+
+  const ctx = canvas.getContext('2d');
+  periodBarChartInstance = new Chart(ctx, {
+    type: 'bar', // ⭐️ 기본 타입을 'bar'로 명시해야 차트가 정상 렌더링됩니다.
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: 'Outfit', size: 12, weight: 'bold' },
+          bodyFont: { family: 'Inter', size: 11 },
+          cornerRadius: 8,
+          callbacks: {
+            label: function (c) {
+              const v = c.parsed.y;
+              if (c.dataset.yAxisID === 'yRate') return `${c.dataset.label}: ${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+              return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}$${Math.abs(v).toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: {
+            font: { family: 'Inter', size: 11 },
+            color: '#94a3b8',
+            maxRotation: isYearly ? 0 : 45,
+            autoSkip: true,
+            maxTicksLimit: 20
+          }
+        },
+        y: {
+          stacked: true,
+          position: 'left',
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            font: { family: 'Inter', size: 10 },
+            color: '#94a3b8',
+            callback: function (v) { return '$' + v.toLocaleString(); }
+          }
+        },
+        yRate: {
+          position: 'right',
+          grid: { display: false },
+          ticks: {
+            font: { family: 'Inter', size: 10, weight: 'bold' },
+            color: '#fbbf24',
+            callback: function (v) { return v + '%'; }
+          },
+          title: { display: false }
+        }
+      }
+    },
+    plugins: [profitLabelPlugin]
+  });
+}
+
+function calculateCombinedSummary(r1, r2, r3) {
+  if (!r1 && !r2 && !r3) return null;
+  const results = [r1, r2, r3].filter(r => r != null);
+  if (results.length === 0) return null;
+  if (results.length === 1) return results[0].summary;
+
+  let tAssets = 0, base = 0, evalVal = 0, currPriceSum = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0, evalReturnSum = 0, avgPriceSum = 0, yieldSum = 0, cagrSum = 0, calmarSum = 0;
+  let count = results.length;
+
+  for (const r of results) {
+    const s = r.summary || {};
+    base += (s.base || 0);
+    tAssets += (s.totalAssets || 0);
+    evalVal += (s.evalVal || 0);
+    currPriceSum += (s.currPrice || 0);
+    totalProfit += (s.totalProfit || 0);
+    realizedProfit += (s.realizedProfit || 0);
+    cash += (s.cash || 0);
+    evalReturnSum += (s.evalReturn || 0);
+    qty += (s.qty || 0);
+    avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0)); // 👑 가중 합산 (가중 평균용)
+    currPriceSum += (s.currPrice || 0); // 👑 단순 합산 (현재가 평균용)
+    yieldSum += (s.yield || 0);
+    cagrSum += (s.cagr || 0);
+    calmarSum += (s.calmar || 0);
+  }
+
+  // ⭐️ [핵심] 합산 MDD 계산: 일별 총자산의 합계를 구한 뒤 그 합계 라인의 MDD를 산출!
+  let combinedMdd = 0;
+  let combinedCurrentMdd = 0;
+  const portfoliosBA = results.map(r => r.chartBalances).filter(ba => ba && ba.length > 0);
+
+  if (portfoliosBA.length > 0) {
+    const maxLen = Math.max(...portfoliosBA.map(ba => ba.length));
+    let dailySummed = new Array(maxLen).fill(0);
+
+    for (const ba of portfoliosBA) {
+      // 끝에서부터 채우거나 엔진 시작점이 같다고 가정 (보통 같음)
+      for (let i = 0; i < ba.length; i++) {
+        dailySummed[i] += ba[i];
+      }
+    }
+
+    let peak = -Infinity;
+    let minDraw = 0;
+    for (let i = 0; i < dailySummed.length; i++) {
+      let val = dailySummed[i];
+      if (val > peak) peak = val;
+      let draw = peak > 0 ? (val - peak) / peak : 0;
+      if (draw < minDraw) minDraw = draw;
+      if (i === dailySummed.length - 1) combinedCurrentMdd = draw;
+    }
+    combinedMdd = minDraw;
+  }
+
+  return {
+    totalAssets: tAssets,
+    yield: base > 0 ? (tAssets - base) / base : 0, // ⭐️ [사용자 요청] 전체 자산 및 원금 합산 기준으로 수익률 산출
+    currentMdd: combinedCurrentMdd,
+    depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
+    totalProfit: totalProfit,
+    realizedProfit: realizedProfit,
+    evalVal: evalVal,
+    cash: cash,
+    evalReturn: avgPriceSum > 0 ? (evalVal - avgPriceSum) / avgPriceSum : 0, // ⭐️ [사용자 요청] 전체 평가금 및 매수원금 기준으로 산출
+    qty: qty,
+    currPrice: currPriceSum / count,
+    avgPrice: qty > 0 ? avgPriceSum / qty : (avgPriceSum / count),
+    base: base,
+    mdd: combinedMdd,
+    cagr: (function() {
+      // 🏆 [합산 CAGR] 개별 평균이 아닌, 전체 기간과 총수익률을 기준으로 산출
+      if (base <= 0 || tAssets <= 0) return 0;
+      let earliest = Infinity, latest = -Infinity;
+      results.forEach(r => {
+        if (r.chartDates && r.chartDates.length > 0) {
+          const s = new Date(r.chartDates[0]).getTime();
+          const e = new Date(r.chartDates[r.chartDates.length - 1]).getTime();
+          if (s < earliest) earliest = s;
+          if (e > latest) latest = e;
+        }
+      });
+      if (isFinite(earliest) && isFinite(latest)) {
+        const days = Math.max(1, Math.round((latest - earliest) / (1000 * 60 * 60 * 24)));
+        const years = days / 365;
+        const totalYield = (tAssets - base) / base;
+        return years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
+      }
+      return 0;
+    })(),
+    calmar: combinedMdd !== 0 ? Math.abs((function() {
+      // CAGR 일관성 유지
+      if (base <= 0 || tAssets <= 0) return 0;
+      let earliest = Infinity, latest = -Infinity;
+      results.forEach(r => {
+        if (r.chartDates && r.chartDates.length > 0) {
+          const s = new Date(r.chartDates[0]).getTime();
+          const e = new Date(r.chartDates[r.chartDates.length - 1]).getTime();
+          if (s < earliest) earliest = s;
+          if (e > latest) latest = e;
+        }
+      });
+      const days = isFinite(earliest) ? Math.max(1, Math.round((latest - earliest) / (1000 * 60 * 60 * 24))) : 0;
+      const years = days / 365;
+      const totalYield = (tAssets - base) / base;
+      const computedCagr = years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
+      return computedCagr;
+    })() / combinedMdd) : 0
+  };
+}
+
+function updateCombinedMetrics() {
+  refreshStatsTable();
+}
+
+function refreshStatsTable() {
+  const table = document.getElementById('statsTable');
+  if (!table) return;
+  const s1Active = isSlot1Active();
+  const s2Active = isSlot2Active();
+  const s3Active = isSlot3Active();
+  const rows = [];
+  if (s1Active) rows.push({ res: lastBTResult1, name: slot1Config?.basics?.strategy || '투자법 1', color: 'var(--primary)' });
+  if (s2Active) rows.push({ res: lastBTResult2, name: slot2Config?.basics?.strategy || '투자법 2', color: 'var(--success)' });
+  if (s3Active) rows.push({ res: lastBTResult3, name: slot3Config?.basics?.strategy || '투자법 3', color: '#ec4899' });
+
+  let activeCount = (s1Active ? 1 : 0) + (s2Active ? 1 : 0) + (s3Active ? 1 : 0);
+  if (activeCount >= 2) {
+    const comb = calculateCombinedSummary(lastBTResult1, lastBTResult2, lastBTResult3);
+    rows.push({ res: { summary: comb }, name: '합산', color: 'var(--secondary)' });
+  }
+  if (rows.length === 0) { table.innerHTML = '<tr><td style="text-align:center; padding:20px; color:#94a3b8;">데이터가 없습니다.</td></tr>'; return; }
+  const isValid = (v) => v !== undefined && v !== null && !isNaN(v) && isFinite(v);
+  const fmtValue = (sObj, m, isCombo) => {
+    if (!sObj) return '-';
+    const v = sObj[m.key];
+    if (!isValid(v)) return '-';
+    // isCombo 제약 제거 (주식수, 평단가 등 노출)
+    if (m.type === 'fmt') return '$' + Math.round(Number(v)).toLocaleString();
+    if (m.type === 'color') {
+      let num = Number(v), str = m.pct ? (Math.abs(num) * 100).toFixed(2) + '%' : '$' + Math.round(Math.abs(num)).toLocaleString();
+      return num > 0 ? `<span class="val-plus">+${str}</span>` : (num < 0 ? `<span class="val-minus">-${str}</span>` : `<span>${str}</span>`);
+    }
+    if (m.type === 'price') return '$' + Number(v).toFixed(2);
+    if (m.type === 'raw') return (m.key === 'calmar' ? Number(v).toFixed(2) : v) + (m.suffix || '');
+    return v;
+  };
+  const metricsList = [
+    { key: 'totalAssets', label: '총자산', type: 'fmt' },
+    { key: 'yield', label: '수익률', type: 'color', pct: true },
+    { key: 'currentMdd', label: '현재 MDD', type: 'color', pct: true },
+    { key: 'depletion', label: '진행율', type: 'color', pct: true },
+    { key: 'totalProfit', label: '총수익금', type: 'color' },
+    { key: 'evalVal', label: '평가금', type: 'fmt' },
+    { key: 'cash', label: '예수금', type: 'fmt' },
+    { key: 'evalReturn', label: '평가수익', type: 'color', pct: true },
+    { key: 'qty', label: '주식수', type: 'raw', suffix: '주' },
+    { key: 'currPrice', label: '현재가', type: 'price' },
+    { key: 'avgPrice', label: '평균단가', type: 'price' },
+    { key: 'base', label: '갱신금', type: 'fmt' },
+    { key: 'mdd', label: '전체 MDD', type: 'color', pct: true },
+    { key: 'cagr', label: 'CAGR', type: 'color', pct: true },
+    { key: 'calmar', label: '칼마비율', type: 'raw' }
+  ];
+
+  // 기존 2.42 renderMetrics 스타일 적용한 가로형 레이아웃
+  let html = '<div style="display:flex; flex-direction:column; gap:2px; padding:2px; box-sizing:border-box;">';
+
+  // 헤더 행 (항목명을 가로로 나열)
+  html += '<div style="display:flex; align-items:center; gap:4px; padding:2px 3px; box-sizing:border-box; line-height:1; height:18px; border-bottom:1px solid rgba(255,255,255,0.1);">';
+  html += '<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; line-height:1; min-width:75px; flex-shrink:0; color:var(--text-muted);">투자법</div>';
+  metricsList.forEach(m => {
+    html += `<div style="flex:1; min-width:48px; font-size:10px; font-weight:700; letter-spacing:-0.2px; line-height:1; text-align:center; color:var(--text-muted); white-space:nowrap;">${m.label}</div>`;
+  });
+  html += '</div>';
+
+  // 데이터 행 (각 투자법이 한 행 — 가로로 펼쳐짐)
+  rows.forEach(r => {
+    const isCombo = (r.name === '합산');
+    html += `<div style="display:flex; align-items:center; gap:4px; background:rgba(255,255,255,0.04); border-radius:3px; padding:2px 3px; box-sizing:border-box; line-height:1; min-height:18px;">`;
+    html += `<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; line-height:1; min-width:75px; flex-shrink:0; color:${r.color}; display:flex; align-items:center;">${r.name}</div>`;
+    metricsList.forEach(m => {
+      let cellVal = fmtValue(r.res ? r.res.summary : null, m, isCombo);
+      html += `<div style="flex:1; min-width:48px; font-size:11px; font-weight:400; text-align:center; line-height:1; white-space:nowrap;">${cellVal}</div>`;
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  table.innerHTML = html;
+}
+
+function renderMetrics(s, days, slotNum) {
+  refreshStatsTable();
+}
+
+const peakAnnotationPlugin = {
+  id: 'peakAnnotation',
+  afterDatasetsDraw(chart) {
+    const { ctx, scales: { x, y, y1 }, data } = chart;
+    if (!data || !data.datasets || data.datasets.length === 0) return;
+
+    let globalMaxAsset = -Infinity, globalMaxAssetIdx = -1, globalMaxAssetColor = '#6366f1';
+    let globalMinMdd = Infinity, globalMinMddIdx = -1, globalMinMddColor = '#ef4444';
+
+    data.datasets.forEach((ds) => {
+      if (ds.label && ds.label.includes('자산') && ds.data) {
+        ds.data.forEach((val, i) => {
+          if (val !== null && val > globalMaxAsset) {
+            globalMaxAsset = val; globalMaxAssetIdx = i; globalMaxAssetColor = ds.borderColor;
+          }
+        });
+      }
+      if (ds.label && ds.label.includes('MDD') && ds.data) {
+        ds.data.forEach((val, i) => {
+          if (val !== null && val < globalMinMdd) {
+            globalMinMdd = val; globalMinMddIdx = i; globalMinMddColor = ds.borderColor;
+          }
+        });
+      }
+    });
+
+    const fontSize = 11;
+    ctx.save();
+    ctx.font = `bold ${fontSize}px "Outfit", "Inter", sans-serif`;
+
+    function drawLabel(text, px, py, color, isAsset) {
+      ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill();
+      let textX = px - 6, textY = isAsset ? py - 6 : py + 10;
+      ctx.textAlign = 'right'; ctx.textBaseline = isAsset ? 'bottom' : 'top';
+      if (px < 60) { textX = px + 6; ctx.textAlign = 'left'; }
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.strokeText(text, textX, textY); ctx.fillStyle = color; ctx.fillText(text, textX, textY);
+    }
+
+    if (globalMaxAssetIdx >= 0 && isFinite(globalMaxAsset)) {
+      drawLabel(`$${Math.round(globalMaxAsset).toLocaleString()}`, x.getPixelForValue(globalMaxAssetIdx), y.getPixelForValue(globalMaxAsset), globalMaxAssetColor, true);
+    }
+    if (globalMinMddIdx >= 0 && isFinite(globalMinMdd)) {
+      drawLabel(`${globalMinMdd.toFixed(2)}%`, x.getPixelForValue(globalMinMddIdx), y1.getPixelForValue(globalMinMdd), globalMinMddColor, false);
+    }
+    ctx.restore();
+  }
+};
+
+const titleClickPlugin = {
+  id: 'titleClick',
+  afterEvent(chart, args) {
+    const evt = args.event;
+    if (evt.type === 'click' && evt.y <= 28) {
+      toggleChartView();
+    }
+  }
+};
+
+window.currentChartSignature = "";
+
+function renderChart(res1, res2, res3) {
+  if ((!res1 || !res1.chartDates) && (!res2 || !res2.chartDates) && (!res3 || !res3.chartDates)) {
+    if (myChart) { myChart.destroy(); myChart = null; }
+    window.currentChartSignature = "";
+    return;
+  }
+
+  const sig1 = (res1 && res1.summary) ? (res1.currentStrat + "_" + res1.summary.totalAssets + "_" + res1.chartDates.length) : "null";
+  const sig2 = (res2 && res2.summary) ? (res2.currentStrat + "_" + res2.summary.totalAssets + "_" + res2.chartDates.length) : "null";
+  const sig3 = (res3 && res3.summary) ? (res3.currentStrat + "_" + res3.summary.totalAssets + "_" + res3.chartDates.length) : "null";
+  const newSig = sig1 + "|" + sig2 + "|" + sig3 + "|" + chartViewMode;
+
+  const s1Set = isSlot1Active();
+  const s2Set = isSlot2Active();
+  const s3Set = isSlot3Active();
+
+  const s1NameT = s1Set ? (slot1Config?.basics?.strategy || '투자법1') : '투자법1';
+  const s2NameT = s2Set ? (slot2Config?.basics?.strategy || '투자법2') : '투자법2';
+  const s3NameT = s3Set ? (slot3Config?.basics?.strategy || '투자법3') : '투자법3';
+
+  let namesStr = [];
+  if (s1Set) namesStr.push(s1NameT);
+  if (s2Set) namesStr.push(s2NameT);
+  if (s3Set) namesStr.push(s3NameT);
+  let titleSuffix = namesStr.length > 0 ? `(${namesStr.join(' + ')})` : '';
+
+  if (chartViewMode === 1) titleSuffix = `(${s1NameT})`;
+  else if (chartViewMode === 2) titleSuffix = `(${s2NameT})`;
+  else if (chartViewMode === 3) titleSuffix = `(${s3NameT})`;
+  const cTitle = document.getElementById('chartTitle');
+  const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
+  if (cTitle) cTitle.innerHTML = `📈 성과추이 <span ${smallStyle}>${titleSuffix}</span>`;
+
+  if (window.currentChartSignature === newSig) return;
+  window.currentChartSignature = newSig;
+
+  if (myChart) myChart.destroy();
+  document.getElementById('chartBox').innerHTML = '<canvas id="balanceChart" class="view-transition"></canvas>';
+  const ctx = document.getElementById('balanceChart').getContext('2d');
+
+  const chartFontSize = 11;
+  Chart.defaults.font.size = chartFontSize;
+
+  const s1Name = slot1Config?.basics?.strategy || '투자법1';
+  const s2Name = slot2Config?.basics?.strategy || '투자법2';
+  const s3Name = slot3Config?.basics?.strategy || '투자법3';
+  const primaryRes = (res1 && res1.chartDates) ? res1 : ((res2 && res2.chartDates) ? res2 : res3);
+
+  let datasets = [];
+  let allMddValues = [];
+
+  const assetGradient1 = ctx.createLinearGradient(0, 0, 0, 400);
+  assetGradient1.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+  assetGradient1.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+  const assetGradient2 = ctx.createLinearGradient(0, 0, 0, 400);
+  assetGradient2.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
+  assetGradient2.addColorStop(1, 'rgba(16, 185, 129, 0)');
+
+  const assetGradient3 = ctx.createLinearGradient(0, 0, 0, 400);
+  assetGradient3.addColorStop(0, 'rgba(236, 72, 153, 0.2)');
+  assetGradient3.addColorStop(1, 'rgba(236, 72, 153, 0)');
+
+  if (res1 && res1.chartDates && isSlot1Active()) {
+    const ds1 = [
+      { label: s1Name + ' 자산', data: res1.chartBalances, borderColor: '#6366f1', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient1, tension: 0.2 },
+      { label: s1Name + ' MDD', data: res1.chartMdd.map(v => v * 100), borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+    ];
+    if (chartViewMode === 0 || chartViewMode === 1) {
+      datasets = datasets.concat(ds1);
+      allMddValues = allMddValues.concat(res1.chartMdd.map(v => v * 100));
+    }
+  }
+
+  if ((chartViewMode === 0 || chartViewMode === 2) && res2 && res2.chartDates && isSlot2Active()) {
+    const mdd2 = res2.chartMdd.map(v => v * 100);
+    const date2Map = {};
+    res2.chartDates.forEach((d, i) => { date2Map[d] = i; });
+    const alignedBalances2 = primaryRes.chartDates.map(d => date2Map[d] !== undefined ? res2.chartBalances[date2Map[d]] : null);
+    const alignedMdd2 = primaryRes.chartDates.map(d => date2Map[d] !== undefined ? mdd2[date2Map[d]] : null);
+
+    const ds2 = [
+      { label: s2Name + ' 자산', data: alignedBalances2, borderColor: '#10b981', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient2, tension: 0.2 },
+      { label: s2Name + ' MDD', data: alignedMdd2, borderColor: '#f59e0b', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+    ];
+    datasets = datasets.concat(ds2);
+    allMddValues = allMddValues.concat(mdd2);
+  }
+
+  if ((chartViewMode === 0 || chartViewMode === 3) && res3 && res3.chartDates && isSlot3Active()) {
+    const mdd3 = res3.chartMdd.map(v => v * 100);
+    const date3Map = {};
+    res3.chartDates.forEach((d, i) => { date3Map[d] = i; });
+    const alignedBalances3 = primaryRes.chartDates.map(d => date3Map[d] !== undefined ? res3.chartBalances[date3Map[d]] : null);
+    const alignedMdd3 = primaryRes.chartDates.map(d => date3Map[d] !== undefined ? mdd3[date3Map[d]] : null);
+
+    const ds3 = [
+      { label: s3Name + ' 자산', data: alignedBalances3, borderColor: '#ec4899', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient3, tension: 0.2 },
+      { label: s3Name + ' MDD', data: alignedMdd3, borderColor: '#be185d', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+    ];
+    datasets = datasets.concat(ds3);
+    allMddValues = allMddValues.concat(mdd3);
+  }
+
+  const shortDates = primaryRes.chartDates.map(d => {
+    const p = d.split('-');
+    if (p.length < 3) return d;
+    let y = p[0].length === 4 ? p[0].substring(2) : p[0];
+    return `${y}-${parseInt(p[1])}-${p[2]}`;
+  });
+
+  const worstMdd = Math.min.apply(null, allMddValues.filter(v => v !== null && isFinite(v)));
+  const dynamicMddMin = isFinite(worstMdd) ? Math.floor(worstMdd) - 10 : -50;
+
+  if (Chart.Tooltip && !Chart.Tooltip.positioners.bottomRight) {
+    Chart.Tooltip.positioners.bottomRight = function (items) {
+      if (!items.length) return false;
+      const chart = this.chart;
+      return { x: chart.width, y: chart.height };
+    };
+  }
+
+  myChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: shortDates, datasets: datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        title: { display: false },
+        legend: { display: false },
+        tooltip: {
+          enabled: true, position: 'bottomRight', xAlign: 'right', yAlign: 'bottom',
+          backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 8,
+          titleFont: { family: 'Outfit', size: chartFontSize, weight: 'bold' },
+          bodyFont: { family: 'Inter', size: chartFontSize },
+          cornerRadius: 8, displayColors: true,
+          callbacks: { label: function (c) { let l = c.dataset.label || ''; if (l.includes('자산')) return `${l}: $${Math.round(c.parsed.y).toLocaleString()}`; if (l.includes('MDD')) return `${l}: ${c.parsed.y.toFixed(2)}%`; return `${l}: ${c.parsed.y}`; } }
+        },
+        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } }
+      },
+      scales: {
+        y: { position: 'left', grace: '10%', grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#94a3b8' } },
+        y1: { position: 'right', min: dynamicMddMin, max: 0, grid: { display: false }, ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#ef4444' } }
+      }
+    },
+    plugins: [peakAnnotationPlugin, titleClickPlugin]
+  });
+
+  setTimeout(() => {
+    if (typeof myChart !== "undefined" && myChart && datasets.length > 0 && datasets[0].data.length > 0) {
+      const lastIdx = datasets[0].data.length - 1;
+      const meta = myChart.getDatasetMeta(0);
+      if (meta && meta.data && meta.data[lastIdx]) {
+        const point = meta.data[lastIdx];
+        const elements = datasets.map((_, i) => ({ datasetIndex: i, index: lastIdx }));
+        myChart.setActiveElements(elements);
+        myChart.tooltip.setActiveElements(elements, { x: point.x, y: point.y });
+        myChart.update();
+      }
+    }
+  }, 100);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const m1 = document.getElementById('monthlySlot1');
+  const m2 = document.getElementById('monthlySlot2');
+  let mIsSync = false;
+  if (m1 && m2) {
+    const syncMScroll = function (e) {
+      if (mIsSync) return; mIsSync = true;
+      const top = this.scrollTop;
+      if (m1 !== this) m1.scrollTop = top;
+      if (m2 !== this) m2.scrollTop = top;
+      setTimeout(() => { mIsSync = false; }, 20);
+    };
+    m1.addEventListener('scroll', syncMScroll);
+    m2.addEventListener('scroll', syncMScroll);
+  }
+
+  const o1 = document.getElementById('orderScroll1');
+  const o2 = document.getElementById('orderScroll2');
+  let oIsSync1 = false, oIsSync2 = false;
+  if (o1 && o2) {
+    o1.addEventListener('scroll', function () {
+      if (!oIsSync1) { oIsSync2 = true; o2.scrollTop = this.scrollTop; }
+      oIsSync1 = false;
+    });
+    o2.addEventListener('scroll', function () {
+      if (!oIsSync2) { oIsSync1 = true; o1.scrollTop = this.scrollTop; }
+      oIsSync2 = false;
+    });
+  }
+
+  const setupSwipe = (elementId, callback) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const applyTouchAction = (node) => {
+      if (!node || !node.style) return;
+      // 스크롤이 필요한 영역은 pan-y 유지, 나머지는 제약 해제
+      node.style.touchAction = 'pan-y';
+      for (let child of node.children) applyTouchAction(child);
+    };
+    applyTouchAction(el);
+    // 월별 성과 패널의 경우 특히 더 확실하게 적용
+    if (elementId === 'panelMonthly') {
+      // 통합 테이블/차트로 변경됨: 별도 슬롯 없음
+    }
+    el.style.userSelect = 'none';
+
+    const mc = new Hammer.Manager(el, {
+      touchAction: 'pan-y',
+      recognizers: [
+        [Hammer.Pan, { direction: Hammer.DIRECTION_HORIZONTAL, threshold: 30 }]
+      ]
+    });
+
+    mc.on('panend', (ev) => {
+      const absX = Math.abs(ev.deltaX);
+      const absY = Math.abs(ev.deltaY);
+
+      // 가로 스크롤 가능한 영역 내부면 스와이프 차단
+      const srcEl = ev.srcEvent?.target;
+      if (srcEl) {
+        let node = srcEl;
+        while (node && node !== el) {
+          if (node.scrollWidth > node.clientWidth + 2) return; // 가로 스크롤 가능 → 차단
+          node = node.parentElement;
+        }
+      }
+
+      if (absX > absY && absX > 40) {
+        callback(ev.deltaX < 0 ? 'left' : 'right');
+        if (navigator.vibrate) navigator.vibrate(8);
+      }
+    });
+  };
+
+  // 1. 주문표 패널: 주문표 <-> 보유계좌 전환
+  setupSwipe('panelOrder', () => toggleOrderView());
+
+  // 2. 월별성과 패널: 월별 <-> 년별 성과 전환
+  setupSwipe('panelMonthly', () => togglePeriodView());
+
+  // 3. 차트 패널: 전체 -> 투자법1 -> 투자법2 -> 투자법3 순환 전환
+  setupSwipe('panelChart', (dir) => {
+    if (dir === 'left') {
+      chartViewMode = (chartViewMode + 1) % 4;
+      if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = 0;
+      if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 0;
+    } else {
+      chartViewMode = (chartViewMode - 1 + 4) % 4;
+      if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = isSlot2Active() ? 2 : 1;
+      if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 1;
+    }
+    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+  });
+
+  // 4. 성과지표 패널 (Stats): 성과지표 화면에서도 스와이프하면 주문표로 돌아감
+  setupSwipe('panelStats', () => showOrderView());
+});
+
+function setBtnLoading(btnId, loadingText) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return () => { };
+  const orgHtml = btn.innerHTML;
+  btn.innerHTML = loadingText;
+  btn.disabled = true;
+  return () => { btn.innerHTML = orgHtml; btn.disabled = false; };
+}
+
+function showToast(msg, icon = "✅") {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span>${icon}</span> ${msg}`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 2500);
+}
+
+function triggerIconAnim(iconId) {
+  const icon = document.getElementById(iconId);
+  if (icon) {
+    icon.classList.remove('icon-rotate');
+    void icon.offsetWidth;
+    icon.classList.add('icon-rotate');
+  }
+}
