@@ -535,6 +535,9 @@ async function checkAndSyncWithServer(isInitial) {
       if (!confData || !confData.basics || !confData.basics.strategy) {
         localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
+        if (slotNum === 1) { slot1Config = null; lastBTResult1 = null; lastBTResult = null; }
+        else if (slotNum === 2) { slot2Config = null; lastBTResult2 = null; }
+        else if (slotNum === 3) { slot3Config = null; lastBTResult3 = null; }
         return;
       }
 
@@ -1307,7 +1310,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
       evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
       currPrice: currPrice, currentMdd: res.BF[lastIdx],
-      base: base, inout: cumulativeInOut, peak: peak
+      base: base, inout: cumulativeInOut, realPrincipal: realPrincipal, peak: peak
     };
 
     let finalOrders = run_tungchigi_master(rawOrderOutput);
@@ -1672,7 +1675,7 @@ function processRealLogData(d, currentStrat) {
     totalAssets: lastAsset, yield: simpleYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0,
     totalProfit: lastAsset - totalPrincipal, realizedProfit: realizedProfit, qty: qty, avgPrice: avgPrice,
     evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice,
-    currentMdd: chartMdd[chartMdd.length - 1], base: totalPrincipal
+    currentMdd: chartMdd[chartMdd.length - 1], base: totalPrincipal, realPrincipal: totalPrincipal
   };
 
   let rawOrderOutput = [];
@@ -1902,12 +1905,15 @@ function calculateCombinedPeriodData() {
   globalMonthlyData4 = calc('month');
   globalYearlyData4 = calc('year');
 
-  // ⭐️ [UI 즉시 동기화] 계산이 끝나는 즉시 화면의 테이블들을 강제로 다시 그립니다.
-  // (이 로직이 있어야 로그인 직후나 탭 전환 없이도 합산 데이터가 바로 나타납니다)
-  if (isSlot1Active()) renderPeriodTableText(1);
-  if (isSlot2Active()) renderPeriodTableText(2);
-  if (isSlot3Active()) renderPeriodTableText(3);
-  if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+  // ⭐️ [UI 즉시 동기화] 계산이 끝나는 즉시 화면의 테이블/차트를 강제로 다시 그립니다.
+  if (periodDisplayMode === 'chart') {
+    renderPeriodBarChart();
+  } else {
+    if (isSlot1Active()) renderPeriodTableText(1);
+    if (isSlot2Active()) renderPeriodTableText(2);
+    if (isSlot3Active()) renderPeriodTableText(3);
+    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+  }
 
   // 💾 [캐시 저장] 계산된 합산 데이터를 로컬 스토리지에 저장하여 다음 부팅 시 즉시 노출되게 함
   if (myUserId) {
@@ -2468,13 +2474,14 @@ function calculateCombinedSummary(r1, r2, r3) {
   if (activeResults.length === 0) return null;
   if (activeResults.length === 1) return activeResults[0].summary;
 
-  let tAssets = 0, base = 0, evalVal = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0;
+  let tAssets = 0, base = 0, evalVal = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0, sumRealPrincipal = 0;
   let currPriceSum = 0, avgPriceSum = 0;
   let count = activeResults.length;
 
   for (const r of activeResults) {
     const s = r.summary || {};
     base += (s.base || 0);
+    sumRealPrincipal += (s.realPrincipal || s.base || 0); // realPrincipal이 없으면 base라도 사용
     tAssets += (s.totalAssets || 0);
     evalVal += (s.evalVal || 0);
     totalProfit += (s.totalProfit || 0);
@@ -2517,10 +2524,10 @@ function calculateCombinedSummary(r1, r2, r3) {
 
   return {
     totalAssets: tAssets,
-    yield: base > 0 ? (tAssets - base) / base : 0,
+    yield: sumRealPrincipal > 0 ? (tAssets - sumRealPrincipal) / sumRealPrincipal : 0,
     currentMdd: combinedCurrentMdd,
     depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
-    totalProfit: totalProfit,
+    totalProfit: tAssets - sumRealPrincipal,
     realizedProfit: realizedProfit,
     evalVal: evalVal,
     cash: cash,
@@ -2531,7 +2538,7 @@ function calculateCombinedSummary(r1, r2, r3) {
     base: base,
     mdd: combinedMdd,
     cagr: (function() {
-      if (base <= 0 || tAssets <= 0) return 0;
+      if (sumRealPrincipal <= 0 || tAssets <= 0) return 0;
       let earliest = Infinity, latest = -Infinity;
       activeResults.forEach(r => {
         if (r.chartDates && r.chartDates.length > 0) {
@@ -2544,13 +2551,13 @@ function calculateCombinedSummary(r1, r2, r3) {
       if (isFinite(earliest) && isFinite(latest)) {
         const days = Math.max(1, Math.round((latest - earliest) / (1000 * 60 * 60 * 24)));
         const years = days / 365;
-        const totalYield = (tAssets - base) / base;
+        const totalYield = (tAssets - sumRealPrincipal) / sumRealPrincipal;
         return years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
       }
       return 0;
     })(),
     calmar: combinedMdd !== 0 ? Math.abs((function() {
-      if (base <= 0 || tAssets <= 0) return 0;
+      if (sumRealPrincipal <= 0 || tAssets <= 0) return 0;
       let earliest = Infinity, latest = -Infinity;
       activeResults.forEach(r => {
         if (r.chartDates && r.chartDates.length > 0) {
@@ -2562,15 +2569,16 @@ function calculateCombinedSummary(r1, r2, r3) {
       });
       const days = isFinite(earliest) ? Math.max(1, Math.round((latest - earliest) / (1000 * 60 * 60 * 24))) : 0;
       const years = days / 365;
-      const totalYield = (tAssets - base) / base;
+      const totalYield = (tAssets - sumRealPrincipal) / sumRealPrincipal;
       const computedCagr = years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
       return computedCagr;
-    })() / combinedMdd) : 0
+    })() / combinedMdd) : 0,
+    realPrincipal: sumRealPrincipal
   };
 }
 
 function updateCombinedMetrics() {
-  refreshStatsTable();
+  updateSlotsVisibility();
 }
 
 function refreshStatsTable() {
@@ -2607,6 +2615,7 @@ function refreshStatsTable() {
   };
   const metricsList = [
     { key: 'totalAssets', label: '총자산', type: 'fmt' },
+    { key: 'realPrincipal', label: '원금', type: 'fmt' },
     { key: 'yield', label: '수익률', type: 'color', pct: true },
     { key: 'currentMdd', label: '현재 MDD', type: 'color', pct: true },
     { key: 'depletion', label: '진행율', type: 'color', pct: true },
