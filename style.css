@@ -947,23 +947,7 @@
     }
 
     /* 고급 투명 스크롤바 */
-    .slim-scroll::-webkit-scrollbar {
-      height: 12px;
-      width: 4px;
-    }
 
-    .slim-scroll::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .slim-scroll::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 4px;
-    }
-
-    .slim-scroll::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.25);
-    }
 
     .slim-scroll {
       scrollbar-width: thin;
@@ -997,3 +981,36 @@
         min-height: 180px;
       }
     }
+
+/* ⭐️ 모바일 터치 친화적 가로 스크롤바 (터치 영역 5배 뻥튀기) */
+::-webkit-scrollbar:horizontal {
+    /* 1. 실제 손가락이 인식되는 전체 터치 영역을 30px로 거대하게 만듭니다. */
+    height: 30px !important; 
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+    background-color: rgba(148, 163, 184, 0.5);
+    border-radius: 15px;
+    
+    /* 2. ⭐️ 핵심 기술: 위아래로 무려 12px씩 '투명한 유리벽'을 칩니다.
+       전체 30px 중 위(12) + 아래(12) = 24px가 투명해지므로, 
+       가운데 6px만 실제 스크롤바 막대로 우리 눈에 보이게 됩니다! */
+    border-top: 12px solid transparent !important;
+    border-bottom: 12px solid transparent !important;
+    
+    /* 3. 배경색이 투명 유리벽 영역을 침범하지 못하게 가둬둡니다. */
+    background-clip: padding-box !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover {
+    background-color: rgba(148, 163, 184, 0.8);
+}
+
+/* (선택사항) 스크롤바가 지나가는 뒷배경 레일도 투명하게 처리 */
+::-webkit-scrollbar-track:horizontal {
+    background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover {
+    background-color: rgba(148, 163, 184, 0.8);
+}
