@@ -1,5 +1,10 @@
 const APP_VERSION = "3.000";
 const GAS_URL = "https://script.google.com/macros/s/AKfycbw1si6V_02Ua0trHlZdvT_EnFLDGA6-0hNtEaZhq2W-UGXMVo0e9K5mI3jH5IqQ4KOi9Q/exec";
+const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
+
+// ⭐️ 글로벌 변수 추가
+let isCurrencyKRW = false; 
+let currentFXRate = 1350; // 기본 환율 1350원
 
 const MASTER_STRATEGIES = {
   "2M3D1-1P": {
@@ -163,11 +168,26 @@ function shouldAutoRefresh() {
 }
 
 function showStatsView() {
-  restoreSimulationUI();
+  // 1. 상태 전환: 성과지표 모드 ON, 주문표 모드 OFF
   isStatsMode = true;
-  document.getElementById('mainGrid').classList.add('perf-metrics-layout');
+  isOrderView = false; 
+  
+  // ⭐️ [버그 픽스] "나 지금 과거 장부 보는 중이야!" 스위치를 켜야 나중에 돌아올 때 원래 주문표를 복구해 줍니다!
+  isViewingHistory = true; 
+
+  // 2. 화면 UI 전환 (CSS 레이아웃 변경)
+  const grid = document.getElementById('mainGrid');
+  if (grid) grid.classList.add('perf-metrics-layout');
+  
   const btnStats = document.getElementById('btnStatsShow');
   if (btnStats) btnStats.classList.add('active');
+
+  // 3. 서버 통신 없이 순수 시트 캐시만 즉시 화면에 그리기
+  const s1 = slot1Config?.basics?.strategy || "";
+  const s2 = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
+  const s3 = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+
+  renderPerfFromCache(s1, s2, s3);
 }
 
 function toggleOrderHoldings() {
@@ -531,13 +551,11 @@ async function checkAndSyncWithServer(isInitial) {
       return str;
     };
 
-    const syncSlotWithSheet = (confData, perfSlotData, slotNum, engineRes) => {
+    // ⭐️ [궁극의 백신] syncSlotWithSheet를 비동기(async)로 바꾸고, Track 1의 오염된 데이터를 철저히 배제합니다.
+    const syncSlotWithSheet = async (confData, perfSlotData, slotNum) => {
       if (!confData || !confData.basics || !confData.basics.strategy) {
         localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
-        if (slotNum === 1) { slot1Config = null; lastBTResult1 = null; lastBTResult = null; }
-        else if (slotNum === 2) { slot2Config = null; lastBTResult2 = null; }
-        else if (slotNum === 3) { slot3Config = null; lastBTResult3 = null; }
         return;
       }
 
@@ -555,24 +573,29 @@ async function checkAndSyncWithServer(isInitial) {
         });
         localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
 
-        // ⭐️ [핵심 3] 시트 원본을 'processRealLogData'로 파싱하여 100% 정확한 월별/년별 성과를 뽑아냅니다.
+        // 1. 서버 시트의 순수 원본 데이터를 가져옵니다.
         const realData = processRealLogData(perfSlotData, confData.basics.strategy);
 
         if (realData) {
-          // 🛠️ 대망의 퓨전(Merge) 수정본!
-          let mergedSnap = {
-            ...realData, // 과거 차트, 월별 성과 등은 시트 원본 유지
-            
-            // ⭐️ [핵심 픽스] 현재 상태(총자산, 예수금, 보유종목, 거래내역)는 무조건 100% 정확한 엔진 값을 씁니다!
-            summary: engineRes ? engineRes.summary : realData.summary,
-            inv: engineRes ? engineRes.inv : realData.inv,
-            trades: engineRes ? engineRes.trades : realData.trades,
+          // ⭐️ [핵심 방어벽] 폰에 남아있는 오염된 캐시를 날려버리고, 순수 서버 데이터를 강제로 밀어 넣습니다.
+          localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(realData));
+          
+          // ⭐️ [엔진 재가동] 오염된 Track 1 결과를 버리고, 오직 '서버의 순수 설정값'으로 엔진을 다시 돌립니다!
+          const pureEngineRes = await runBacktestMemory(confData, false, slotNum);
 
-            // 미래의 주문표와 상태 역시 엔진 값을 씁니다.
-            orders: (engineRes && engineRes.orders && engineRes.orders.length > 0) ? engineRes.orders : realData.orders,
-            nextOrderInfo: engineRes ? engineRes.nextOrderInfo : null,
-            orderDateStr: engineRes ? engineRes.orderDateStr : realData.orderDateStr,
-            dailyStates: engineRes ? engineRes.dailyStates : realData.dailyStates
+          // ⭐️ [긴급 방어벽] 엔진이 통신 지연 없이 100% 정상 작동했는지 확인합니다!
+          const isEngOk = pureEngineRes && pureEngineRes.status !== "error";
+
+          // 2. 완벽하게 무결한 상태로 퓨전(Merge) 진행! (에러 나면 시트 원본만 유지)
+          let mergedSnap = {
+            ...realData,
+            summary: isEngOk ? pureEngineRes.summary : realData.summary,
+            inv: isEngOk ? pureEngineRes.inv : realData.inv,
+            trades: isEngOk ? pureEngineRes.trades : realData.trades,
+            orders: (isEngOk && pureEngineRes.orders && pureEngineRes.orders.length > 0) ? pureEngineRes.orders : realData.orders,
+            nextOrderInfo: isEngOk ? pureEngineRes.nextOrderInfo : null,
+            orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
+            dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates
           };
 
           if (slotNum === 1) { lastBTResult1 = mergedSnap; lastBTResult = mergedSnap; }
@@ -584,9 +607,9 @@ async function checkAndSyncWithServer(isInitial) {
       }
     };
 
-    syncSlotWithSheet(dataInit.config, dataPerf.strat1, 1, lastBTResult1);
-    syncSlotWithSheet(dataInit.config2, dataPerf.strat2, 2, lastBTResult2);
-    syncSlotWithSheet(dataInit.config3, dataPerf.strat3, 3, lastBTResult3);
+    await syncSlotWithSheet(dataInit.config, dataPerf.strat1, 1);
+    await syncSlotWithSheet(dataInit.config2, dataPerf.strat2, 2);
+    await syncSlotWithSheet(dataInit.config3, dataPerf.strat3, 3);
 
     renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
     updateCombinedMetrics();
@@ -911,7 +934,8 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
 
       // 야후 서버 타임스탬프 오류 방지를 위해 3일 뒤까지 마진 제공
       fetchP2 = fetchP2 + (86400 * 3);
-      const yUrl = `${GAS_URL}?action=GET_YAHOO&t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
+      // ⭐️ 구글 서버(GAS_URL)를 버리고, VERCEL_URL로 직접 쏩니다!
+      const yUrl = `${VERCEL_URL}?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
       try {
         const response = await fetch(yUrl); const res = await response.json(); if (res.error) throw new Error(res.error);
         const r = res.chart.result[0], ts = r.timestamp, cls = r.indicators.quote[0].close, ops = r.indicators.quote[0].open;
@@ -1993,7 +2017,6 @@ function refreshOrderViewUI() {
   let titleStr = `${icon} ${labelText}<span ${smallStyle}>(${stratDisplay})</span>`;
   titleStr += ` <span style="font-size:0.75em; font-weight:normal; opacity:0.6; margin-left:8px;">(${date1})</span>`;
 
-  // 🔴 [v2.42 수정] 타임존 이중 오차 해결: 현재 날짜와 시간을 뉴욕 기준으로 안전하게 획득
   const now = new Date();
   const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
 
@@ -2176,7 +2199,15 @@ function renderPeriodTableText(slotNum) {
     }
 
     const fmtRate = (r) => { const v = (r * 100); return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
-    const fmtProfit = (p) => { const v = Math.round(p); return (v > 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(); };
+    const fmtProfit = (p) => { 
+      if (isCurrencyKRW) {
+        let val = Math.round((p * currentFXRate) / 10000);
+        return (val > 0 ? '+' : (val < 0 ? '-' : '')) + Math.abs(val).toLocaleString() + '만원';
+      } else {
+        let val = Math.round(p);
+        return (val > 0 ? '+$' : (val < 0 ? '-$' : '$')) + Math.abs(val).toLocaleString();
+      }
+    };
     const fmtMdd = (m) => (m * 100).toFixed(1) + '%';
     const cls = (v) => v > 0 ? 'val-plus' : 'val-minus';
 
@@ -2208,7 +2239,23 @@ function renderPeriodTableText(slotNum) {
   data.sort((a, b) => b.period.localeCompare(a.period));
 
   const fmtRate = (r) => { const v = (r * 100); return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
-  const fmtProfit = (p) => { const v = Math.round(p); return (v > 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(); };
+  const fmtProfit = (p) => { 
+    if (isCurrencyKRW) {
+      let val = Math.round((p * currentFXRate) / 10000);
+      return (val > 0 ? '+' : (val < 0 ? '-' : '')) + Math.abs(val).toLocaleString() + '만원';
+    } else {
+      let val = Math.round(p);
+      return (val > 0 ? '+$' : (val < 0 ? '-$' : '$')) + Math.abs(val).toLocaleString();
+    }
+  };
+  const fmtAsset = (a) => {
+    if (isCurrencyKRW) {
+      let val = Math.round((a * currentFXRate) / 10000);
+      return val.toLocaleString() + '만원';
+    } else {
+      return '$' + Math.round(a).toLocaleString();
+    }
+  };
   const fmtMdd = (m) => (m * 100).toFixed(1) + '%';
   const cls = (v) => v > 0 ? 'val-plus' : 'val-minus';
 
@@ -2220,13 +2267,52 @@ function renderPeriodTableText(slotNum) {
 
     let rowHtml = `<td>${displayPeriod}</td>`;
     if (slotNum === 1) {
-      rowHtml += `<td class="hide-on-narrow">$${Math.round(row.asset).toLocaleString()}</td>`;
+      rowHtml += `<td class="hide-on-narrow">${fmtAsset(row.asset)}</td>`;
     }
     rowHtml += `<td class="${cls(row.profit)}">${fmtProfit(row.profit)}</td>`;
     rowHtml += `<td class="${cls(row.rate)}">${fmtRate(row.rate)}</td>`;
     rowHtml += `<td class="hide-on-cover ${row.mdd < 0 ? 'val-minus' : ''}">${fmtMdd(row.mdd)}</td>`;
     return `<tr>${rowHtml}</tr>`;
   }).join('');
+}
+
+// ⭐️ 환율 토글 함수
+function toggleCurrencyMode() {
+  isCurrencyKRW = !isCurrencyKRW;
+  const btn = document.getElementById('btnCurrencyToggle');
+  
+  // 실제 고화질 국기 이미지 (FlagCDN 사용)
+  const ICON_USD = `<img src="https://flagcdn.com/w40/us.png" style="width:16px; height:12px; border-radius:2px; margin-right:6px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
+  const ICON_KRW = `<img src="https://flagcdn.com/w40/kr.png" style="width:16px; height:12px; border-radius:2px; margin-right:6px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
+
+  if (btn) {
+    btn.style.display = "flex";
+    btn.style.alignItems = "center";
+    btn.style.justifyContent = "center";
+    btn.style.minWidth = "100px"; 
+
+    if (isCurrencyKRW) {
+      btn.innerHTML = `${ICON_KRW} 원화(KRW)`;
+      btn.style.color = '#fbbf24'; 
+      btn.style.borderColor = 'rgba(251, 191, 36, 0.5)';
+      btn.style.boxShadow = '0 0 10px rgba(251, 191, 36, 0.15)';
+    } else {
+      btn.innerHTML = `${ICON_USD} 달러(USD)`;
+      btn.style.color = '#94a3b8';
+      btn.style.borderColor = 'rgba(255,255,255,0.1)';
+      btn.style.boxShadow = 'none';
+    }
+  }
+
+  // 화면 재렌더링
+  if (periodDisplayMode === 'chart') {
+    renderPeriodBarChart();
+  } else {
+    renderPeriodTableText(1);
+    if (isSlot2Active()) renderPeriodTableText(2);
+    if (isSlot3Active()) renderPeriodTableText(3);
+    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+  }
 }
 
 function renderPeriodTable() { if (periodDisplayMode === 'chart') renderPeriodBarChart(); else renderPeriodTableText(1); }
@@ -2284,9 +2370,12 @@ function renderPeriodBarChart() {
   const map2 = {}; sorted2.forEach(r => { map2[r.period] = r; });
   const map3 = {}; sorted3.forEach(r => { map3[r.period] = r; });
 
-  const profits1 = sortedPeriods.map(p => map1[p] ? Math.round(map1[p].profit) : 0);
-  const profits2 = sortedPeriods.map(p => map2[p] ? Math.round(map2[p].profit) : 0);
-  const profits3 = sortedPeriods.map(p => map3[p] ? Math.round(map3[p].profit) : 0);
+  const fx = isCurrencyKRW ? currentFXRate : 1;
+  const isKRW = isCurrencyKRW;
+
+  const profits1 = sortedPeriods.map(p => map1[p] ? Math.round((map1[p].profit * fx) / (isKRW ? 10000 : 1)) : 0);
+  const profits2 = sortedPeriods.map(p => map2[p] ? Math.round((map2[p].profit * fx) / (isKRW ? 10000 : 1)) : 0);
+  const profits3 = sortedPeriods.map(p => map3[p] ? Math.round((map3[p].profit * fx) / (isKRW ? 10000 : 1)) : 0);
 
   const rates1 = sortedPeriods.map(p => map1[p] ? Number((map1[p].rate * 100).toFixed(2)) : 0);
   const rates2 = sortedPeriods.map(p => map2[p] ? Number((map2[p].rate * 100).toFixed(2)) : 0);
@@ -2385,7 +2474,12 @@ function renderPeriodBarChart() {
       topMeta.data.forEach((bar, i) => {
         const total = (s1Active ? profits1[i] : 0) + (s2Active ? profits2[i] : 0) + (s3Active ? profits3[i] : 0);
         if (total === 0) return;
-        const label = (total > 0 ? '+$' : '-$') + Math.abs(total).toLocaleString();
+        let label = "";
+        if (isKRW) {
+          label = (total > 0 ? '+' : (total < 0 ? '-' : '')) + Math.abs(total).toLocaleString() + '만';
+        } else {
+          label = (total > 0 ? '+$' : (total < 0 ? '-$' : '$')) + Math.abs(total).toLocaleString();
+        }
         const yPos = total >= 0 ? bar.y - 6 : bar.y + 12;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.fillText(label, bar.x, yPos);
@@ -2421,7 +2515,10 @@ function renderPeriodBarChart() {
             label: function (c) {
               const v = c.parsed.y;
               if (c.dataset.yAxisID === 'yRate') return `${c.dataset.label}: ${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
-              return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}$${Math.abs(v).toLocaleString()}`;
+              if (isKRW) {
+                return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}${Math.abs(v).toLocaleString()}만원`;
+              }
+              return `${c.dataset.label}: ${v >= 0 ? '+$' : '-$'}${Math.abs(v).toLocaleString()}`;
             }
           }
         }
@@ -2445,7 +2542,10 @@ function renderPeriodBarChart() {
           ticks: {
             font: { family: 'Inter', size: 10 },
             color: '#94a3b8',
-            callback: function (v) { return '$' + v.toLocaleString(); }
+            callback: function (v) { 
+              if (isKRW) return v.toLocaleString() + '만';
+              return '$' + v.toLocaleString(); 
+            }
           }
         },
         yRate: {
@@ -2495,30 +2595,44 @@ function calculateCombinedSummary(r1, r2, r3) {
     avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0)); 
   }
 
-  // ⭐️ [핵심] 합산 MDD 계산: 일별 총자산의 합계를 구한 뒤 그 합계 라인의 MDD를 산출!
+  // ⭐️ [버그 픽스] 무지성 배열 순서 합산(ba[i])을 버리고, 날짜(Date) 기준으로 완벽하게 정렬!
   let combinedMdd = 0;
   let combinedCurrentMdd = 0;
-  const portfoliosBA = activeResults.map(r => r.chartBalances).filter(ba => ba && ba.length > 0);
 
-  if (portfoliosBA.length > 0) {
-    const maxLen = Math.max(...portfoliosBA.map(ba => ba.length));
-    let dailySummed = new Array(maxLen).fill(0);
-
-    for (const ba of portfoliosBA) {
-      for (let i = 0; i < ba.length; i++) {
-        dailySummed[i] += ba[i];
-      }
+  const allDatesSet = new Set();
+  const mappedResults = activeResults.map(r => {
+    const dMap = new Map();
+    if (r.chartDates && r.chartBalances) {
+      r.chartDates.forEach((d, i) => {
+        dMap.set(d, r.chartBalances[i]);
+        allDatesSet.add(d);
+      });
     }
+    return dMap;
+  });
 
+  const sortedDates = Array.from(allDatesSet).sort();
+
+  if (sortedDates.length > 0) {
     let peak = -Infinity;
     let minDraw = 0;
-    for (let i = 0; i < dailySummed.length; i++) {
-      let val = dailySummed[i];
-      if (val > peak) peak = val;
-      let draw = peak > 0 ? (val - peak) / peak : 0;
+
+    sortedDates.forEach((date, i) => {
+      let daySum = 0;
+      mappedResults.forEach(dMap => {
+        // 💡 해당 날짜에 데이터가 있으면 더하고, 아직 전략이 시작 안 했으면 0원 취급!
+        if (dMap.has(date)) {
+          daySum += dMap.get(date);
+        }
+      });
+
+      if (daySum > peak) peak = daySum;
+      let draw = peak > 0 ? (daySum - peak) / peak : 0;
       if (draw < minDraw) minDraw = draw;
-      if (i === dailySummed.length - 1) combinedCurrentMdd = draw;
-    }
+      
+      // 맨 마지막 날짜(오늘)의 하락률이 현재 MDD
+      if (i === sortedDates.length - 1) combinedCurrentMdd = draw;
+    });
     combinedMdd = minDraw;
   }
 
@@ -2533,7 +2647,7 @@ function calculateCombinedSummary(r1, r2, r3) {
     cash: cash,
     evalReturn: avgPriceSum > 0 ? (evalVal - avgPriceSum) / avgPriceSum : 0,
     qty: qty,
-    currPrice: currPriceSum / count, // 👑 [매우 중요] 마스터님 요청대로 평균가로 계산!
+    currPrice: currPriceSum / count,
     avgPrice: qty > 0 ? avgPriceSum / qty : (avgPriceSum / count),
     base: base,
     mdd: combinedMdd,
@@ -2570,8 +2684,7 @@ function calculateCombinedSummary(r1, r2, r3) {
       const days = isFinite(earliest) ? Math.max(1, Math.round((latest - earliest) / (1000 * 60 * 60 * 24))) : 0;
       const years = days / 365;
       const totalYield = (tAssets - sumRealPrincipal) / sumRealPrincipal;
-      const computedCagr = years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
-      return computedCagr;
+      return years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
     })() / combinedMdd) : 0,
     realPrincipal: sumRealPrincipal
   };
@@ -2769,7 +2882,29 @@ function renderChart(res1, res2, res3) {
   const s1Name = slot1Config?.basics?.strategy || '투자법1';
   const s2Name = slot2Config?.basics?.strategy || '투자법2';
   const s3Name = slot3Config?.basics?.strategy || '투자법3';
-  const primaryRes = (res1 && res1.chartDates) ? res1 : ((res2 && res2.chartDates) ? res2 : res3);
+
+  // ⭐️ [버그 픽스] 1번 슬롯 편애 금지! 모든 슬롯의 날짜를 긁어모아 '유니버설 X축'을 만듭니다.
+  const allDatesSet = new Set();
+  if (res1 && res1.chartDates && s1Set) res1.chartDates.forEach(d => allDatesSet.add(d));
+  if (res2 && res2.chartDates && s2Set) res2.chartDates.forEach(d => allDatesSet.add(d));
+  if (res3 && res3.chartDates && s3Set) res3.chartDates.forEach(d => allDatesSet.add(d));
+  
+  const universalDates = Array.from(allDatesSet).sort();
+  if (universalDates.length === 0) return;
+
+  const shortDates = universalDates.map(d => {
+    const p = d.split('-');
+    if (p.length < 3) return d;
+    let y = p[0].length === 4 ? p[0].substring(2) : p[0];
+    return `${y}-${parseInt(p[1])}-${p[2]}`;
+  });
+
+  // ⭐️ 날짜를 X축에 맞춰 빈칸(null)으로 예쁘게 정렬해주는 도우미 함수
+  const alignData = (resDates, resValues) => {
+    const map = {};
+    resDates.forEach((d, i) => { map[d] = resValues[i]; });
+    return universalDates.map(d => map[d] !== undefined ? map[d] : null);
+  };
 
   let datasets = [];
   let allMddValues = [];
@@ -2786,53 +2921,44 @@ function renderChart(res1, res2, res3) {
   assetGradient3.addColorStop(0, 'rgba(236, 72, 153, 0.2)');
   assetGradient3.addColorStop(1, 'rgba(236, 72, 153, 0)');
 
-  if (res1 && res1.chartDates && isSlot1Active()) {
+  if ((chartViewMode === 0 || chartViewMode === 1) && res1 && res1.chartDates && s1Set) {
+    const alignedBA1 = alignData(res1.chartDates, res1.chartBalances);
+    const mdd1 = res1.chartMdd.map(v => v * 100);
+    const alignedMDD1 = alignData(res1.chartDates, mdd1);
+    
     const ds1 = [
-      { label: s1Name + ' 자산', data: res1.chartBalances, borderColor: '#6366f1', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient1, tension: 0.2 },
-      { label: s1Name + ' MDD', data: res1.chartMdd.map(v => v * 100), borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+      { label: s1Name + ' 자산', data: alignedBA1, borderColor: '#6366f1', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient1, tension: 0.2 },
+      { label: s1Name + ' MDD', data: alignedMDD1, borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
     ];
-    if (chartViewMode === 0 || chartViewMode === 1) {
-      datasets = datasets.concat(ds1);
-      allMddValues = allMddValues.concat(res1.chartMdd.map(v => v * 100));
-    }
+    datasets = datasets.concat(ds1);
+    allMddValues = allMddValues.concat(mdd1);
   }
 
-  if ((chartViewMode === 0 || chartViewMode === 2) && res2 && res2.chartDates && isSlot2Active()) {
+  if ((chartViewMode === 0 || chartViewMode === 2) && res2 && res2.chartDates && s2Set) {
+    const alignedBA2 = alignData(res2.chartDates, res2.chartBalances);
     const mdd2 = res2.chartMdd.map(v => v * 100);
-    const date2Map = {};
-    res2.chartDates.forEach((d, i) => { date2Map[d] = i; });
-    const alignedBalances2 = primaryRes.chartDates.map(d => date2Map[d] !== undefined ? res2.chartBalances[date2Map[d]] : null);
-    const alignedMdd2 = primaryRes.chartDates.map(d => date2Map[d] !== undefined ? mdd2[date2Map[d]] : null);
+    const alignedMDD2 = alignData(res2.chartDates, mdd2);
 
     const ds2 = [
-      { label: s2Name + ' 자산', data: alignedBalances2, borderColor: '#10b981', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient2, tension: 0.2 },
-      { label: s2Name + ' MDD', data: alignedMdd2, borderColor: '#f59e0b', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+      { label: s2Name + ' 자산', data: alignedBA2, borderColor: '#10b981', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient2, tension: 0.2 },
+      { label: s2Name + ' MDD', data: alignedMDD2, borderColor: '#f59e0b', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
     ];
     datasets = datasets.concat(ds2);
     allMddValues = allMddValues.concat(mdd2);
   }
 
-  if ((chartViewMode === 0 || chartViewMode === 3) && res3 && res3.chartDates && isSlot3Active()) {
+  if ((chartViewMode === 0 || chartViewMode === 3) && res3 && res3.chartDates && s3Set) {
+    const alignedBA3 = alignData(res3.chartDates, res3.chartBalances);
     const mdd3 = res3.chartMdd.map(v => v * 100);
-    const date3Map = {};
-    res3.chartDates.forEach((d, i) => { date3Map[d] = i; });
-    const alignedBalances3 = primaryRes.chartDates.map(d => date3Map[d] !== undefined ? res3.chartBalances[date3Map[d]] : null);
-    const alignedMdd3 = primaryRes.chartDates.map(d => date3Map[d] !== undefined ? mdd3[date3Map[d]] : null);
+    const alignedMDD3 = alignData(res3.chartDates, mdd3);
 
     const ds3 = [
-      { label: s3Name + ' 자산', data: alignedBalances3, borderColor: '#ec4899', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient3, tension: 0.2 },
-      { label: s3Name + ' MDD', data: alignedMdd3, borderColor: '#be185d', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+      { label: s3Name + ' 자산', data: alignedBA3, borderColor: '#ec4899', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient3, tension: 0.2 },
+      { label: s3Name + ' MDD', data: alignedMDD3, borderColor: '#be185d', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
     ];
     datasets = datasets.concat(ds3);
     allMddValues = allMddValues.concat(mdd3);
   }
-
-  const shortDates = primaryRes.chartDates.map(d => {
-    const p = d.split('-');
-    if (p.length < 3) return d;
-    let y = p[0].length === 4 ? p[0].substring(2) : p[0];
-    return `${y}-${parseInt(p[1])}-${p[2]}`;
-  });
 
   const worstMdd = Math.min.apply(null, allMddValues.filter(v => v !== null && isFinite(v)));
   const dynamicMddMin = isFinite(worstMdd) ? Math.floor(worstMdd) - 10 : -50;
@@ -2921,9 +3047,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(elementId);
     if (!el) return;
 
+    // 다시 모든 터치를 상하(pan-y)로 제한하여 패널 스와이프를 우선시합니다.
     const applyTouchAction = (node) => {
       if (!node || !node.style) return;
-      // 스크롤이 필요한 영역은 pan-y 유지, 나머지는 제약 해제
       node.style.touchAction = 'pan-y';
       for (let child of node.children) applyTouchAction(child);
     };
@@ -2946,7 +3072,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (srcEl) {
         let node = srcEl;
         while (node && node !== el) {
-          if (node.scrollWidth > node.clientWidth + 2) return; // 가로 스크롤 가능 → 차단
+          if (node.scrollWidth > node.clientWidth + 2) return;
           node = node.parentElement;
         }
       }
@@ -3059,101 +3185,3 @@ window.addEventListener('load', () => {
   scheduleNextAutoSave();
 });
 
-window.addEventListener('DOMContentLoaded', () => {
-  const m1 = document.getElementById('monthlySlot1');
-  const m2 = document.getElementById('monthlySlot2');
-  let mIsSync = false;
-  if (m1 && m2) {
-    const syncMScroll = function (e) {
-      if (mIsSync) return; mIsSync = true;
-      const top = this.scrollTop;
-      if (m1 !== this) m1.scrollTop = top;
-      if (m2 !== this) m2.scrollTop = top;
-      setTimeout(() => { mIsSync = false; }, 20);
-    };
-    m1.addEventListener('scroll', syncMScroll);
-    m2.addEventListener('scroll', syncMScroll);
-  }
-
-  const o1 = document.getElementById('orderScroll1');
-  const o2 = document.getElementById('orderScroll2');
-  let oIsSync1 = false, oIsSync2 = false;
-  if (o1 && o2) {
-    o1.addEventListener('scroll', function () {
-      if (!oIsSync1) { oIsSync2 = true; o2.scrollTop = this.scrollTop; }
-      oIsSync1 = false;
-    });
-    o2.addEventListener('scroll', function () {
-      if (!oIsSync2) { oIsSync1 = true; o1.scrollTop = this.scrollTop; }
-      oIsSync2 = false;
-    });
-  }
-
-  const setupSwipe = (elementId, callback) => {
-    const el = document.getElementById(elementId);
-    if (!el) return;
-
-    const applyTouchAction = (node) => {
-      if (!node || !node.style) return;
-      // 스크롤이 필요한 영역은 pan-y 유지, 나머지는 제약 해제
-      node.style.touchAction = 'pan-y';
-      for (let child of node.children) applyTouchAction(child);
-    };
-    applyTouchAction(el);
-    // 월별 성과 패널의 경우 특히 더 확실하게 적용
-    if (elementId === 'panelMonthly') {
-      // 통합 테이블/차트로 변경됨: 별도 슬롯 없음
-    }
-    el.style.userSelect = 'none';
-
-    const mc = new Hammer.Manager(el, {
-      touchAction: 'pan-y',
-      recognizers: [
-        [Hammer.Pan, { direction: Hammer.DIRECTION_HORIZONTAL, threshold: 30 }]
-      ]
-    });
-
-    mc.on('panend', (ev) => {
-      const absX = Math.abs(ev.deltaX);
-      const absY = Math.abs(ev.deltaY);
-
-      // 가로 스크롤 가능한 영역 내부면 스와이프 차단
-      const srcEl = ev.srcEvent?.target;
-      if (srcEl) {
-        let node = srcEl;
-        while (node && node !== el) {
-          if (node.scrollWidth > node.clientWidth + 2) return; // 가로 스크롤 가능 → 차단
-          node = node.parentElement;
-        }
-      }
-
-      if (absX > absY && absX > 40) {
-        callback(ev.deltaX < 0 ? 'left' : 'right');
-        if (navigator.vibrate) navigator.vibrate(8);
-      }
-    });
-  };
-
-  // 1. 주문표 패널: 주문표 <-> 보유계좌 전환
-  setupSwipe('panelOrder', () => toggleOrderView());
-
-  // 2. 월별성과 패널: 월별 <-> 년별 성과 전환
-  setupSwipe('panelMonthly', () => togglePeriodView());
-
-  // 3. 차트 패널: 전체 -> 투자법1 -> 투자법2 -> 투자법3 순환 전환
-  setupSwipe('panelChart', (dir) => {
-    if (dir === 'left') {
-      chartViewMode = (chartViewMode + 1) % 4;
-      if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = 0;
-      if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 0;
-    } else {
-      chartViewMode = (chartViewMode - 1 + 4) % 4;
-      if (chartViewMode === 3 && !isSlot3Active()) chartViewMode = isSlot2Active() ? 2 : 1;
-      if (chartViewMode === 2 && !isSlot2Active()) chartViewMode = 1;
-    }
-    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
-  });
-
-  // 4. 성과지표 패널 (Stats): 성과지표 화면에서도 스와이프하면 주문표로 돌아감
-  setupSwipe('panelStats', () => showOrderView());
-});
