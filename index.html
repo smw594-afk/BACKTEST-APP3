@@ -322,8 +322,21 @@
     <div class="card panel-monthly" id="panelMonthly">
       <div class="section-header">
         <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별 전환">📅 월별 성과</h2>
-        <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환"
-          style="margin-left:auto;">
+
+        <!-- ⭐️ 환율(달러/원화) 토글 버튼 추가 -->
+        <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()" 
+                style="margin-left: auto; background: rgba(30, 41, 59, 0.8); color: #94a3b8; 
+                       border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; 
+                       padding: 4px 10px; font-size: 11px; font-weight: bold; 
+                       cursor: pointer; transition: all 0.2s; margin-right: 6px;
+                       display: flex; align-items: center; justify-content: center;
+                       min-width: 100px;">
+          <img src="https://flagcdn.com/w40/us.png" 
+               style="width:16px; height:12px; border-radius:2px; margin-right:6px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">
+          달러(USD)
+        </button>
+
+        <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환">
           <svg id="icoPeriodMode" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="12" width="4" height="9" />
