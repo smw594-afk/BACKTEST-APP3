@@ -697,17 +697,18 @@ function triggerOptimisticSave() {
 }
 
 // 💡 [개조 2] 4열 압축 동기화용 통신 함수
+// ⭐️ [완결판] 화면에 보이는 정답을 그대로 시트에 꽂아넣는 직결형 저장 로직
 async function handleSave() {
   const now = new Date();
   const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
   
-  // ⭐️ [이중 잠금 2] 수동 저장 버튼을 눌렀을 때, 시간대별로 다른 경고를 띄웁니다.
   if (nyHour < 17) {
-    if (!confirm("🚨 [치명적 경고: 데이터 확정 전!]\n\n아직 종가가 확정되지 않은 시간(NY 17시 이전)입니다.\n지금 시트에 강제로 저장하면 '불완전한 엉터리 데이터'가 영구 보존되어 장부가 꼬일 위험이 매우 높습니다!\n\n정말 강제로 덮어쓰시겠습니까? (절대 권장하지 않음)")) {
-      return; // 취소하면 안전하게 도망갑니다.
+    if (!confirm("🚨 [치명적 경고: 데이터 확정 전!]\n\n아직 종가가 확정되지 않은 시간입니다.\n지금 시트에 강제로 저장하면 '불완전한 데이터'가 영구 보존됩니다!\n\n정말 강제로 덮어쓰시겠습니까?")) {
+      return; 
     }
   } else {
-    if (!confirm("현재 기기의 설정값과 데이터를 시트에 최종본으로 반영하시겠습니까?")) return;
+    // 메시지도 직관적으로 변경했습니다!
+    if (!confirm("현재 화면에 표시된 계산 결과를 시트에 최종본으로 반영하시겠습니까?")) return;
   }
 
   const btn = document.getElementById('btnSaveTop');
@@ -717,40 +718,42 @@ async function handleSave() {
   saveCurrentFormToSlot(activeSettingsTab);
   lastMyPerfData = null;
 
-  const runAndUI = async (cfg, isActive, slotNum) => {
-    if (!isActive) return null;
-    const res = await runBacktestMemory(cfg, false, slotNum);
-    if (res && res.status !== "error") updateUIWithResult(res, cfg, slotNum, false);
-    return res; 
+  // ⭐️ [핵심 수술 1] 뒤에서 몰래 엔진을 다시 돌리지 않습니다!
+  // 마스터님이 백테스트로 이미 띄워둔 글로벌 변수(lastBTResult)를 그대로 가져다 씁니다.
+  const processSlotForSave = (cfg, isActive, slotNum, currentRes) => {
+    if (!isActive || !currentRes || currentRes.status === "error") return null;
+    
+    // 화면에 떠 있는 그 정답을 폰의 로컬 캐시(vtotal_snap)에도 '확정' 지어줍니다.
+    updateUIWithResult(currentRes, cfg, slotNum, false); 
+    return currentRes;
   };
 
-  const [res1, res2, res3] = await Promise.all([
-    runAndUI(slot1Config, slot1Config !== null, 1),
-    runAndUI(slot2Config, isSlot2Active(), 2),
-    runAndUI(slot3Config, isSlot3Active(), 3)
-  ]);
+  const res1 = processSlotForSave(slot1Config, isSlot1Active(), 1, lastBTResult1);
+  const res2 = processSlotForSave(slot2Config, isSlot2Active(), 2, lastBTResult2);
+  const res3 = processSlotForSave(slot3Config, isSlot3Active(), 3, lastBTResult3);
 
   renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
-
   const current_phone_time = new Date().toLocaleString('sv-SE');
   localStorage.setItem('vtotal_last_sync_time', current_phone_time);
 
-  // 🚀 [마스터 아키텍처] 수동 저장 시에도 소수점 쓰레기를 청소하고 보냅니다.
+  // ⭐️ [핵심 수술 2] 복잡한 계산식 삭제. 엔진의 완벽한 결과값을 그대로 JSON에 포장합니다.
+  // realizedProfit 자리에 엔진이 마스터님의 공식대로 계산해둔 'totalProfit'을 매칭시켰습니다.
   let payload = {
     action: "BACKUP_AND_SAVE_V4",
     id: myUserId,
     sync_time: current_phone_time,
-    date: res1 ? res1.chartDates[res1.chartDates.length - 1] : formatDateNY(new Date()),
+    date: (res1 && res1.chartDates) ? res1.chartDates[res1.chartDates.length - 1] : formatDateNY(new Date()),
     params: slot1Config,
     params2: isSlot2Active() ? slot2Config : null,
     params3: isSlot3Active() ? slot3Config : null,
+    
     s1: res1 ? {
       asset: res1.summary.totalAssets,
       inout: res1.summary.inout,
       json: JSON.stringify({
         cash: Math.round(res1.summary.cash * 100) / 100,
         base_principal: Math.round(res1.summary.base * 100) / 100,
-        realizedProfit: Math.round(res1.summary.realizedProfit * 100) / 100,
+        realizedProfit: Math.round(res1.summary.totalProfit * 100) / 100, 
         holdings: res1.inv
       })
     } : null,
@@ -760,7 +763,7 @@ async function handleSave() {
       json: JSON.stringify({
         cash: Math.round(res2.summary.cash * 100) / 100,
         base_principal: Math.round(res2.summary.base * 100) / 100,
-        realizedProfit: Math.round(res2.summary.realizedProfit * 100) / 100,
+        realizedProfit: Math.round(res2.summary.totalProfit * 100) / 100,
         holdings: res2.inv
       })
     } : null,
@@ -770,7 +773,7 @@ async function handleSave() {
       json: JSON.stringify({
         cash: Math.round(res3.summary.cash * 100) / 100,
         base_principal: Math.round(res3.summary.base * 100) / 100,
-        realizedProfit: Math.round(res3.summary.realizedProfit * 100) / 100,
+        realizedProfit: Math.round(res3.summary.totalProfit * 100) / 100,
         holdings: res3.inv
       })
     } : null
@@ -1054,8 +1057,20 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     function n(val, def) { return (val === "" || isNaN(val)) ? def : parseFloat(val); }
     function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : Number((num / 100.0).toFixed(8)); }
 
-    let initialCash = n(params.basics.initialCash, 10000);
-    let basePrincipal = n(params.basics.renewCash, initialCash);
+    // ⭐️ [완벽 동기화 로직] 엔진이 초기자산과 '투자갱신금'을 UI에서 정확히 빼옵니다.
+    const pInput = (activeSettingsTab === slotNum) ? document.getElementById('initialCash') : null;
+    const realTimePrincipal = pInput ? parseFloat(unformatComma(pInput.value)) : n(params.basics.initialCash, 10000);
+    
+    // 💡 추가된 부분: 갱신금(renewCash)도 UI에서 강제 추출!
+    const rInput = (activeSettingsTab === slotNum) ? document.getElementById('renewCash') : null;
+    const realTimeRenew = rInput ? parseFloat(unformatComma(rInput.value)) : n(params.basics.renewCash, realTimePrincipal);
+
+    // 엔진의 파라미터를 강제로 업데이트
+    params.basics.initialCash = realTimePrincipal;
+    params.basics.renewCash = realTimeRenew;
+
+    let initialCash = realTimePrincipal;
+    let basePrincipal = realTimeRenew; // 이제 엔진이 마스터님이 적은 가상원금을 정확히 인식합니다!
 
     let curStrat = params.basics.strategy || '2M3D1-1P';
     if (!MASTER_STRATEGIES[curStrat]) curStrat = '2M3D1-1P';
@@ -1330,7 +1345,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let summary = {
       totalAssets: tAssets, yield: (tAssets - realPrincipal) / realPrincipal, cagr: cagr,
       mdd: oMdd, calmar: oMdd !== 0 ? Math.abs(cagr / oMdd) : 0,
-      totalProfit: tAssets - realPrincipal, realizedProfit: totalRealizedProfit,
+      totalProfit: tAssets - realPrincipal, 
+      realizedProfit: tAssets - base, // 👈 마스터님의 절대 공식으로 실시간 재정산
       qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
       evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
       currPrice: currPrice, currentMdd: res.BF[lastIdx],
