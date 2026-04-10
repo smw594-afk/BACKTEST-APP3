@@ -109,7 +109,17 @@
     }
 
     .dashboard-grid.order-expanded {
-      grid-template-areas: "order" "order" "chart";
+      grid-template-areas: "order" "order" "chart" !important;
+      grid-template-rows: 1fr 1.5fr 1.5fr !important;
+    }
+
+    .dashboard-grid.force-3-col.order-expanded {
+      grid-template-areas: "order order settings" "chart chart chart" !important;
+      grid-template-rows: 1fr 1fr !important;
+    }
+
+    .dashboard-grid.order-expanded .panel-monthly {
+      display: none !important;
     }
 
     .dashboard-grid.monthly-expanded {
@@ -724,7 +734,6 @@
 
     .tier-footer {
       margin-top: auto;
-      /* 상단 여백을 자동으로 밀어내서 최하단에 고정 */
       padding-top: 4px;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
       text-align: center;
@@ -732,14 +741,35 @@
       font-weight: 700;
       display: flex;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       color: var(--text-muted);
       flex-shrink: 0;
-      /* 스크롤바가 생겨도 푸터 영역이 찌그러지지 않게 보호 */
+      /* ⭐️ [하이테크] 폰트 자동 축소를 위한 컨테이너 설정 */
+      container-type: inline-size;
+    }
+    
+    .tier-footer div {
+      white-space: nowrap;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 0;
     }
 
     .tier-footer span {
       color: #fff;
+      margin-left: 1px;
+    }
+
+    /* 📱 화면 가로가 좁아지면 자동으로 폰트와 자간을 줄여서 '2열' 방지 */
+    @container (max-width: 250px) {
+      .tier-footer { font-size: 10px; gap: 1px; }
+    }
+    @container (max-width: 200px) {
+      .tier-footer { font-size: 9px; letter-spacing: -0.5px; }
+    }
+    @container (max-width: 160px) {
+      .tier-footer { font-size: 8px; letter-spacing: -1px; }
     }
 
     @media (max-width: 500px) {
@@ -819,7 +849,9 @@
     }
 
     #monthlySlot2 .data-table th:first-child,
-    #monthlySlot2 .data-table td:first-child {
+    #monthlySlot2 .data-table td:first-child,
+    #monthlySlot3 .data-table th:first-child,
+    #monthlySlot3 .data-table td:first-child {
       display: none;
     }
 
