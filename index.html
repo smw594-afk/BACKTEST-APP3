@@ -14,26 +14,12 @@
   <script>
     function detectLayout() {
       const g = document.getElementById('mainGrid');
-      const sw = window.innerWidth;
-      const sh = window.innerHeight;
-      const txt = document.getElementById('layoutModeText');
-      const isCover = (sw <= 500) || (sw >= 970 && sw <= 990 && sh > sw);
-
-      if (isCover) {
-        if (!document.documentElement.classList.contains('is-cover')) {
-          document.documentElement.classList.add('is-cover');
-          if (txt) txt.innerText = "AUTO";
-          updateMobileButtonText(true);
-        }
-        if (g) g.classList.remove('force-3-col', 'force-2-col');
-      } else {
-        if (document.documentElement.classList.contains('is-cover')) {
-          document.documentElement.classList.remove('is-cover');
-          if (txt) txt.innerText = "AUTO";
-          updateMobileButtonText(false);
-        }
-        if (g) g.classList.remove('force-3-col', 'force-2-col');
+      // ⭐️ [커버 모드 완전 제거] 더 이상 특정 해상도에서 레이아웃을 강제로 압축하지 않습니다.
+      if (document.documentElement.classList.contains('is-cover')) {
+        document.documentElement.classList.remove('is-cover');
+        updateMobileButtonText(false);
       }
+      if (g) g.classList.remove('force-3-col', 'force-2-col');
     }
     function updateMobileButtonText(isMobile) {
       const btnInstant = document.getElementById('btnInstant');
@@ -44,7 +30,7 @@
       if (btnInstant) btnInstant.innerHTML = isMobile ? '<span id="icoInstant">⚡</span>' : '<span id="icoInstant">⚡</span><span class="btn-text">주문표</span>';
       if (btnRun) btnRun.innerHTML = isMobile ? '<span id="icoRun">🚀</span>' : '<span id="icoRun">🚀</span><span class="btn-text">백테스트</span>';
       if (btnSettings) btnSettings.innerHTML = isMobile ? '⚙️' : '⚙️<span class="btn-text">설정</span>';
-      if (btnStats) btnStats.innerHTML = isMobile ? '<span id="icoStatsShow">📊</span>' : '<span id="icoStatsShow">📊</span><span class="btn-text">성과지표</span>';
+      if (btnStats) btnStats.innerHTML = isMobile ? '<span id="icoStatsShow">📄</span>' : '<span id="icoStatsShow">📄</span><span class="btn-text">성과지표</span>';
     }
 
 
@@ -64,7 +50,7 @@
 
   <div id="loginScreen" class="login-container hidden">
     <div class="login-inner">
-      <div class="login-title">📊 V-TOTAL MASTER2 <span id="loginVersion"
+      <div class="login-title">📄 V-TOTAL MASTER2 <span id="loginVersion"
           style="font-size:12px; opacity:0.5; font-weight:400;"></span></div>
       <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
       <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
@@ -81,7 +67,7 @@
     </div>
     <div class="top-right">
       <button id="btnStatsShow" class="top-icon-btn" title="성과지표 모드 (길게 누르면 강제갱신)"><span
-          id="icoStatsShow">📊</span><span class="btn-text">성과지표</span></button>
+          id="icoStatsShow">📄</span><span class="btn-text">성과지표</span></button>
       <button id="btnInstant" class="top-icon-btn" title="주문표 UI (길게 누르면 갱신)"><span id="icoInstant">⚡</span><span
           class="btn-text">주문표</span></button>
       <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️<span
@@ -127,6 +113,14 @@
             onchange="triggerOptimisticSave()"></div>
         <div class="input-group"><label>SEC(%)</label><input type="number" id="fSec" step="any"
             onchange="triggerOptimisticSave()"></div>
+         <!-- ⭐️ 기본 통화 설정 추가 -->
+         <div class="input-group">
+          <label>기본 통화</label>
+          <select id="defaultCurrency" onchange="updateDefaultCurrency(this.value)" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: #fbbf24; font-weight: bold;">
+            <option value="USD">달러(USD)</option>
+            <option value="KRW">원화(KRW)</option>
+          </select>
+        </div>
       </div>
 
       <div style="margin-top:20px; display:flex; flex-direction:column; gap:8px;">
@@ -201,7 +195,7 @@
                     <th>T</th>
                     <th>M</th>
                     <th>B</th>
-                    <th class="hide-on-cover">S</th>
+                    <th>S</th>
                     <th>Q</th>
                     <th>H</th>
                   </tr>
@@ -249,7 +243,7 @@
                     <th>T</th>
                     <th>M</th>
                     <th>B</th>
-                    <th class="hide-on-cover">S</th>
+                    <th>S</th>
                     <th>Q</th>
                     <th>H</th>
                   </tr>
@@ -297,7 +291,7 @@
                     <th>T</th>
                     <th>M</th>
                     <th>B</th>
-                    <th class="hide-on-cover">S</th>
+                    <th>S</th>
                     <th>Q</th>
                     <th>H</th>
                   </tr>
@@ -337,23 +331,39 @@
       </div>
       <!-- 테이블 모드 -->
       <div id="periodTableContainer" class="slim-scroll" style="flex:1; overflow:auto; min-height:0; display:none;">
-        <div style="display:flex; gap:4px; min-height:min-content; min-width:max-content;">
+        <div style="display:flex; gap:2px; min-height:min-content; min-width:max-content;">
 
-          <div id="monthlySlot1" style="flex:1; min-width:170px;">
+
+          <div id="monthlySlot0" style="flex:0; min-width:fit-content; width:fit-content; padding-right:1px;">
+            <div class="slot-title" style="color:var(--text-muted); padding-left:0; padding-right:0;">년월</div>
+            <table class="data-table" id="periodTable0" style="border-spacing: 0 1px;">
+              <thead>
+                <tr id="periodTableHead0">
+                  <th style="white-space:nowrap; width:1%; padding:0 !important; text-align:center; vertical-align:middle; height:16px; line-height:16px;">년월</th>
+                </tr>
+              </thead>
+              <tbody id="periodBody0">
+                <tr>
+                  <td style="padding:0 !important; height:16px; line-height:16px; color:#94a3b8; text-align:center; vertical-align:middle;">-</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div id="monthlySlot1" style="flex:1; min-width:140px;">
             <div class="slot-title" style="color:rgba(99,102,241,0.9);" id="slot1TableName">투자법1</div>
             <table class="data-table" id="periodTable1">
               <thead>
                 <tr id="periodTableHead1">
-                  <th>년/월</th>
                   <th class="hide-on-narrow">총자산</th>
                   <th>수익금</th>
                   <th>수익률</th>
-                  <th class="hide-on-cover">MDD</th>
+                  <th>MDD</th>
                 </tr>
               </thead>
               <tbody id="periodBody1">
                 <tr>
-                  <td colspan="5" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
+                  <td colspan="4" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
                 </tr>
               </tbody>
             </table>
@@ -365,10 +375,9 @@
             <table class="data-table" id="periodTable2">
               <thead>
                 <tr id="periodTableHead2">
-                  <th>년/월</th>
                   <th>수익금</th>
                   <th>수익률</th>
-                  <th class="hide-on-cover">MDD</th>
+                  <th>MDD</th>
                 </tr>
               </thead>
               <tbody id="periodBody2">
@@ -385,10 +394,9 @@
             <table class="data-table" id="periodTable3">
               <thead>
                 <tr id="periodTableHead3">
-                  <th>년/월</th>
                   <th>수익금</th>
                   <th>수익률</th>
-                  <th class="hide-on-cover">MDD</th>
+                  <th>MDD</th>
                 </tr>
               </thead>
               <tbody id="periodBody3">
@@ -407,7 +415,7 @@
                 <tr id="periodTableHead4">
                   <th>수익금</th>
                   <th>수익률</th>
-                  <th class="hide-on-cover">MDD</th>
+                  <th>MDD</th>
                 </tr>
               </thead>
               <tbody id="periodBody4">
@@ -424,7 +432,7 @@
 
     <div class="card panel-stats hidden" id="panelStats">
       <div class="section-header">
-        <h2 id="statsTitle">📊 성과 지표</h2>
+        <h2 id="statsTitle">📄 성과 지표</h2>
       </div>
       <div class="slim-scroll" style="flex:1; overflow-x:auto; overflow-y:hidden; min-height:0; padding:4px 0;">
         <table id="statsTable"
@@ -438,16 +446,14 @@
       <div class="section-header">
         <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/1/2)" style="cursor:pointer;">📈 성과추이</h2>
         <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()" 
-                style="margin-left: auto; background: rgba(30, 41, 59, 0.4); color: #fbbf24; 
-                       border: 1px solid rgba(251, 191, 36, 0.5); 
-                       border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: bold; 
-                       cursor: pointer; transition: all 0.2s; margin-right: 12px;
+                style="margin-left: auto; background: none; color: #fff; 
+                       border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; 
+                       cursor: pointer; transition: all 0.2s; margin-right: 0px;
                        display: flex; align-items: center; justify-content: center;
-                       box-shadow: 0 0 10px rgba(251, 191, 36, 0.15);
-                       min-width: 100px;">
-          <img src="https://flagcdn.com/w40/us.png" 
-               style="width:16px; height:12px; border-radius:2px; margin-right:6px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">
-          달러(USD)
+                       min-width: 40px; box-shadow: none;">
+          <img src="https://flagcdn.com/w40/kr.png" 
+               style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">
+          KRW
         </button>
       </div>
       <div class="chart-container" id="chartBox"></div>
