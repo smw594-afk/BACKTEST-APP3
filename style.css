@@ -243,26 +243,20 @@
       text-align: center;
     }
 
-    .dashboard-grid:not(.force-2-col):not(.is-cover) .panel-order h2,
-    .dashboard-grid:not(.force-2-col):not(.is-cover) .panel-monthly h2,
-    .dashboard-grid.force-3-col .panel-order h2,
-    .dashboard-grid.force-3-col .panel-monthly h2 {
+    .panel-order h2,
+    .panel-monthly h2 {
       font-size: 14px !important;
       letter-spacing: -0.01em;
       margin-bottom: 4px;
     }
 
-    .dashboard-grid:not(.force-2-col):not(.is-cover) .data-table th,
-    .dashboard-grid:not(.force-2-col):not(.is-cover) .metric-label,
-    .dashboard-grid.force-3-col .data-table th,
-    .dashboard-grid.force-3-col .metric-label {
+    .data-table th,
+    .metric-label {
       font-size: 11px !important;
     }
 
-    .dashboard-grid:not(.force-2-col):not(.is-cover) .data-table td,
-    .dashboard-grid:not(.force-2-col):not(.is-cover) .metric-value,
-    .dashboard-grid.force-3-col .data-table td,
-    .dashboard-grid.force-3-col .metric-value {
+    .data-table td,
+    .metric-value {
       font-size: 11px !important;
     }
 
@@ -272,23 +266,6 @@
       gap: 4px;
     }
 
-    html.is-cover .sub-actions-container,
-    .dashboard-grid.force-2-col .sub-actions-container {
-      flex-direction: row;
-    }
-
-    html.is-cover .sub-actions-container button,
-    .dashboard-grid.force-2-col .sub-actions-container button {
-      flex: 1;
-      margin-bottom: 0 !important;
-    }
-
-    html.is-cover .panel-order h2,
-    html.is-cover .panel-monthly h2,
-    .dashboard-grid.force-2-col .panel-order h2,
-    .dashboard-grid.force-2-col .panel-monthly h2 {
-      font-size: 12px !important;
-    }
 
     .hidden {
       display: none !important;
@@ -465,7 +442,7 @@
 
     .slot-title {
       text-align: center;
-      padding: 4px 0;
+      padding: 2px 0;
       font-weight: bold;
       font-size: 12px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -493,12 +470,12 @@
     }
 
     .section-header {
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 4px;
+      padding-bottom: 2px;
     }
 
     .panel-header-stats {
@@ -806,54 +783,6 @@
       height: auto !important;
     }
 
-    html.is-cover .dashboard-grid {
-      display: grid !important;
-      grid-template-columns: 1fr !important;
-      grid-template-rows: 1.5fr 1fr 1.5fr !important;
-      grid-template-areas: "order" "monthly" "chart" !important;
-      gap: 5px !important;
-      height: calc(100vh - 65px) !important;
-      overflow-y: auto !important;
-      max-width: 500px !important;
-      margin: 0 auto !important;
-    }
-
-    html.is-cover .top-bar {
-      padding: 0 8px !important;
-      height: 38px !important;
-      font-size: 11px !important;
-      margin-bottom: 5px !important;
-    }
-
-    html.is-cover .top-bar .btn-text {
-      display: none !important;
-    }
-
-    html.is-cover .card {
-      padding: 8px !important;
-      border-radius: 12px !important;
-    }
-
-    html.is-cover .dashboard-grid.order-expanded {
-      grid-template-areas: "order" "order" "chart" !important;
-      grid-template-rows: 1fr 1.5fr 1.5fr !important;
-    }
-
-    html.is-cover .dashboard-grid.order-expanded .panel-monthly {
-      display: none !important;
-    }
-
-    html.is-cover #monthlySlot1 .data-table th:nth-child(2),
-    html.is-cover #monthlySlot1 .data-table td:nth-child(2) {
-      display: none !important;
-    }
-
-    #monthlySlot2 .data-table th:first-child,
-    #monthlySlot2 .data-table td:first-child,
-    #monthlySlot3 .data-table th:first-child,
-    #monthlySlot3 .data-table td:first-child {
-      display: none;
-    }
 
     @media (max-width: 1200px) {
       .panel-monthly.dual-active .hide-on-narrow {
@@ -861,53 +790,6 @@
       }
     }
 
-    html.is-cover .data-table {
-      border-spacing: 0 0px !important;
-    }
-
-    html.is-cover .data-table th,
-    html.is-cover .data-table td {
-      font-size: 11px !important;
-      padding: 2px 0.5px !important;
-    }
-
-    html.is-cover .dashboard-grid.perf-metrics-layout {
-      grid-template-areas: "stats" "monthly" "chart" !important;
-      grid-template-rows: 1.5fr 1fr 1.5fr !important;
-    }
-
-    html.is-cover .dashboard-grid.perf-metrics-layout .panel-stats {
-      display: flex !important;
-    }
-
-    html.is-cover .dashboard-grid.perf-metrics-layout .panel-order {
-      display: none !important;
-    }
-
-    html.is-cover .panel-stats {
-      display: none;
-    }
-
-    html.is-cover .panel-settings label {
-      width: 48px !important;
-      font-size: 10px !important;
-    }
-
-    html.is-cover .panel-settings input,
-    html.is-cover .panel-settings select {
-      font-size: 10px !important;
-      padding: 1px 2px !important;
-    }
-
-    html.is-cover .panel-settings .btn-action {
-      font-size: 11px !important;
-      padding: 0 4px !important;
-    }
-
-    html.is-cover .user-id-box,
-    html.is-cover .auto-save-label {
-      font-size: 14px !important;
-    }
 
     .toast-container {
       position: fixed;
