@@ -3,7 +3,7 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbw1si6V_02Ua0trHlZdvT_E
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // ⭐️ 글로벌 변수 추가
-let isCurrencyKRW = false; 
+let isCurrencyKRW = false;
 let currentFXRate = 1350; // 기본 환율 1350원
 
 const MASTER_STRATEGIES = {
@@ -151,10 +151,10 @@ function showOrderView() {
 
 function shouldAutoRefresh() {
   if (!myUserId) return false;
-  
+
   const now = new Date();
   const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
-  const nyDateStr = formatDateNY(now); 
+  const nyDateStr = formatDateNY(now);
   const lastDate = localStorage.getItem('vtotal_last_auto_ny_' + myUserId);
 
   // ⭐️ 뉴욕 시간 오후 5시(17시) 이후에만 갱신 발동! (서머타임 시 한국 아침 6시, 해제 시 아침 7시)
@@ -170,15 +170,15 @@ function shouldAutoRefresh() {
 function showStatsView() {
   // 1. 상태 전환: 성과지표 모드 ON, 주문표 모드 OFF
   isStatsMode = true;
-  isOrderView = false; 
-  
+  isOrderView = false;
+
   // ⭐️ [버그 픽스] "나 지금 과거 장부 보는 중이야!" 스위치를 켜야 나중에 돌아올 때 원래 주문표를 복구해 줍니다!
-  isViewingHistory = true; 
+  isViewingHistory = true;
 
   // 2. 화면 UI 전환 (CSS 레이아웃 변경)
   const grid = document.getElementById('mainGrid');
   if (grid) grid.classList.add('perf-metrics-layout');
-  
+
   const btnStats = document.getElementById('btnStatsShow');
   if (btnStats) btnStats.classList.add('active');
 
@@ -346,6 +346,9 @@ function enterAppDirectly() {
   document.getElementById('mainGrid').classList.remove('hidden');
   detectLayout();
 
+  // 👇 앱 화면이 열리자마자 백그라운드에서 조용히 환율 최신화를 시작합니다!
+  updateCurrentFXRate();
+
   const userHeader = document.getElementById('userDisplayHeader');
   if (userHeader) userHeader.innerText = myUserId;
   if (document.getElementById('loginVersion')) document.getElementById('loginVersion').innerText = `v${APP_VERSION}`;
@@ -438,7 +441,7 @@ function initStatsButtonEvents() {
   btn.addEventListener('mouseup', cancel);
   btn.addEventListener('touchend', cancel);
   btn.addEventListener('mouseleave', cancel);
-  btn.onclick = click; 
+  btn.onclick = click;
 }
 
 function initInstantButtonEvents() {
@@ -465,14 +468,16 @@ function initInstantButtonEvents() {
   btn.addEventListener('click', click);
 }
 
-// 🟢 [V4.3 초고속 병렬 처리 적용] 대기 시간을 1/3로 압축한 백그라운드 동기화
+// 🟢 [V4 완벽 개조] 로그인 시 '내 성과' 데이터(JSON 포함)를 강제로 즉시 가져와서 로컬 엔진에 주입
+// 🟢 [V4.1 투트랙 부팅] 야후 주가 먼저 가져와서 화면부터 1초 만에 띄우고, 시트 동기화는 뒤에서 조용히 처리!
+// 🟢 [V4.2 완벽 통합본] 로그인 시 엔진의 주문표(미래)와 시트의 성과(과거)를 하나로 완벽하게 병합(Merge)합니다!
 async function checkAndSyncWithServer(isInitial) {
   setLED('loading');
   const userHeader = document.getElementById('userDisplayHeader');
   if (userHeader) userHeader.innerText = myUserId + ' (초고속 로딩 중...)';
 
   try {
-    // 🚀 Track 1: 로컬 엔진 3개 동시 가동
+    // 🚀 Track 1: 앱을 켜자마자 야후 주가를 가져와 1~2초 만에 '오늘의 주문표(엔진)'를 띄웁니다.
     const runFastEngine = async (cfg, isActive, slotNum) => {
       if (!isActive) return null;
       const res = await runBacktestMemory(cfg, false, slotNum);
@@ -480,39 +485,38 @@ async function checkAndSyncWithServer(isInitial) {
         if (slotNum === 1) { lastBTResult1 = res; lastBTResult = res; }
         else if (slotNum === 2) { lastBTResult2 = res; toggleSlot2Visibility(true); }
         else if (slotNum === 3) { lastBTResult3 = res; }
+
+        // ⭐️ [핵심 1] 화면 백지화 방지: 엔진이 계산한 빵빵한 상태(orders 포함)를 일단 캐시에 꽉 채워 저장합니다!
         updateUIWithResult(res, cfg, slotNum, false);
         return res;
       }
       return null;
     };
 
+    // 🚀 [병렬 처리 적용] 엔진 실행(Track 1)과 서버 데이터 호출(Track 2)을 동시에 시작합니다!
+    // (기존에는 1이 끝날 때까지 2가 대기하여 총 4초 이상 소요되던 것을 1~2초 내외로 단축)
     const track1Promise = Promise.all([
       runFastEngine(slot1Config, isSlot1Active(), 1),
       runFastEngine(slot2Config, isSlot2Active(), 2),
       runFastEngine(slot3Config, isSlot3Active(), 3)
     ]);
 
-    // 🚀 Track 2: 구글 서버 통신 병렬 처리 (여기서 5초 단축!)
     const track2Promise = (async () => {
       try {
-        const s1Name = slot1Config?.basics?.strategy || "투자법 1";
-        const s2Name = slot2Config?.basics?.strategy || "투자법 2";
-        const s3Name = slot3Config?.basics?.strategy || "투자법 3";
-
-        // 설정값과 성과 데이터를 직렬 대기하지 않고 '동시에' 요청합니다.
-        const [resInit, resPerf] = await Promise.all([
-          fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`),
-          fetch(`${GAS_URL}?action=GET_MY_PERF&id=${myUserId}&strat1=${encodeURIComponent(s1Name)}&strat2=${encodeURIComponent(s2Name)}&strat3=${encodeURIComponent(s3Name)}`)
-        ]);
-
+        const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
         const dataInit = await resInit.json();
+
+        const s1Name = dataInit.config?.basics?.strategy || slot1Config?.basics?.strategy || "";
+        const s2Name = dataInit.config2?.basics?.strategy || slot2Config?.basics?.strategy || "";
+        const s3Name = dataInit.config3?.basics?.strategy || slot3Config?.basics?.strategy || "";
+
+        const resPerf = await fetch(`${GAS_URL}?action=GET_MY_PERF&id=${myUserId}&strat1=${encodeURIComponent(s1Name)}&strat2=${encodeURIComponent(s2Name)}&strat3=${encodeURIComponent(s3Name)}`);
         const dataPerf = await resPerf.json();
-        
         return { dataInit, dataPerf };
       } catch (e) { console.error("Track 2 Error:", e); return null; }
     })();
 
-    // 화면 선행 렌더링
+    // 일단 로컬 엔진 결과가 나오는 대로 1초 컷으로 화면부터 띄웁니다.
     await track1Promise;
     if (!isSlot2Active()) toggleSlot2Visibility(false);
     renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
@@ -526,11 +530,12 @@ async function checkAndSyncWithServer(isInitial) {
 
     if (userHeader) userHeader.innerText = myUserId + ' (백그라운드 동기화 중...)';
 
-    // 구글 서버 데이터 수신 완료
+    // 이제 뒤에서 조용히 오던 서버 데이터(track2)가 도착하면 화면을 교정합니다.
     const serverResult = await track2Promise;
     if (!serverResult) throw new Error("Server Sync Failed");
     const { dataInit, dataPerf } = serverResult;
 
+    // ⭐️ [핵심 2] 지표 불일치 해결: 구글 서버에서 가져온 100% 퓨어 시트 데이터 저장
     lastMyPerfData = dataPerf;
     perfLastCheckTime = new Date().getTime();
 
@@ -549,6 +554,7 @@ async function checkAndSyncWithServer(isInitial) {
       return str;
     };
 
+    // ⭐️ [궁극의 백신] syncSlotWithSheet를 비동기(async)로 바꾸고, Track 1의 오염된 데이터를 철저히 배제합니다.
     const syncSlotWithSheet = async (confData, perfSlotData, slotNum) => {
       if (!confData || !confData.basics || !confData.basics.strategy) {
         localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
@@ -570,28 +576,20 @@ async function checkAndSyncWithServer(isInitial) {
         });
         localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
 
+        // 1. 서버 시트의 순수 원본 데이터를 가져옵니다.
         const realData = processRealLogData(perfSlotData, confData.basics.strategy);
 
         if (realData) {
+          // ⭐️ [핵심 방어벽] 폰에 남아있는 오염된 캐시를 날려버리고, 순수 서버 데이터를 강제로 밀어 넣습니다.
           localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(realData));
-          
-          // ⭐️ [데이터 동기화] 시트의 JSON에 있는 최신 원금을 설정값(config)에도 강제로 덮어씌웁니다.
-          if (realData.summary.base) {
-            confData.basics.renewCash = realData.summary.base;
-            // 💾 [영구 저장] 새로고침해도 58로 돌아가지 않도록 로컬 저장소의 설정값도 즉시 업데이트합니다.
-            localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
-          }
 
-          if (slotNum === activeSettingsTab) {
-            const rInput = document.getElementById('renewCash');
-            if (rInput && confData.basics.renewCash) {
-              rInput.value = formatComma(confData.basics.renewCash);
-            }
-          }
-          
+          // ⭐️ [엔진 재가동] 오염된 Track 1 결과를 버리고, 오직 '서버의 순수 설정값'으로 엔진을 다시 돌립니다!
           const pureEngineRes = await runBacktestMemory(confData, false, slotNum);
+
+          // ⭐️ [긴급 방어벽] 엔진이 통신 지연 없이 100% 정상 작동했는지 확인합니다!
           const isEngOk = pureEngineRes && pureEngineRes.status !== "error";
 
+          // 2. 완벽하게 무결한 상태로 퓨전(Merge) 진행! (에러 나면 시트 원본만 유지)
           let mergedSnap = {
             ...realData,
             summary: isEngOk ? pureEngineRes.summary : realData.summary,
@@ -612,16 +610,14 @@ async function checkAndSyncWithServer(isInitial) {
       }
     };
 
-    // ⭐️ [속도 개선 2] 3개 슬롯의 엔진 재계산을 순차 대기하지 않고 '동시에' 가동합니다! (여기서 또 6~9초 단축!)
-    await Promise.all([
-      syncSlotWithSheet(dataInit.config, dataPerf.strat1, 1),
-      syncSlotWithSheet(dataInit.config2, dataPerf.strat2, 2),
-      syncSlotWithSheet(dataInit.config3, dataPerf.strat3, 3)
-    ]);
+    await syncSlotWithSheet(dataInit.config, dataPerf.strat1, 1);
+    await syncSlotWithSheet(dataInit.config2, dataPerf.strat2, 2);
+    await syncSlotWithSheet(dataInit.config3, dataPerf.strat3, 3);
 
     renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
     updateCombinedMetrics();
 
+    // 📡 동기화 및 렌더링이 무사히 끝났다면 누락된 날짜(4/7 등) 시트로 백업 발사!
     if (dataInit.hasSheet) {
       checkAndRunAutoSave();
     }
@@ -661,9 +657,9 @@ function checkAndRunAutoSave() {
   addStates(lastBTResult3, 's3', sheetLastDate3);
 
   let batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
-  
+
   // 저장할 누락분이 없으면 조용히 종료 (시간 락 필요 없음!)
-  if (batchLogs.length === 0) return; 
+  if (batchLogs.length === 0) return;
 
   setLED('loading');
   fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "AUTO_DAILY_SAVE", id: myUserId, logs: batchLogs }) })
@@ -708,10 +704,10 @@ function triggerOptimisticSave() {
 async function handleSave() {
   const now = new Date();
   const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
-  
+
   if (nyHour < 17) {
     if (!confirm("🚨 [치명적 경고: 데이터 확정 전!]\n\n아직 종가가 확정되지 않은 시간입니다.\n지금 시트에 강제로 저장하면 '불완전한 데이터'가 영구 보존됩니다!\n\n정말 강제로 덮어쓰시겠습니까?")) {
-      return; 
+      return;
     }
   } else {
     // 메시지도 직관적으로 변경했습니다!
@@ -729,9 +725,9 @@ async function handleSave() {
   // 마스터님이 백테스트로 이미 띄워둔 글로벌 변수(lastBTResult)를 그대로 가져다 씁니다.
   const processSlotForSave = (cfg, isActive, slotNum, currentRes) => {
     if (!isActive || !currentRes || currentRes.status === "error") return null;
-    
+
     // 화면에 떠 있는 그 정답을 폰의 로컬 캐시(vtotal_snap)에도 '확정' 지어줍니다.
-    updateUIWithResult(currentRes, cfg, slotNum, false); 
+    updateUIWithResult(currentRes, cfg, slotNum, false);
     return currentRes;
   };
 
@@ -753,14 +749,13 @@ async function handleSave() {
     params: slot1Config,
     params2: isSlot2Active() ? slot2Config : null,
     params3: isSlot3Active() ? slot3Config : null,
-    
+
     s1: res1 ? {
       asset: res1.summary.totalAssets,
       inout: res1.summary.inout,
       json: JSON.stringify({
         cash: Math.round(res1.summary.cash * 100) / 100,
         base_principal: Math.round(res1.summary.base * 100) / 100,
-        realizedProfit: Math.round(res1.summary.totalProfit * 100) / 100, 
         holdings: res1.inv
       })
     } : null,
@@ -770,7 +765,6 @@ async function handleSave() {
       json: JSON.stringify({
         cash: Math.round(res2.summary.cash * 100) / 100,
         base_principal: Math.round(res2.summary.base * 100) / 100,
-        realizedProfit: Math.round(res2.summary.totalProfit * 100) / 100,
         holdings: res2.inv
       })
     } : null,
@@ -780,7 +774,6 @@ async function handleSave() {
       json: JSON.stringify({
         cash: Math.round(res3.summary.cash * 100) / 100,
         base_principal: Math.round(res3.summary.base * 100) / 100,
-        realizedProfit: Math.round(res3.summary.totalProfit * 100) / 100,
         holdings: res3.inv
       })
     } : null
@@ -979,7 +972,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
           }
         }
 
-        const todayNYStr = formatDateNY(new Date()); 
+        const todayNYStr = formatDateNY(new Date());
         const nowNY = new Date();
         const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));
 
@@ -1067,7 +1060,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     // ⭐️ [완벽 동기화 로직] 엔진이 초기자산과 '투자갱신금'을 UI에서 정확히 빼옵니다.
     const pInput = (activeSettingsTab === slotNum) ? document.getElementById('initialCash') : null;
     const realTimePrincipal = pInput ? parseFloat(unformatComma(pInput.value)) : n(params.basics.initialCash, 10000);
-    
+
     // 💡 추가된 부분: 갱신금(renewCash)도 UI에서 강제 추출!
     const rInput = (activeSettingsTab === slotNum) ? document.getElementById('renewCash') : null;
     const realTimeRenew = rInput ? parseFloat(unformatComma(rInput.value)) : n(params.basics.renewCash, realTimePrincipal);
@@ -1130,19 +1123,26 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         cash = snap.summary.cash;
         peak = snap.summary.peak || (res.BA.length > 0 ? Math.max(...res.BA) : initialCash);
         // ⭐️ [핵심] 이어하기(force=false)일 때 과거 누적 수익금을 불러와서 장착!
-        cumulativeRealizedProfit = snap.summary.realizedProfit || 0; 
+        cumulativeRealizedProfit = snap.summary.realizedProfit || 0;
 
+        // ⭐️ [스마트 입출금 감지 로직]
         let oldBase = snap.summary.base || initialCash;
         cumulativeInOut = snap.summary.inout || 0;
-        
-        // ⭐️ [마스터 절대 권력 로직]
-        // 화면에 입력한 갱신금(basePrincipal)이 과거의 유령 갱신금(oldBase)과 다르다면?
-        // 엔진의 오지랖을 무시하고, 무조건 마스터님이 입력한 숫자로 강제 교체합니다!
-        if (Math.abs(basePrincipal - oldBase) > 1) { 
-            console.log(`🚀 [갱신금 강제 리셋] 유령(${oldBase}) 삭제 ➜ 마스터의 새 갱신금(${basePrincipal}) 장착!`);
-            base = basePrincipal; // 👈 마스터님의 94315.72 가 드디어 온전히 박힙니다.
+
+        // 마스터님이 지금까지 이 시스템에 투입한 '순수 원금 총합'을 계산합니다.
+        // (수익/손실로 인한 변동이 전혀 없는 아주 깨끗한 기준점입니다)
+        let pastTotalInjected = initialCash + cumulativeInOut;
+
+        // 설정창의 금액(basePrincipal)이 순수 원금 총합보다 크다면? = "진짜 추가 입금!"
+        if (basePrincipal > pastTotalInjected) {
+          let realDeposit = basePrincipal - pastTotalInjected;
+          cash += realDeposit; // 예수금에 진짜 입금액 추가
+          base = oldBase + realDeposit; // 어제까지 굴러가던 갱신금에 입금액만 얹어줌
+          cumulativeInOut += realDeposit; // 누적 입금액 장부에 기록
+          console.log(`💰 실제 추가 입금 감지: $${realDeposit} 반영 완료`);
         } else {
-            base = oldBase; // 변경이 없으면 평소처럼 복리 이어가기
+          // 설정창 금액을 안 건드렸다면? (매매 손실로 갱신금이 깎인 상황 포함)
+          base = oldBase; // 어제 갱신금을 그대로 이어서 복리 계산 진행
         }
 
         startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
@@ -1217,7 +1217,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       }
       cash = t2(cash + d_cf);
       let pl_f = t2(d_sell_net - d_buy_cost), compA = 0.0; if (pl_f > 0) { compA = pl_f * compR; base += compA; } else if (pl_f < 0) { compA = pl_f * lossR; base += compA; } base = t2(base);
-      
+
       cumulativeRealizedProfit += pl_f; // ⭐️ 매일매일 발생한 수익(손실)을 영구 누적!
 
       let evalVal = inv.reduce((s, p_i) => s + (p_i.qty * close), 0);
@@ -1232,7 +1232,6 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         json: JSON.stringify({
           cash: Math.round(cash * 100) / 100,
           base_principal: Math.round(base * 100) / 100,
-          realizedProfit: Math.round(cumulativeRealizedProfit * 100) / 100,
           holdings: JSON.parse(JSON.stringify(inv))
         })
       });
@@ -1345,7 +1344,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let summary = {
       totalAssets: tAssets, yield: (tAssets - realPrincipal) / realPrincipal, cagr: cagr,
       mdd: oMdd, calmar: oMdd !== 0 ? Math.abs(cagr / oMdd) : 0,
-      totalProfit: tAssets - realPrincipal, 
+      totalProfit: tAssets - realPrincipal,
       realizedProfit: tAssets - base, // 👈 마스터님의 절대 공식으로 실시간 재정산
       qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
       evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
@@ -1526,7 +1525,7 @@ function processRealLogData(d, currentStrat) {
 
   let restoredInv = [];
   let restoredBase = parseFloat(meta.totalPrincipal) || 0;
-  
+
   // ⭐️ [버그 픽스 1] 옛날 헤더(meta) 대신 최신 데이터(JSON)에서 우선적으로 값을 가져옵니다.
   let realizedProfit = parseFloat(meta.realizedProfit) || 0;
   let cash = parseFloat(meta.currentCash) || 0;
@@ -1536,7 +1535,7 @@ function processRealLogData(d, currentStrat) {
       const parsed = JSON.parse(d.json);
       if (parsed.holdings) restoredInv = parsed.holdings;
       if (parsed.base_principal) restoredBase = parsed.base_principal;
-      
+
       // 최신 JSON에 수익금과 예수금이 있다면 무조건 덮어씌움!
       if (parsed.realizedProfit !== undefined) realizedProfit = parsed.realizedProfit;
       if (parsed.cash !== undefined) cash = parsed.cash;
@@ -1715,9 +1714,7 @@ function processRealLogData(d, currentStrat) {
     totalAssets: lastAsset, yield: simpleYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0,
     totalProfit: lastAsset - totalPrincipal, realizedProfit: realizedProfit, qty: qty, avgPrice: avgPrice,
     evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice,
-    currentMdd: chartMdd[chartMdd.length - 1],
-    base: restoredBase, // 👈 여기가 범인입니다! totalPrincipal을 restoredBase로 변경
-    realPrincipal: totalPrincipal
+    currentMdd: chartMdd[chartMdd.length - 1], base: totalPrincipal, realPrincipal: totalPrincipal
   };
 
   let rawOrderOutput = [];
@@ -1862,6 +1859,16 @@ function calculateCombinedPeriodData() {
     globalMonthlyData4 = []; globalYearlyData4 = [];
     return;
   }
+
+  // 🛡️ [질문자님 아이디어 적용] 차트와 완전히 똑같은 '서명(Signature)' 방어막 구축!
+  const sig1 = (lastBTResult1 && lastBTResult1.summary) ? (lastBTResult1.currentStrat + "_" + lastBTResult1.summary.totalAssets + "_" + lastBTResult1.chartDates.length) : "null";
+  const sig2 = (lastBTResult2 && lastBTResult2.summary) ? (lastBTResult2.currentStrat + "_" + lastBTResult2.summary.totalAssets + "_" + lastBTResult2.chartDates.length) : "null";
+  const sig3 = (lastBTResult3 && lastBTResult3.summary) ? (lastBTResult3.currentStrat + "_" + lastBTResult3.summary.totalAssets + "_" + lastBTResult3.chartDates.length) : "null";
+  const newSig = sig1 + "|" + sig2 + "|" + sig3;
+
+  // 이전 합산 때의 서명과 지금 서명이 똑같다면, 굳이 또 무거운 계산을 할 필요가 없습니다! (성능 최적화)
+  if (window.lastMonthlySig === newSig) return;
+  window.lastMonthlySig = newSig;
 
   // 🕵️ 최적화 전략: indexOf 대신 Map을 사용하여 검색 속도를 O(1)로 개선 (초고속 부팅용)
   const allDatesSet = new Set();
@@ -2130,12 +2137,12 @@ function togglePeriodDisplayMode() {
   if (periodDisplayMode === 'chart') {
     if (chartC) chartC.style.display = 'block';
     if (tableC) tableC.style.display = 'none';
-    if (ico) ico.innerText = '🔢';
+    if (ico) ico.innerHTML = '🔢';
     renderPeriodBarChart();
   } else {
     if (chartC) chartC.style.display = 'none';
     if (tableC) tableC.style.display = 'block';
-    if (ico) ico.innerText = '📈';
+    if (ico) ico.innerHTML = '📊';
     renderPeriodTableText(1);
     if (isSlot2Active()) {
       renderPeriodTableText(2);
@@ -2217,10 +2224,10 @@ function renderPeriodTableText(slotNum) {
     }
 
     const fmtRate = (r) => { const v = (r * 100); return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
-    const fmtProfit = (p) => { 
+    const fmtProfit = (p) => {
       if (isCurrencyKRW) {
         let val = Math.round((p * currentFXRate) / 10000);
-        return (val > 0 ? '+' : (val < 0 ? '-' : '')) + Math.abs(val).toLocaleString() + '만원';
+        return (val > 0 ? '+' : (val < 0 ? '-' : '')) + Math.abs(val).toLocaleString() + '만';
       } else {
         let val = Math.round(p);
         return (val > 0 ? '+$' : (val < 0 ? '-$' : '$')) + Math.abs(val).toLocaleString();
@@ -2257,10 +2264,10 @@ function renderPeriodTableText(slotNum) {
   data.sort((a, b) => b.period.localeCompare(a.period));
 
   const fmtRate = (r) => { const v = (r * 100); return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; };
-  const fmtProfit = (p) => { 
+  const fmtProfit = (p) => {
     if (isCurrencyKRW) {
       let val = Math.round((p * currentFXRate) / 10000);
-      return (val > 0 ? '+' : (val < 0 ? '-' : '')) + Math.abs(val).toLocaleString() + '만원';
+      return (val > 0 ? '+' : (val < 0 ? '-' : '')) + Math.abs(val).toLocaleString() + '만';
     } else {
       let val = Math.round(p);
       return (val > 0 ? '+$' : (val < 0 ? '-$' : '$')) + Math.abs(val).toLocaleString();
@@ -2269,7 +2276,7 @@ function renderPeriodTableText(slotNum) {
   const fmtAsset = (a) => {
     if (isCurrencyKRW) {
       let val = Math.round((a * currentFXRate) / 10000);
-      return val.toLocaleString() + '만원';
+      return val.toLocaleString() + '만';
     } else {
       return '$' + Math.round(a).toLocaleString();
     }
@@ -2298,7 +2305,7 @@ function renderPeriodTableText(slotNum) {
 function toggleCurrencyMode() {
   isCurrencyKRW = !isCurrencyKRW;
   const btn = document.getElementById('btnCurrencyToggle');
-  
+
   // 실제 고화질 국기 이미지 (FlagCDN 사용)
   const ICON_USD = `<img src="https://flagcdn.com/w40/us.png" style="width:16px; height:12px; border-radius:2px; margin-right:6px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
   const ICON_KRW = `<img src="https://flagcdn.com/w40/kr.png" style="width:16px; height:12px; border-radius:2px; margin-right:6px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
@@ -2307,29 +2314,31 @@ function toggleCurrencyMode() {
     btn.style.display = "flex";
     btn.style.alignItems = "center";
     btn.style.justifyContent = "center";
-    btn.style.minWidth = "100px"; 
+    btn.style.minWidth = "100px";
 
     if (isCurrencyKRW) {
       btn.innerHTML = `${ICON_KRW} 원화(KRW)`;
-      btn.style.color = '#fbbf24'; 
-      btn.style.borderColor = 'rgba(251, 191, 36, 0.5)';
-      btn.style.boxShadow = '0 0 10px rgba(251, 191, 36, 0.15)';
     } else {
       btn.innerHTML = `${ICON_USD} 달러(USD)`;
-      btn.style.color = '#94a3b8';
-      btn.style.borderColor = 'rgba(255,255,255,0.1)';
-      btn.style.boxShadow = 'none';
     }
-  }
 
-  // 화면 재렌더링
-  if (periodDisplayMode === 'chart') {
-    renderPeriodBarChart();
-  } else {
-    renderPeriodTableText(1);
-    if (isSlot2Active()) renderPeriodTableText(2);
-    if (isSlot3Active()) renderPeriodTableText(3);
-    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+    // ⭐️ 디자인은 항상 원화(금색) 테마로 통일 (사용자 요청)
+    btn.style.color = '#fbbf24';
+    btn.style.borderColor = 'rgba(251, 191, 36, 0.5)';
+    btn.style.boxShadow = '0 0 12px rgba(251, 191, 36, 0.2)';
+    btn.style.background = 'rgba(30, 41, 59, 0.6)';
+    btn.style.fontWeight = 'bold';
+
+    if (periodDisplayMode === 'chart') {
+      renderPeriodBarChart();
+    } else {
+      renderPeriodTableText(1);
+      if (isSlot2Active()) renderPeriodTableText(2);
+      if (isSlot3Active()) renderPeriodTableText(3);
+      if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+    }
+    // ⭐️ 성과추이(선형 차트)도 함께 갱신
+    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
   }
 }
 
@@ -2560,9 +2569,9 @@ function renderPeriodBarChart() {
           ticks: {
             font: { family: 'Inter', size: 10 },
             color: '#94a3b8',
-            callback: function (v) { 
+            callback: function (v) {
               if (isKRW) return v.toLocaleString() + '만';
-              return '$' + v.toLocaleString(); 
+              return '$' + v.toLocaleString();
             }
           }
         },
@@ -2606,11 +2615,11 @@ function calculateCombinedSummary(r1, r2, r3) {
     realizedProfit += (s.realizedProfit || 0);
     cash += (s.cash || 0);
     qty += (s.qty || 0);
-    
+
     // 👑 현재가 평균을 위한 단순 합산
     currPriceSum += (s.currPrice || 0);
     // 👑 평균단가 가중 합산
-    avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0)); 
+    avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0));
   }
 
   // ⭐️ [버그 픽스] 무지성 배열 순서 합산(ba[i])을 버리고, 날짜(Date) 기준으로 완벽하게 정렬!
@@ -2647,7 +2656,7 @@ function calculateCombinedSummary(r1, r2, r3) {
       if (daySum > peak) peak = daySum;
       let draw = peak > 0 ? (daySum - peak) / peak : 0;
       if (draw < minDraw) minDraw = draw;
-      
+
       // 맨 마지막 날짜(오늘)의 하락률이 현재 MDD
       if (i === sortedDates.length - 1) combinedCurrentMdd = draw;
     });
@@ -2669,7 +2678,7 @@ function calculateCombinedSummary(r1, r2, r3) {
     avgPrice: qty > 0 ? avgPriceSum / qty : (avgPriceSum / count),
     base: base,
     mdd: combinedMdd,
-    cagr: (function() {
+    cagr: (function () {
       if (sumRealPrincipal <= 0 || tAssets <= 0) return 0;
       let earliest = Infinity, latest = -Infinity;
       activeResults.forEach(r => {
@@ -2688,7 +2697,7 @@ function calculateCombinedSummary(r1, r2, r3) {
       }
       return 0;
     })(),
-    calmar: combinedMdd !== 0 ? Math.abs((function() {
+    calmar: combinedMdd !== 0 ? Math.abs((function () {
       if (sumRealPrincipal <= 0 || tAssets <= 0) return 0;
       let earliest = Infinity, latest = -Infinity;
       activeResults.forEach(r => {
@@ -2833,7 +2842,8 @@ const peakAnnotationPlugin = {
     }
 
     if (globalMaxAssetIdx >= 0 && isFinite(globalMaxAsset)) {
-      drawLabel(`$${Math.round(globalMaxAsset).toLocaleString()}`, x.getPixelForValue(globalMaxAssetIdx), y.getPixelForValue(globalMaxAsset), globalMaxAssetColor, true);
+      const label = isCurrencyKRW ? `${Math.round(globalMaxAsset).toLocaleString()}만` : `$${Math.round(globalMaxAsset).toLocaleString()}`;
+      drawLabel(label, x.getPixelForValue(globalMaxAssetIdx), y.getPixelForValue(globalMaxAsset), globalMaxAssetColor, true);
     }
     if (globalMinMddIdx >= 0 && isFinite(globalMinMdd)) {
       drawLabel(`${globalMinMdd.toFixed(2)}%`, x.getPixelForValue(globalMinMddIdx), y1.getPixelForValue(globalMinMdd), globalMinMddColor, false);
@@ -2864,7 +2874,7 @@ function renderChart(res1, res2, res3) {
   const sig1 = (res1 && res1.summary) ? (res1.currentStrat + "_" + res1.summary.totalAssets + "_" + res1.chartDates.length) : "null";
   const sig2 = (res2 && res2.summary) ? (res2.currentStrat + "_" + res2.summary.totalAssets + "_" + res2.chartDates.length) : "null";
   const sig3 = (res3 && res3.summary) ? (res3.currentStrat + "_" + res3.summary.totalAssets + "_" + res3.chartDates.length) : "null";
-  const newSig = sig1 + "|" + sig2 + "|" + sig3 + "|" + chartViewMode;
+  const newSig = sig1 + "|" + sig2 + "|" + sig3 + "|" + chartViewMode + "|" + isCurrencyKRW;
 
   const s1Set = isSlot1Active();
   const s2Set = isSlot2Active();
@@ -2878,7 +2888,7 @@ function renderChart(res1, res2, res3) {
   if (s1Set) namesStr.push(s1NameT);
   if (s2Set) namesStr.push(s2NameT);
   if (s3Set) namesStr.push(s3NameT);
-  let titleSuffix = namesStr.length > 0 ? `(${namesStr.join(' + ')})` : '';
+  let titleSuffix = namesStr.length > 0 ? (namesStr.length > 1 ? '(종합)' : `(${namesStr[0]})`) : '';
 
   if (chartViewMode === 1) titleSuffix = `(${s1NameT})`;
   else if (chartViewMode === 2) titleSuffix = `(${s2NameT})`;
@@ -2906,7 +2916,7 @@ function renderChart(res1, res2, res3) {
   if (res1 && res1.chartDates && s1Set) res1.chartDates.forEach(d => allDatesSet.add(d));
   if (res2 && res2.chartDates && s2Set) res2.chartDates.forEach(d => allDatesSet.add(d));
   if (res3 && res3.chartDates && s3Set) res3.chartDates.forEach(d => allDatesSet.add(d));
-  
+
   const universalDates = Array.from(allDatesSet).sort();
   if (universalDates.length === 0) return;
 
@@ -2917,11 +2927,19 @@ function renderChart(res1, res2, res3) {
     return `${y}-${parseInt(p[1])}-${p[2]}`;
   });
 
+  // ⭐️ 환율 보정 계수
+  const fx = isCurrencyKRW ? currentFXRate : 1;
+  const isKRW = isCurrencyKRW;
+
   // ⭐️ 날짜를 X축에 맞춰 빈칸(null)으로 예쁘게 정렬해주는 도우미 함수
   const alignData = (resDates, resValues) => {
     const map = {};
     resDates.forEach((d, i) => { map[d] = resValues[i]; });
-    return universalDates.map(d => map[d] !== undefined ? map[d] : null);
+    return universalDates.map(d => {
+      if (map[d] === undefined) return null;
+      // ⭐️ 원화일 경우 만원 단위로 변환 / 달러일 경우 정수화
+      return isKRW ? Math.round(map[d] * fx / 10000) : Math.round(map[d]);
+    });
   };
 
   let datasets = [];
@@ -2943,7 +2961,7 @@ function renderChart(res1, res2, res3) {
     const alignedBA1 = alignData(res1.chartDates, res1.chartBalances);
     const mdd1 = res1.chartMdd.map(v => v * 100);
     const alignedMDD1 = alignData(res1.chartDates, mdd1);
-    
+
     const ds1 = [
       { label: s1Name + ' 자산', data: alignedBA1, borderColor: '#6366f1', yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: assetGradient1, tension: 0.2 },
       { label: s1Name + ' MDD', data: alignedMDD1, borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
@@ -3004,12 +3022,27 @@ function renderChart(res1, res2, res3) {
           titleFont: { family: 'Outfit', size: chartFontSize, weight: 'bold' },
           bodyFont: { family: 'Inter', size: chartFontSize },
           cornerRadius: 8, displayColors: true,
-          callbacks: { label: function (c) { let l = c.dataset.label || ''; if (l.includes('자산')) return `${l}: $${Math.round(c.parsed.y).toLocaleString()}`; if (l.includes('MDD')) return `${l}: ${c.parsed.y.toFixed(2)}%`; return `${l}: ${c.parsed.y}`; } }
+          callbacks: { 
+            label: function (c) { 
+              let l = c.dataset.label || ''; 
+              if (l.includes('자산')) return `${l}: ${isKRW ? '' : '$'}${c.parsed.y.toLocaleString()}${isKRW ? '만원' : ''}`; 
+              if (l.includes('MDD')) return `${l}: ${c.parsed.y.toFixed(2)}%`; 
+              return `${l}: ${c.parsed.y}`; 
+            } 
+          }
         },
         zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } }
       },
       scales: {
-        y: { position: 'left', grace: '10%', grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#94a3b8' } },
+        y: { 
+          position: 'left', grace: '10%', 
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
+          ticks: { 
+            font: { family: 'Inter', size: chartFontSize - 2 }, 
+            color: '#94a3b8',
+            callback: function(v) { return v.toLocaleString() + (isKRW ? '만' : '$'); }
+          } 
+        },
         y1: { position: 'right', min: dynamicMddMin, max: 0, grid: { display: false }, ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#ef4444' } }
       }
     },
@@ -3065,14 +3098,19 @@ window.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(elementId);
     if (!el) return;
 
-    // ⭐️ [개선] 모든 자식 요소의 터치 액션을 auto로 열어서 좌우 스크롤이 어디서든 작동하게 함
-    el.style.touchAction = 'auto';
+    // 다시 모든 터치를 상하(pan-y)로 제한하여 패널 스와이프를 우선시합니다.
+    const applyTouchAction = (node) => {
+      if (!node || !node.style) return;
+      node.style.touchAction = 'pan-y';
+      for (let child of node.children) applyTouchAction(child);
+    };
+    applyTouchAction(el);
     el.style.userSelect = 'none';
 
     const mc = new Hammer.Manager(el, {
-      touchAction: 'auto',
+      touchAction: 'pan-y',
       recognizers: [
-        [Hammer.Pan, { direction: Hammer.DIRECTION_HORIZONTAL, threshold: 45 }]
+        [Hammer.Pan, { direction: Hammer.DIRECTION_HORIZONTAL, threshold: 30 }]
       ]
     });
 
@@ -3117,8 +3155,8 @@ window.addEventListener('DOMContentLoaded', () => {
     renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
   });
 
-  // 4. 성과지표 패널 (Stats): 성과지표 화면에서는 스와이프를 제거하여 자유로운 좌우 스크롤 보장
-    // setupSwipe('panelStats', () => showOrderView()); // 마스터님 요청으로 제거
+  // 4. 성과지표 패널 (Stats): 성과지표 화면에서도 스와이프하면 주문표로 돌아감
+  setupSwipe('panelStats', () => showOrderView());
 });
 
 function setBtnLoading(btnId, loadingText) {
@@ -3155,7 +3193,7 @@ function triggerIconAnim(iconId) {
  */
 function scheduleNextAutoSave() {
   const now = new Date();
-  
+
   // 1. 현재 뉴욕 시간 확인
   const nyFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
@@ -3163,13 +3201,13 @@ function scheduleNextAutoSave() {
     hour: 'numeric', minute: 'numeric', second: 'numeric',
     hour12: false
   });
-  
+
   const parts = nyFormatter.formatToParts(now);
   const nyDate = {};
   parts.forEach(p => nyDate[p.type] = p.value);
 
   // 2. 오늘의 뉴욕 17시 05분(여유 시간 포함) 객체 생성
-  let targetNY = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  let targetNY = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   targetNY.setHours(17, 5, 0, 0);
 
   // 3. 만약 이미 오늘 17시가 지났다면? 내일 17시로 설정
@@ -3179,7 +3217,7 @@ function scheduleNextAutoSave() {
 
   // 4. 지금부터 타겟 시간까지 남은 밀리초(ms) 계산
   const delay = targetNY.getTime() - now.getTime();
-  
+
   const hours = Math.floor(delay / (1000 * 60 * 60));
   const mins = Math.floor((delay % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -3190,11 +3228,101 @@ function scheduleNextAutoSave() {
     console.log("🕒 예약된 시간이 되었습니다. 자동 저장을 시작합니다.");
     checkAndRunAutoSave();
     // 저장이 끝나면 다시 다음 날 시간을 예약 (무한 반복)
-    scheduleNextAutoSave(); 
+    scheduleNextAutoSave();
   }, delay);
 }
 
 window.addEventListener('load', () => {
   scheduleNextAutoSave();
 });
+
+// 💰 스마트 증액 (입금) 기능
+function handleDeposit() {
+  const activeSlotName = (activeSettingsTab === 1) ? "투자법 1" : (activeSettingsTab === 2) ? "투자법 2" : "투자법 3";
+
+  let amountStr = prompt(`[${activeSlotName}] 💰 얼마를 증액(입금)하시겠습니까?\n(달러 단위로 숫자만 입력하세요)`);
+  if (!amountStr) return;
+
+  let amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''));
+  if (isNaN(amount) || amount === 0) return alert("올바른 금액을 입력하세요.");
+
+  const isReduction = amount < 0;
+  const actionName = isReduction ? "감액(출금)" : "증액(입금)";
+  const absAmount = Math.abs(amount);
+
+  const confirmMsg = `[${activeSlotName}]에서 $${absAmount.toLocaleString()}를 정말 ${actionName}하시겠습니까?\n\n` +
+    `※ 과거 수익률은 안전하게 보존되며, 예수금과 갱신금(원금)만 즉시 ${isReduction ? '감소' : '증가'}합니다.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById('btnSaveTop'); // 상단 버튼을 로딩 상태로
+  const orgText = btn ? btn.innerHTML : "";
+  if (btn) btn.innerHTML = "⏳ 입금 처리 중...";
+  setLED('loading');
+
+  // 구글 시트 서버로 입금 요청 쏘기
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify({
+      action: "ADD_FUNDS",
+      id: myUserId,
+      slot: activeSettingsTab, // 현재 보고 있는 탭 번호 전송
+      amount: amount
+    })
+  }).then(() => {
+    showToast(`$${amount.toLocaleString()} 증액 완료! 데이터를 다시 불러옵니다.`, "💰");
+    if (btn) btn.innerHTML = orgText;
+
+    // 입금 완료 후, 앱을 강제로 새로고침(동기화) 해서 화면에 반영
+    setTimeout(() => checkAndSyncWithServer(true), 1000);
+  }).catch(e => {
+    alert("증액 실패: 네트워크를 확인하세요.");
+    setLED('error');
+    if (btn) btn.innerHTML = orgText;
+  });
+}
+
+// 💱 실시간 원/달러 환율 동기화 기능
+async function updateCurrentFXRate() {
+  try {
+    const nowTs = Math.floor(Date.now() / 1000);
+    const pastTs = nowTs - (86400 * 5); // 최근 5일치 데이터 요청 (주말/휴장일 대비)
+
+    // Vercel 프록시를 통해 야후 파이낸스의 환율 티커(KRW=X) 직접 호출
+    const yUrl = `${VERCEL_URL}?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
+    const response = await fetch(yUrl);
+    const res = await response.json();
+
+    if (!res.error && res.chart && res.chart.result[0]) {
+      const cls = res.chart.result[0].indicators.quote[0].close;
+
+      // null이 아닌 가장 최근 of 종가(환율) 찾기
+      let latestRate = 1350;
+      for (let i = cls.length - 1; i >= 0; i--) {
+        if (cls[i] !== null && !isNaN(cls[i])) {
+          latestRate = cls[i];
+          break;
+        }
+      }
+
+      currentFXRate = latestRate; // 🌟 1350원이었던 글로벌 변수를 실제 환율로 교체!
+      console.log(`[환율 동기화 완료] 현재 적용 환율: ${currentFXRate.toFixed(2)}원`);
+
+      // 만약 유저가 이미 '원화(KRW)' 버튼을 켜둔 상태라면, 즉시 화면의 숫자들을 최신 환율로 다시 그려줌
+      if (isCurrencyKRW) {
+        if (periodDisplayMode === 'chart') {
+          renderPeriodBarChart();
+        } else {
+          if (isSlot1Active()) renderPeriodTableText(1);
+          if (isSlot2Active()) renderPeriodTableText(2);
+          if (isSlot3Active()) renderPeriodTableText(3);
+          if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("환율 동기화 실패. 기본값(1350원)을 유지합니다.", e);
+  }
+}
 
