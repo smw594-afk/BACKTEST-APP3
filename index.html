@@ -41,8 +41,8 @@
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" defer></script>
 
-  
-    <link rel="stylesheet" href="style.css">
+
+  <link rel="stylesheet" href="style.css">
 
 </head>
 
@@ -105,16 +105,19 @@
             <option value="2M3D2(2.0)">2M3D2(2.0)</option>
           </select>
         </div>
-        <div class="input-group"><label>초기자산($)</label><input type="text" id="initialCash" onchange="triggerOptimisticSave()"></div>
-        <div class="input-group"><label>갱신금($)</label><input type="text" id="renewCash" onchange="triggerOptimisticSave()"></div>
+        <div class="input-group"><label>초기자산($)</label><input type="text" id="initialCash"
+            onchange="triggerOptimisticSave()"></div>
+        <div class="input-group"><label>갱신금($)</label><input type="text" id="renewCash"
+            onchange="triggerOptimisticSave()"></div>
         <div class="input-group"><label>수수료(%)</label><input type="number" id="fBase" step="any"
             onchange="triggerOptimisticSave()"></div>
         <div class="input-group"><label>SEC(%)</label><input type="number" id="fSec" step="any"
             onchange="triggerOptimisticSave()"></div>
-         <!-- ⭐️ 기본 통화 설정 추가 -->
-         <div class="input-group">
+        <!-- ⭐️ 기본 통화 설정 추가 -->
+        <div class="input-group">
           <label>기본 통화</label>
-          <select id="defaultCurrency" onchange="updateDefaultCurrency(this.value)" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: #fbbf24; font-weight: bold;">
+          <select id="defaultCurrency" onchange="updateDefaultCurrency(this.value)"
+            style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: #fbbf24; font-weight: bold;">
             <option value="USD">달러(USD)</option>
             <option value="KRW">원화(KRW)</option>
           </select>
@@ -129,11 +132,14 @@
             font-weight: 600;
           }
         </style>
+        <button class="btn-action btn-settings-row" onclick="applyBacktestMode()"
+          style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">🗓️ 백테스트 모드 자동 적용</button>
         <button id="runBtnSettings" class="btn-action btn-settings-row" onclick="runEngine()"
           style="background: linear-gradient(135deg, #f59e0b, #d97706);">🚀 백테스트 실행 (Backtest)</button>
         <button id="btnSyncSheet" class="btn-action btn-settings-row" onclick="checkAndSyncWithServer(true)"
           style="background: #475569;">📥 시트값 불러오기 (Sync)</button>
-        <button class="btn-action btn-settings-row" onclick="handleDeposit()" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 실전 증액하기 (입금)</button>
+        <button class="btn-action btn-settings-row" onclick="handleDeposit()"
+          style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 실전 증액하기 (입금)</button>
         <button id="btnSaveTop" class="btn-action btn-save btn-settings-row" onclick="handleSave()"
           style="background: linear-gradient(135deg, #10b981, #059669);">✅ 시트에 반영하기</button>
         <button class="btn-action btn-adv" onclick="toggleSettings()" style="height:35px; opacity:0.7;">설정 닫기</button>
@@ -316,7 +322,8 @@
       <div class="section-header swipe-handler" id="monthlyHeader">
         <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별 전환">📅 월별 성과</h2>
 
-        <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환" style="font-size:20px; display:flex; align-items:center; justify-content:center;">
+        <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환"
+          style="font-size:20px; display:flex; align-items:center; justify-content:center;">
           <span id="icoPeriodMode">🔢</span>
         </button>
       </div>
@@ -328,7 +335,8 @@
         </div>
       </div>
       <!-- 테이블 모드 -->
-      <div id="periodTableContainer" class="slim-scroll" style="flex:1; overflow:auto; min-height:0; display:none; -webkit-overflow-scrolling:touch;">
+      <div id="periodTableContainer" class="slim-scroll"
+        style="flex:1; overflow:auto; min-height:0; display:none; -webkit-overflow-scrolling:touch;">
         <div style="display:flex; gap:2px; min-height:min-content; min-width:max-content;">
 
 
@@ -337,12 +345,16 @@
             <table class="data-table" id="periodTable0" style="border-spacing: 0 1px;">
               <thead>
                 <tr id="periodTableHead0">
-                  <th style="white-space:nowrap; width:1%; padding:0 !important; text-align:center; vertical-align:middle; height:16px; line-height:16px;">년월</th>
+                  <th
+                    style="white-space:nowrap; width:1%; padding:0 !important; text-align:center; vertical-align:middle; height:16px; line-height:16px;">
+                    년월</th>
                 </tr>
               </thead>
               <tbody id="periodBody0">
                 <tr>
-                  <td style="padding:0 !important; height:16px; line-height:16px; color:#94a3b8; text-align:center; vertical-align:middle;">-</td>
+                  <td
+                    style="padding:0 !important; height:16px; line-height:16px; color:#94a3b8; text-align:center; vertical-align:middle;">
+                    -</td>
                 </tr>
               </tbody>
             </table>
@@ -442,15 +454,15 @@
 
     <div class="card panel-chart" id="panelChart">
       <div class="section-header">
-        <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/1/2)" style="cursor:pointer;">📈 성과추이</h2>
-        <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()" 
-                style="margin-left: auto; background: none; color: #fff; 
+        <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/1/2)" style="cursor:pointer;">📈 성과추이
+        </h2>
+        <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()" style="margin-left: auto; background: none; color: #fff; 
                        border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; 
                        cursor: pointer; transition: all 0.2s; margin-right: 0px;
                        display: flex; align-items: center; justify-content: center;
                        min-width: 40px; box-shadow: none;">
-          <img src="https://flagcdn.com/w40/kr.png" 
-               style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">
+          <img src="https://flagcdn.com/w40/kr.png"
+            style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">
           KRW
         </button>
       </div>
