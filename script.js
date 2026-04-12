@@ -42,6 +42,33 @@ function forceUpdateApp() {
   }
 }
 
+function applyBacktestMode() {
+
+  const applyToBasics = (basics) => {
+    basics.ticker = "SOXL";
+    basics.startDate = "2014-01-02";
+    basics.endDate = "2025-12-31";
+    basics.initialCash = "10000";
+    basics.renewCash = "10000";
+    basics.fBase = 0;
+    basics.fSec = 0;
+  };
+
+  if (slot1Config && slot1Config.basics && slot1Config.basics.strategy) applyToBasics(slot1Config.basics);
+  if (slot2Config && slot2Config.basics && slot2Config.basics.strategy) applyToBasics(slot2Config.basics);
+  if (slot3Config && slot3Config.basics && slot3Config.basics.strategy) applyToBasics(slot3Config.basics);
+
+  localStorage.setItem('vtotal_conf1_' + myUserId, JSON.stringify(slot1Config));
+  localStorage.setItem('vtotal_conf2_' + myUserId, JSON.stringify(slot2Config));
+  localStorage.setItem('vtotal_conf3_' + myUserId, JSON.stringify(slot3Config));
+
+  loadSlotToForm(activeSettingsTab);
+
+  if (window.showToast) {
+    showToast("🗓️ 백테스트 모드(SOXL)가 설정되었습니다. [백테스트 실행]을 진행하세요.");
+  }
+}
+
 function toggleSettings() {
   const screen = document.getElementById('settingsScreen');
   const isVisible = screen.style.display === 'flex';
@@ -896,7 +923,7 @@ async function handleInstantOrder() {
 
 function calculateCombinedPeriodData() {
   const results = [lastBTResult1, lastBTResult2, lastBTResult3].filter(r => r != null && r.chartDates && r.chartDates.length > 0);
-  
+
   if (results.length < 2) {
     globalMonthlyData4 = []; globalYearlyData4 = [];
     return;
@@ -1165,7 +1192,7 @@ function renderPeriodTableText(slotNum) {
       tbody.innerHTML = `<tr><td style="${CELL_STYLE} text-align:center;">-</td></tr>`;
       return;
     }
-    
+
     // 내림차순 정렬 (데이터 행들과 일치시킴)
     const sortedData = [...dataCandidate].sort((a, b) => b.period.localeCompare(a.period));
 
