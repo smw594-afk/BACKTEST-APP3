@@ -1,13 +1,13 @@
 // strategy.js에서 병합됨
 const MASTER_STRATEGIES = {
   "2M3D1-1P": {
-    config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: true, useMid3: false },
+    config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: true, useMid3: true },
     modes: {
-      SF: { buy: [0.046, 0.046, 0.046, 0.046, 0.046, 0.046], sell: [0.018, 0.018, 0.018, 0.018, 0.018, 0.018], hold: [34, 34, 34, 34, 34, 34], weight: [0.138, 0.116, 0.289, 0.05, 0.273, 0.05] },
+      SF: { buy: [0.046, 0.046, 0.046, 0.046, 0.046, 0.046], sell: [0.018, 0.018, 0.018, 0.018, 0.018, 0.018], hold: [34, 34, 34, 34, 34, 34], weight: [0.13, 0.116, 0.289, 0.05, 0.273, 0.05] },
       Middle: { buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [6, 6, 6, 6, 6, 6], weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] },
       AG: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.022, 0.022, 0.022, 0.022, 0.022, 0.022], hold: [7, 7, 7, 7, 7, 7], weight: [0.17, 0.08, 0.052, 0.3, 0.072, 0.247] },
       Middle2: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [12, 12, 12, 12, 12, 12], weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05] },
-      Middle3: { buy: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [0, 0, 0, 0, 0, 0], weight: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }
+      Middle3: { buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [6, 6, 6, 6, 6, 6], weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] }
     }
   },
   "2M3D2(2.0)": {
@@ -15,8 +15,8 @@ const MASTER_STRATEGIES = {
     modes: {
       SF: { buy: [0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.001] },
       Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [20, 20, 20, 20, 20, 20, 20], weight: [0.355, 0.355, 0.355, 0.355, 0.355, 0.355, 0.355] },
-      AG: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.024, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.047, 0.39, 0.042, 0.043, 0.217, 0.22, 0.31, 0.45] },
-      Middle2: { buy: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [0, 0, 0, 0, 0, 0], weight: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] },
+      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.047, 0.39, 0.042, 0.043, 0.217, 0.22, 0.31, 0.45] },
+      Middle2: { buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131] },
       Middle3: { buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131] }
     }
   },
@@ -26,7 +26,7 @@ const MASTER_STRATEGIES = {
       SF: { buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.046] },
       Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [21, 21, 21, 21, 21, 21, 21, 21], weight: [0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352] },
       AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096] },
-      Middle2: { buy: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [0, 0, 0, 0, 0, 0], weight: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] },
+      Middle2: { buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [13, 13, 13, 13, 13, 13, 13, 13], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
       Middle3: { buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [13, 13, 13, 13, 13, 13, 13, 13], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
     }
   }
@@ -43,7 +43,7 @@ const yahooCache = {}; const pendingFetches = {};
 
 // 🛡️ 글로벌 상태 및 환율 관리
 let isCurrencyKRW = false;
-let currentFXRate = 1350;
+let currentFXRate = 1450;
 
 async function updateCurrentFXRate(callback = null) {
   try {
@@ -54,7 +54,7 @@ async function updateCurrentFXRate(callback = null) {
     const res = await response.json();
     if (!res.error && res.chart && res.chart.result[0]) {
       const cls = res.chart.result[0].indicators.quote[0].close;
-      let latestRate = 1350;
+      let latestRate = 1450;
       for (let i = cls.length - 1; i >= 0; i--) {
         if (cls[i] !== null && !isNaN(cls[i])) {
           latestRate = cls[i];
@@ -66,7 +66,7 @@ async function updateCurrentFXRate(callback = null) {
       if (callback) callback(currentFXRate);
     }
   } catch (e) {
-    console.warn("환율 동기화 실패. 기본값(1350원)을 유지합니다.", e);
+    console.warn("환율 동기화 실패. 기본값(1450원)을 유지합니다.", e);
   }
 }
 
@@ -79,17 +79,18 @@ function fixFloat(value) {
   if (value === null || value === undefined || isNaN(value)) return 0;
   return Math.round(value * 100) / 100;
 }
-function formatComma(val) { 
-  if (!val && val !== 0) return ''; 
-  let s = String(val).replace(/[^0-9.]/g, ''); 
-  let parts = s.split('.'); parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ","); return parts.join('.'); 
+function formatComma(val) {
+  if (!val && val !== 0) return '';
+  let s = String(val).replace(/[^0-9.]/g, '');
+  let parts = s.split('.'); parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ","); return parts.join('.');
 }
 function unformatComma(val) { return String(val).replace(/,/g, ''); }
-function formatDateNY(dateObj) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dateObj); }
+const formatterNY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+function formatDateNY(dateObj) { return formatterNY.format(dateObj); }
 function pyRound2(num) { let factor = 100, temp = num * factor, rounded = Math.round(temp); if (Math.abs(temp % 1) === 0.5) rounded = (Math.floor(temp) % 2 === 0) ? Math.floor(temp) : Math.ceil(temp); return rounded / factor; }
 
 function getFridayEnd(d) {
-  const nyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const nyStr = formatterNY.format(d);
   const [y, m, dayVal] = nyStr.split('-').map(Number);
   const date = new Date(y, m - 1, dayVal); const day = date.getDay(); const diff = (day <= 5) ? (5 - day) : (5 + 7 - day); date.setDate(date.getDate() + diff); date.setHours(0, 0, 0, 0); return date.getTime();
 }
@@ -162,7 +163,16 @@ function calculateWRSI_WFRI(qData) {
   let sortedFri = Object.keys(weeklyData).sort((a, b) => Number(a) - Number(b));
   for (let i = 0; i < sortedFri.length; i++) { wP.push(weeklyData[sortedFri[i]].close); wD.push(weeklyData[sortedFri[i]].date); }
   let p = 14, wRsi = [];
-  for (let i = 0; i < wP.length; i++) { if (i < p) { wRsi.push(50); continue; } let g = 0, l = 0; for (let j = i - p + 1; j <= i; j++) { let df = wP[j] - wP[j - 1]; if (df > 0) g += df; else l -= df; } wRsi.push(l === 0 ? 100 : 100 - (100 / (1 + (g / p) / (l / p)))); }
+  for (let i = 0; i < wP.length; i++) {
+    if (i < p) { wRsi.push(50); continue; }
+    let g = 0, l = 0;
+    for (let j = i - p + 1; j <= i; j++) {
+      let df = wP[j] - wP[j - 1];
+      if (df > 0) g += df; else l -= df;
+    }
+    let val = (l === 0 ? 50 : 100 - (100 / (1 + (g / p) / (l / p))));
+    wRsi.push(pyRound2(val));
+  }
   let wRMap = {};
   for (let i = 0; i < dD.length; i++) { let ds = formatDateNY(dD[i]), friEnd = getFridayEnd(dD[i]), wIdx = sortedFri.indexOf(friEnd.toString()); wRMap[ds] = { dR: (wIdx >= 1) ? wRsi[wIdx - 1] : 50, dRR: (wIdx >= 2) ? wRsi[wIdx - 2] : 50, dCurrent: wRsi[wIdx] }; }
   return wRMap;
@@ -196,7 +206,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     endDate.setHours(23, 59, 59, 999);
 
     function n(val, def) { return (val === "" || isNaN(val)) ? def : parseFloat(val); }
-    function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : Number((num / 100.0).toFixed(8)); }
+    function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : (num / 100.0); }
 
     const pInput = (activeSettingsTab === slotNum) ? document.getElementById('initialCash') : null;
     const realTimePrincipal = pInput ? parseFloat(unformatComma(pInput.value)) : n(params.basics.initialCash, 10000);
@@ -286,87 +296,127 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     }
 
     let full_c = mainDataAll.close, rsi_m = 'SF';
-    function t2(v) { let s = (v >= 0 ? EPS : -EPS); return Math.trunc((v + s) * 100) / 100.0; } function c2(v) { return Math.ceil((v * 100) - EPS) / 100.0; } function R2(v) { return Number(Math.round((v + EPS) * 100) / 100); } function truncPct5(v) { let sign = v >= 0 ? 1e-11 : -1e-11; return Math.trunc((v + sign) * 100000) / 100000; }
+    function t2(v) {
+      if (v === null || v === undefined || isNaN(v)) return 0.0;
+      return Math.trunc((v + 0.00001) * 100) / 100.0;
+    }
+    function t2_pl(v) {
+      if (v === null || v === undefined || isNaN(v)) return 0.0;
+      let sign_v = (v > 0 ? 1 : (v < 0 ? -1 : 0));
+      return Math.trunc((v + sign_v * 0.00001) * 100) / 100.0;
+    }
+    function c2(v) {
+      if (v === null || v === undefined || isNaN(v)) return 0.0;
+      return Math.ceil((v * 100) - 0.00001) / 100.0;
+    }
+    function truncPct5(v) { return v; }
+
+    // 워밍업 로직: 데이터 시작점(인덱스 0)부터 rsi_m 전이 상태를 추적하여 파이썬 정합성을 확보
+    for (let wI = 0; wI < (startIndex + startLoopIdx); wI++) {
+      let dtStrObj = mainDataAll.dates[wI];
+      if (!dtStrObj) continue;
+      let dtStr = formatDateNY(dtStrObj);
+      let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
+      if (rv !== 0) {
+        if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
+        else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF';
+        else if (rrv <= 50 && rv > 50) rsi_m = 'AG';
+        else if (rrv >= 50 && rv < 50) rsi_m = 'SF';
+        else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG';
+        else if (rrv > 65 && rrv > rv) rsi_m = 'SF';
+      }
+    }
 
     for (let i = startLoopIdx; i < bDates.length; i++) {
-      let idx = startIndex + i, close = fixFloat(full_c[idx]), dtStr = formatDateNY(bDates[i]), prev = fixFloat((idx === 0) ? firstPrevClose : full_c[idx - 1]);
-
+      let idx = startIndex + i, close = full_c[idx], dtStr = formatDateNY(bDates[i]), prev = (idx === 0) ? firstPrevClose : full_c[idx - 1];
       if (res.S.includes(dtStr)) continue;
 
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
-      if (rv !== 0) { if (rrv <= 35 && rrv < rv) rsi_m = 'AG'; else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF'; else if (rrv <= 50 && rv > 50) rsi_m = 'AG'; else if (rrv >= 50 && rv < 50) rsi_m = 'SF'; else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG'; else if (rrv > 65 && rrv > rv) rsi_m = 'SF'; }
-
-      let curr_m = rsi_m;
-      if (idx >= 4) {
-        let pct_m1 = truncPct5((full_c[idx - 1] - full_c[idx - 2]) / full_c[idx - 2]);
-        let pct_m2 = truncPct5((full_c[idx - 2] - full_c[idx - 3]) / full_c[idx - 3]);
-        let pct_m3 = truncPct5((full_c[idx - 3] - full_c[idx - 4]) / full_c[idx - 4]);
-
-        let is3Drop = (pct_m1 <= cDn1 && pct_m2 <= cDn2 && pct_m3 <= cDn3);
-        let isPlunge = (pct_m1 <= dLimit);
-        let applied_m = null;
-
-        if (is3Drop) {
-          if (useMid1 && useMid3) applied_m = (curr_m === 'AG') ? 'Middle3' : 'Middle';
-          else if (useMid1) applied_m = 'Middle';
-          else if (useMid3) applied_m = 'Middle3';
-        }
-        if (!applied_m && isPlunge && useMid2) {
-          applied_m = 'Middle2';
-        }
-        if (applied_m) curr_m = applied_m;
+      if (rv !== 0) {
+        if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
+        else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF';
+        else if (rrv <= 50 && rv > 50) rsi_m = 'AG';
+        else if (rrv >= 50 && rv < 50) rsi_m = 'SF';
+        else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG';
+        else if (rrv > 65 && rrv > rv) rsi_m = 'SF';
       }
 
-      let t = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p => p.tier); t = 1; while (used.indexOf(t) !== -1) t++; }
+      let is3Drop = (idx >= 4) && (truncPct5((full_c[idx - 3] - full_c[idx - 4]) / full_c[idx - 4]) <= cDn3) && (truncPct5((full_c[idx - 2] - full_c[idx - 3]) / full_c[idx - 3]) <= cDn2) && (truncPct5((full_c[idx - 1] - full_c[idx - 2]) / full_c[idx - 2]) <= cDn1);
+      let isPlunge = (truncPct5((full_c[idx - 1] - full_c[idx - 2]) / full_c[idx - 2]) <= dLimit);
+      let applied_m = null;
+      if (is3Drop) {
+        if (rsi_m === 'SF' && useMid1) applied_m = 'Middle';
+        else if (rsi_m === 'AG' && useMid3) applied_m = 'Middle3';
+      }
+      if (!applied_m && isPlunge && useMid2) {
+        applied_m = 'Middle2';
+      }
+      let curr_m = applied_m || rsi_m;
+
+      let t = inv.length + 1;
+      if (tierAssign === '최소(빈자리)' || tierAssign === '최소') {
+        let used = inv.map(p => p.tier); t = 1; while (used.indexOf(t) !== -1) t++;
+      }
+
       let b_qty = 0, b_tgt = 0, seed = 0.0;
-
-      let w_list = MODES[curr_m].weight;
-      if (t <= w_list.length) {
-        let w_val = w_list[t - 1];
-        seed = fixFloat(Math.min(base * w_val, cash));
+      if (MODES[curr_m] && t <= MODES[curr_m].weight.length) {
+        let w_val = MODES[curr_m].weight[t - 1];
+        seed = t2(Math.min(base * w_val, cash));
         b_tgt = t2(prev * (1 + MODES[curr_m].buy[t - 1]));
-        if (b_tgt > 0 && close <= b_tgt) b_qty = Math.floor(seed / (b_tgt * (1 + fBuy)) + 1e-12);
+        if (b_tgt > 0 && close <= b_tgt) b_qty = Math.floor(seed / (b_tgt * (1 + fBuy)) + 0.00001);
       }
 
-      let d_sell_net = 0.0, d_buy_cost = 0.0, d_cf = 0.0, n_inv = [];
+      let d_sell_net = 0.0, d_buy_cost = 0.0, d_cf = 0.0, d_pl = 0.0, n_inv = [];
       for (let p_idx = 0; p_idx < inv.length; p_idx++) {
         let p_inv = inv[p_idx]; p_inv.days++;
-        let p_mode = MODES[p_inv.mode] || MODES['SF'];
-        let sellRate = p_mode.sell[p_inv.tier - 1] || p_mode.sell[0] || 0;
+        let p_mode = MODES[p_inv.mode]; if (!p_mode) continue;
+        let tIdx = Math.min(p_inv.tier - 1, p_mode.sell.length - 1);
+        let sellRate = p_mode.sell[tIdx] || 0;
         let s_tgt = c2(p_inv.buy_price * (1 + sellRate));
-        let h_limit = (p_mode.hold[p_inv.tier - 1] || p_mode.hold[0]);
+        let hIdx = Math.min(p_inv.tier - 1, p_mode.hold.length - 1);
+        let h_limit = p_mode.hold[hIdx] || 1;
 
         if (close >= s_tgt || p_inv.days >= h_limit) {
-          let net = fixFloat((p_inv.qty * close) * (1 - fSellT));
-          d_sell_net += net; d_buy_cost += p_inv.cost; d_cf += net;
+          let net = (p_inv.qty * close) * (1 - fSellT);
+          let trade_pl = net - p_inv.cost;
+          d_pl += trade_pl; d_cf += net;
+          d_sell_net += net; d_buy_cost += p_inv.cost;
         } else n_inv.push(p_inv);
       }
       inv = n_inv;
       if (b_qty > 0) {
-        let totalBC = fixFloat((b_qty * close) * (1 + fBuy));
+        let totalBC = (b_qty * close) * (1 + fBuy);
         if (totalBC <= cash) {
           d_cf -= totalBC;
           inv.push({ buy_price: close, qty: b_qty, cost: totalBC, mode: curr_m, tier: t, days: 0, buyDate: dtStr });
         }
       }
-      cash = fixFloat(cash + d_cf);
-      let pl_f = fixFloat(d_sell_net - d_buy_cost), compA = 0.0; if (pl_f > 0) { compA = fixFloat(pl_f * compR); base = fixFloat(base + compA); } else if (pl_f < 0) { compA = fixFloat(pl_f * lossR); base = fixFloat(base + compA); }
-      
-      if (inv.length === 0 && base > cash) {
-        base = cash;
+
+      cash = t2(cash + d_cf);
+      let pl_f = t2_pl(d_pl);
+
+      if (pl_f > 0) {
+        base += pl_f * compR;
+      } else if (pl_f < 0) {
+        base += pl_f * lossR;
       }
+      base = t2(base);
 
       cumulativeRealizedProfit += pl_f;
 
-      let evalVal = fixFloat(inv.reduce((s, p_i) => s + (p_i.qty * close), 0));
-      let totalBalance = fixFloat(cash + evalVal); prev_total = totalBalance; if (totalBalance > peak) peak = totalBalance;
+      let evalVal = t2(inv.reduce((s, p_i) => s + p_i.qty, 0) * close);
+      let totalBalance = t2(cash + evalVal); prev_total = totalBalance; if (totalBalance > peak) peak = totalBalance;
       let currentMdd = peak > 0 ? truncPct5((totalBalance - peak) / peak) : 0;
 
       res.dailyStates.push({
         date: dtStr,
         asset: totalBalance,
         inout: cumulativeInOut,
-        json: JSON.stringify({ cash: fixFloat(cash), base_principal: fixFloat(base), holdings: JSON.parse(JSON.stringify(inv)) })
+        json: JSON.stringify({
+          cash: fixFloat(cash),
+          base_principal: fixFloat(base),
+          holdings: inv.map(p => ({ ...p }))
+        })
       });
 
       res.S.push(dtStr); res.BF.push(currentMdd); res.BA.push(totalBalance); res.AV.push(pl_f); res.INOUT.push(cumulativeInOut);
@@ -435,20 +485,21 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         let isPlunge_t = (tp1_h <= dLimit);
         let applied_m_t = null;
         if (is3Drop_t) {
-          if (useMid1 && useMid3) applied_m_t = (today_m === 'AG') ? 'Middle3' : 'Middle';
-          else if (useMid1) applied_m_t = 'Middle';
-          else if (useMid3) applied_m_t = 'Middle3';
+          if (today_m === 'SF' && useMid1) applied_m_t = 'Middle';
+          else if (today_m === 'AG' && useMid3) applied_m_t = 'Middle3';
         }
-        if (!applied_m_t && isPlunge_t && useMid2) applied_m_t = 'Middle2';
+        if (!applied_m_t && isPlunge_t && useMid2) {
+          applied_m_t = 'Middle2';
+        }
         if (applied_m_t) today_m = applied_m_t;
       }
 
       let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
       let currentW = MODES[today_m].weight[tTier - 1] || 0;
-      let tSeed = fixFloat(Math.min(base * currentW, cash));
+      let tSeed = t2(Math.min(base * currentW, cash));
       let bTgtVal = MODES[today_m].buy[tTier - 1] || 0;
       let tTgt = t2(lastDataClose * (1 + bTgtVal));
-      let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 1e-12) : 0;
+      let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.00001) : 0;
       if (todayBuyQty > 0) rawOrderOutput.push(["매수", "LOC", tTgt, todayBuyQty]);
 
       inv.forEach(p_i => {
@@ -478,7 +529,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let oMdd = res.BF.length > 0 ? Math.min(...res.BF) : 0;
 
     let summary = {
-      totalAssets: tAssets, 
+      totalAssets: tAssets,
       yield: (realPrincipal > 0) ? (tAssets - realPrincipal) / realPrincipal : 0,
       cagr: cagr,
       mdd: oMdd, calmar: oMdd !== 0 ? Math.abs(cagr / oMdd) : 0,
@@ -515,7 +566,7 @@ function calculateMonthlyData(dates, balances, mdds, inouts) {
   if (!dates || dates.length === 0) return [];
   let monthly = [];
   let currentMonth = dates[0].substring(0, 7);
-  
+
   let monthStartBalance = balances[0];
   let monthStartInout = (inouts && inouts.length > 0) ? inouts[0] : 0;
   let currentMonthMinMdd = mdds[0];
@@ -527,20 +578,20 @@ function calculateMonthlyData(dates, balances, mdds, inouts) {
     if (monthKey !== currentMonth) {
       let endBalance = balances[i - 1];
       let endInout = inouts ? inouts[i - 1] : 0;
-      
+
       // 월간 순입출금 및 수익금 계산
       let inoutForPeriod = endInout - monthStartInout;
       let monthProfit = endBalance - monthStartBalance - inoutForPeriod;
       let basis = monthStartBalance + inoutForPeriod;
 
-      monthly.push({ 
-        period: currentMonth, 
-        asset: endBalance, 
-        rate: basis > 0 ? monthProfit / basis : 0, 
-        profit: monthProfit, 
-        mdd: currentMonthMinMdd 
+      monthly.push({
+        period: currentMonth,
+        asset: endBalance,
+        rate: basis > 0 ? monthProfit / basis : 0,
+        profit: monthProfit,
+        mdd: currentMonthMinMdd
       });
-      
+
       currentMonth = monthKey;
       monthStartBalance = endBalance;
       monthStartInout = endInout;
@@ -552,17 +603,17 @@ function calculateMonthlyData(dates, balances, mdds, inouts) {
     if (i === dates.length - 1) {
       let endBalance = balances[i];
       let endInout = inouts ? inouts[i] : 0;
-      
+
       let inoutForPeriod = endInout - monthStartInout;
       let monthProfit = endBalance - monthStartBalance - inoutForPeriod;
       let basis = monthStartBalance + inoutForPeriod;
 
-      monthly.push({ 
-        period: currentMonth, 
-        asset: endBalance, 
-        rate: basis > 0 ? monthProfit / basis : 0, 
-        profit: monthProfit, 
-        mdd: currentMonthMinMdd 
+      monthly.push({
+        period: currentMonth,
+        asset: endBalance,
+        rate: basis > 0 ? monthProfit / basis : 0,
+        profit: monthProfit,
+        mdd: currentMonthMinMdd
       });
     }
   }
@@ -573,7 +624,7 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
   if (!dates || dates.length === 0) return [];
   let yearly = [];
   let currentYear = dates[0].substring(0, 4);
-  
+
   let yearStartBalance = balances[0];
   let yearStartInout = (inouts && inouts.length > 0) ? inouts[0] : 0;
   let currentYearMinMdd = mdds[0];
@@ -585,20 +636,20 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
     if (yearKey !== currentYear) {
       let endBalance = balances[i - 1];
       let endInout = inouts ? inouts[i - 1] : 0;
-      
+
       // 연간 순입출금 및 수익금 계산
       let inoutForPeriod = endInout - yearStartInout;
       let yearProfit = endBalance - yearStartBalance - inoutForPeriod;
       let basis = yearStartBalance + inoutForPeriod;
 
-      yearly.push({ 
-        period: currentYear, 
-        asset: endBalance, 
-        rate: basis > 0 ? yearProfit / basis : 0, 
-        profit: yearProfit, 
-        mdd: currentYearMinMdd 
+      yearly.push({
+        period: currentYear,
+        asset: endBalance,
+        rate: basis > 0 ? yearProfit / basis : 0,
+        profit: yearProfit,
+        mdd: currentYearMinMdd
       });
-      
+
       currentYear = yearKey;
       yearStartBalance = endBalance;
       yearStartInout = endInout;
@@ -610,17 +661,17 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
     if (i === dates.length - 1) {
       let endBalance = balances[i];
       let endInout = inouts ? inouts[i] : 0;
-      
+
       let inoutForPeriod = endInout - yearStartInout;
       let yearProfit = endBalance - yearStartBalance - inoutForPeriod;
       let basis = yearStartBalance + inoutForPeriod;
 
-      yearly.push({ 
-        period: currentYear, 
-        asset: endBalance, 
-        rate: basis > 0 ? yearProfit / basis : 0, 
-        profit: yearProfit, 
-        mdd: currentYearMinMdd 
+      yearly.push({
+        period: currentYear,
+        asset: endBalance,
+        rate: basis > 0 ? yearProfit / basis : 0,
+        profit: yearProfit,
+        mdd: currentYearMinMdd
       });
     }
   }
@@ -650,43 +701,43 @@ function processRealLogData(d, currentStrat, configStartDate) {
   });
 
   const firstAsset = chartBalances[0] || 0; const totalInoutSum = runningInout;
-  const calculatedPrincipal = fixFloat(firstAsset); 
-  const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal; 
+  const calculatedPrincipal = fixFloat(firstAsset);
+  const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
   const lastAsset = chartBalances[chartBalances.length - 1] || 0; const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
-  const totalProfit = fixFloat(lastAsset - finalPrincipal - (totalInoutSum - chartInout[0])); 
-  const simpleYield = finalPrincipal > 0 ? totalProfit / finalPrincipal : 0; 
+  const totalProfit = fixFloat(lastAsset - finalPrincipal - (totalInoutSum - chartInout[0]));
+  const simpleYield = finalPrincipal > 0 ? totalProfit / finalPrincipal : 0;
   const evalVal = fixFloat(lastAsset - cash); const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0; const investPrincipal = fixFloat(qty * avgPrice); const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0; const currPrice = parseFloat(meta.tickerPrice) || (qty > 0 ? evalVal / qty : 0);
-  
+
   let cagr = 0; if (chartDates.length > 1) { const toDateObj = (str) => { let p = str.split('-'); let year = parseInt(p[0], 10); if (year < 100) year += 2000; return new Date(year, parseInt(p[1], 10) - 1, parseInt(p[2], 10)); }; const sDate = toDateObj(chartDates[0]); const eDate = toDateObj(chartDates[chartDates.length - 1]); let days = Math.max(1, Math.round((eDate - sDate) / (1000 * 60 * 60 * 24)) - 1); let years = days / 365; if (years > 0) cagr = Math.pow(1 + simpleYield, 1 / years) - 1; }
-  const calcPeriod = (type) => { 
-    if (chartDates.length === 0) return []; 
-    let periods = {}; 
-    for (let i = 0; i < chartDates.length; i++) { 
-      let parts = chartDates[i].split('-'); 
-      let periodKey = type === 'month' ? `${parts[0]}-${parts[1]}` : parts[0]; 
-      if (!periods[periodKey]) { periods[periodKey] = { startIdx: i, endIdx: i, indices: [] }; } 
-      periods[periodKey].endIdx = i; periods[periodKey].indices.push(i); 
-    } 
-    let result = []; let pKeys = Object.keys(periods).sort(); 
-    for (let i = 0; i < pKeys.length; i++) { 
-      let key = pKeys[i]; let pData = periods[key]; 
-      let startAsset = 0; let startInout = 0; 
-      if (i === 0) { 
-        startAsset = chartBalances[0]; startInout = chartInout[0] || 0; 
-      } else { 
-        const prevEndIdx = periods[pKeys[i - 1]].endIdx; 
-        startAsset = chartBalances[prevEndIdx]; 
-        startInout = chartInout[prevEndIdx] || 0; 
-      } 
-      let endAsset = chartBalances[pData.endIdx]; 
-      let endInout = chartInout[pData.endIdx] || 0; 
+  const calcPeriod = (type) => {
+    if (chartDates.length === 0) return [];
+    let periods = {};
+    for (let i = 0; i < chartDates.length; i++) {
+      let parts = chartDates[i].split('-');
+      let periodKey = type === 'month' ? `${parts[0]}-${parts[1]}` : parts[0];
+      if (!periods[periodKey]) { periods[periodKey] = { startIdx: i, endIdx: i, indices: [] }; }
+      periods[periodKey].endIdx = i; periods[periodKey].indices.push(i);
+    }
+    let result = []; let pKeys = Object.keys(periods).sort();
+    for (let i = 0; i < pKeys.length; i++) {
+      let key = pKeys[i]; let pData = periods[key];
+      let startAsset = 0; let startInout = 0;
+      if (i === 0) {
+        startAsset = chartBalances[0]; startInout = chartInout[0] || 0;
+      } else {
+        const prevEndIdx = periods[pKeys[i - 1]].endIdx;
+        startAsset = chartBalances[prevEndIdx];
+        startInout = chartInout[prevEndIdx] || 0;
+      }
+      let endAsset = chartBalances[pData.endIdx];
+      let endInout = chartInout[pData.endIdx] || 0;
       let inoutForPeriod = endInout - startInout;
       let profit = endAsset - startAsset - inoutForPeriod;
       let profitBasis = startAsset + inoutForPeriod;
-      let minMddVal = 0; 
-      for (let idx of pData.indices) { if (chartMdd[idx] < minMddVal) minMddVal = chartMdd[idx]; } 
-      result.push({ period: key, asset: endAsset, rate: profitBasis > 0 ? profit / profitBasis : 0, profit: profit, mdd: minMddVal }); 
-    } return result.reverse(); 
+      let minMddVal = 0;
+      for (let idx of pData.indices) { if (chartMdd[idx] < minMddVal) minMddVal = chartMdd[idx]; }
+      result.push({ period: key, asset: endAsset, rate: profitBasis > 0 ? profit / profitBasis : 0, profit: profit, mdd: minMddVal });
+    } return result.reverse();
   };
 
   const summary = { totalAssets: lastAsset, yield: simpleYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0, totalProfit: totalProfit, realizedProfit: realizedProfit, qty: serverQty, avgPrice: serverAvg, evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice, currentMdd: chartMdd[chartMdd.length - 1], base: finalPrincipal, inout: totalInoutSum, realPrincipal: calculatedPrincipal };
@@ -726,7 +777,7 @@ function calculateCombinedSummaryEngine(activeResults) {
   let combinedMdd = 0;
   let combinedCurrentMdd = 0;
   const allDatesSet = new Set();
-  
+
   const mappedResults = activeResults.map(r => {
     const dMap = new Map();
     if (r.chartDates && r.chartBalances) {
