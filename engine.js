@@ -33,7 +33,7 @@ const MASTER_STRATEGIES = {
   "2M3D2(1.0)": {
     config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
-      SF: { buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.143, 0.23, 0.046] },
+      SF: { buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.143, 0.23, 0.040] },
       Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
       AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096] },
       Middle2: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
@@ -567,7 +567,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       currentStrat: curStrat,
       nextOrderInfo: nextOrderInfo,
       dailyStates: res.dailyStates,
-      chartInout: res.INOUT
+      chartInout: res.INOUT,
+      isSynced: false // ⭐️ 엔진 결과는 동기화 전 상태임
     };
   } catch (e) { return { status: "error", message: e.toString() }; }
 }
@@ -695,12 +696,59 @@ function processRealLogData(d, currentStrat, configStartDate) {
   let restoredInv = []; let restoredBase = 0; let realizedProfit = fixFloat(meta.realizedProfit) || 0; let cash = fixFloat(meta.currentCash) || 0; let serverQty = fixFloat(meta.qty) || 0; let serverAvg = fixFloat(meta.avgPrice) || 0;
   if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) restoredInv = parsed.holdings; if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); } catch (e) { console.error("JSON 파싱 실패", e); } }
   let qty = 0, totalCost = 0; restoredInv.forEach(item => { qty += item.qty; totalCost += item.cost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
-  const parseAndFormatYYMMDD = (ds) => { if (!ds) return null; let str = String(ds).trim(); str = str.replace(/\([가-힣a-zA-Z]\)/g, "").trim(); str = str.replace(/[년월.\/]/g, '-').replace(/일/g, '').replace(/\s+/g, ''); if (str.endsWith('-')) str = str.slice(0, -1); if (str.includes('T')) str = str.split('T')[0]; let p = str.split('-'); if (p.length >= 3) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); let d = p[2].padStart(2, '0'); return `${y}-${m}-${d}`; } else if (p.length === 2) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); return `${y}-${m}-01`; } return str; };
+  const parseAndFormatYYMMDD = (ds) => {
+    if (!ds) return null;
+    let str = String(ds).trim();
+    // 1. 숫자와 하이픈/마침표/슬래시만 남기고 모두 제거
+    str = str.replace(/[^0-9.\-\/]/g, '');
+    // 2. 구분자를 하이픈으로 통합
+    str = str.replace(/[.\/]/g, '-');
+
+    let p = str.split('-');
+    // 하이픈이 없는 경우 (예: 20260406) 처리
+    if (p.length === 1 && str.length >= 6) {
+      let y = str.slice(0, 4);
+      let m = str.slice(4, 6);
+      let d = str.slice(6, 8) || "01";
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    if (p.length >= 3) {
+      let y = p[0];
+      if (y.length === 2) y = "20" + y;
+      let m = p[1].padStart(2, '0');
+      let d = p[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    } else if (p.length === 2) {
+      let y = p[0];
+      if (y.length === 2) y = "20" + y;
+      let m = p[1].padStart(2, '0');
+      return `${y}-${m}-01`;
+    }
+    return str;
+  };
   let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
   if (rawLogs.length === 0) return null;
   rawLogs.sort((a, b) => (a.date > b.date ? 1 : -1));
-  let chartDates = [], chartBalances = [], chartMdd = [], chartInout = []; let peak = -Infinity;
-  let runningInout = 0;
+
+  // ⭐️ 시트 로그의 진짜 첫 날짜 (B129/G129/L129 = 시트의 S6 역할)
+  const originalFirstDate = rawLogs[0].date;
+  // CAGR 시작일은 항상 실제 기록의 첫 날짜 (configStartDate는 야후 데이터용이므로 사용하지 않음)
+  const trueStartDateStr = originalFirstDate;
+
+  // 💰 [전체 기간 원금 계산] 필터링 전의 전체 로그를 기준으로 절대 원금을 계산합니다.
+  const absoluteFirstAsset = rawLogs[0].asset || 0;
+  let absoluteRunningInout = 0;
+  rawLogs.forEach(r => { absoluteRunningInout = fixFloat(absoluteRunningInout + r.inout); });
+
+  // ⭐️ [중요] 원금 = 첫날 총자산 + (전체 입출금 - 첫날 입출금)
+  const totalInoutSumExcludeFirst = fixFloat(absoluteRunningInout - (rawLogs[0].inout || 0));
+  const calculatedPrincipal = fixFloat(absoluteFirstAsset + totalInoutSumExcludeFirst);
+
+  // 🗓️ [전체 타임라인 생성] 실제 로그는 필터링 없이 전체 기록을 그대로 사용합니다
+  let chartDates = [], chartBalances = [], chartMdd = [], chartInout = [];
+  let peak = -Infinity; let runningInout = 0;
+
   rawLogs.forEach(r => {
     chartDates.push(r.date);
     chartBalances.push(r.asset);
@@ -710,20 +758,55 @@ function processRealLogData(d, currentStrat, configStartDate) {
     chartMdd.push(peak > 0 ? (r.asset - peak) / peak : 0);
   });
 
-  const firstAsset = chartBalances[0] || 0; const totalInoutSum = runningInout;
-  const calculatedPrincipal = fixFloat(firstAsset);
+  // 테이블 계산용 Full 데이터 필드도 동일하게 유지
+  let chartDatesFull = [...chartDates], chartBalancesFull = [...chartBalances], chartInoutFull = [...chartInout], chartMddFull = [...chartMdd];
+
+
+  const lastAsset = chartBalances[chartBalances.length - 1] || 0;
+  const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
+
+  // 💰 [정합성 고정] 
+  // calculatedPrincipal: 시트 로직 원금 (성과 분석용)
+  // finalPrincipal: JSON/설정에서 복원된 기준금 (매수/매도 시드 기록용)
   const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
-  const lastAsset = chartBalances[chartBalances.length - 1] || 0; const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
-  const totalProfit = fixFloat(lastAsset - finalPrincipal - (totalInoutSum - chartInout[0]));
-  const simpleYield = finalPrincipal > 0 ? totalProfit / finalPrincipal : 0;
+
+  // 💰 성과 지표는 '절대 원금'을 기준으로 일관되게 계산
+  const totalProfit = fixFloat(lastAsset - calculatedPrincipal);
+  const simpleYield = calculatedPrincipal > 0 ? totalProfit / calculatedPrincipal : 0;
   const evalVal = fixFloat(lastAsset - cash); const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0; const investPrincipal = fixFloat(qty * avgPrice); const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0; const currPrice = parseFloat(meta.tickerPrice) || (qty > 0 ? evalVal / qty : 0);
 
-  let cagr = 0; if (chartDates.length > 1) { const toDateObj = (str) => { let p = str.split('-'); let year = parseInt(p[0], 10); if (year < 100) year += 2000; return new Date(year, parseInt(p[1], 10) - 1, parseInt(p[2], 10)); }; const sDate = toDateObj(chartDates[0]); const eDate = toDateObj(chartDates[chartDates.length - 1]); let days = Math.max(1, Math.round((eDate - sDate) / (1000 * 60 * 60 * 24)) - 1); let years = days / 365; if (years > 0) cagr = Math.pow(1 + simpleYield, 1 / years) - 1; }
+  // 📊 CAGR 계산: 구글 시트 공식 완벽 동기화 (trueStartDateStr 사용)
+  let cagr = 0;
+  const effectivePrincipal = (calculatedPrincipal > 0) ? calculatedPrincipal : (restoredBase > 0 ? restoredBase : 0);
+
+  if (chartDates.length > 0 && effectivePrincipal > 0 && lastAsset > 0) {
+    const toDateObj = (str) => {
+      let p = str.split('-');
+      let year = parseInt(p[0], 10);
+      if (year < 100) year += 2000;
+      return new Date(year, parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    };
+
+    // ⭐️ 시작일: 필터링 전의 진짜 시작일(S6) 사용
+    const sDateForCagr = toDateObj(trueStartDateStr);
+    const eDateForCagr = toDateObj(chartDates[chartDates.length - 1]);
+
+    // DATEDIF(S6, 끝, "d") 에 해당
+    let diffDays = Math.max(1, Math.round((eDateForCagr - sDateForCagr) / (1000 * 60 * 60 * 24)));
+
+    const effProfit = fixFloat(lastAsset - effectivePrincipal);
+    const effYield = effectivePrincipal > 0 ? effProfit / effectivePrincipal : 0;
+
+    // 시트 공식: =POWER(1+수익률, 365/일수) - 1
+    let calcValue = Math.pow(1 + effYield, 365 / diffDays) - 1;
+    cagr = (isFinite(calcValue) && !isNaN(calcValue)) ? calcValue : effYield;
+  }
   const calcPeriod = (type) => {
-    if (chartDates.length === 0) return [];
+    // ⭐️ 테이블은 차트 필터링과 무관하게 전체 히스토리(Full)를 사용
+    if (chartDatesFull.length === 0) return [];
     let periods = {};
-    for (let i = 0; i < chartDates.length; i++) {
-      let parts = chartDates[i].split('-');
+    for (let i = 0; i < chartDatesFull.length; i++) {
+      let parts = chartDatesFull[i].split('-');
       let periodKey = type === 'month' ? `${parts[0]}-${parts[1]}` : parts[0];
       if (!periods[periodKey]) { periods[periodKey] = { startIdx: i, endIdx: i, indices: [] }; }
       periods[periodKey].endIdx = i; periods[periodKey].indices.push(i);
@@ -733,47 +816,67 @@ function processRealLogData(d, currentStrat, configStartDate) {
       let key = pKeys[i]; let pData = periods[key];
       let startAsset = 0; let startInout = 0;
       if (i === 0) {
-        startAsset = chartBalances[0]; startInout = chartInout[0] || 0;
+        startAsset = chartBalancesFull[0]; startInout = chartInoutFull[0] || 0;
       } else {
         const prevEndIdx = periods[pKeys[i - 1]].endIdx;
-        startAsset = chartBalances[prevEndIdx];
-        startInout = chartInout[prevEndIdx] || 0;
+        startAsset = chartBalancesFull[prevEndIdx];
+        startInout = chartInoutFull[prevEndIdx] || 0;
       }
-      let endAsset = chartBalances[pData.endIdx];
-      let endInout = chartInout[pData.endIdx] || 0;
+      let endAsset = chartBalancesFull[pData.endIdx];
+      let endInout = chartInoutFull[pData.endIdx] || 0;
       let inoutForPeriod = endInout - startInout;
       let profit = endAsset - startAsset - inoutForPeriod;
       let profitBasis = startAsset + inoutForPeriod;
       let minMddVal = 0;
-      for (let idx of pData.indices) { if (chartMdd[idx] < minMddVal) minMddVal = chartMdd[idx]; }
+      for (let idx of pData.indices) { if (chartMddFull[idx] < minMddVal) minMddVal = chartMddFull[idx]; }
       result.push({ period: key, asset: endAsset, rate: profitBasis > 0 ? profit / profitBasis : 0, profit: profit, mdd: minMddVal });
     } return result.reverse();
   };
 
-  const summary = { totalAssets: lastAsset, yield: simpleYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0, totalProfit: totalProfit, realizedProfit: realizedProfit, qty: serverQty, avgPrice: serverAvg, evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice, currentMdd: chartMdd[chartMdd.length - 1], base: finalPrincipal, inout: totalInoutSum, realPrincipal: calculatedPrincipal };
+  let finalEffPrincipal = (calculatedPrincipal > 0) ? calculatedPrincipal : (restoredBase > 0 ? restoredBase : 0);
+  let finalProfit = fixFloat(lastAsset - finalEffPrincipal);
+  let finalYield = finalEffPrincipal > 0 ? finalProfit / finalEffPrincipal : 0;
+
+  let summary = { totalAssets: lastAsset, yield: finalYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0, totalProfit: finalProfit, realizedProfit: realizedProfit, qty: serverQty, avgPrice: serverAvg, evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice, currentMdd: chartMdd[chartMdd.length - 1], base: finalPrincipal, inout: totalInoutSumExcludeFirst, realPrincipal: calculatedPrincipal, trueStartDate: trueStartDateStr };
   let rawOrderOutput = []; let M_STRAT_T = MASTER_STRATEGIES[currentStrat] || MASTER_STRATEGIES["2M3D1-1P"]; let MODES_T = M_STRAT_T.modes; function c2_T(v) { return Math.ceil((v * 100) - 0.0000001) / 100.0; }
   if (restoredInv.length > 0) { restoredInv.forEach(p_i => { let modeData = MODES_T[p_i.mode] || MODES_T['SF']; let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0; let s_tgt = c2_T(p_i.buy_price * (1 + sellRate)); rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); }); }
   const finalOrders = rawOrderOutput.sort((a, b) => b[2] - a[2]);
-  return { status: "success", S: chartDates, BA: chartBalances, BF: chartMdd, inv: restoredInv, orders: finalOrders, orderDateStr: chartDates[chartDates.length - 1] + " (동기화됨)", summary: summary, chartDates: chartDates, chartBalances: chartBalances, chartMdd: chartMdd, monthlyData: calcPeriod('month'), yearlyData: calcPeriod('year'), currentStrat: currentStrat };
+  return {
+    status: "success",
+    S: chartDates,
+    BA: chartBalances,
+    BF: chartMdd,
+    inv: restoredInv,
+    orders: finalOrders,
+    orderDateStr: chartDates[chartDates.length - 1] + " (동기화됨)",
+    summary: summary,
+    chartDates: chartDates,
+    chartBalances: chartBalances,
+    chartMdd: chartMdd,
+    chartInout: chartInout,
+    // ⭐️ 종합 테이블 합산을 위한 전체 데이터 필드 추가
+    chartDatesFull: chartDatesFull,
+    chartBalancesFull: chartBalancesFull,
+    chartInoutFull: chartInoutFull,
+    monthlyData: calcPeriod('month'),
+    yearlyData: calcPeriod('year'),
+    currentStrat: currentStrat,
+    isSynced: true // ⭐️ 시트 데이터 기반 결과는 동기화됨
+  };
 }
 
-// ==========================================
-// 🧠 [engine.js 추가] 다중 슬롯 종합 계산 로직
-// ==========================================
-
-// 다중 슬롯 종합 Summary 계산
+// 🧠 [engine.js] 다중 슬롯 종합 계산 로직
 function calculateCombinedSummaryEngine(activeResults) {
   if (!activeResults || activeResults.length === 0) return null;
   if (activeResults.length === 1) return activeResults[0].summary;
 
-  let tAssets = 0, base = 0, evalVal = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0, sumRealPrincipal = 0;
-  let currPriceSum = 0, avgPriceSum = 0;
+  let tAssets = 0, evalVal = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0;
+  let currPriceSum = 0, avgPriceSum = 0, sumEffectivePrincipal = 0;
   let count = activeResults.length;
 
+  // 1. 기초 지표 및 합산 원금 계산
   for (const r of activeResults) {
     const s = r.summary || {};
-    base += (s.base || 0);
-    sumRealPrincipal += (s.realPrincipal || s.base || 0);
     tAssets += (s.totalAssets || 0);
     evalVal += (s.evalVal || 0);
     totalProfit += (s.totalProfit || 0);
@@ -782,64 +885,78 @@ function calculateCombinedSummaryEngine(activeResults) {
     qty += (s.qty || 0);
     currPriceSum += (s.currPrice || 0);
     avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0));
+
+    // ⭐️ 합산 원금 기준: 각 슬롯의 유효 원금(realPrincipal 또는 base)의 합
+    const rp = s.realPrincipal || 0;
+    const bs = s.base || 0;
+    sumEffectivePrincipal += (rp > 0 ? rp : (bs > 0 ? bs : 0));
   }
 
-  let combinedMdd = 0;
-  let combinedCurrentMdd = 0;
-  const allDatesSet = new Set();
-
-  const mappedResults = activeResults.map(r => {
-    const dMap = new Map();
-    if (r.chartDates && r.chartBalances) {
-      r.chartDates.forEach((d, i) => { dMap.set(d, r.chartBalances[i]); allDatesSet.add(d); });
-    }
-    return dMap;
-  });
-
-  const sortedDates = Array.from(allDatesSet).sort();
+  // 2. MDD 합산 (타임라인 병합)
+  let combinedMdd = 0, combinedCurrentMdd = 0;
+  let allDates = new Set();
+  activeResults.forEach(r => { if (r.chartDates) r.chartDates.forEach(date => allDates.add(date)); });
+  let sortedDates = Array.from(allDates).sort();
 
   if (sortedDates.length > 0) {
-    let peak = -Infinity;
-    let minDraw = 0;
-    sortedDates.forEach((date, i) => {
-      let daySum = 0;
-      mappedResults.forEach(dMap => { if (dMap.has(date)) daySum += dMap.get(date); });
-      if (daySum > peak) peak = daySum;
-      let draw = peak > 0 ? (daySum - peak) / peak : 0;
+    let peak = 0, minDraw = 0;
+    sortedDates.forEach((dt, i) => {
+      let dayAsset = 0;
+      activeResults.forEach(r => {
+        if (r.chartDates && r.chartBalances) {
+          let idx = r.chartDates.indexOf(dt);
+          if (idx !== -1) dayAsset += r.chartBalances[idx];
+          else {
+            let lastIdx = -1;
+            for (let j = 0; j < r.chartDates.length; j++) { if (r.chartDates[j] <= dt) lastIdx = j; }
+            if (lastIdx !== -1) dayAsset += r.chartBalances[lastIdx];
+          }
+        }
+      });
+      if (dayAsset > peak) peak = dayAsset;
+      let draw = peak > 0 ? (dayAsset - peak) / peak : 0;
       if (draw < minDraw) minDraw = draw;
       if (i === sortedDates.length - 1) combinedCurrentMdd = draw;
     });
     combinedMdd = minDraw;
   }
 
-  const calcTotalCAGR = () => {
-    if (sumRealPrincipal <= 0 || tAssets <= 0) return 0;
-    let earliest = Infinity, latest = -Infinity;
-    activeResults.forEach(r => {
-      if (r.chartDates && r.chartDates.length > 0) {
-        const s = new Date(r.chartDates[0]).getTime();
-        const e = new Date(r.chartDates[r.chartDates.length - 1]).getTime();
-        if (s < earliest) earliest = s;
-        if (e > latest) latest = e;
-      }
-    });
-    if (isFinite(earliest) && isFinite(latest)) {
-      const days = Math.max(1, Math.round((latest - earliest) / (1000 * 60 * 60 * 24)));
-      const years = days / 365;
-      const totalYield = (tAssets - sumRealPrincipal) / sumRealPrincipal;
-      return years > 0 ? Math.pow(1 + totalYield, 1 / years) - 1 : totalYield;
-    }
-    return 0;
+  // 3. 수익률 및 CAGR 계산 (사용자 원칙 적용)
+  const totalProfitSum = totalProfit; // ⭐️ 슬롯별 summary.totalProfit을 루프에서 이미 합산함
+  const totalYieldCombined = sumEffectivePrincipal > 0 ? totalProfitSum / sumEffectivePrincipal : 0;
+
+  const toDateObj = (str) => {
+    if (!str) return new Date();
+    let s = String(str).trim().replace(/[.\/]/g, '-');
+    let p = s.split('-');
+    if (p.length < 3) return new Date();
+    let year = parseInt(p[0], 10);
+    if (year < 100) year += 2000;
+    return new Date(year, parseInt(p[1], 10) - 1, parseInt(p[2], 10));
   };
 
-  const cagrVal = calcTotalCAGR();
+  // ⭐️ 기간 기준: 각 투자법 중 가장 운용 기간이 긴 값(maxDays) 사용
+  let maxDays = 1;
+  activeResults.forEach(r => {
+    const sDateStr = (r.summary && r.summary.trueStartDate) ? r.summary.trueStartDate : (r.chartDates && r.chartDates[0]);
+    if (sDateStr && r.chartDates && r.chartDates.length > 0) {
+      const s = toDateObj(sDateStr);
+      const e = toDateObj(r.chartDates[r.chartDates.length - 1]);
+      const d = Math.max(1, Math.round((e - s) / 86400000));
+      if (d > maxDays) maxDays = d;
+    }
+  });
+
+  const cagrVal = Math.pow(1 + totalYieldCombined, 365 / maxDays) - 1;
+  const finalCagr = (isFinite(cagrVal) && !isNaN(cagrVal)) ? cagrVal : totalYieldCombined;
 
   return {
     totalAssets: tAssets,
-    yield: sumRealPrincipal > 0 ? (tAssets - sumRealPrincipal) / sumRealPrincipal : 0,
-    currentMdd: combinedCurrentMdd,
-    depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
-    totalProfit: tAssets - sumRealPrincipal,
+    yield: totalYieldCombined,
+    cagr: finalCagr,
+    mdd: combinedMdd,
+    calmar: combinedMdd !== 0 ? Math.abs(finalCagr / combinedMdd) : 0,
+    totalProfit: totalProfitSum,
     realizedProfit: realizedProfit,
     evalVal: evalVal,
     cash: cash,
@@ -847,11 +964,9 @@ function calculateCombinedSummaryEngine(activeResults) {
     qty: qty,
     currPrice: currPriceSum / count,
     avgPrice: qty > 0 ? avgPriceSum / qty : (avgPriceSum / count),
-    base: base,
-    mdd: combinedMdd,
-    cagr: cagrVal,
-    calmar: combinedMdd !== 0 ? Math.abs(cagrVal / combinedMdd) : 0,
-    realPrincipal: sumRealPrincipal
+    base: sumEffectivePrincipal,
+    currentMdd: combinedCurrentMdd,
+    realPrincipal: sumEffectivePrincipal
   };
 }
 
@@ -859,78 +974,30 @@ function calculateCombinedSummaryEngine(activeResults) {
 function generateCombinedPeriodDataEngine(activeResults) {
   if (!activeResults || activeResults.length < 2) return { monthly: [], yearly: [] };
 
-  const allDatesSet = new Set();
-  const maps = activeResults.map(r => {
-    const dateMap = new Map();
-    r.chartDates.forEach((d, i) => { dateMap.set(d, i); allDatesSet.add(d); });
-    const correctedInouts = [...(r.chartInout || new Array(r.chartDates.length).fill(0))];
-    if (r.chartBalances && r.chartBalances.length > 0) {
-      if (Math.abs(r.chartBalances[0] - (correctedInouts[0] || 0)) > 0.01) correctedInouts[0] = r.chartBalances[0];
-    }
-    return { map: dateMap, balances: r.chartBalances, inouts: correctedInouts };
-  });
-
-  const sortedDates = [...allDatesSet].sort();
-  const combinedBalances = new Array(sortedDates.length).fill(0);
-  const combinedMdd = new Array(sortedDates.length).fill(0);
-  const combinedInout = new Array(sortedDates.length).fill(0);
-
-  sortedDates.forEach((date, i) => {
-    let daySum = 0, dayInout = 0;
-    maps.forEach(obj => {
-      const idx = obj.map.get(date);
-      if (idx !== undefined) {
-        daySum += obj.balances[idx];
-        dayInout += (obj.inouts[idx] || 0);
-      }
-    });
-    combinedBalances[i] = daySum;
-    combinedInout[i] = dayInout;
-  });
-
-  let peak = -Infinity;
-  combinedBalances.forEach((val, i) => {
-    if (val > peak) peak = val;
-    combinedMdd[i] = (peak > 0) ? (val - peak) / peak : 0;
-  });
-
-  const calc = (type) => {
-    const periods = {};
-    for (let i = 0; i < sortedDates.length; i++) {
-      const d = sortedDates[i];
-      const periodKey = type === 'month' ? d.substring(0, 7) : d.substring(0, 4);
-      if (!periods[periodKey]) periods[periodKey] = { startIdx: i, endIdx: i, indices: [] };
-      periods[periodKey].endIdx = i;
-      periods[periodKey].indices.push(i);
-    }
-
-    return Object.keys(periods).sort().reverse().map((key, i, keys) => {
-      const p = periods[key];
-      const allPKeys = Object.keys(periods).sort();
-      const prevKey = allPKeys[allPKeys.indexOf(key) - 1];
-      const startAsset = prevKey ? combinedBalances[periods[prevKey].endIdx] : combinedBalances[0];
-      const startInout = prevKey ? combinedInout[periods[prevKey].endIdx] : combinedInout[0];
-      const endAsset = combinedBalances[p.endIdx];
-      const endInout = combinedInout[p.endIdx];
-
-      let profit = 0, basis = 0;
-      let inoutForPeriod = endInout - startInout;
-
-      if (!prevKey) {
-        if (startInout > 0 && Math.abs(startAsset - startInout) < 10) {
-          profit = endAsset - endInout; basis = endInout;
-        } else {
-          profit = endAsset - startAsset - inoutForPeriod; basis = startAsset + inoutForPeriod;
+  const mergeResults = (type) => {
+    const periodMap = {};
+    activeResults.forEach(r => {
+      const data = type === 'month' ? (r.monthlyData || []) : (r.yearlyData || []);
+      data.forEach(item => {
+        if (!periodMap[item.period]) {
+          periodMap[item.period] = { period: item.period, asset: 0, profit: 0, mdd: 0 };
         }
-      } else {
-        profit = endAsset - startAsset - inoutForPeriod; basis = startAsset + inoutForPeriod;
-      }
+        // ⭐️ 모든 합산에 fixFloat를 적용하여 미세 오차 원천 차단
+        periodMap[item.period].asset = fixFloat(periodMap[item.period].asset + (item.asset || 0));
+        periodMap[item.period].profit = fixFloat(periodMap[item.period].profit + (item.profit || 0));
+        if (item.mdd < periodMap[item.period].mdd) periodMap[item.period].mdd = item.mdd;
+      });
+    });
 
-      let minMdd = 0;
-      p.indices.forEach(idx => { if (combinedMdd[idx] < minMdd) minMdd = combinedMdd[idx]; });
-      return { period: key, asset: endAsset, rate: basis > 0 ? profit / basis : 0, profit: profit, mdd: minMdd };
+    return Object.keys(periodMap).sort().reverse().map(key => {
+      const p = periodMap[key];
+      const startAsset = p.asset - p.profit;
+      return {
+        period: p.period, asset: p.asset, profit: p.profit,
+        rate: startAsset > 0 ? p.profit / startAsset : 0, mdd: p.mdd
+      };
     });
   };
 
-  return { monthly: calc('month'), yearly: calc('year') };
+  return { monthly: mergeResults('month'), yearly: mergeResults('year') };
 }
