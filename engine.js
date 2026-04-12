@@ -871,7 +871,7 @@ function calculateCombinedSummaryEngine(activeResults) {
   if (activeResults.length === 1) return activeResults[0].summary;
 
   let tAssets = 0, evalVal = 0, totalProfit = 0, realizedProfit = 0, cash = 0, qty = 0;
-  let currPriceSum = 0, avgPriceSum = 0, sumEffectivePrincipal = 0;
+  let currPriceSum = 0, avgPriceSum = 0, sumRealPrincipal = 0, sumBase = 0;
   let count = activeResults.length;
 
   // 1. 기초 지표 및 합산 원금 계산
@@ -886,10 +886,9 @@ function calculateCombinedSummaryEngine(activeResults) {
     currPriceSum += (s.currPrice || 0);
     avgPriceSum += ((s.avgPrice || 0) * (s.qty || 0));
 
-    // ⭐️ 합산 원금 기준: 각 슬롯의 유효 원금(realPrincipal 또는 base)의 합
-    const rp = s.realPrincipal || 0;
-    const bs = s.base || 0;
-    sumEffectivePrincipal += (rp > 0 ? rp : (bs > 0 ? bs : 0));
+    // ⭐️ 원금과 갱신금을 각각 독립적으로 단순 합산
+    sumRealPrincipal += (s.realPrincipal || 0);
+    sumBase += (s.base || 0);
   }
 
   // 2. MDD 합산 (타임라인 병합)
@@ -923,7 +922,7 @@ function calculateCombinedSummaryEngine(activeResults) {
 
   // 3. 수익률 및 CAGR 계산 (사용자 원칙 적용)
   const totalProfitSum = totalProfit; // ⭐️ 슬롯별 summary.totalProfit을 루프에서 이미 합산함
-  const totalYieldCombined = sumEffectivePrincipal > 0 ? totalProfitSum / sumEffectivePrincipal : 0;
+  const totalYieldCombined = sumRealPrincipal > 0 ? totalProfitSum / sumRealPrincipal : 0;
 
   const toDateObj = (str) => {
     if (!str) return new Date();
@@ -964,40 +963,60 @@ function calculateCombinedSummaryEngine(activeResults) {
     qty: qty,
     currPrice: currPriceSum / count,
     avgPrice: qty > 0 ? avgPriceSum / qty : (avgPriceSum / count),
-    base: sumEffectivePrincipal,
+    base: sumBase,
     currentMdd: combinedCurrentMdd,
-    realPrincipal: sumEffectivePrincipal
+    realPrincipal: sumRealPrincipal
   };
 }
 
 // 다중 슬롯 종합 월별/년별 차트 데이터 병합 계산
 function generateCombinedPeriodDataEngine(activeResults) {
-  if (!activeResults || activeResults.length < 2) return { monthly: [], yearly: [] };
+  if (!activeResults || activeResults.length === 0) return { monthly: [], yearly: [] };
+  if (activeResults.length === 1) return { monthly: activeResults[0].monthlyData, yearly: activeResults[0].yearlyData };
 
-  const mergeResults = (type) => {
-    const periodMap = {};
+  // 1. 모든 날짜 통합
+  let allDatesSet = new Set();
+  activeResults.forEach(r => { if (r.chartDates) r.chartDates.forEach(d => allDatesSet.add(d)); });
+  let sortedDates = Array.from(allDatesSet).sort();
+
+  // 2. 통합 일별 자산 및 입출금 타임라인 생성
+  let combinedBalances = [];
+  let combinedInouts = [];
+  let combinedMdds = [];
+  let peak = 0;
+
+  sortedDates.forEach(dt => {
+    let dayAsset = 0;
+    let dayInout = 0;
     activeResults.forEach(r => {
-      const data = type === 'month' ? (r.monthlyData || []) : (r.yearlyData || []);
-      data.forEach(item => {
-        if (!periodMap[item.period]) {
-          periodMap[item.period] = { period: item.period, asset: 0, profit: 0, mdd: 0 };
+      if (r.chartDates && r.chartBalances) {
+        let idx = r.chartDates.indexOf(dt);
+        if (idx !== -1) {
+          dayAsset += r.chartBalances[idx];
+          dayInout += (r.chartInout ? r.chartInout[idx] : 0);
+        } else {
+          // 해당 날짜 없는 경우 이전 종가 사용 (Back-fill)
+          let lastI = -1;
+          for (let j = 0; j < r.chartDates.length; j++) { if (r.chartDates[j] <= dt) lastI = j; }
+          if (lastI !== -1) {
+            dayAsset += r.chartBalances[lastI];
+            dayInout += (r.chartInout ? r.chartInout[lastI] : 0);
+          }
         }
-        // ⭐️ 모든 합산에 fixFloat를 적용하여 미세 오차 원천 차단
-        periodMap[item.period].asset = fixFloat(periodMap[item.period].asset + (item.asset || 0));
-        periodMap[item.period].profit = fixFloat(periodMap[item.period].profit + (item.profit || 0));
-        if (item.mdd < periodMap[item.period].mdd) periodMap[item.period].mdd = item.mdd;
-      });
+      }
     });
 
-    return Object.keys(periodMap).sort().reverse().map(key => {
-      const p = periodMap[key];
-      const startAsset = p.asset - p.profit;
-      return {
-        period: p.period, asset: p.asset, profit: p.profit,
-        rate: startAsset > 0 ? p.profit / startAsset : 0, mdd: p.mdd
-      };
-    });
+    combinedBalances.push(dayAsset);
+    combinedInouts.push(dayInout);
+    
+    // 3. 통합 MDD 계산
+    if (dayAsset > peak) peak = dayAsset;
+    combinedMdds.push(peak > 0 ? (dayAsset - peak) / peak : 0);
+  });
+
+  // 4. 기존 chunking 함수 재활용하여 결과 도출
+  return {
+    monthly: calculateMonthlyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse(),
+    yearly: calculateYearlyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse()
   };
-
-  return { monthly: mergeResults('month'), yearly: mergeResults('year') };
 }
