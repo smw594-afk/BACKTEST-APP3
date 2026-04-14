@@ -230,6 +230,50 @@
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
 
+    /* 📊 설정 내 실시간 상태 출력창 스타일링 */
+    .status-panel {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    .status-panel-title {
+      font-size: 10px;
+      color: var(--primary);
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .status-row span:first-child {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .status-row span:last-child {
+      color: #fbbf24;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+    }
+
+
     .settings-modal h3 {
       margin: 0 0 20px 0;
       font-size: 18px;
@@ -798,6 +842,35 @@
       transform: translateX(-50%);
       z-index: 9999;
       pointer-events: none;
+    }
+
+    .q-slot-btn, .q-strat-btn {
+      flex: 1;
+      height: 30px;
+      background: rgba(51, 65, 85, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #qSlot1.active { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border-color: var(--primary); }
+    #qSlot2.active { background: linear-gradient(135deg, #10b981, #059669); color: white; border-color: var(--success); }
+    #qSlot3.active { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; border-color: #d97706; }
+    
+    .q-strat-btn.active {
+      background: linear-gradient(135deg, #a855f7, #9333ea);
+      color: white;
+      border-color: #a855f7;
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+    }
+    .q-slot-btn:hover, .q-strat-btn:hover {
+      filter: brightness(1.2);
     }
 
     .toast {
