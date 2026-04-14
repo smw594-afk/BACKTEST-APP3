@@ -32,6 +32,8 @@ let globalYearlyData = [];
 let chartViewMode = 0;
 let periodBarChartInstance = null;
 let periodDisplayMode = 'chart';
+let isManualBacktestMode = false;
+let simulationConfigs = { 1: null, 2: null, 3: null };
 
 
 
@@ -42,32 +44,7 @@ function forceUpdateApp() {
   }
 }
 
-function applyBacktestMode() {
 
-  const applyToBasics = (basics) => {
-    basics.ticker = "SOXL";
-    basics.startDate = "2014-01-02";
-    basics.endDate = "2025-12-31";
-    basics.initialCash = "10000";
-    basics.renewCash = "10000";
-    basics.fBase = 0;
-    basics.fSec = 0;
-  };
-
-  if (slot1Config && slot1Config.basics && slot1Config.basics.strategy) applyToBasics(slot1Config.basics);
-  if (slot2Config && slot2Config.basics && slot2Config.basics.strategy) applyToBasics(slot2Config.basics);
-  if (slot3Config && slot3Config.basics && slot3Config.basics.strategy) applyToBasics(slot3Config.basics);
-
-  localStorage.setItem('vtotal_conf1_' + myUserId, JSON.stringify(slot1Config));
-  localStorage.setItem('vtotal_conf2_' + myUserId, JSON.stringify(slot2Config));
-  localStorage.setItem('vtotal_conf3_' + myUserId, JSON.stringify(slot3Config));
-
-  loadSlotToForm(activeSettingsTab);
-
-  if (window.showToast) {
-    showToast("🗓️ 백테스트 모드(SOXL)가 설정되었습니다. [백테스트 실행]을 진행하세요.");
-  }
-}
 
 function toggleSettings() {
   const screen = document.getElementById('settingsScreen');
@@ -113,7 +90,7 @@ function restoreSimulationUI() {
       renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
     }
     showToast("이전(캐시) 데이터로 복원 완료", "✅");
-  } catch (e) { console.error("Restore Failed:", e); } finally { isViewingHistory = false; }
+  } catch (e) { console.error("Restore Failed:", e); } finally { isViewingHistory = false; isManualBacktestMode = false; updateHeaderDisplay(); }
 }
 
 // ⭐️ 실전 계좌 모드로 강제 복원하는 공통 함수
@@ -121,6 +98,8 @@ async function restoreRealAccountMode() {
   if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 시트의 실시간 데이터로 교체됩니다.")) return;
 
   isViewingHistory = false;
+  isManualBacktestMode = false;
+  updateHeaderDisplay();
   setLED('loading');
   await checkAndSyncWithServer(true); // 서버 동기화 강제 실행
   setLED('on');
@@ -154,7 +133,6 @@ function renderPerfFromCache(strat1Name, strat2Name, strat3Name) {
 }
 
 function showOrderView() {
-  restoreSimulationUI();
   isStatsMode = false;
   isOrderView = true;
   document.getElementById('mainGrid').classList.remove('perf-metrics-layout');
@@ -183,16 +161,15 @@ function shouldAutoRefresh() {
 function showStatsView() {
   isStatsMode = true;
   isOrderView = false;
-  isViewingHistory = true;
 
   const grid = document.getElementById('mainGrid');
   if (grid) grid.classList.add('perf-metrics-layout');
   const btnStats = document.getElementById('btnStatsShow');
   if (btnStats) btnStats.classList.add('active');
 
-  const s1 = slot1Config?.basics?.strategy || "";
-  const s2 = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
-  const s3 = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+  const s1 = getSlotConfig(1)?.basics?.strategy || "";
+  const s2 = isSlot2Active() ? (getSlotConfig(2)?.basics?.strategy || "") : "";
+  const s3 = isSlot3Active() ? (getSlotConfig(3)?.basics?.strategy || "") : "";
 
   renderPerfFromCache(s1, s2, s3);
 }
@@ -213,9 +190,10 @@ function switchSettingsTab(tabNum) {
   activeSettingsTab = tabNum;
   loadSlotToForm(tabNum);
   updateSettingsTabButtons();
+  updateCurrentStatusUI(tabNum); // 탭 전환 시 상태창 즉시 업데이트
   document.getElementById('tabSlot1').style.background = (tabNum === 1) ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(51,65,85,0.8)';
   document.getElementById('tabSlot2').style.background = (tabNum === 2) ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(51,65,85,0.8)';
-  document.getElementById('tabSlot3').style.background = (tabNum === 3) ? 'linear-gradient(135deg, #ec4899, #db2777)' : 'rgba(51,65,85,0.8)';
+  document.getElementById('tabSlot3').style.background = (tabNum === 3) ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' : 'rgba(51,65,85,0.8)';
 }
 
 function updateSettingsTabButtons() {
@@ -251,12 +229,33 @@ function loadSlotToForm(slotNum) {
 }
 
 function isStrategySet(cfg) { return cfg && cfg.basics && cfg.basics.strategy && cfg.basics.strategy !== ""; }
-function isSlot1Active() { return isStrategySet(slot1Config); }
-function isSlot2Active() { return isStrategySet(slot2Config); }
-function isSlot3Active() { return isStrategySet(slot3Config); }
+function isSlot1Active() {
+  if (isManualBacktestMode) return !!(simulationConfigs[1] && simulationConfigs[1].basics && simulationConfigs[1].basics.strategy);
+  return isStrategySet(slot1Config);
+}
+function isSlot2Active() {
+  if (isManualBacktestMode) return !!(simulationConfigs[2] && simulationConfigs[2].basics && simulationConfigs[2].basics.strategy);
+  return isStrategySet(slot2Config);
+}
+function isSlot3Active() {
+  if (isManualBacktestMode) return !!(simulationConfigs[3] && simulationConfigs[3].basics && simulationConfigs[3].basics.strategy);
+  return isStrategySet(slot3Config);
+}
+
+function getSlotConfig(num) {
+  if (isManualBacktestMode && simulationConfigs[num]) return simulationConfigs[num];
+  if (num === 1) return slot1Config;
+  if (num === 2) return slot2Config;
+  if (num === 3) return slot3Config;
+  return null;
+}
 
 function updateSlotsVisibility() {
-  const statuses = [isSlot1Active(), isSlot2Active(), isSlot3Active()];
+  const statuses = [
+    isManualBacktestMode ? (simulationConfigs[1] && simulationConfigs[1].basics && simulationConfigs[1].basics.strategy !== "") : isSlot1Active(),
+    isManualBacktestMode ? (simulationConfigs[2] && simulationConfigs[2].basics && simulationConfigs[2].basics.strategy !== "") : isSlot2Active(),
+    isManualBacktestMode ? (simulationConfigs[3] && simulationConfigs[3].basics && simulationConfigs[3].basics.strategy !== "") : isSlot3Active(),
+  ];
   statuses.forEach((active, i) => {
     const num = i + 1;
     const v = document.getElementById('orderSlot' + num); if (v) v.style.display = active ? 'flex' : 'none';
@@ -402,6 +401,55 @@ function enterAppDirectly() {
   setLED('on');
   initInstantButtonEvents();
   initStatsButtonEvents();
+  initBacktestLongPress();
+}
+
+/**
+ * 아이디 옆에 백테스트 모드 상태와 초기자산 금액을 업데이트하는 함수
+ */
+function updateHeaderDisplay() {
+  const header = document.getElementById('userDisplayHeader');
+  if (!header) return;
+
+  if (!isViewingHistory) {
+    header.innerText = myUserId;
+    return;
+  }
+
+  // 백테스트 모드 표시 로직
+  let assets = [];
+  // 활성화된 슬롯의 설정값 수집
+  if (isManualBacktestMode) {
+    if (simulationConfigs[1]) assets.push(Number(simulationConfigs[1].basics.initialCash));
+    if (simulationConfigs[2]) assets.push(Number(simulationConfigs[2].basics.initialCash));
+    if (simulationConfigs[3]) assets.push(Number(simulationConfigs[3].basics.initialCash));
+  } else {
+    if (isSlot1Active() && slot1Config.basics.initialCash) assets.push(Number(unformatComma(String(slot1Config.basics.initialCash))));
+    if (isSlot2Active() && slot2Config.basics.initialCash) assets.push(Number(unformatComma(String(slot2Config.basics.initialCash))));
+    if (isSlot3Active() && slot3Config.basics.initialCash) assets.push(Number(unformatComma(String(slot3Config.basics.initialCash))));
+  }
+
+  // 중복 제거 (NaN 및 0 이하 제외)
+  const uniqueAssets = [...new Set(assets.filter(a => !isNaN(a) && a > 0))];
+
+  let label = " (백테스트";
+  // 모든 활성 슬롯의 초기자산이 동일할 때만 금액 표시
+  if (uniqueAssets.length === 1) {
+    label += " $" + formatComma(uniqueAssets[0]);
+  }
+  label += ")";
+
+  header.innerText = myUserId + label;
+}
+
+function selectQuickStrat(btn, stratName) {
+  // 모든 투자법 버튼에서 active 제거
+  const btns = document.querySelectorAll('.q-strat-btn');
+  btns.forEach(b => b.classList.remove('active'));
+  // 클릭한 버튼 active 추가
+  btn.classList.add('active');
+  // 히든 input에 값 저장
+  document.getElementById('qStrategy').value = stratName;
 }
 
 function initStatsButtonEvents() {
@@ -445,6 +493,106 @@ function initInstantButtonEvents() {
   btn.addEventListener('mouseup', cancel);
   btn.addEventListener('touchend', cancel);
   btn.addEventListener('click', click);
+}
+
+function initBacktestLongPress() {
+  const btn = document.getElementById('runBtnSettings');
+  if (!btn) return;
+  // 이제 클릭만 해도 설정창이 뜨도록 변경
+  btn.onclick = () => openQuickConfig();
+}
+
+function openQuickConfig() {
+  const overlay = document.getElementById('quickConfigOverlay');
+  if (!overlay) return;
+
+  // 요청하신 기본값으로 설정
+  document.getElementById('qStrat1').value = '2M3D2(1.2)';
+  document.getElementById('qStrat2').value = '2M3D2(2.0)';
+  document.getElementById('qStrat3').value = '2M3D1-1P';
+
+  document.getElementById('qTicker').value = 'SOXL';
+  document.getElementById('qStartDate').value = '2026-01-01';
+  document.getElementById('qEndDate').value = '';
+  document.getElementById('qInitialCash').value = formatComma('40000');
+  document.getElementById('qRenewCash').value = formatComma('40000');
+
+  // 현재 설정창에 있는 수수료/SEC 값을 가져와 모달에 채워줌
+  document.getElementById('qFBase').value = document.getElementById('fBase').value || '0.08';
+  document.getElementById('qFSec').value = document.getElementById('fSec').value || '0.00278';
+
+  document.getElementById('qBatchRaw').value = '';
+
+  overlay.style.display = 'flex';
+}
+
+function handleQuickBatchParse(val) {
+  if (!val) return;
+  // 공백, 콤마, 슬래시 등으로 구분된 값을 찾음
+  const parts = val.trim().split(/[\s,\|]+/).filter(v => v !== "");
+  if (parts.length >= 1) {
+    // 날짜 형식 체크 (YYYY-MM-DD)
+    if (parts[0].match(/^\d{4}-\d{2}-\d{2}$/)) document.getElementById('qStartDate').value = parts[0];
+  }
+  if (parts.length >= 2) {
+    if (parts[1].match(/^\d{4}-\d{2}-\d{2}$/)) document.getElementById('qEndDate').value = parts[1];
+  }
+  if (parts.length >= 3) {
+    document.getElementById('qInitialCash').value = parts[2];
+  }
+  if (parts.length >= 4) {
+    document.getElementById('qRenewCash').value = parts[3];
+  }
+}
+
+function applyQuickConfig() {
+  const t = document.getElementById('qTicker').value;
+  const s = document.getElementById('qStartDate').value;
+  const e = document.getElementById('qEndDate').value;
+  const i = document.getElementById('qInitialCash').value;
+  const r = document.getElementById('qRenewCash').value;
+  const fb = document.getElementById('qFBase').value;
+  const fs = document.getElementById('qFSec').value;
+
+  const strategies = [
+    document.getElementById('qStrat1').value,
+    document.getElementById('qStrat2').value,
+    document.getElementById('qStrat3').value
+  ];
+
+  if (strategies.every(st => st === "")) {
+    alert("최소 한 개 이상의 투자법을 선택해주세요.");
+    return;
+  }
+
+  // 수동 백테스트 모드 활성화
+  isManualBacktestMode = true;
+  isViewingHistory = true;
+
+  // 각 슬롯별로 시뮬레이션 설정 저장 (원본 localStorage 및 slotConfig 변수는 유지)
+  strategies.forEach((st, idx) => {
+    const slotNum = idx + 1;
+    if (st === "") {
+      simulationConfigs[slotNum] = null;
+    } else {
+      simulationConfigs[slotNum] = {
+        basics: {
+          ticker: t,
+          startDate: s,
+          endDate: e,
+          strategy: st,
+          initialCash: unformatComma(i),
+          renewCash: unformatComma(r),
+          fBase: fb,
+          fSec: fs
+        }
+      };
+    }
+  });
+
+  document.getElementById('quickConfigOverlay').style.display = 'none';
+  showToast("수동 백테스트 모드로 실행합니다. (원본 설정은 유지됨)", "🚀");
+  runEngine();
 }
 
 async function checkAndSyncWithServer(isInitial) {
@@ -543,20 +691,16 @@ async function checkAndSyncWithServer(isInitial) {
         const configStartDate = confData.basics.startDate || "1900-01-01";
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, configStartDate);
 
-        if (realData) {
-          localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(realData));
+          if (realData) {
+            localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(realData));
 
-          if (slotNum === activeSettingsTab) {
-            const pInput = document.getElementById('initialCash');
-            const rInput = document.getElementById('renewCash');
-            const sInput = document.getElementById('startDate');
-            if (pInput) pInput.value = formatComma(confData.basics.initialCash);
-            if (rInput) rInput.value = formatComma(realData.summary.base);
-            if (sInput && confData.basics.startDate) sInput.value = confData.basics.startDate;
-          }
-
-          const pureEngineRes = await runBacktestMemory(confData, false, slotNum);
-          const isEngOk = (pureEngineRes && pureEngineRes.summary);
+            // 💰 [동기화 핵심] 시트에서 가져온 최신 갱신금은 '상태 출력창'에만 반영하고 입력 필드(config)는 건드리지 않음
+            const sheetBase = fixFloat(realData.summary.base);
+            // 메모리 config의 갱신금은 사용자가 입력한 초기값을 유지함
+            
+            // 이제 업데이트된 설정값으로 엔진을 실행하여 정합성을 맞춤
+            const pureEngineRes = await runBacktestMemory(slotNum === 1 ? slot1Config : slotNum === 2 ? slot2Config : slot3Config, false, slotNum);
+            const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
           let mergedSnap = {
             ...realData,
@@ -613,7 +757,7 @@ async function checkAndSyncWithServer(isInitial) {
     if (lastBTResult3) updateUIWithResult(lastBTResult3, slot3Config, 3, false);
     setLED('error');
   } finally {
-    if (userHeader) userHeader.innerText = myUserId;
+    updateHeaderDisplay();
     setLED('on');
   }
 }
@@ -683,79 +827,132 @@ function triggerOptimisticSave() {
 }
 
 async function handleSave() {
-  const endDateVal = document.getElementById('endDate').value;
-  if (endDateVal) {
-    if (!confirm("⚠️ [주의] 종료일이 설정되어 있습니다.\n\n백테스트용 과거 데이터가 현재의 실전 데이터 자리에 덮어씌워질 수 있습니다. 정말 시트에 반영하시겠습니까?")) return;
-  }
-
-  const now = new Date();
-  const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
-
-  if (nyHour < 17) {
-    if (!confirm("🚨 [데이터 오염 위험]\n\n아직 미 증시 종가가 확정되지 않은 시간입니다.\n지금 시트에 강제로 저장하면 불완전한 데이터가 기록될 수 있습니다.\n\n정말 강제로 저장하시겠습니까?")) return;
-  } else if (!endDateVal) {
-    if (!confirm("현재 화면에 표시된 계산 결과를 시트에 최종본으로 반영하시겠습니까?")) return;
-  }
-
   const btn = document.getElementById('btnSaveTop');
   const orgText = btn.innerHTML;
-  btn.innerText = '저장 중...';
-
-  saveCurrentFormToSlot(activeSettingsTab);
-  lastMyPerfData = null;
-
-  if (userHeader) userHeader.innerText = myUserId + ' (저장 전 자동 계산 중...)';
-  if (isSlot1Active()) lastBTResult1 = await runBacktestMemory(slot1Config, false, 1);
-  if (isSlot2Active()) lastBTResult2 = await runBacktestMemory(slot2Config, false, 2);
-  if (isSlot3Active()) lastBTResult3 = await runBacktestMemory(slot3Config, false, 3);
-  if (userHeader) userHeader.innerText = myUserId;
-
-  const processSlotForSave = (cfg, isActive, slotNum, currentRes) => {
-    if (!isActive || !currentRes || currentRes.status === "error") return null;
-    updateUIWithResult(currentRes, cfg, slotNum, false);
-    return currentRes;
-  };
-
-  const res1 = processSlotForSave(slot1Config, isSlot1Active(), 1, lastBTResult1);
-  const res2 = processSlotForSave(slot2Config, isSlot2Active(), 2, lastBTResult2);
-  const res3 = processSlotForSave(slot3Config, isSlot3Active(), 3, lastBTResult3);
-
-  renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
-  const current_phone_time = new Date().toLocaleString('sv-SE');
-  localStorage.setItem('vtotal_last_sync_time', current_phone_time);
-
-  const targetDate = (res1 && res1.chartDates) ? res1.chartDates[res1.chartDates.length - 1] :
-    (res2 && res2.chartDates) ? res2.chartDates[res2.chartDates.length - 1] :
-      (res3 && res3.chartDates) ? res3.chartDates[res3.chartDates.length - 1] : formatDateNY(new Date());
-
-  let payload = {
-    action: "BACKUP_AND_SAVE_V4",
-    id: myUserId,
-    sync_time: current_phone_time,
-    date: targetDate,
-    params: slot1Config,
-    params2: isSlot2Active() ? slot2Config : null,
-    params3: isSlot3Active() ? slot3Config : null,
-    s1: res1 ? { asset: fixFloat(res1.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(res1.summary.cash), base_principal: fixFloat(res1.summary.base), holdings: res1.inv }) } : null,
-    s2: res2 ? { asset: fixFloat(res2.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(res2.summary.cash), base_principal: fixFloat(res2.summary.base), holdings: res2.inv }) } : null,
-    s3: res3 ? { asset: fixFloat(res3.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(res3.summary.cash), base_principal: fixFloat(res3.summary.base), holdings: res3.inv }) } : null
-  };
-
-  if (!navigator.onLine) {
-    handleOfflineSave(payload);
-    btn.innerHTML = orgText;
-    return;
-  }
+  btn.innerText = '준비 중...';
 
   try {
-    await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-    btn.innerText = '시트반영완료';
-    showToast(`시트에 압축 반영되었습니다. (${current_phone_time.split(' ')[1]})`);
-    localStorage.removeItem('vtotal_pending_sync');
+    saveCurrentFormToSlot(activeSettingsTab);
+    lastMyPerfData = null;
+    isViewingHistory = false;
+
+    // 1. 계산부터 먼저 수행 (대조를 위해 필요)
+    const orgManualMode = isManualBacktestMode;
+    let targetRes = null;
+    try {
+      isManualBacktestMode = true;
+      const cfg = (activeSettingsTab === 1 ? slot1Config : activeSettingsTab === 2 ? slot2Config : slot3Config);
+      targetRes = await runBacktestMemory(cfg, false, activeSettingsTab);
+    } finally {
+      isManualBacktestMode = orgManualMode;
+    }
+
+    if (!targetRes || targetRes.status === "error") {
+      showToast("❌ 계산 중 오류가 발생했습니다.");
+      btn.innerHTML = orgText;
+      return;
+    }
+
+    // 2. 통합 경고 메시지 구성 (시장 시간 + 종료일 + 수치 대조)
+    let alertMsgs = [];
+    const endDateVal = document.getElementById('endDate').value;
+    const now = new Date();
+    const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+
+    if (nyHour < 17) {
+      alertMsgs.push("🚨 [장 마감 전] 종가 미확정 데이터가 기록될 수 있습니다.");
+    }
+    if (endDateVal) {
+      alertMsgs.push("⚠️ [종료일 설정] 실전 데이터가 과거 데이터로 덮어씌워질 수 있습니다.");
+    }
+
+    // 3. 시트 값과 정밀 대조
+    const snapStr = localStorage.getItem(`vtotal_snap${activeSettingsTab}_` + myUserId);
+    let diffMsgs = [];
+    if (snapStr) {
+      const snap = JSON.parse(snapStr);
+      const sheetB = fixFloat(snap.summary.base);
+      const sheetC = fixFloat(snap.summary.cash);
+      const sheetA = fixFloat(snap.summary.totalAssets);
+      const appB = fixFloat(targetRes.summary.base);
+      const appC = fixFloat(targetRes.summary.cash);
+      const appA = fixFloat(targetRes.summary.totalAssets);
+
+      if (Math.abs(sheetB - appB) > 0.009) diffMsgs.push(`● 갱신금: ${formatComma(sheetB.toFixed(2))} → ${formatComma(appB.toFixed(2))}`);
+      if (Math.abs(sheetC - appC) > 0.009) diffMsgs.push(`● 캐쉬: ${formatComma(sheetC.toFixed(2))} → ${formatComma(appC.toFixed(2))}`);
+      if (Math.abs(sheetA - appA) > 0.009) diffMsgs.push(`● 총잔고: ${formatComma(sheetA.toFixed(2))} → ${formatComma(appA.toFixed(2))}`);
+    }
+
+    // 4. 통합 확인창 띄우기
+    let finalConfirmMsg = "📋 [시트 반영 수치 정밀 대조]\n";
+    if (alertMsgs.length > 0) finalConfirmMsg += "\n" + alertMsgs.join("\n") + "\n";
+    
+    if (diffMsgs.length > 0) {
+      finalConfirmMsg += "\n📊 [수치 변동 감지]\n" + diffMsgs.join("\n") + "\n";
+    } else {
+      finalConfirmMsg += "\n✅ 기존 시트 데이터와 일치합니다.\n";
+    }
+    finalConfirmMsg += "\n계산된 수치를 시트에 최종 반영하시겠습니까?";
+
+    if (!confirm(finalConfirmMsg)) {
+      btn.innerHTML = orgText;
+      return;
+    }
+
+    // 5. 시트 반영 절차 계속 진행
+    btn.innerText = '저장 중...';
+    updateHeaderDisplay();
+
+    renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
+
+    const current_phone_time = new Date().toLocaleString('sv-SE');
+    localStorage.setItem('vtotal_last_sync_time', current_phone_time);
+
+    const targetDate = (targetRes.chartDates) ? targetRes.chartDates[targetRes.chartDates.length - 1] : formatDateNY(new Date());
+
+    let payload = {
+      action: "BACKUP_AND_SAVE_V4",
+      id: myUserId,
+      sync_time: current_phone_time,
+      date: targetDate,
+      params: (activeSettingsTab === 1) ? slot1Config : null,
+      params2: (activeSettingsTab === 2) ? slot2Config : null,
+      params3: (activeSettingsTab === 3) ? slot3Config : null,
+      s1: (activeSettingsTab === 1) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null,
+      s2: (activeSettingsTab === 2) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null,
+      s3: (activeSettingsTab === 3) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null
+    };
+
+    if (navigator.onLine) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      try {
+        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload), signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const updatedSnap = {
+          ...targetRes,
+          summary: { ...targetRes.summary },
+          isSynced: true
+        };
+        localStorage.setItem(`vtotal_snap${activeSettingsTab}_` + myUserId, JSON.stringify(updatedSnap));
+        localStorage.setItem('vtotal_snap_date_' + myUserId, formatDateNY(new Date()));
+
+        btn.innerText = '시트반영완료';
+        showToast("시트에 데이터가 보존된 상태로 반영되었습니다.");
+        localStorage.removeItem('vtotal_pending_sync');
+      } catch (e) {
+        clearTimeout(timeoutId);
+        handleOfflineSave(payload);
+      }
+    } else {
+      handleOfflineSave(payload);
+    }
+  } catch (err) {
+    console.error("Save Error:", err);
+    alert("저장 중 오류가 발생했습니다: " + err.message);
+  } finally {
     setTimeout(() => { btn.innerHTML = orgText; }, 1500);
-  } catch (e) {
-    handleOfflineSave(payload);
-    btn.innerHTML = orgText;
   }
 }
 
@@ -798,19 +995,14 @@ function initData(d) {
   const rInput = document.getElementById('renewCash');
   if (pInput && rInput) {
     pInput.oninput = function () {
-      const oldVal = unformatComma(pInput.value);
-      pInput.value = formatComma(oldVal);
-      if (!rInput.value || rInput.value === pInput.oldValue) {
-        rInput.value = pInput.value;
-      }
-      pInput.oldValue = pInput.value;
+      pInput.value = formatComma(pInput.value);
     };
-    pInput.oldValue = pInput.value;
-
     rInput.oninput = function () {
       rInput.value = formatComma(rInput.value);
     };
   }
+
+  updateCurrentStatusUI(activeSettingsTab); // 데이터 로딩 시 상태창 업데이트
 }
 
 function handleStrategyChange(strategyName) { document.getElementById('strategySelect').value = strategyName; triggerOptimisticSave(); }
@@ -828,6 +1020,40 @@ function gatherParams() {
       fSec: document.getElementById('fSec').value
     }
   };
+}
+
+/**
+ * 📊 설정 내 '실시간 운용 현황' 출력창 업데이트 기능을 수행함
+ */
+function updateCurrentStatusUI(slotNum) {
+  const panel = document.getElementById('settingsStatusPanel');
+  if (!panel) return;
+
+  const res = (slotNum === 1) ? lastBTResult1 : (slotNum === 2) ? lastBTResult2 : lastBTResult3;
+  
+  const elDate = document.getElementById('statDate');
+  const elTotal = document.getElementById('statTotal');
+  const elRenew = document.getElementById('statRenew');
+  const elPrincipal = document.getElementById('statPrincipal');
+
+  if (!res || !res.summary) {
+    elDate.innerText = "-"; elTotal.innerText = "-"; elRenew.innerText = "-"; elPrincipal.innerText = "-";
+    return;
+  }
+
+  const s = res.summary;
+  // ⭐️ 날짜 표시: 시트에서 가져온 마지막 동기화(기록) 날짜 표시 (B, G, L 행 등 시트 기준 데이터)
+  const sheetDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "-";
+  
+  const fmt = (val) => {
+    // ⭐️ 요청에 따라 실시간 운용현황은 항상 달러($)로 표기
+    return "$" + fixFloat(val).toLocaleString();
+  };
+
+  elDate.innerText = sheetDate;
+  elTotal.innerText = fmt(s.totalAssets);
+  elRenew.innerText = fmt(s.base);
+  elPrincipal.innerText = fmt(s.realPrincipal || s.base);
 }
 
 function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
@@ -867,30 +1093,10 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
   renderOrderViewSlot(finalRes, slotNum);
   renderPeriodTableSlot(slotNum);
   renderMetrics(finalRes.summary, finalRes.chartDates ? finalRes.chartDates.length : 0, slotNum);
+  if (slotNum === activeSettingsTab) updateCurrentStatusUI(slotNum);
   calculateCombinedPeriodData();
   if (skipSave) return;
-
-  try {
-    const snapshot = {
-      orders: resBT.orders,
-      orderDateStr: resBT.orderDateStr,
-      summary: resBT.summary,
-      inv: (resBT.inv || []).map(p => ({ tier: p.tier, mode: p.mode, buy_price: p.buy_price, qty: p.qty, cost: p.cost, days: p.days, buyDate: p.buyDate })),
-      monthlyData: resBT.monthlyData,
-      yearlyData: resBT.yearlyData,
-      chartDates: resBT.chartDates,
-      chartBalances: resBT.chartBalances,
-      chartMdd: resBT.chartMdd,
-      currentStrat: resBT.currentStrat,
-      nextOrderInfo: resBT.nextOrderInfo,
-      isSynced: resBT.isSynced // ⭐️ 동기화 여부 함께 저장
-    };
-    localStorage.setItem(`vtotal_snap${slotNum}_` + myUserId, JSON.stringify(snapshot));
-    localStorage.setItem('vtotal_snap_date_' + myUserId, formatDateNY(new Date()));
-    const kst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-    const kstDateStr = kst.getFullYear() + '-' + (kst.getMonth() + 1) + '-' + kst.getDate();
-    localStorage.setItem('vtotal_last_auto_kst_' + myUserId, kstDateStr);
-  } catch (e) { }
+  // 스냅샷 갱신은 오직 서버 연동/저장 성공 시에만 수행하도록 격리함.
 }
 
 function confirmLogout() { if (confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem('vtotal_auth'); localStorage.removeItem('vtotal_id'); location.reload(); } }
@@ -900,15 +1106,30 @@ function confirmLogout() { if (confirm("로그아웃 하시겠습니까?")) { lo
 
 
 async function runEngine() {
-  const ticker = document.getElementById('ticker').value;
-  const startDate = document.getElementById('startDate').value;
+  let ticker, startDate;
+  if (isManualBacktestMode) {
+    const firstActive = Object.values(simulationConfigs).find(c => c && c.basics && c.basics.ticker);
+    ticker = firstActive?.basics?.ticker;
+    startDate = firstActive?.basics?.startDate;
+  } else {
+    ticker = document.getElementById('ticker').value;
+    startDate = document.getElementById('startDate').value;
+  }
+
   if (!ticker || !startDate) return alert("데이터를 완전히 불러온 후 실행해주세요.");
 
   const restoreBtn = setBtnLoading('runBtnSettings', '계산 중...');
 
   isViewingHistory = true;
+  updateHeaderDisplay();
 
   const executeSlot = async (cfg, isActive, setRes, slotNum) => {
+    // 수동 백테스트 모드일 때는 simulationConfigs 사용
+    if (isManualBacktestMode) {
+      cfg = simulationConfigs[slotNum];
+      isActive = (cfg && cfg.basics && cfg.basics.strategy !== "");
+    }
+
     if (isActive) {
       const res = await runBacktestMemory(cfg, true, slotNum);
       if (res.status !== "error") {
@@ -949,6 +1170,9 @@ async function runEngine() {
 async function handleInstantOrder() {
   const grid = document.getElementById('mainGrid');
   if (grid) grid.classList.remove('hide-order-panel', 'perf-metrics-layout');
+  isViewingHistory = false;
+  isManualBacktestMode = false;
+  updateHeaderDisplay();
   const restoreBtn = setBtnLoading('btnInstant', '계산 중...');
 
   const executeSlot = async (cfg, isActive, setRes, slotNum) => {
@@ -1026,6 +1250,9 @@ function renderOrderViewSlot(res, slotNum) {
   renderOrderTableSlot(res.orders, suffix);
   renderHoldingsTableSlot(res.inv || [], res.currentStrat, suffix);
 
+  const nameEl = document.getElementById('orderSlot' + suffix + 'Name');
+  if (nameEl) nameEl.innerText = res.currentStrat || "";
+
   if (res.nextOrderInfo) {
     const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
     document.getElementById('tierCountVal' + suffix).innerText = res.nextOrderInfo.tier;
@@ -1053,9 +1280,9 @@ function toggleOrderExpansion() {
 }
 
 function refreshOrderViewUI() {
-  const s1 = (slot1Config?.basics?.strategy || "");
-  const s2 = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
-  const s3 = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+  const s1 = (getSlotConfig(1)?.basics?.strategy || "");
+  const s2 = isSlot2Active() ? (getSlotConfig(2)?.basics?.strategy || "") : "";
+  const s3 = isSlot3Active() ? (getSlotConfig(3)?.basics?.strategy || "") : "";
   const sArr = [];
   if (s1) sArr.push(s1);
   if (s2) sArr.push(s2);
@@ -1089,7 +1316,7 @@ function refreshOrderViewUI() {
   const labelText = isOrderView ? "주문표" : "보유계좌 현황";
   const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
 
-  let titleStr = `${icon} ${labelText}<span ${smallStyle}>(${stratDisplay})</span>`;
+  let titleStr = `${icon} ${labelText}`;
   titleStr += ` <span style="font-size:0.75em; font-weight:normal; opacity:0.6; margin-left:8px;">(${date1})</span>`;
 
   const now = new Date();
@@ -1160,9 +1387,9 @@ function renderOrderTableSlot(orders, slotNum) {
 function updatePeriodTitle() {
   const periodTitle = document.getElementById('periodTitle');
   if (!periodTitle) return;
-  const s1 = isSlot1Active() ? (slot1Config?.basics?.strategy || "") : "";
-  const s2 = isSlot2Active() ? (slot2Config?.basics?.strategy || "") : "";
-  const s3 = isSlot3Active() ? (slot3Config?.basics?.strategy || "") : "";
+  const s1 = isSlot1Active() ? (getSlotConfig(1)?.basics?.strategy || "") : "";
+  const s2 = isSlot2Active() ? (getSlotConfig(2)?.basics?.strategy || "") : "";
+  const s3 = isSlot3Active() ? (getSlotConfig(3)?.basics?.strategy || "") : "";
   let sArr = [];
   if (s1) sArr.push(s1);
   if (s2) sArr.push(s2);
@@ -1274,13 +1501,13 @@ function renderPeriodTableText(slotNum) {
 
   if (slotNum === 1) {
     const titleEl = document.getElementById('slot1TableName');
-    if (titleEl) titleEl.innerText = slot1Config?.basics?.strategy || '투자법 1';
+    if (titleEl) titleEl.innerText = getSlotConfig(1)?.basics?.strategy || '투자법 1';
   } else if (slotNum === 2) {
     const titleEl = document.getElementById('slot2TableName');
-    if (titleEl) titleEl.innerText = slot2Config?.basics?.strategy || '투자법 2';
+    if (titleEl) titleEl.innerText = getSlotConfig(2)?.basics?.strategy || '투자법 2';
   } else if (slotNum === 3) {
     const titleEl = document.getElementById('slot3TableName');
-    if (titleEl) titleEl.innerText = slot3Config?.basics?.strategy || '투자법 3';
+    if (titleEl) titleEl.innerText = getSlotConfig(3)?.basics?.strategy || '투자법 3';
   }
 
   const mData = (slotNum === 1) ? globalMonthlyData1 : (slotNum === 2) ? globalMonthlyData2 : (slotNum === 3) ? globalMonthlyData3 : globalMonthlyData4;
@@ -1468,9 +1695,9 @@ function renderPeriodBarChart() {
   const rates2 = sortedPeriods.map(p => map2[p] ? Number((map2[p].rate * 100).toFixed(2)) : 0);
   const rates3 = sortedPeriods.map(p => map3[p] ? Number((map3[p].rate * 100).toFixed(2)) : 0);
 
-  const s1Name = slot1Config?.basics?.strategy || '투자법 1';
-  const s2Name = slot2Config?.basics?.strategy || '투자법 2';
-  const s3Name = slot3Config?.basics?.strategy || '투자법 3';
+  const s1Name = getSlotConfig(1)?.basics?.strategy || '투자법 1';
+  const s2Name = getSlotConfig(2)?.basics?.strategy || '투자법 2';
+  const s3Name = getSlotConfig(3)?.basics?.strategy || '투자법 3';
   const isYearly = (periodViewState === 1);
 
   let datasets = [];
@@ -1529,11 +1756,11 @@ function renderPeriodBarChart() {
       label: '평균 수익률',
       data: combinedRates,
       type: 'line',
-      borderColor: '#fbbf24',
-      backgroundColor: '#fbbf24',
+      borderColor: '#a855f7',
+      backgroundColor: '#a855f7',
       borderWidth: 3,
       pointRadius: 2,
-      pointBackgroundColor: '#fbbf24',
+      pointBackgroundColor: '#a855f7',
       tension: 0.3,
       yAxisID: 'yRate',
       order: 1
@@ -1641,7 +1868,7 @@ function renderPeriodBarChart() {
           grid: { display: false },
           ticks: {
             font: { family: 'Inter', size: 10, weight: 'bold' },
-            color: '#fbbf24',
+            color: '#a855f7',
             callback: function (v) { return v + '%'; }
           },
           title: { display: false }
@@ -1692,9 +1919,9 @@ function refreshStatsTable() {
   const s2Active = isSlot2Active();
   const s3Active = isSlot3Active();
   const rows = [];
-  if (s1Active) rows.push({ res: getBestResult(lastBTResult1, 1), name: slot1Config?.basics?.strategy || '투자법 1', color: 'var(--primary)' });
-  if (s2Active) rows.push({ res: getBestResult(lastBTResult2, 2), name: slot2Config?.basics?.strategy || '투자법 2', color: 'var(--success)' });
-  if (s3Active) rows.push({ res: getBestResult(lastBTResult3, 3), name: slot3Config?.basics?.strategy || '투자법 3', color: '#ec4899' });
+  if (s1Active) rows.push({ res: getBestResult(lastBTResult1, 1), name: getSlotConfig(1)?.basics?.strategy || '투자법 1', color: 'var(--primary)' });
+  if (s2Active) rows.push({ res: getBestResult(lastBTResult2, 2), name: getSlotConfig(2)?.basics?.strategy || '투자법 2', color: 'var(--success)' });
+  if (s3Active) rows.push({ res: getBestResult(lastBTResult3, 3), name: getSlotConfig(3)?.basics?.strategy || '투자법 3', color: '#f59e0b' });
 
   let activeCount = (s1Active ? 1 : 0) + (s2Active ? 1 : 0) + (s3Active ? 1 : 0);
   if (activeCount >= 2) {
@@ -1878,9 +2105,9 @@ function renderChart(res1, res2, res3) {
   const s2Set = isSlot2Active();
   const s3Set = isSlot3Active();
 
-  const s1NameT = s1Set ? (slot1Config?.basics?.strategy || '투자법 1') : '투자법 1';
-  const s2NameT = s2Set ? (slot2Config?.basics?.strategy || '투자법 2') : '투자법 2';
-  const s3NameT = s3Set ? (slot3Config?.basics?.strategy || '투자법 3') : '투자법 3';
+  const s1NameT = s1Set ? (getSlotConfig(1)?.basics?.strategy || '투자법 1') : '투자법 1';
+  const s2NameT = s2Set ? (getSlotConfig(2)?.basics?.strategy || '투자법 2') : '투자법 2';
+  const s3NameT = s3Set ? (getSlotConfig(3)?.basics?.strategy || '투자법 3') : '투자법 3';
 
   let namesStr = [];
   if (s1Set) namesStr.push(s1NameT);
@@ -1905,9 +2132,9 @@ function renderChart(res1, res2, res3) {
   const chartFontSize = 11;
   Chart.defaults.font.size = chartFontSize;
 
-  const s1Name = slot1Config?.basics?.strategy || '투자법 1';
-  const s2Name = slot2Config?.basics?.strategy || '투자법 2';
-  const s3Name = slot3Config?.basics?.strategy || '투자법 3';
+  const s1Name = getSlotConfig(1)?.basics?.strategy || '투자법 1';
+  const s2Name = getSlotConfig(2)?.basics?.strategy || '투자법 2';
+  const s3Name = getSlotConfig(3)?.basics?.strategy || '투자법 3';
 
   const allDatesSet = new Set();
   if (res1 && res1.chartDates && s1Set) res1.chartDates.forEach(d => allDatesSet.add(d));
