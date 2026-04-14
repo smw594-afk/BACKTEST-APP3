@@ -218,10 +218,13 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     function n(val, def) { return (val === "" || isNaN(val)) ? def : parseFloat(val); }
     function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : (num / 100.0); }
 
-    const pInput = (activeSettingsTab === slotNum) ? document.getElementById('initialCash') : null;
+    // 수동 백테스트 모드일 때는 화면 입력값이 아닌 전달받은 params(통합 설정값)를 그대로 사용
+    const useDomValues = !isManualBacktestMode && (activeSettingsTab === slotNum);
+
+    const pInput = useDomValues ? document.getElementById('initialCash') : null;
     const realTimePrincipal = pInput ? parseFloat(unformatComma(pInput.value)) : n(params.basics.initialCash, 10000);
 
-    const rInput = (activeSettingsTab === slotNum) ? document.getElementById('renewCash') : null;
+    const rInput = useDomValues ? document.getElementById('renewCash') : null;
     const realTimeRenew = rInput ? parseFloat(unformatComma(rInput.value)) : n(params.basics.renewCash, realTimePrincipal);
 
     params.basics.initialCash = realTimePrincipal;
@@ -260,12 +263,15 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let res = { S: [], BA: [], BF: [], AV: [], INOUT: [], dailyStates: [] };
 
     let activeSlot = slotNum || activeSettingsTab;
-    let snapStr = localStorage.getItem(`vtotal_snap${activeSlot}_` + myUserId);
     let bDates = mainDataAll.dates.filter(d => d <= endDate && d >= startDate);
+    const snapKey = `vtotal_snap${activeSlot}_` + myUserId;
+    const snapStr = localStorage.getItem(snapKey);
     let startLoopIdx = 0;
     let maxBuyDate = "";
 
-    if (!force && snapStr) {
+    // ⭐️ [수정] 수동 백테스트나 저장 모드(!isManualBacktestMode 아닐 때)에서는 스냅샷 상속 차단
+    // 그래야 시트 데이터와 현재 계산값이 다를 때 경고창을 정확히 띄울 수 있음.
+    if (!isManualBacktestMode && !force && snapStr) {
       let snap = JSON.parse(snapStr);
       if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
         res.S = snap.chartDates;
@@ -289,15 +295,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
           base = basePrincipal;
           cumulativeInOut = 0;
         } else {
-          let pastTotalInjected = fixFloat(initialCash + cumulativeInOut);
-          let principalDiff = fixFloat(basePrincipal - pastTotalInjected);
-          if (Math.abs(principalDiff) > 0.01) {
-            cash = fixFloat(cash + principalDiff);
-            base = fixFloat(oldBase + principalDiff);
-            cumulativeInOut = fixFloat(cumulativeInOut + principalDiff);
-          } else {
-            base = oldBase;
-          }
+          // ⭐️ [완전 삭제] 엔진이 임의로 자산을 보정하는 모든 로직(principalDiff)을 제거함
+          base = oldBase;
         }
 
         startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
@@ -506,7 +505,11 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
       let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
       let currentW = MODES[today_m].weight[tTier - 1] || 0;
-      let tSeed = t2(Math.min(base * currentW, cash));
+      
+      // 🎯 [실전 최적화] 주문 수량 계산 시에는 과거 백테스트 결과(base)가 아닌, 
+      // 현재 사용자가 보고 있는 최신 '갱신금(basePrincipal)'을 기준으로 시드를 결정함.
+      let tSeed = t2(Math.min(basePrincipal * currentW, cash));
+      
       let bTgtVal = MODES[today_m].buy[tTier - 1] || 0;
       let tTgt = t2(lastDataClose * (1 + bTgtVal));
       let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.00001) : 0;
@@ -1008,7 +1011,7 @@ function generateCombinedPeriodDataEngine(activeResults) {
 
     combinedBalances.push(dayAsset);
     combinedInouts.push(dayInout);
-    
+
     // 3. 통합 MDD 계산
     if (dayAsset > peak) peak = dayAsset;
     combinedMdds.push(peak > 0 ? (dayAsset - peak) / peak : 0);
