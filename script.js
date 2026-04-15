@@ -611,11 +611,9 @@ async function checkAndSyncWithServer(isInitial) {
       return null;
     };
 
-    const track1Promise = Promise.all([
-      runFastEngine(slot1Config, isSlot1Active(), 1),
-      runFastEngine(slot2Config, isSlot2Active(), 2),
-      runFastEngine(slot3Config, isSlot3Active(), 3)
-    ]);
+    await runFastEngine(slot1Config, isSlot1Active(), 1);
+    await runFastEngine(slot2Config, isSlot2Active(), 2);
+    await runFastEngine(slot3Config, isSlot3Active(), 3);
 
     const track2Promise = (async () => {
       try {
@@ -632,7 +630,7 @@ async function checkAndSyncWithServer(isInitial) {
       } catch (e) { console.error("Track 2 Error:", e); return null; }
     })();
 
-    await track1Promise;
+    // const track1Promise = await ... (이미 위에서 순차 실행 완료)
     if (!isSlot2Active()) toggleSlot2Visibility(false);
     renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
 
@@ -827,12 +825,13 @@ function triggerOptimisticSave() {
 }
 
 async function handleSave() {
+  const targetSlot = activeSettingsTab; // 레이스 컨디션 방지를 위해 현재 슬롯 번호 캡처
   const btn = document.getElementById('btnSaveTop');
   const orgText = btn.innerHTML;
   btn.innerText = '준비 중...';
 
   try {
-    saveCurrentFormToSlot(activeSettingsTab);
+    saveCurrentFormToSlot(targetSlot);
     lastMyPerfData = null;
     isViewingHistory = false;
 
@@ -841,8 +840,8 @@ async function handleSave() {
     let targetRes = null;
     try {
       isManualBacktestMode = true;
-      const cfg = (activeSettingsTab === 1 ? slot1Config : activeSettingsTab === 2 ? slot2Config : slot3Config);
-      targetRes = await runBacktestMemory(cfg, false, activeSettingsTab);
+      const cfg = (targetSlot === 1 ? slot1Config : targetSlot === 2 ? slot2Config : slot3Config);
+      targetRes = await runBacktestMemory(cfg, false, targetSlot);
     } finally {
       isManualBacktestMode = orgManualMode;
     }
@@ -867,7 +866,7 @@ async function handleSave() {
     }
 
     // 3. 시트 값과 정밀 대조
-    const snapStr = localStorage.getItem(`vtotal_snap${activeSettingsTab}_` + myUserId);
+    const snapStr = localStorage.getItem(`vtotal_snap${targetSlot}_` + myUserId);
     let diffMsgs = [];
     if (snapStr) {
       const snap = JSON.parse(snapStr);
@@ -915,19 +914,19 @@ async function handleSave() {
       id: myUserId,
       sync_time: current_phone_time,
       date: targetDate,
-      params: (activeSettingsTab === 1) ? slot1Config : null,
-      params2: (activeSettingsTab === 2) ? slot2Config : null,
-      params3: (activeSettingsTab === 3) ? slot3Config : null,
-      s1: (activeSettingsTab === 1) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null,
-      s2: (activeSettingsTab === 2) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null,
-      s3: (activeSettingsTab === 3) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null
+      params: (targetSlot === 1) ? slot1Config : null,
+      params2: (targetSlot === 2) ? slot2Config : null,
+      params3: (targetSlot === 3) ? slot3Config : null,
+      s1: (targetSlot === 1) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null,
+      s2: (targetSlot === 2) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null,
+      s3: (targetSlot === 3) ? { asset: fixFloat(targetRes.summary.totalAssets), inout: 0, json: JSON.stringify({ cash: fixFloat(targetRes.summary.cash), base_principal: fixFloat(targetRes.summary.base), holdings: targetRes.inv }) } : null
     };
 
     if (navigator.onLine) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000);
       try {
-        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload), signal: controller.signal });
+        await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload), signal: controller.signal });
         clearTimeout(timeoutId);
         
         const updatedSnap = {
@@ -935,7 +934,7 @@ async function handleSave() {
           summary: { ...targetRes.summary },
           isSynced: true
         };
-        localStorage.setItem(`vtotal_snap${activeSettingsTab}_` + myUserId, JSON.stringify(updatedSnap));
+        localStorage.setItem(`vtotal_snap${targetSlot}_` + myUserId, JSON.stringify(updatedSnap));
         localStorage.setItem('vtotal_snap_date_' + myUserId, formatDateNY(new Date()));
 
         btn.innerText = '시트반영완료';
@@ -1141,11 +1140,9 @@ async function runEngine() {
     }
   };
 
-  await Promise.all([
-    executeSlot(slot1Config, isSlot1Active(), v => lastBTResult1 = v, 1),
-    executeSlot(slot2Config, isSlot2Active(), v => lastBTResult2 = v, 2),
-    executeSlot(slot3Config, isSlot3Active(), v => lastBTResult3 = v, 3)
-  ]);
+  await executeSlot(slot1Config, isSlot1Active(), v => lastBTResult1 = v, 1);
+  await executeSlot(slot2Config, isSlot2Active(), v => lastBTResult2 = v, 2);
+  await executeSlot(slot3Config, isSlot3Active(), v => lastBTResult3 = v, 3);
 
   updateSlotsVisibility();
   renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
@@ -1187,11 +1184,9 @@ async function handleInstantOrder() {
     }
   };
 
-  await Promise.all([
-    executeSlot(slot1Config, isSlot1Active(), v => lastBTResult1 = v, 1),
-    executeSlot(slot2Config, isSlot2Active(), v => lastBTResult2 = v, 2),
-    executeSlot(slot3Config, isSlot3Active(), v => lastBTResult3 = v, 3)
-  ]);
+  await executeSlot(slot1Config, isSlot1Active(), v => lastBTResult1 = v, 1);
+  await executeSlot(slot2Config, isSlot2Active(), v => lastBTResult2 = v, 2);
+  await executeSlot(slot3Config, isSlot3Active(), v => lastBTResult3 = v, 3);
 
   updateSlotsVisibility();
   renderChart(lastBTResult1, lastBTResult2, lastBTResult3);
