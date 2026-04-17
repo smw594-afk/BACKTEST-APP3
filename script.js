@@ -1056,7 +1056,8 @@ function updateCurrentStatusUI(slotNum) {
   elDate.innerText = sheetDate;
   elTotal.innerText = fmt(s.totalAssets);
   elRenew.innerText = fmt(s.base);
-  elPrincipal.innerText = fmt(s.realPrincipal || s.base);
+  // 💰 [핵심 수정] 원금은 무조건 엔진이 계산한 실시간 원금(realPrincipal)을 사용
+  elPrincipal.innerText = fmt(s.realPrincipal !== undefined ? s.realPrincipal : s.base);
 }
 
 function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
@@ -1065,16 +1066,20 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
 
   let finalRes = resBT;
 
-  // 만약 현재 메모리에 이미 동기화된 데이터(isSynced: true)가 있는데,
-  // 새로 들어온 데이터가 시뮬레이션(isSynced: false)이라면 데이터를 병합합니다.
-  // 단, 백테스트 결과 보기 모드(isViewingHistory)인 경우는 제외합니다.
-  if (existing && existing.isSynced && !resBT.isSynced && !isViewingHistory) {
+  // 🛡️ [강력 보호] 이미 동기화된(isSynced: true) 데이터가 메모리에 있다면,
+  // 배경에서 돌아가는 시뮬레이션(resBT)이 원금이나 수익률 지표를 덮어쓰지 못하도록 방어합니다.
+  if (existing && existing.isSynced && !resBT.isSynced) {
     finalRes = {
-      ...existing, // 기존 동기화 데이터의 히스토리/성과 수치 유지
-      orders: resBT.orders, // 주문 정보는 최신 시뮬레이션 결과 반영
+      ...existing, // 💰 시트에서 가져온 정확한 원금, 자산, 수익률 유지
+      orders: resBT.orders, // 주문 정보만 최신 시뮬레이션 반영
       nextOrderInfo: resBT.nextOrderInfo,
       orderDateStr: resBT.orderDateStr,
-      inv: resBT.inv // 현재 보유 현황도 엔진의 최신 계산값 반영
+      inv: resBT.inv,
+      dailyStates: resBT.dailyStates, // 차트 데이터는 엔진 결과 사용
+      chartDates: resBT.chartDates,
+      chartBalances: resBT.chartBalances,
+      chartMdd: resBT.chartMdd,
+      chartInout: resBT.chartInout
     };
   }
 
@@ -1946,6 +1951,7 @@ function refreshStatsTable() {
 
     // ⭐️ 데이터 필드 유연성 확보 (동기화/엔진 데이터 필드명 차이 대응)
     const tAssets = sObj.totalAssets !== undefined ? sObj.totalAssets : (sObj.total_assets || 0);
+    // 💰 [핵심 수정] 통계 테이블에서도 엔진의 실시간 원금(realPrincipal)을 최우선 고정
     const rPrincipal = sObj.realPrincipal !== undefined ? sObj.realPrincipal : (sObj.base || sObj.base_principal || 0);
 
     let v = sObj[m.key];
