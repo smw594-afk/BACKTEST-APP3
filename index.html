@@ -80,13 +80,14 @@
   <div class="settings-overlay" id="settingsScreen" onclick="if(event.target === this) toggleSettings()">
     <div class="settings-modal">
       <h3>⚙️ 투자 설정</h3>
-      <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
-        <button id="tabSlot1" onclick="switchSettingsTab(1)" class="btn-action tab-btn active-1">투자법 1</button>
-        <button id="tabSlot2" onclick="switchSettingsTab(2)" class="btn-action tab-btn">투자법 2</button>
-        <button id="tabSlot3" onclick="switchSettingsTab(3)" class="btn-action tab-btn">투자법 3</button>
-        <button id="tabSlot4" onclick="switchSettingsTab(4)" class="btn-action tab-btn">투자법 4</button>
-        <button id="tabSlot5" onclick="switchSettingsTab(5)" class="btn-action tab-btn">투자법 5</button>
-        <button id="tabSlot6" onclick="switchSettingsTab(6)" class="btn-action tab-btn">투자법 6</button>
+      <div style="display:flex; gap:6px; margin-bottom:12px;">
+        <button id="tabSlot1" onclick="switchSettingsTab(1)" class="btn-action"
+          style="flex:1; height:32px; background:linear-gradient(135deg, #6366f1, #4f46e5); font-size:11px;">투자법
+          1</button>
+        <button id="tabSlot2" onclick="switchSettingsTab(2)" class="btn-action"
+          style="flex:1; height:32px; background:rgba(51,65,85,0.8); font-size:11px;">투자법 2</button>
+        <button id="tabSlot3" onclick="switchSettingsTab(3)" class="btn-action"
+          style="flex:1; height:32px; background:rgba(51,65,85,0.8); font-size:11px;">투자법 3</button>
       </div>
       <div id="alwaysVisibleInputs">
         <div class="input-group"><label>티커</label><input type="text" id="ticker" onchange="triggerOptimisticSave()">
@@ -104,7 +105,6 @@
             <option value="2M3D2(1.2)">2M3D2(1.2)</option>
             <option value="2M3D2(2.0)">2M3D2(2.0)</option>
             <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-            <option value="1M">1M</option>
           </select>
         </div>
         <div class="input-group"><label>초기자산($)</label><input type="text" id="initialCash"
@@ -137,13 +137,23 @@
 
       <div style="margin-top:20px; display:flex; flex-direction:column; gap:8px;">
 
-        <button id="runBtnSettings" class="btn-action btn-settings-row btn-backtest" onclick="runEngine()">🚀 백테스트 실행
-          (Backtest)</button>
-        <button id="btnSyncSheet" class="btn-action btn-settings-row btn-sync" onclick="restoreRealAccountMode()">📥 시트값
-          불러오기 (Sync)</button>
-        <button class="btn-action btn-settings-row btn-deposit" onclick="handleDeposit()">💰 실전 증액하기 (입금)</button>
-        <button id="btnSaveTop" class="btn-action btn-settings-row btn-save" onclick="handleSave()">✅ 시트에 반영하기</button>
-        <button class="btn-action btn-adv btn-close" onclick="toggleSettings()">설정 닫기</button>
+        <style>
+          .btn-settings-row {
+            height: 45px;
+            font-size: 13px;
+            font-weight: 600;
+          }
+        </style>
+
+        <button id="runBtnSettings" class="btn-action btn-settings-row" onclick="runEngine()"
+          style="background: linear-gradient(135deg, #f59e0b, #d97706);">🚀 백테스트 실행 (Backtest)</button>
+        <button id="btnSyncSheet" class="btn-action btn-settings-row" onclick="restoreRealAccountMode()"
+          style="background: #475569;">📥 시트값 불러오기 (Sync)</button>
+        <button class="btn-action btn-settings-row" onclick="handleDeposit()"
+          style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 실전 증액하기 (입금)</button>
+        <button id="btnSaveTop" class="btn-action btn-save btn-settings-row" onclick="handleSave()"
+          style="background: linear-gradient(135deg, #10b981, #059669);">✅ 시트에 반영하기</button>
+        <button class="btn-action btn-adv" onclick="toggleSettings()" style="height:35px; opacity:0.7;">설정 닫기</button>
       </div>
 
       <div
@@ -177,8 +187,7 @@
         <div id="orderSlot1" style="flex:1; display:flex; flex-direction:column; min-width:0;">
           <div id="orderScroll1" style="flex:1; overflow-y:auto; min-height:0;">
             <div id="orderView1" style="display:block;">
-              <div class="slot-title" id="orderSlot1Name"
-                style="color:var(--primary); font-size: 0.8em; margin-bottom: 2px;"></div>
+              <div class="slot-title" id="orderSlot1Name" style="color:var(--primary); font-size: 0.8em; margin-bottom: 2px;"></div>
               <table class="data-table">
                 <thead>
                   <tr>
@@ -227,8 +236,7 @@
           style="flex:1; display:flex; flex-direction:column; min-width:0; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
           <div id="orderScroll2" style="flex:1; overflow-y:auto; min-height:0;">
             <div id="orderView2" style="display:block;">
-              <div class="slot-title" id="orderSlot2Name"
-                style="color:var(--success); font-size: 0.8em; margin-bottom: 2px;"></div>
+              <div class="slot-title" id="orderSlot2Name" style="color:var(--success); font-size: 0.8em; margin-bottom: 2px;"></div>
               <table class="data-table">
                 <thead>
                   <tr>
@@ -277,8 +285,7 @@
           style="flex:1; display:flex; flex-direction:column; min-width:0; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
           <div id="orderScroll3" style="flex:1; overflow-y:auto; min-height:0;">
             <div id="orderView3" style="display:block;">
-              <div class="slot-title" id="orderSlot3Name" style="color:#f59e0b; font-size: 0.8em; margin-bottom: 2px;">
-              </div>
+              <div class="slot-title" id="orderSlot3Name" style="color:#f59e0b; font-size: 0.8em; margin-bottom: 2px;"></div>
               <table class="data-table">
                 <thead>
                   <tr>
@@ -320,110 +327,6 @@
             <div>M: <span id="modeCountVal3" style="color:var(--success);">-</span></div>
             <div>W: <span id="weightCountVal3" style="color:var(--success);">-</span></div>
             <div>Q: <span id="qtyCountVal3" style="color:var(--success);">-</span></div>
-          </div>
-        </div>
-
-        <div id="orderSlot4"
-          style="flex:1; display:flex; flex-direction:column; min-width:0; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-          <div id="orderScroll4" style="flex:1; overflow-y:auto; min-height:0;">
-            <div id="orderView4" style="display:block;">
-              <div class="slot-title" id="orderSlot4Name" style="color:#ef4444; font-size: 0.8em; margin-bottom: 2px;"></div>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>구분</th>
-                    <th class="hidden">방식</th>
-                    <th>가격</th>
-                    <th>수량</th>
-                  </tr>
-                </thead>
-                <tbody id="orderBody4">
-                  <tr><td colspan="3" style="padding:15px; color:#94a3b8;">투자법4 미설정</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div id="holdingsView4" style="display:none;">
-              <table class="data-table">
-                <thead>
-                  <tr><th>T</th><th>M</th><th>B</th><th>S</th><th>Q</th><th>H</th></tr>
-                </thead>
-                <tbody id="holdingsBody4">
-                  <tr><td colspan="6" style="padding:15px; color:#94a3b8;">투자법4 미설정</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="tier-footer" id="tierFooter4" style="display:none; margin-top:auto; flex-shrink:0;">
-            <div>T: <span id="tierCountVal4" style="color:var(--success);">-</span></div>
-            <div>M: <span id="modeCountVal4" style="color:var(--success);">-</span></div>
-            <div>W: <span id="weightCountVal4" style="color:var(--success);">-</span></div>
-            <div>Q: <span id="qtyCountVal4" style="color:var(--success);">-</span></div>
-          </div>
-        </div>
-
-        <div id="orderSlot5"
-          style="flex:1; display:flex; flex-direction:column; min-width:0; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-          <div id="orderScroll5" style="flex:1; overflow-y:auto; min-height:0;">
-            <div id="orderView5" style="display:block;">
-              <div class="slot-title" id="orderSlot5Name" style="color:#8b5cf6; font-size: 0.8em; margin-bottom: 2px;"></div>
-              <table class="data-table">
-                <thead>
-                  <tr><th>구분</th><th class="hidden">방식</th><th>가격</th><th>수량</th></tr>
-                </thead>
-                <tbody id="orderBody5">
-                  <tr><td colspan="3" style="padding:15px; color:#94a3b8;">투자법5 미설정</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div id="holdingsView5" style="display:none;">
-              <table class="data-table">
-                <thead>
-                  <tr><th>T</th><th>M</th><th>B</th><th>S</th><th>Q</th><th>H</th></tr>
-                </thead>
-                <tbody id="holdingsBody5">
-                  <tr><td colspan="6" style="padding:15px; color:#94a3b8;">투자법5 미설정</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="tier-footer" id="tierFooter5" style="display:none; margin-top:auto; flex-shrink:0;">
-            <div>T: <span id="tierCountVal5" style="color:var(--success);">-</span></div>
-            <div>M: <span id="modeCountVal5" style="color:var(--success);">-</span></div>
-            <div>W: <span id="weightCountVal5" style="color:var(--success);">-</span></div>
-            <div>Q: <span id="qtyCountVal5" style="color:var(--success);">-</span></div>
-          </div>
-        </div>
-
-        <div id="orderSlot6"
-          style="flex:1; display:flex; flex-direction:column; min-width:0; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-          <div id="orderScroll6" style="flex:1; overflow-y:auto; min-height:0;">
-            <div id="orderView6" style="display:block;">
-              <div class="slot-title" id="orderSlot6Name" style="color:#06b6d4; font-size: 0.8em; margin-bottom: 2px;"></div>
-              <table class="data-table">
-                <thead>
-                  <tr><th>구분</th><th class="hidden">방식</th><th>가격</th><th>수량</th></tr>
-                </thead>
-                <tbody id="orderBody6">
-                  <tr><td colspan="3" style="padding:15px; color:#94a3b8;">투자법6 미설정</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div id="holdingsView6" style="display:none;">
-              <table class="data-table">
-                <thead>
-                  <tr><th>T</th><th>M</th><th>B</th><th>S</th><th>Q</th><th>H</th></tr>
-                </thead>
-                <tbody id="holdingsBody6">
-                  <tr><td colspan="6" style="padding:15px; color:#94a3b8;">투자법6 미설정</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="tier-footer" id="tierFooter6" style="display:none; margin-top:auto; flex-shrink:0;">
-            <div>T: <span id="tierCountVal6" style="color:var(--success);">-</span></div>
-            <div>M: <span id="modeCountVal6" style="color:var(--success);">-</span></div>
-            <div>W: <span id="weightCountVal6" style="color:var(--success);">-</span></div>
-            <div>Q: <span id="qtyCountVal6" style="color:var(--success);">-</span></div>
           </div>
         </div>
       </div>
@@ -521,14 +424,16 @@
                 </tr>
               </thead>
               <tbody id="periodBody3">
-                <tr><td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr>
+                <tr>
+                  <td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
+                </tr>
               </tbody>
             </table>
           </div>
 
           <div id="monthlySlot4"
             style="flex:1; min-width:120px; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-            <div class="slot-title" style="color:rgba(239, 68, 68, 0.9);" id="slot4TableName">투자법4</div>
+            <div class="slot-title swipe-handler" style="color:rgba(168, 85, 247, 0.9);">종합</div>
             <table class="data-table" id="periodTable4">
               <thead>
                 <tr id="periodTableHead4">
@@ -538,62 +443,13 @@
                 </tr>
               </thead>
               <tbody id="periodBody4">
-                <tr><td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr>
+                <tr>
+                  <td colspan="4" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td>
+                </tr>
               </tbody>
             </table>
           </div>
 
-          <div id="monthlySlot5"
-            style="flex:1; min-width:120px; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-            <div class="slot-title" style="color:rgba(139, 92, 246, 0.9);" id="slot5TableName">투자법5</div>
-            <table class="data-table" id="periodTable5">
-              <thead>
-                <tr id="periodTableHead5">
-                  <th>수익금</th>
-                  <th>수익률</th>
-                  <th>MDD</th>
-                </tr>
-              </thead>
-              <tbody id="periodBody5">
-                <tr><td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div id="monthlySlot6"
-            style="flex:1; min-width:120px; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-            <div class="slot-title" style="color:rgba(6, 182, 212, 0.9);" id="slot6TableName">투자법6</div>
-            <table class="data-table" id="periodTable6">
-              <thead>
-                <tr id="periodTableHead6">
-                  <th>수익금</th>
-                  <th>수익률</th>
-                  <th>MDD</th>
-                </tr>
-              </thead>
-              <tbody id="periodBody6">
-                <tr><td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div id="monthlySlot7"
-             style="flex:1; min-width:120px; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
-            <div class="slot-title swipe-handler" style="color:rgba(168, 85, 247, 0.9);">종합</div>
-            <table class="data-table" id="periodTable7">
-              <thead>
-                <tr id="periodTableHead7">
-                  <th class="hide-on-narrow">총자산</th>
-                  <th>수익금</th>
-                  <th>수익률</th>
-                  <th class="hide-on-cover">MDD</th>
-                </tr>
-              </thead>
-              <tbody id="periodBody7">
-                <tr><td colspan="4" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr>
-              </tbody>
-            </table>
-          </div>
         </div>
       </div>
     </div>
@@ -614,7 +470,11 @@
       <div class="section-header">
         <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/1/2)" style="cursor:pointer;">📈 성과추이
         </h2>
-        <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()" class="btn-currency">
+        <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()" style="margin-left: auto; background: none; color: #fff; 
+                       border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; 
+                       cursor: pointer; transition: all 0.2s; margin-right: 0px;
+                       display: flex; align-items: center; justify-content: center;
+                       min-width: 40px; box-shadow: none;">
           <img src="https://flagcdn.com/w40/kr.png"
             style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">
           KRW
@@ -625,111 +485,70 @@
   </div>
 
   <!-- 백테스트 일괄 설정 모달 -->
-  <div id="quickConfigOverlay" class="settings-overlay" style="display:none; z-index:1100;"
-    onclick="if(event.target === this) this.style.display='none'">
+  <div id="quickConfigOverlay" class="settings-overlay" style="display:none; z-index:1100;" onclick="if(event.target === this) this.style.display='none'">
     <div class="settings-modal" style="max-width:340px; padding:20px;">
       <h3 style="margin-bottom:15px;">🚀 백테스트 통합 설정</h3>
-
+      
       <div id="quickConfigForm" style="display:flex; flex-direction:column; gap:8px;">
         <!-- 투자법별 전략 선택 -->
-        <div
-          style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; margin-bottom:4px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(255,255,255,0.05);">
-          <div class="input-group"><label>투자법 1</label>
-            <select id="qStrat1" style="border-color:var(--primary);">
-              <option value="">없음</option>
-              <option value="2M3D1-1P">2M3D1-1P</option>
-              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
-              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
-              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-              <option value="1M" selected>1M</option>
-            </select>
-          </div>
-          <div class="input-group"><label>투자법 2</label>
-            <select id="qStrat2" style="border-color:var(--success);">
-              <option value="">없음</option>
-              <option value="2M3D1-1P">2M3D1-1P</option>
-              <option value="2M3D2(1.0)" selected>2M3D2(1.0)</option>
-              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
-              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-              <option value="1M">1M</option>
-            </select>
-          </div>
-          <div class="input-group"><label>투자법 3</label>
-            <select id="qStrat3" style="border-color:#fbbf24;">
-              <option value="">없음</option>
-              <option value="2M3D1-1P">2M3D1-1P</option>
-              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
-              <option value="2M3D2(1.2)" selected>2M3D2(1.2)</option>
-              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-              <option value="1M">1M</option>
-            </select>
-          </div>
-          <div class="input-group"><label>투자법 4</label>
-            <select id="qStrat4" style="border-color:#ef4444;">
-              <option value="">없음</option>
-              <option value="2M3D1-1P">2M3D1-1P</option>
-              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
-              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
-              <option value="2M3D2(2.0)" selected>2M3D2(2.0)</option>
-              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-              <option value="1M">1M</option>
-            </select>
-          </div>
-          <div class="input-group"><label>투자법 5</label>
-            <select id="qStrat5" style="border-color:#8b5cf6;">
-              <option value="">없음</option>
-              <option value="2M3D1-1P">2M3D1-1P</option>
-              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
-              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
-              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.1)" selected>2M3D2(2.1)</option>
-              <option value="1M">1M</option>
-            </select>
-          </div>
-          <div class="input-group"><label>투자법 6</label>
-            <select id="qStrat6" style="border-color:#06b6d4;">
-              <option value="">없음</option>
-              <option value="2M3D1-1P" selected>2M3D1-1P</option>
-              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
-              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
-              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-              <option value="1M">1M</option>
-            </select>
-          </div>
+        <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; margin-bottom:4px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(255,255,255,0.05);">
+           <div class="input-group"><label>투자법 1</label>
+             <select id="qStrat1" style="border-color:var(--primary);">
+               <option value="">없음</option>
+               <option value="2M3D1-1P">2M3D1-1P</option>
+               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+             </select>
+           </div>
+           <div class="input-group"><label>투자법 2</label>
+             <select id="qStrat2" style="border-color:var(--success);">
+               <option value="">없음</option>
+               <option value="2M3D1-1P">2M3D1-1P</option>
+               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+             </select>
+           </div>
+           <div class="input-group"><label>투자법 3</label>
+             <select id="qStrat3" style="border-color:#fbbf24;">
+               <option value="">없음</option>
+               <option value="2M3D1-1P">2M3D1-1P</option>
+               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+             </select>
+           </div>
         </div>
 
         <div class="input-group"><label>티커</label><input type="text" id="qTicker" value="SOXL"></div>
         <div class="input-group"><label>시작일</label><input type="date" id="qStartDate"></div>
         <div class="input-group"><label>종료일</label><input type="date" id="qEndDate"></div>
-
+        
         <div class="input-group"><label>초기자산</label><input type="text" id="qInitialCash"></div>
         <div class="input-group"><label>갱신금</label><input type="text" id="qRenewCash"></div>
         <div class="input-group"><label>수수료(%)</label><input type="number" id="qFBase" value="0.08" step="any"></div>
         <div class="input-group"><label>SEC(%)</label><input type="number" id="qFSec" value="0.00278" step="any"></div>
 
         <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);">
-          <input type="text" id="qBatchRaw" placeholder="시작일 종료일 초기자산 갱신금 붙여넣기"
-            oninput="handleQuickBatchParse(this.value)"
-            style="width:100% !important; height:30px; border-color:var(--primary); background:rgba(99,102,241,0.1);">
+           <input type="text" id="qBatchRaw" placeholder="시작일 종료일 초기자산 갱신금 붙여넣기" 
+                  oninput="handleQuickBatchParse(this.value)"
+                  style="width:100% !important; height:30px; border-color:var(--primary); background:rgba(99,102,241,0.1);">
         </div>
       </div>
-
+      
       <div style="margin-top:20px; display:flex; gap:8px;">
-        <button class="btn-action btn-settings-row btn-backtest" onclick="applyQuickConfig()" style="flex:2;">설정 및 백테스트
-          실행</button>
-        <button class="btn-action btn-settings-row btn-sync"
-          onclick="document.getElementById('quickConfigOverlay').style.display='none'" style="flex:1;">취소</button>
+        <button class="btn-action" onclick="applyQuickConfig()" style="flex:2; background:linear-gradient(135deg, #f59e0b, #d97706); height:45px;">설정 및 백테스트 실행</button>
+        <button class="btn-action" onclick="document.getElementById('quickConfigOverlay').style.display='none'" style="flex:1; background:#475569; height:45px;">취소</button>
       </div>
     </div>
   </div>
 
   <script src="engine.js" defer></script>
   <script src="script.js" defer></script>
-  <script src="api.js" defer></script>
 
 </body>
 
