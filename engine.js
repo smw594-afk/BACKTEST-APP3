@@ -49,22 +49,12 @@ const MASTER_STRATEGIES = {
       Middle2: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] },
       Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] }
     }
-  },
-  "1M": {
-    config: { compR: 1.0, lossR: 1.0, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
-    modes: {
-      SF: { buy: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
-      Middle: { buy: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
-      AG: { BUY: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
-      Middle2: { BUY: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
-      Middle3: { BUY: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] }
-    }
   }
 };
 
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyGbLmlmi-uZAyo1dy8VuucC1yzS_WkJPceAV-zftXhTfrQn4I1eby4h7Tra723x3aA/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbw1si6V_02Ua0trHlZdvT_EnFLDGA6-0hNtEaZhq2W-UGXMVo0e9K5mI3jH5IqQ4KOi9Q/exec";
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -273,9 +263,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       fetchYahooData(ticker, startTs, endTs, true, force),
       fetchYahooData("QQQ", startTs, endTs, true, force)
     ]);
-    const startDateStr = formatDateNY(startDate);
-    let startIndex = mainDataAll.dates.findIndex(d => formatDateNY(d) >= startDateStr); 
-    if (startIndex === -1) startIndex = 0;
+    window.globalMainData = mainDataAll;
+    let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = 0;
     let firstPrevClose = (startIndex > 0) ? mainDataAll.close[startIndex - 1] : mainDataAll.open[0], wRsiMap = calculateWRSI_WFRI(qqqData);
 
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
@@ -286,7 +275,6 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let activeSlot = slotNum || activeSettingsTab;
     const startDateStr = formatDateNY(startDate);
     const endDateStr = formatDateNY(endDate);
-
     let bDates = mainDataAll.dates.filter(d => {
       const dStr = formatDateNY(d);
       return dStr <= endDateStr && dStr >= startDateStr;
