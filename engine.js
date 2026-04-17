@@ -40,7 +40,7 @@ const MASTER_STRATEGIES = {
       Middle3: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
     }
   },
- "2M3D2(2.1)": {
+  "2M3D2(2.1)": {
     config: { compR: 0.939, lossR: 0.699, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: { buy: [0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051], sell: [0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.05, 0.052, 0.291, 0.055, 0.226, 0.051, 0.3, 0.053] },
@@ -49,12 +49,22 @@ const MASTER_STRATEGIES = {
       Middle2: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] },
       Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] }
     }
+  },
+  "1M": {
+    config: { compR: 1.0, lossR: 1.0, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
+    modes: {
+      SF: { buy: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
+      Middle: { buy: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
+      AG: { BUY: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
+      Middle2: { BUY: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] },
+      Middle3: { BUY: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [6, 6, 6, 6, 6, 6, 6], weight: [0.149, 0.149, 0.149, 0.149, 0.149, 0.149, 0.149] }
+    }
   }
 };
 
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbw1si6V_02Ua0trHlZdvT_EnFLDGA6-0hNtEaZhq2W-UGXMVo0e9K5mI3jH5IqQ4KOi9Q/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyGbLmlmi-uZAyo1dy8VuucC1yzS_WkJPceAV-zftXhTfrQn4I1eby4h7Tra723x3aA/exec";
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -263,8 +273,9 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       fetchYahooData(ticker, startTs, endTs, true, force),
       fetchYahooData("QQQ", startTs, endTs, true, force)
     ]);
-    window.globalMainData = mainDataAll;
-    let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = 0;
+    const startDateStr = formatDateNY(startDate);
+    let startIndex = mainDataAll.dates.findIndex(d => formatDateNY(d) >= startDateStr); 
+    if (startIndex === -1) startIndex = 0;
     let firstPrevClose = (startIndex > 0) ? mainDataAll.close[startIndex - 1] : mainDataAll.open[0], wRsiMap = calculateWRSI_WFRI(qqqData);
 
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
@@ -273,7 +284,13 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let res = { S: [], BA: [], BF: [], AV: [], INOUT: [], dailyStates: [] };
 
     let activeSlot = slotNum || activeSettingsTab;
-    let bDates = mainDataAll.dates.filter(d => d <= endDate && d >= startDate);
+    const startDateStr = formatDateNY(startDate);
+    const endDateStr = formatDateNY(endDate);
+
+    let bDates = mainDataAll.dates.filter(d => {
+      const dStr = formatDateNY(d);
+      return dStr <= endDateStr && dStr >= startDateStr;
+    });
     const snapKey = `vtotal_snap${activeSlot}_` + myUserId;
     const snapStr = localStorage.getItem(snapKey);
     let startLoopIdx = 0;
@@ -515,11 +532,11 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
       let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
       let currentW = MODES[today_m].weight[tTier - 1] || 0;
-      
+
       // 🎯 [실전 최적화] 주문 수량 계산 시에는 과거 백테스트 결과(base)가 아닌, 
       // 현재 사용자가 보고 있는 최신 '갱신금(basePrincipal)'을 기준으로 시드를 결정함.
       let tSeed = t2(Math.min(basePrincipal * currentW, cash));
-      
+
       let bTgtVal = MODES[today_m].buy[tTier - 1] || 0;
       let tTgt = t2(lastDataClose * (1 + bTgtVal));
       let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.00001) : 0;
@@ -740,7 +757,7 @@ function processRealLogData(d, currentStrat, configStartDate) {
     }
     return str;
   };
-  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
+  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
   if (rawLogs.length === 0) return null;
   rawLogs.sort((a, b) => (a.date > b.date ? 1 : -1));
 
