@@ -265,12 +265,13 @@ function updateSlotsVisibility() {
   const m0 = document.getElementById('monthlySlot0');
   if (m0) m0.style.display = (statuses[0] || statuses[1] || statuses[2]) ? 'block' : 'none';
 
+  const activeCount = statuses.filter(s => s).length;
   const m4 = document.getElementById('monthlySlot4');
-  if (m4) m4.style.display = (statuses[0] && (statuses[1] || statuses[2])) ? 'block' : 'none';
+  if (m4) m4.style.display = (activeCount >= 2) ? 'block' : 'none';
 
   const panel = document.getElementById('panelMonthly');
   if (panel) {
-    if (statuses[0] && (statuses[1] || statuses[2])) panel.classList.add('dual-active');
+    if (activeCount >= 2) panel.classList.add('dual-active');
     else panel.classList.remove('dual-active');
   }
   updatePeriodTitle();
@@ -684,7 +685,10 @@ async function checkAndSyncWithServer(isInitial) {
           let dt = parseDateStr(r[0]);
           if (dt && dt > sheetLastDate) sheetLastDate = dt;
         });
-        localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
+        // ⭐️ 날짜가 유효할 때만 로컬스토리지 갱신 (누락 방지)
+        if (sheetLastDate !== "1900-01-01") {
+          localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
+        }
 
         const configStartDate = confData.basics.startDate || "1900-01-01";
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, configStartDate);
@@ -1410,11 +1414,12 @@ function togglePeriodDisplayMode() {
     if (chartC) chartC.style.display = 'none';
     if (tableC) tableC.style.display = 'block';
     if (ico) ico.innerHTML = '📊';
-    renderPeriodTableText(1);
+    renderPeriodTableText(0); 
+    if (isSlot1Active()) renderPeriodTableText(1);
     if (isSlot2Active()) renderPeriodTableText(2);
     if (isSlot3Active()) renderPeriodTableText(3);
-    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
-    renderPeriodTableText(0); // 년월 열 렌더링 호출 추가
+    const activeCount = [isSlot1Active(), isSlot2Active(), isSlot3Active()].filter(x => x).length;
+    if (activeCount >= 2) renderPeriodTableText(4);
   }
 }
 
@@ -1438,14 +1443,15 @@ function togglePeriodView() {
 
     ['1', '2', '3', '4'].forEach(s => {
       const h = document.getElementById('periodTableHead' + s);
-      if (h) h.innerHTML = (s === '1') ? headData1Str : headDataStr;
+      if (h) h.innerHTML = (s === '1' || s === '4') ? headData1Str : headDataStr;
     });
 
     renderPeriodTableText(0);
-    renderPeriodTableText(1);
+    if (isSlot1Active()) renderPeriodTableText(1);
     if (isSlot2Active()) renderPeriodTableText(2);
     if (isSlot3Active()) renderPeriodTableText(3);
-    if (isSlot1Active() && (isSlot2Active() || isSlot3Active())) renderPeriodTableText(4);
+    const activeCount = [isSlot1Active(), isSlot2Active(), isSlot3Active()].filter(x => x).length;
+    if (activeCount >= 2) renderPeriodTableText(4);
   }
   if (myChart) setTimeout(() => myChart.resize(), 100);
 }
