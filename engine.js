@@ -284,41 +284,6 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let startLoopIdx = 0;
     let maxBuyDate = "";
 
-    // ⭐️ [수정] 수동 백테스트나 저장 모드(!isManualBacktestMode 아닐 때)에서는 스냅샷 상속 차단
-    // 그래야 시트 데이터와 현재 계산값이 다를 때 경고창을 정확히 띄울 수 있음.
-    if (!isManualBacktestMode && !force && snapStr) {
-      let snap = JSON.parse(snapStr);
-      if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
-        res.S = snap.chartDates;
-        res.BA = snap.chartBalances;
-        res.BF = snap.chartMdd;
-
-        inv = snap.inv || [];
-        inv.forEach(h => { if (h.buyDate > maxBuyDate) maxBuyDate = h.buyDate; });
-        let lastSnapDateStr = res.S[res.S.length - 1];
-        if (lastSnapDateStr > maxBuyDate) maxBuyDate = lastSnapDateStr;
-
-        cash = fixFloat(snap.summary.cash);
-        peak = snap.summary.peak || (res.BA.length > 0 ? Math.max(...res.BA) : initialCash);
-        cumulativeRealizedProfit = snap.summary.realizedProfit || 0;
-
-        let oldBase = fixFloat(snap.summary.base || initialCash);
-        cumulativeInOut = fixFloat(snap.summary.inout || 0);
-
-        if (inv.length === 0 && cumulativeRealizedProfit === 0) {
-          cash = initialCash;
-          base = basePrincipal;
-          cumulativeInOut = 0;
-        } else {
-          // ⭐️ [완전 삭제] 엔진이 임의로 자산을 보정하는 모든 로직(principalDiff)을 제거함
-          base = oldBase;
-        }
-
-        startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
-        if (startLoopIdx === -1) startLoopIdx = bDates.length;
-      }
-    }
-
     let full_c = mainDataAll.close, rsi_m = 'SF';
     function t2(v) {
       if (v === null || v === undefined || isNaN(v)) return 0.0;
@@ -435,7 +400,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       res.dailyStates.push({
         date: dtStr,
         asset: totalBalance,
-        inout: cumulativeInOut,
+        inout: 0, // 🛡️ [수정] 누적치(6057 등)가 아닌 0으로 고정하여 시트 오염 방지
         json: JSON.stringify({
           cash: fixFloat(cash),
           base_principal: fixFloat(base),
@@ -566,7 +531,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
       evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
       currPrice: currPrice, currentMdd: res.BF[lastIdx],
-      base: base, inout: cumulativeInOut, realPrincipal: realPrincipal, peak: peak
+      base: realPrincipal, inout: cumulativeInOut, realPrincipal: realPrincipal, peak: peak
     };
 
     let finalOrders = run_tungchigi_master(rawOrderOutput);
@@ -745,7 +710,7 @@ function processRealLogData(d, currentStrat, configStartDate) {
     }
     return str;
   };
-  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
+  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
   if (rawLogs.length === 0) return null;
   rawLogs.sort((a, b) => (a.date > b.date ? 1 : -1));
 
@@ -754,12 +719,12 @@ function processRealLogData(d, currentStrat, configStartDate) {
   // CAGR 시작일은 항상 실제 기록의 첫 날짜 (configStartDate는 야후 데이터용이므로 사용하지 않음)
   const trueStartDateStr = originalFirstDate;
 
-  // 💰 [전체 기간 원금 계산] 필터링 전의 전체 로그를 기준으로 절대 원금을 계산합니다.
+  // 💰 [전체 기간 원금 계산] V3.04 정상 로직: 첫날 총자산(H129) + (전체 입출금 - 첫날 입출금)
   const absoluteFirstAsset = rawLogs[0].asset || 0;
   let absoluteRunningInout = 0;
-  rawLogs.forEach(r => { absoluteRunningInout = fixFloat(absoluteRunningInout + r.inout); });
+  rawLogs.forEach(r => { absoluteRunningInout = fixFloat(absoluteRunningInout + (r.inout || 0)); });
 
-  // ⭐️ [중요] 원금 = 첫날 총자산 + (전체 입출금 - 첫날 입출금)
+  // 첫날 입출금을 제외한 순수 증감액만 합산
   const totalInoutSumExcludeFirst = fixFloat(absoluteRunningInout - (rawLogs[0].inout || 0));
   const calculatedPrincipal = fixFloat(absoluteFirstAsset + totalInoutSumExcludeFirst);
 
@@ -783,10 +748,10 @@ function processRealLogData(d, currentStrat, configStartDate) {
   const lastAsset = chartBalances[chartBalances.length - 1] || 0;
   const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
 
-  // 💰 [정합성 고정] 
-  // calculatedPrincipal: 시트 로직 원금 (성과 분석용)
-  // finalPrincipal: JSON/설정에서 복원된 기준금 (매수/매도 시드 기록용)
-  const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
+  // 💰 [전략적 원금 분리] 
+  // calculatedPrincipal: 시트 상의 실제 투입 원금 (수익률/지표용)
+  // finalPrincipal: 전략 구동의 기준이 되는 갱신금 (restoredBase가 있다면 이를 우선 존중)
+  const finalPrincipal = (restoredBase > 0) ? restoredBase : calculatedPrincipal;
 
   // 💰 성과 지표는 '절대 원금'을 기준으로 일관되게 계산
   const totalProfit = fixFloat(lastAsset - calculatedPrincipal);
