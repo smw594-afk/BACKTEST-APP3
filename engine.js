@@ -14,25 +14,25 @@ const MASTER_STRATEGIES = {
     config: { compR: 0.939, lossR: 0.699, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       // SF 모드: 8티어 체제 유지
-      SF: { 
-        buy: [0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051], 
-        sell: [0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017], 
-        hold: [35, 35, 35, 35, 35, 35, 35, 35], 
-        weight: [0.05, 0.052, 0.291, 0.055, 0.226, 0.051, 0.3, 0.053] 
+      SF: {
+        buy: [0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051],
+        sell: [0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017],
+        hold: [35, 35, 35, 35, 35, 35, 35, 35],
+        weight: [0.05, 0.052, 0.291, 0.055, 0.226, 0.051, 0.3, 0.053]
       },
       // Middle 모드: 7티어 체제 유지
-      Middle: { 
-        buy: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], 
-        sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], 
-        hold: [20, 20, 20, 20, 20, 20, 20], 
-        weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3] 
+      Middle: {
+        buy: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032],
+        sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001],
+        hold: [20, 20, 20, 20, 20, 20, 20],
+        weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
       },
       // AG 모드: 8티어 체제 유지
-      AG: { 
-        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], 
-        sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], 
-        hold: [8, 8, 8, 8, 8, 8, 8, 8], 
-        weight: [0.061, 0.3, 0.05, 0.05, 0.242, 0.3, 0.295, 0.292] 
+      AG: {
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025],
+        sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032],
+        hold: [8, 8, 8, 8, 8, 8, 8, 8],
+        weight: [0.061, 0.3, 0.05, 0.05, 0.242, 0.3, 0.295, 0.292]
       },
       // Middle2/3 모드: 9티어 체제 유지
       Middle2: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] },
@@ -83,7 +83,7 @@ const MASTER_STRATEGIES = {
 
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzZPq6nRn5m4VCyZ-EPLMW2TMnQJGam6PofkYWqJDfgAvLWEmTE8CXOzXDcZ0bgLGLecA/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwGUjfRXu03cvsYz9DqWEbnnvO0DketTn_D-0sbGImAps6Cy-nOYIGLF4YUUvviWOa2/exec";
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -482,7 +482,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
         if (close >= s_tgt || p_inv.days >= h_limit) {
           let net = (p_inv.qty * close) * (1 - fSellT);
-          
+
           let trade_pl = net - p_inv.cost;
           d_pl += trade_pl; d_cf += net;
           d_sell_net += net; d_buy_cost += p_inv.cost;
@@ -502,7 +502,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       inv = n_inv;
       if (b_qty > 0) {
         let totalBC = (b_qty * close) * (1 + fBuy);
-        
+
         if (totalBC <= cash) {
           d_cf -= totalBC;
           inv.push({ buy_price: close, qty: b_qty, cost: totalBC, mode: curr_m, tier: t, days: 0, buyDate: dtStr });
