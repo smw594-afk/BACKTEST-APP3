@@ -368,6 +368,9 @@ function enterAppDirectly() {
   updatePeriodTitle();
   refreshStatsTable();
 
+  // 🟢 [버그 수정 2] 앱 초기 로딩 시 무조건 활성화된 탭의 데이터를 화면에 뿌려줌
+  loadSlotToForm(activeSettingsTab);
+
   const cachedCombined = localStorage.getItem(`vtotal_snap_combined_${myUserId}`);
   if (cachedCombined) {
     try {
@@ -688,6 +691,10 @@ async function checkAndSyncWithServer(isInitial) {
     renderChartAll();
     calculateCombinedPeriodData();
 
+    // 🟢 [버그 수정 1] 서버 동기화 완료 후 현재 탭의 설정값을 화면 입력창에 강제로 채워넣음
+    loadSlotToForm(activeSettingsTab);
+    updateSettingsTabButtons();
+
     if (dataInit.hasSheet) checkAndRunAutoSave();
 
   } catch (e) {
@@ -770,7 +777,7 @@ async function handleSave() {
 
   try {
     saveCurrentFormToSlot(targetSlot);
-    
+
     // 백테스트 실행 결과 확인 (최신 데이터 확보)
     const targetRes = await runBacktestMemory(slotConfigs[targetSlot], false, targetSlot);
 
@@ -814,12 +821,12 @@ async function handleSave() {
 
     if (navigator.onLine) {
       await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
-      
+
       // 로컬 스토리지 날짜 갱신
       if (newLogs.length > 0) {
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, newLogs[newLogs.length - 1].date);
       }
-      
+
       showToast(`${newLogs.length}일치의 기록이 시트에 반영되었습니다.`, "✅");
     } else {
       handleOfflineSave(payload);
@@ -2084,7 +2091,7 @@ function exportTradeHistoryToCSV() {
 
   // 1. 모든 매매기록(완료된 거래 + 현재 보유 중인 미실현 거래)을 매수일 기준으로 그룹화
   const tradesByBuyDate = {};
-  
+
   // 완료된 거래 (매도 완료)
   if (res.trades) {
     res.trades.forEach(t => {
@@ -2092,7 +2099,7 @@ function exportTradeHistoryToCSV() {
       tradesByBuyDate[t.buyDate].push(t);
     });
   }
-  
+
   // 미실현 거래 (보유 중)
   if (res.inv) {
     res.inv.forEach(h => {
@@ -2116,13 +2123,13 @@ function exportTradeHistoryToCSV() {
   res.dailyStates.forEach(state => {
     const dateStr = state.date;
     const asset = state.asset.toFixed(2);
-    
+
     let renewCash = "0.00";
     try {
       const parsed = JSON.parse(state.json);
       // 백테스트 엔진 내 base_principal 또는 base 필드 추출
       renewCash = (parsed.base_principal || parsed.base || 0).toFixed(2);
-    } catch(e) {}
+    } catch (e) { }
 
     const dayTrades = tradesByBuyDate[dateStr];
 
@@ -2131,7 +2138,7 @@ function exportTradeHistoryToCSV() {
       dayTrades.forEach(t => {
         const sellD = t.sellDate || '-';
         const sPrice = t.sellPrice > 0 ? t.sellPrice.toFixed(2) : '-';
-        
+
         const row = [
           dateStr,
           sellD,
@@ -2166,10 +2173,10 @@ function exportTradeHistoryToCSV() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", `VTOTAL_BACKTEST_SLOT${slotNum}_DAILY_LOG_${new Date().toISOString().slice(0,10)}.csv`);
+  link.setAttribute("download", `VTOTAL_BACKTEST_SLOT${slotNum}_DAILY_LOG_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  
+
   showToast("모든 영업일 기록이 엑셀로 저장되었습니다.", "📊");
 }
