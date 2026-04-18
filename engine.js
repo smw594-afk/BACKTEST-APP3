@@ -1,5 +1,44 @@
 // strategy.js에서 병합됨
 const MASTER_STRATEGIES = {
+  "1M": {
+    config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
+    modes: {
+      SF: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
+      Middle: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
+      AG: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
+      Middle2: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
+      Middle3: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] }
+    }
+  },
+  "2M3D2(2.1)": {
+    config: { compR: 0.939, lossR: 0.699, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    modes: {
+      // SF 모드: 8티어 체제 유지
+      SF: { 
+        buy: [0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051], 
+        sell: [0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017], 
+        hold: [35, 35, 35, 35, 35, 35, 35, 35], 
+        weight: [0.05, 0.052, 0.291, 0.055, 0.226, 0.051, 0.3, 0.053] 
+      },
+      // Middle 모드: 7티어 체제 유지
+      Middle: { 
+        buy: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], 
+        sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], 
+        hold: [20, 20, 20, 20, 20, 20, 20], 
+        weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3] 
+      },
+      // AG 모드: 8티어 체제 유지
+      AG: { 
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], 
+        sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], 
+        hold: [8, 8, 8, 8, 8, 8, 8, 8], 
+        weight: [0.061, 0.3, 0.05, 0.05, 0.242, 0.3, 0.295, 0.292] 
+      },
+      // Middle2/3 모드: 9티어 체제 유지
+      Middle2: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] },
+      Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] }
+    }
+  },
   "2M3D1-1P": {
     config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: true, useMid3: true },
     modes: {
@@ -39,22 +78,12 @@ const MASTER_STRATEGIES = {
       Middle2: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
       Middle3: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
     }
-  },
-  "2M3D2(2.1)": {
-    config: { compR: 0.939, lossR: 0.699, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
-    modes: {
-      SF: { buy: [0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051], sell: [0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.05, 0.052, 0.291, 0.055, 0.226, 0.051, 0.3, 0.053] },
-      Middle: { buy: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], sell: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001], hold: [20, 20, 20, 20, 20, 20, 20], weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3] },
-      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.061, 0.3, 0.05, 0.05, 0.242, 0.3, 0.295, 0.292] },
-      Middle2: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] },
-      Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] }
-    }
   }
 };
 
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbw1si6V_02Ua0trHlZdvT_EnFLDGA6-0hNtEaZhq2W-UGXMVo0e9K5mI3jH5IqQ4KOi9Q/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzZPq6nRn5m4VCyZ-EPLMW2TMnQJGam6PofkYWqJDfgAvLWEmTE8CXOzXDcZ0bgLGLecA/exec";
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -198,22 +227,74 @@ function calculateWRSI_WFRI(qData) {
   return wRMap;
 }
 
-// 🧮 퉁치기 (Order Matcher)
+// 🧮 퉁치기 (Order Matcher) - 다중 슬롯 확장에 대비해 한도 500개로 대폭 상향
 function run_tungchigi_master(paramsArr) {
   if (!paramsArr || paramsArr.length === 0) return [];
-  let g = new Float64Array(100), h = new Float64Array(100), i_p = new Float64Array(100), j = new Float64Array(100), k = new Array(100).fill(false);
-  for (let idx = 0; idx < paramsArr.length; idx++) { if (idx >= 100) break; let side = paramsArr[idx][0], method = paramsArr[idx][1], price = parseFloat(paramsArr[idx][2]), qty = parseFloat(paramsArr[idx][3]); if (side === '매수') { g[idx] = price; h[idx] = qty; } else { i_p[idx] = price; j[idx] = qty; if (method.toUpperCase() === 'MOC') k[idx] = true; } }
+  const MAX_ORDERS = 500;
+
+  let g = new Float64Array(MAX_ORDERS), h = new Float64Array(MAX_ORDERS), i_p = new Float64Array(MAX_ORDERS), j = new Float64Array(MAX_ORDERS), k = new Array(MAX_ORDERS).fill(false);
+
+  for (let idx = 0; idx < paramsArr.length; idx++) {
+    if (idx >= MAX_ORDERS) break;
+    let side = paramsArr[idx][0], method = paramsArr[idx][1], price = parseFloat(paramsArr[idx][2]), qty = parseFloat(paramsArr[idx][3]);
+    if (side === '매수') { g[idx] = price; h[idx] = qty; }
+    else { i_p[idx] = price; j[idx] = qty; if (method.toUpperCase() === 'MOC') k[idx] = true; }
+  }
+
   let u_g = Array.from(g).filter(v => v > 0), adj_sell = Array.from(i_p).map((val, i) => k[i] ? 0.01 : val), u_i = adj_sell.filter(v => v > 0);
-  let m_prices = [...new Set([...u_g, ...u_i])].sort((a, b) => b - a), m_col = new Array(100).fill(NaN); m_prices.forEach((val, i) => m_col[i] = val);
-  let n_col = new Float64Array(100), o_col = new Float64Array(100);
-  for (let idx = 0; idx < 100; idx++) { if (isNaN(m_col[idx])) continue; let mv = m_col[idx], count_m = m_col.slice(0, idx + 1).filter(v => v === mv).length; if (count_m > 1) { n_col[idx] = 0; } else { let sum_h = 0; for (let x = 0; x < 100; x++) if (g[x] === mv) sum_h += h[x]; n_col[idx] = sum_h; } if (n_col[idx] > 0) { o_col[idx] = 0; } else if (mv === 0.01) { let sum_j = 0; for (let x = 0; x < 100; x++) if (k[x]) sum_j += j[x]; o_col[idx] = -sum_j; } else { let sum_j = 0; for (let x = 0; x < 100; x++) if (!k[x] && i_p[x] === mv) sum_j += j[x]; o_col[idx] = -sum_j; } }
-  let p_col = new Float64Array(100), cumsum_n = 0; for (let idx = 0; idx < 99; idx++) { cumsum_n += n_col[idx]; p_col[idx + 1] = cumsum_n; }
-  let q_col = new Float64Array(100), cumsum_o = 0; for (let idx = 98; idx >= 0; idx--) { cumsum_o += o_col[idx]; q_col[idx] = cumsum_o; }
-  let r_col = new Float64Array(100); for (let idx = 0; idx < 100; idx++) r_col[idx] = p_col[idx] + q_col[idx];
-  let s_col = new Float64Array(100); for (let idx = 0; idx < 100; idx++) { let curr = r_col[idx], prev = idx > 0 ? r_col[idx - 1] : 0, nxt = idx < 99 ? r_col[idx + 1] : 0; if (curr === 0) s_col[idx] = 0; else if (curr < 0) s_col[idx] = (nxt < 0) ? (curr - nxt) : curr; else s_col[idx] = (prev < 0) ? curr : (curr - prev); }
-  let y_raw = [], z_raw = []; for (let idx = 0; idx < 99; idx++) { let mv = m_col[idx]; if (isNaN(mv)) continue; y_raw.push(o_col[idx] < 0 ? mv - 0.01 : mv); z_raw.push(n_col[idx] > 0 ? mv + 0.01 : mv); }
-  let y_sorted = y_raw.sort((a, b) => b - a), z_sorted = z_raw.sort((a, b) => b - a), y_final = new Array(100).fill(NaN), z_final = new Array(100).fill(NaN); for (let i = 0; i < z_sorted.length; i++) z_final[i] = z_sorted[i]; for (let i = 0; i < y_sorted.length; i++) if (i + 1 < 100) y_final[i + 1] = y_sorted[i];
-  let grouped = {}; for (let idx = 0; idx < 100; idx++) { let s = s_col[idx]; if (s === 0) continue; let side = s > 0 ? "매수" : "매도", price = s > 0 ? y_final[idx] : z_final[idx]; if (isNaN(price) || price <= 0) continue; let method = (price === 0.01 && side === "매도") ? "MOC" : "LOC", key = side + "|" + method + "|" + price.toFixed(4); if (!grouped[key]) grouped[key] = { side: side, method: method, price: price, qty: Math.abs(s) }; else grouped[key].qty += Math.abs(s); }
+  let m_prices = [...new Set([...u_g, ...u_i])].sort((a, b) => b - a), m_col = new Array(MAX_ORDERS).fill(NaN);
+  m_prices.forEach((val, i) => m_col[i] = val);
+
+  let n_col = new Float64Array(MAX_ORDERS), o_col = new Float64Array(MAX_ORDERS);
+  for (let idx = 0; idx < MAX_ORDERS; idx++) {
+    if (isNaN(m_col[idx])) continue;
+    let mv = m_col[idx], count_m = m_col.slice(0, idx + 1).filter(v => v === mv).length;
+    if (count_m > 1) { n_col[idx] = 0; }
+    else { let sum_h = 0; for (let x = 0; x < MAX_ORDERS; x++) if (g[x] === mv) sum_h += h[x]; n_col[idx] = sum_h; }
+
+    if (n_col[idx] > 0) { o_col[idx] = 0; }
+    else if (mv === 0.01) { let sum_j = 0; for (let x = 0; x < MAX_ORDERS; x++) if (k[x]) sum_j += j[x]; o_col[idx] = -sum_j; }
+    else { let sum_j = 0; for (let x = 0; x < MAX_ORDERS; x++) if (!k[x] && i_p[x] === mv) sum_j += j[x]; o_col[idx] = -sum_j; }
+  }
+
+  let p_col = new Float64Array(MAX_ORDERS), cumsum_n = 0;
+  for (let idx = 0; idx < MAX_ORDERS - 1; idx++) { cumsum_n += n_col[idx]; p_col[idx + 1] = cumsum_n; }
+
+  let q_col = new Float64Array(MAX_ORDERS), cumsum_o = 0;
+  for (let idx = MAX_ORDERS - 2; idx >= 0; idx--) { cumsum_o += o_col[idx]; q_col[idx] = cumsum_o; }
+
+  let r_col = new Float64Array(MAX_ORDERS);
+  for (let idx = 0; idx < MAX_ORDERS; idx++) r_col[idx] = p_col[idx] + q_col[idx];
+
+  let s_col = new Float64Array(MAX_ORDERS);
+  for (let idx = 0; idx < MAX_ORDERS; idx++) {
+    let curr = r_col[idx], prev = idx > 0 ? r_col[idx - 1] : 0, nxt = idx < MAX_ORDERS - 1 ? r_col[idx + 1] : 0;
+    if (curr === 0) s_col[idx] = 0;
+    else if (curr < 0) s_col[idx] = (nxt < 0) ? (curr - nxt) : curr;
+    else s_col[idx] = (prev < 0) ? curr : (curr - prev);
+  }
+
+  let y_raw = [], z_raw = [];
+  for (let idx = 0; idx < MAX_ORDERS - 1; idx++) {
+    let mv = m_col[idx]; if (isNaN(mv)) continue;
+    y_raw.push(o_col[idx] < 0 ? mv - 0.01 : mv);
+    z_raw.push(n_col[idx] > 0 ? mv + 0.01 : mv);
+  }
+
+  let y_sorted = y_raw.sort((a, b) => b - a), z_sorted = z_raw.sort((a, b) => b - a), y_final = new Array(MAX_ORDERS).fill(NaN), z_final = new Array(MAX_ORDERS).fill(NaN);
+  for (let i = 0; i < z_sorted.length; i++) z_final[i] = z_sorted[i];
+  for (let i = 0; i < y_sorted.length; i++) if (i + 1 < MAX_ORDERS) y_final[i + 1] = y_sorted[i];
+
+  let grouped = {};
+  for (let idx = 0; idx < MAX_ORDERS; idx++) {
+    let s = s_col[idx]; if (s === 0) continue;
+    let side = s > 0 ? "매수" : "매도", price = s > 0 ? y_final[idx] : z_final[idx];
+    if (isNaN(price) || price <= 0) continue;
+    let method = (price === 0.01 && side === "매도") ? "MOC" : "LOC", key = side + "|" + method + "|" + price.toFixed(4);
+    if (!grouped[key]) grouped[key] = { side: side, method: method, price: price, qty: Math.abs(s) };
+    else grouped[key].qty += Math.abs(s);
+  }
+
   return Object.values(grouped).sort((a, b) => b.price - a.price).map(r => [r.side, r.method, r.price, r.qty]);
 }
 
@@ -270,19 +351,50 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
     let cumulativeInOut = 0;
     let cumulativeRealizedProfit = 0;
-    let res = { S: [], BA: [], BF: [], AV: [], INOUT: [], dailyStates: [] };
+    let res = { S: [], BA: [], BF: [], AV: [], INOUT: [], dailyStates: [], trades: [] };
 
     let activeSlot = slotNum || activeSettingsTab;
-    const startDateStr = formatDateNY(startDate);
-    const endDateStr = formatDateNY(endDate);
-    let bDates = mainDataAll.dates.filter(d => {
-      const dStr = formatDateNY(d);
-      return dStr <= endDateStr && dStr >= startDateStr;
-    });
+    let bDates = mainDataAll.dates.filter(d => d <= endDate && d >= startDate);
     const snapKey = `vtotal_snap${activeSlot}_` + myUserId;
     const snapStr = localStorage.getItem(snapKey);
     let startLoopIdx = 0;
     let maxBuyDate = "";
+
+    // ⭐️ [수정] 수동 백테스트나 저장 모드(!isManualBacktestMode 아닐 때)에서는 스냅샷 상속 차단
+    // 그래야 시트 데이터와 현재 계산값이 다를 때 경고창을 정확히 띄울 수 있음.
+    if (!isManualBacktestMode && !force && snapStr) {
+      let snap = JSON.parse(snapStr);
+      if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
+        res.S = snap.chartDates;
+        res.BA = snap.chartBalances;
+        res.BF = snap.chartMdd;
+        res.trades = snap.trades || [];
+
+        inv = snap.inv || [];
+        inv.forEach(h => { if (h.buyDate > maxBuyDate) maxBuyDate = h.buyDate; });
+        let lastSnapDateStr = res.S[res.S.length - 1];
+        if (lastSnapDateStr > maxBuyDate) maxBuyDate = lastSnapDateStr;
+
+        cash = fixFloat(snap.summary.cash);
+        peak = snap.summary.peak || (res.BA.length > 0 ? Math.max(...res.BA) : initialCash);
+        cumulativeRealizedProfit = snap.summary.realizedProfit || 0;
+
+        let oldBase = fixFloat(snap.summary.base || initialCash);
+        cumulativeInOut = fixFloat(snap.summary.inout || 0);
+
+        if (inv.length === 0 && cumulativeRealizedProfit === 0) {
+          cash = initialCash;
+          base = basePrincipal;
+          cumulativeInOut = 0;
+        } else {
+          // ⭐️ [완전 삭제] 엔진이 임의로 자산을 보정하는 모든 로직(principalDiff)을 제거함
+          base = oldBase;
+        }
+
+        startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
+        if (startLoopIdx === -1) startLoopIdx = bDates.length;
+      }
+    }
 
     let full_c = mainDataAll.close, rsi_m = 'SF';
     function t2(v) {
@@ -319,6 +431,9 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     for (let i = startLoopIdx; i < bDates.length; i++) {
       let idx = startIndex + i, close = full_c[idx], dtStr = formatDateNY(bDates[i]), prev = (idx === 0) ? firstPrevClose : full_c[idx - 1];
       if (res.S.includes(dtStr)) continue;
+
+      let current_daily_profits = 0; // 당일 실현 수익 합계용
+      let daily_trades_temp = [];    // 당일 매매건 임시 보관
 
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
@@ -367,14 +482,27 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
         if (close >= s_tgt || p_inv.days >= h_limit) {
           let net = (p_inv.qty * close) * (1 - fSellT);
+          
           let trade_pl = net - p_inv.cost;
           d_pl += trade_pl; d_cf += net;
           d_sell_net += net; d_buy_cost += p_inv.cost;
+
+          current_daily_profits += trade_pl;
+          daily_trades_temp.push({
+            buyDate: p_inv.buyDate,
+            sellDate: dtStr,
+            mode: p_inv.mode,
+            tier: p_inv.tier,
+            buyPrice: p_inv.buy_price,
+            sellPrice: close,
+            qty: p_inv.qty
+          });
         } else n_inv.push(p_inv);
       }
       inv = n_inv;
       if (b_qty > 0) {
         let totalBC = (b_qty * close) * (1 + fBuy);
+        
         if (totalBC <= cash) {
           d_cf -= totalBC;
           inv.push({ buy_price: close, qty: b_qty, cost: totalBC, mode: curr_m, tier: t, days: 0, buyDate: dtStr });
@@ -400,7 +528,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       res.dailyStates.push({
         date: dtStr,
         asset: totalBalance,
-        inout: 0, // 🛡️ [수정] 누적치(6057 등)가 아닌 0으로 고정하여 시트 오염 방지
+        inout: cumulativeInOut,
         json: JSON.stringify({
           cash: fixFloat(cash),
           base_principal: fixFloat(base),
@@ -409,6 +537,15 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       });
 
       res.S.push(dtStr); res.BF.push(currentMdd); res.BA.push(totalBalance); res.AV.push(pl_f); res.INOUT.push(cumulativeInOut);
+
+      if (daily_trades_temp.length > 0) {
+        daily_trades_temp.forEach(t => {
+          t.dailyProfitSum = current_daily_profits;
+          t.totalBalance = totalBalance;
+          t.renewCash = base;
+          res.trades.push(t);
+        });
+      }
     }
 
     let rawOrderOutput = [], orderDateStr = "날짜 확인 불가";
@@ -531,7 +668,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
       evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
       currPrice: currPrice, currentMdd: res.BF[lastIdx],
-      base: realPrincipal, inout: cumulativeInOut, realPrincipal: realPrincipal, peak: peak
+      base: base, inout: cumulativeInOut, realPrincipal: realPrincipal, peak: peak
     };
 
     let finalOrders = run_tungchigi_master(rawOrderOutput);
@@ -539,6 +676,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     return {
       status: "success",
       inv: inv,
+      trades: res.trades,
       orders: finalOrders,
       orderDateStr: orderDateStr,
       summary: summary,
@@ -719,12 +857,12 @@ function processRealLogData(d, currentStrat, configStartDate) {
   // CAGR 시작일은 항상 실제 기록의 첫 날짜 (configStartDate는 야후 데이터용이므로 사용하지 않음)
   const trueStartDateStr = originalFirstDate;
 
-  // 💰 [전체 기간 원금 계산] V3.04 정상 로직: 첫날 총자산(H129) + (전체 입출금 - 첫날 입출금)
+  // 💰 [전체 기간 원금 계산] 필터링 전의 전체 로그를 기준으로 절대 원금을 계산합니다.
   const absoluteFirstAsset = rawLogs[0].asset || 0;
   let absoluteRunningInout = 0;
-  rawLogs.forEach(r => { absoluteRunningInout = fixFloat(absoluteRunningInout + (r.inout || 0)); });
+  rawLogs.forEach(r => { absoluteRunningInout = fixFloat(absoluteRunningInout + r.inout); });
 
-  // 첫날 입출금을 제외한 순수 증감액만 합산
+  // ⭐️ [중요] 원금 = 첫날 총자산 + (전체 입출금 - 첫날 입출금)
   const totalInoutSumExcludeFirst = fixFloat(absoluteRunningInout - (rawLogs[0].inout || 0));
   const calculatedPrincipal = fixFloat(absoluteFirstAsset + totalInoutSumExcludeFirst);
 
@@ -748,10 +886,10 @@ function processRealLogData(d, currentStrat, configStartDate) {
   const lastAsset = chartBalances[chartBalances.length - 1] || 0;
   const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
 
-  // 💰 [전략적 원금 분리] 
-  // calculatedPrincipal: 시트 상의 실제 투입 원금 (수익률/지표용)
-  // finalPrincipal: 전략 구동의 기준이 되는 갱신금 (restoredBase가 있다면 이를 우선 존중)
-  const finalPrincipal = (restoredBase > 0) ? restoredBase : calculatedPrincipal;
+  // 💰 [정합성 고정] 
+  // calculatedPrincipal: 시트 로직 원금 (성과 분석용)
+  // finalPrincipal: JSON/설정에서 복원된 기준금 (매수/매도 시드 기록용)
+  const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
 
   // 💰 성과 지표는 '절대 원금'을 기준으로 일관되게 계산
   const totalProfit = fixFloat(lastAsset - calculatedPrincipal);
