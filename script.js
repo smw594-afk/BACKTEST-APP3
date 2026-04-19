@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.200";
+const APP_VERSION = "3.10";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -138,7 +138,47 @@ async function restoreRealAccountMode() {
   showToast("✅ 실전 데이터로 복원되었습니다.");
 }
 
+// 🔄 수동 백테스트 해제 및 기존 로컬 캐시 복원 함수
+function restoreLocalCache() {
+  isManualBacktestMode = false;
+  isViewingHistory = false;
+  updateHeaderDisplay();
+
+  // 슬롯별로 localStorage에 저장된 실제 실전 캐시(snap) 데이터를 메모리에 다시 복원
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const snapStr = localStorage.getItem(`vtotal_snap${i}_${myUserId}`);
+    // isManualBacktestMode가 false가 되었으므로 isSlotActive는 원래의 slotConfigs를 바라봄
+    if (snapStr && isSlotActive(i)) {
+      try {
+        const snap = JSON.parse(snapStr);
+        lastBTResults[i] = snap;
+        globalMonthlyDataArr[i] = snap.monthlyData;
+        globalYearlyDataArr[i] = snap.yearlyData;
+
+        if (i === 1) initData(slotConfigs[1]); // 1번 슬롯 폼 복원
+        renderOrderViewSlot(snap, i);
+        renderPeriodTableSlot(i);
+      } catch (e) { }
+    } else {
+      lastBTResults[i] = null;
+    }
+  }
+
+  // UI 및 차트, 종합 데이터 재계산 렌더링
+  updateSlotsVisibility();
+  calculateCombinedPeriodData();
+  renderChartAll();
+  refreshStatsTable();
+  updateCurrentStatusUI(activeSettingsTab);
+}
+
 function showOrderView() {
+  // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
+  if (isManualBacktestMode) {
+    restoreLocalCache();
+    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
+  }
+
   isStatsMode = false;
   isOrderView = true;
   document.getElementById('mainGrid').classList.remove('perf-metrics-layout');
@@ -164,6 +204,12 @@ function shouldAutoRefresh() {
 }
 
 function showStatsView() {
+  // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
+  if (isManualBacktestMode) {
+    restoreLocalCache();
+    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
+  }
+
   isStatsMode = true;
   isOrderView = false;
   const grid = document.getElementById('mainGrid');
@@ -171,18 +217,9 @@ function showStatsView() {
   const btnStats = document.getElementById('btnStatsShow');
   if (btnStats) btnStats.classList.add('active');
 
-  if (lastMyPerfData) {
-    for (let i = 1; i <= MAX_SLOTS; i++) {
-      const cfg = slotConfigs[i];
-      const d = lastMyPerfData[`strat${i}`];
-      if (d && d.logs && d.logs.length > 0 && cfg && cfg.basics) {
-        const res = processRealLogData(d, cfg.basics.strategy, cfg.basics.startDate);
-        if (res) updateUIWithResult(res, cfg, i, true);
-      }
-    }
-    calculateCombinedPeriodData();
-    renderChartAll();
-  }
+  // 데이터가 정상적으로 있으면 종합 데이터 및 차트만 리렌더링
+  calculateCombinedPeriodData();
+  renderChartAll();
 }
 
 function toggleOrderView() { isOrderView = !isOrderView; refreshOrderViewUI(); }
@@ -1880,7 +1917,7 @@ function renderChart(resultsArray) {
 
         datasets.push(
           { label: sName + ' 자산', data: alignedBA, borderColor: color, yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: grad, tension: 0.2 },
-          { label: sName + ' MDD', data: alignedMDD, borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+          { label: sName + ' MDD', data: alignedMDD, borderColor: color, borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
         );
         allMddValues = allMddValues.concat(mdd);
       }
@@ -1890,11 +1927,11 @@ function renderChart(resultsArray) {
   const worstMdd = Math.min.apply(null, allMddValues.filter(v => v !== null && isFinite(v)));
   const dynamicMddMin = isFinite(worstMdd) ? Math.floor(worstMdd) - 10 : -50;
 
-  if (Chart.Tooltip && !Chart.Tooltip.positioners.bottomRight) {
-    Chart.Tooltip.positioners.bottomRight = function (items) {
+  if (Chart.Tooltip && !Chart.Tooltip.positioners.bottomLeft) {
+    Chart.Tooltip.positioners.bottomLeft = function (items) {
       if (!items.length) return false;
       const chart = this.chart;
-      return { x: chart.width, y: chart.height };
+      return { x: 0, y: chart.height };
     };
   }
 
@@ -1907,7 +1944,7 @@ function renderChart(resultsArray) {
       plugins: {
         title: { display: false }, legend: { display: false },
         tooltip: {
-          enabled: true, position: 'bottomRight', xAlign: 'right', yAlign: 'bottom',
+          enabled: true, position: 'bottomLeft', xAlign: 'left', yAlign: 'bottom',
           backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 8,
           titleFont: { family: 'Outfit', size: chartFontSize, weight: 'bold' }, bodyFont: { family: 'Inter', size: chartFontSize },
           cornerRadius: 8, displayColors: true,
@@ -1929,7 +1966,7 @@ function renderChart(resultsArray) {
         },
         y1: {
           position: 'right', min: dynamicMddMin, max: 0, grid: { display: false },
-          ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#ef4444', callback: function (v) { return v.toFixed(1) + '%'; } }
+          ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#94a3b8', callback: function (v) { return v.toFixed(1) + '%'; } }
         }
       }
     },
