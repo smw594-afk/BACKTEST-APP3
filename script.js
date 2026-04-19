@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.10";
+const APP_VERSION = "3.200";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -515,9 +515,9 @@ function openQuickConfig() {
   if (document.getElementById('qStrat1')) document.getElementById('qStrat1').value = '1M';
   if (document.getElementById('qStrat2')) document.getElementById('qStrat2').value = '2M3D2(1.0)';
   if (document.getElementById('qStrat3')) document.getElementById('qStrat3').value = '2M3D2(1.2)';
-  if (document.getElementById('qStrat4')) document.getElementById('qStrat4').value = '2M3D2(2.0)';
-  if (document.getElementById('qStrat5')) document.getElementById('qStrat5').value = '2M3D2(2.1)';
-  if (document.getElementById('qStrat6')) document.getElementById('qStrat6').value = '2M3D1-1P';
+  if (document.getElementById('qStrat4')) document.getElementById('qStrat4').value = '2M3D1-1P';
+  if (document.getElementById('qStrat5')) document.getElementById('qStrat5').value = '2M3D2(2.0)';
+  if (document.getElementById('qStrat6')) document.getElementById('qStrat6').value = '2M3D2(2.1)';
 
   document.getElementById('qTicker').value = 'SOXL';
   document.getElementById('qStartDate').value = '2026-01-01';
@@ -940,7 +940,22 @@ function updateCurrentStatusUI(slotNum) {
   const panel = document.getElementById('settingsStatusPanel');
   if (!panel) return;
 
-  const res = lastBTResults[slotNum];
+  // ⭐️ 수동 백테스트 중이라면 메모리 변수 대신, 로컬에 백업된 '진짜 실전 스냅샷'을 읽어옵니다.
+  let res = lastBTResults[slotNum];
+  
+  if (isManualBacktestMode) {
+    const snapStr = localStorage.getItem(`vtotal_snap${slotNum}_${myUserId}`);
+    if (snapStr) {
+      try {
+        res = JSON.parse(snapStr);
+      } catch (e) {
+        res = null;
+      }
+    } else {
+      res = null;
+    }
+  }
+
   const elDate = document.getElementById('statDate');
   const elTotal = document.getElementById('statTotal');
   const elRenew = document.getElementById('statRenew');
@@ -1917,6 +1932,7 @@ function renderChart(resultsArray) {
 
         datasets.push(
           { label: sName + ' 자산', data: alignedBA, borderColor: color, yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: grad, tension: 0.2 },
+          // 1️⃣ MDD 색상을 color로 변경 완료
           { label: sName + ' MDD', data: alignedMDD, borderColor: color, borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
         );
         allMddValues = allMddValues.concat(mdd);
@@ -1927,6 +1943,7 @@ function renderChart(resultsArray) {
   const worstMdd = Math.min.apply(null, allMddValues.filter(v => v !== null && isFinite(v)));
   const dynamicMddMin = isFinite(worstMdd) ? Math.floor(worstMdd) - 10 : -50;
 
+  // 2️⃣ 툴팁 위치를 bottomLeft로 설정 완료 (x축 값을 0으로 고정)
   if (Chart.Tooltip && !Chart.Tooltip.positioners.bottomLeft) {
     Chart.Tooltip.positioners.bottomLeft = function (items) {
       if (!items.length) return false;
@@ -1944,6 +1961,7 @@ function renderChart(resultsArray) {
       plugins: {
         title: { display: false }, legend: { display: false },
         tooltip: {
+          // 3️⃣ 툴팁 속성을 bottomLeft 및 left 정렬로 변경 완료
           enabled: true, position: 'bottomLeft', xAlign: 'left', yAlign: 'bottom',
           backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 8,
           titleFont: { family: 'Outfit', size: chartFontSize, weight: 'bold' }, bodyFont: { family: 'Inter', size: chartFontSize },
@@ -1966,7 +1984,7 @@ function renderChart(resultsArray) {
         },
         y1: {
           position: 'right', min: dynamicMddMin, max: 0, grid: { display: false },
-          ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#94a3b8', callback: function (v) { return v.toFixed(1) + '%'; } }
+          ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#ef4444', callback: function (v) { return v.toFixed(1) + '%'; } }
         }
       }
     },
