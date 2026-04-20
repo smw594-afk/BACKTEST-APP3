@@ -680,18 +680,29 @@ async function checkAndSyncWithServer(isInitial) {
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, configStartDate);
 
         if (realData) {
-          localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(realData));
-
-          const pureEngineRes = await runBacktestMemory(slotConfigs[slotNum], false, slotNum);
+          // ⭐️ [완벽 해결] 서버(시트)에 저장된 옛날 갱신금을 무시하고, 
+          // 엔진을 '강제 실행(force: true)'하여 수학적으로 완벽한 누적 갱신금(165주 기준)을 새로 뽑아옵니다.
+          const pureEngineRes = await runBacktestMemory(confData, true, slotNum);
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
+
+          // 진짜 알고리즘 갱신금(base) 추출
+          const trueAlgorithmicBase = isEngOk ? pureEngineRes.summary.base : realData.summary.base;
+          const trueRealPrincipal = realData.summary.realPrincipal;
+
+          // 화면의 설정값을 옛날 데이터가 아닌 완벽한 알고리즘 데이터로 동기화
+          confData.basics.renewCash = trueAlgorithmicBase;
+          confData.basics.initialCash = trueRealPrincipal;
+          
+          localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
+          slotConfigs[slotNum] = confData;
 
           let mergedSnap = {
             ...realData,
             summary: isEngOk ? {
               ...pureEngineRes.summary,
-              base: realData.summary.base,
+              base: trueAlgorithmicBase, // <-- 핵심: 서버값이 아닌 엔진의 진짜 갱신금 강제 유지!
               inout: realData.summary.inout,
-              realPrincipal: realData.summary.realPrincipal,
+              realPrincipal: trueRealPrincipal,
               totalAssets: realData.summary.totalAssets,
               yield: realData.summary.yield,
               cagr: realData.summary.cagr,
@@ -713,6 +724,7 @@ async function checkAndSyncWithServer(isInitial) {
             isSynced: true
           };
 
+          localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(mergedSnap));
           lastBTResults[slotNum] = mergedSnap;
           updateUIWithResult(mergedSnap, confData, slotNum, false);
         }
@@ -942,7 +954,7 @@ function updateCurrentStatusUI(slotNum) {
 
   // ⭐️ 수동 백테스트 중이라면 메모리 변수 대신, 로컬에 백업된 '진짜 실전 스냅샷'을 읽어옵니다.
   let res = lastBTResults[slotNum];
-  
+
   if (isManualBacktestMode) {
     const snapStr = localStorage.getItem(`vtotal_snap${slotNum}_${myUserId}`);
     if (snapStr) {
