@@ -624,9 +624,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
       let currentW = MODES[today_m].weight[tTier - 1] || 0;
 
-      // 🎯 [실전 최적화] 주문 수량 계산 시에는 과거 백테스트 결과(base)가 아닌, 
-      // 현재 사용자가 보고 있는 최신 '갱신금(basePrincipal)'을 기준으로 시드를 결정함.
-      let tSeed = t2(Math.min(basePrincipal * currentW, cash));
+      // 🎯 [순수 백테스트 반영] 시작일부터 누적/계산되어 온 백테스트 최종 갱신금(base) 기준
+      let tSeed = t2(Math.min(base * currentW, cash));
 
       let bTgtVal = MODES[today_m].buy[tTier - 1] || 0;
       let tTgt = t2(lastDataClose * (1 + bTgtVal));
