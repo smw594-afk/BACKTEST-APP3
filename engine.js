@@ -552,7 +552,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let nextOrderInfo = { tier: "-", mode: "-", weight: "-", qty: "-" };
 
     let tIdx = full_c.length;
-    if (tIdx > 0 && res.S.length > 0) {
+    // 백테스트 매매 기록(res.S) 유무와 상관없이, 과거 데이터(tIdx)만 있으면 즉시 주문표 생성
+    if (tIdx > 0) {
       const lastDateDaily = mainDataAll.dates[tIdx - 1];
       const lastDateNYStr = formatDateNY(lastDateDaily);
       const lp = lastDateNYStr.split('-');
@@ -1109,21 +1110,46 @@ function generateCombinedPeriodDataEngine(activeResults) {
   sortedDates.forEach(dt => {
     let dayAsset = 0;
     let dayInout = 0;
+    
     activeResults.forEach(r => {
       if (r.chartDates && r.chartBalances) {
         let idx = r.chartDates.indexOf(dt);
+        let slotInoutVal = 0;
+        let currentAsset = 0;
+
         if (idx !== -1) {
-          dayAsset += r.chartBalances[idx];
-          dayInout += (r.chartInout ? r.chartInout[idx] : 0);
+          currentAsset = r.chartBalances[idx];
+          if (r.isSynced) {
+            // ⭐️ 실전 시트 데이터: chartInout[0]에 이미 초기 원금이 포함되어 있으므로 차이만 계산하여 더함 (더블 카운팅 방지!)
+            let firstAsset = r.chartBalances[0] || 0;
+            let firstInout = r.chartInout ? r.chartInout[0] : 0;
+            let currInout = r.chartInout ? r.chartInout[idx] : 0;
+            slotInoutVal = firstAsset + (currInout - firstInout);
+          } else {
+            // ⭐️ 수동 백테스트 데이터: chartInout이 0부터 시작하므로 초기 원금을 명시적으로 더함
+            let initialCash = r.summary && r.summary.realPrincipal ? (r.summary.realPrincipal - (r.summary.inout || 0)) : (r.chartBalances[0] || 0);
+            slotInoutVal = initialCash + (r.chartInout ? r.chartInout[idx] : 0);
+          }
         } else {
           // 해당 날짜 없는 경우 이전 종가 사용 (Back-fill)
           let lastI = -1;
           for (let j = 0; j < r.chartDates.length; j++) { if (r.chartDates[j] <= dt) lastI = j; }
           if (lastI !== -1) {
-            dayAsset += r.chartBalances[lastI];
-            dayInout += (r.chartInout ? r.chartInout[lastI] : 0);
+            currentAsset = r.chartBalances[lastI];
+            if (r.isSynced) {
+              let firstAsset = r.chartBalances[0] || 0;
+              let firstInout = r.chartInout ? r.chartInout[0] : 0;
+              let currInout = r.chartInout ? r.chartInout[lastI] : 0;
+              slotInoutVal = firstAsset + (currInout - firstInout);
+            } else {
+              let initialCash = r.summary && r.summary.realPrincipal ? (r.summary.realPrincipal - (r.summary.inout || 0)) : (r.chartBalances[0] || 0);
+              slotInoutVal = initialCash + (r.chartInout ? r.chartInout[lastI] : 0);
+            }
           }
         }
+        
+        dayAsset += currentAsset;
+        dayInout += slotInoutVal;
       }
     });
 
