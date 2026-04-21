@@ -818,7 +818,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     str = str.replace(/[.\/]/g, '-');
     let p = str.split('-');
     if (p.length === 1 && str.length >= 6) { let y = str.slice(0, 4); let m = str.slice(4, 6); let d = str.slice(6, 8) || "01"; return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`; }
-    if (p.length >= 3) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); let d = p[2].padStart(2, '0'); return `${y}-${m}-${d}`; } 
+    if (p.length >= 3) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); let d = p[2].padStart(2, '0'); return `${y}-${m}-${d}`; }
     else if (p.length === 2) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); return `${y}-${m}-01`; }
     return str;
   };
@@ -833,7 +833,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const safeInitialCash = (typeof userInitialCash === 'number') ? userInitialCash : (parseFloat(userInitialCash) || 0);
   const firstInout = rawLogs[0].inout || 0;
   const lastInout = rawLogs[rawLogs.length - 1].inout || 0;
-  
+
   const totalInoutSumExcludeFirst = fixFloat(lastInout - firstInout);
   const calculatedPrincipal = fixFloat(safeInitialCash + totalInoutSumExcludeFirst);
 
