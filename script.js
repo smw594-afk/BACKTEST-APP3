@@ -971,20 +971,26 @@ function updateCurrentStatusUI(slotNum) {
   const elTotal = document.getElementById('statTotal');
   const elRenew = document.getElementById('statRenew');
   const elPrincipal = document.getElementById('statPrincipal');
+  const elCash = document.getElementById('statCash');
 
   if (!res || !res.summary) {
-    elDate.innerText = "-"; elTotal.innerText = "-"; elRenew.innerText = "-"; elPrincipal.innerText = "-";
+    if(elDate) elDate.innerText = "-";
+    if(elTotal) elTotal.innerText = "-";
+    if(elRenew) elRenew.innerText = "-";
+    if(elPrincipal) elPrincipal.innerText = "-";
+    if(elCash) elCash.innerText = "-";
     return;
   }
 
   const s = res.summary;
   const sheetDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "-";
-  const fmt = (val) => "$" + fixFloat(val).toLocaleString();
+  const fmt = (val) => "$" + Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
-  elDate.innerText = sheetDate;
-  elTotal.innerText = fmt(s.totalAssets);
-  elRenew.innerText = fmt(s.base);
-  elPrincipal.innerText = fmt(s.realPrincipal || s.base);
+  if(elDate) elDate.innerText = sheetDate;
+  if(elTotal) elTotal.innerText = fmt(s.totalAssets);
+  if(elRenew) elRenew.innerText = fmt(s.base);
+  if(elPrincipal) elPrincipal.innerText = fmt(s.realPrincipal || s.base);
+  if(elCash) elCash.innerText = fmt(s.cash);
 }
 
 function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
