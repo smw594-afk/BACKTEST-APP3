@@ -676,34 +676,32 @@ async function checkAndSyncWithServer(isInitial) {
         });
         localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
 
-        const configStartDate = confData.basics.startDate || "1900-01-01";
-        const realData = processRealLogData(perfSlotData, confData.basics.strategy, configStartDate);
+        // ⭐️ [버그 수정] 설정창의 '진짜 초기자산'을 엔진으로 넘겨줌
+        const realData = processRealLogData(perfSlotData, confData.basics.strategy, confData.basics.initialCash);
 
         if (realData) {
-          // ⭐️ 163주 튕김 방지: 엔진을 '강제 실행(force: true)'하여 진짜 알고리즘 갱신금을 뽑아옴
+          // 163주 튕김 방지용 엔진 강제 실행
           const pureEngineRes = await runBacktestMemory(confData, true, slotNum);
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
           const trueAlgorithmicBase = isEngOk ? pureEngineRes.summary.base : realData.summary.base;
           
-          // ⭐️ 원금 뻥튀기 원천 차단 (불변 상태 하드코딩): 
-          // 실전 데이터의 원금에서 입출금을 미리 빼둔 순수한 '초기자산'만 박아넣어 더블카운팅 방지
-          const trueInout = realData.summary.inout || 0;
-          const trueOriginalPrincipal = realData.summary.realPrincipal - trueInout;
+          // ⭐️ [원금 원천 방지] 시트의 실전 원금 데이터(입출금 포함) 추출
+          const trueRealPrincipal = realData.summary.realPrincipal;
 
+          // 1. 설정 꾸러미(conf) 업데이트 및 저장 (초기자산은 불변 유지하므로 덮어쓰지 않음)
           confData.basics.renewCash = trueAlgorithmicBase;
-          confData.basics.initialCash = trueOriginalPrincipal;
-          
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
           slotConfigs[slotNum] = confData;
 
+          // 2. 스냅샷 꾸러미(snap) 구성 및 저장
           let mergedSnap = {
             ...realData,
             summary: isEngOk ? {
               ...pureEngineRes.summary,
               base: trueAlgorithmicBase,
               inout: realData.summary.inout,
-              realPrincipal: realData.summary.realPrincipal,
+              realPrincipal: trueRealPrincipal, // ⭐️ 원금을 꾸러미에 하드코딩으로 박아넣음!
               totalAssets: realData.summary.totalAssets,
               yield: realData.summary.yield,
               cagr: realData.summary.cagr,
