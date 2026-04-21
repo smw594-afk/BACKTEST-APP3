@@ -727,6 +727,16 @@ async function checkAndSyncWithServer(isInitial) {
           lastBTResults[slotNum] = mergedSnap;
           updateUIWithResult(mergedSnap, confData, slotNum, false);
         }
+      } else {
+        // ⭐️ [신규 슬롯 자동저장 지원] 시트에 기록이 없는 슬롯도 엔진을 돌려서 dailyStates를 생성
+        // 이렇게 해야 checkAndRunAutoSave에서 해당 슬롯 데이터가 자동으로 시트에 저장됨
+        if (confData.basics.ticker && confData.basics.startDate) {
+          const newSlotRes = await runBacktestMemory(confData, true, slotNum);
+          if (newSlotRes && newSlotRes.status !== "error") {
+            lastBTResults[slotNum] = newSlotRes;
+            updateUIWithResult(newSlotRes, confData, slotNum, true);
+          }
+        }
       }
     };
 
