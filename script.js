@@ -684,37 +684,22 @@ async function checkAndSyncWithServer(isInitial) {
           const pureEngineRes = await runBacktestMemory(confData, true, slotNum);
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
-          const trueAlgorithmicBase = isEngOk ? pureEngineRes.summary.base : realData.summary.base;
+          // ⭐️ 엔진의 가상 계산값을 버리고, 시트 꾸러미(JSON)의 진짜 갱신금을 추출
+          const realJsonBase = realData.summary.base;
 
           // ⭐️ [원금 원천 방지] 시트의 실전 원금 데이터(입출금 포함) 추출
           const trueRealPrincipal = realData.summary.realPrincipal;
 
-          // 1. 설정 꾸러미(conf) 업데이트 및 저장 (초기자산은 불변 유지하므로 덮어쓰지 않음)
-          confData.basics.renewCash = trueAlgorithmicBase;
+          // 1. 설정 꾸러미(conf) 업데이트 및 저장
+          // 🚨 설정창의 갱신금(renewCash)을 덮어쓰는 로직을 삭제하여 사용자의 설정값을 보존합니다.
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
           slotConfigs[slotNum] = confData;
 
           // 2. 스냅샷 꾸러미(snap) 구성 및 저장
           let mergedSnap = {
             ...realData,
-            summary: isEngOk ? {
-              ...pureEngineRes.summary,
-              base: trueAlgorithmicBase,
-              inout: realData.summary.inout,
-              realPrincipal: trueRealPrincipal, // ⭐️ 원금을 꾸러미에 하드코딩으로 박아넣음!
-              totalAssets: realData.summary.totalAssets,
-              yield: realData.summary.yield,
-              cagr: realData.summary.cagr,
-              totalProfit: realData.summary.totalProfit,
-              mdd: realData.summary.mdd,
-              calmar: realData.summary.calmar,
-              currentMdd: realData.summary.currentMdd,
-              cash: realData.summary.cash,
-              qty: realData.summary.qty,
-              avgPrice: realData.summary.avgPrice,
-              trueStartDate: realData.summary.trueStartDate
-            } : realData.summary,
-            inv: isEngOk ? pureEngineRes.inv : realData.inv,
+            summary: realData.summary, // ⭐️ 가상 엔진 데이터 대신 시트 데이터(realData.summary) 100% 강제 적용!
+            inv: realData.inv, // ⭐️ 엔진 결과 무시하고 시트 데이터 강제 고정!
             trades: isEngOk ? pureEngineRes.trades : realData.trades,
             orders: (isEngOk && pureEngineRes.orders && pureEngineRes.orders.length > 0) ? pureEngineRes.orders : realData.orders,
             nextOrderInfo: isEngOk ? pureEngineRes.nextOrderInfo : null,
@@ -722,6 +707,18 @@ async function checkAndSyncWithServer(isInitial) {
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
             isSynced: true
           };
+
+          // ⭐️ [근본 원인 해결] 엔진이 생성한 dailyStates JSON 안의 realPrincipal을
+          // 시트 데이터의 정답 원금(C129 + SUM(D))으로 강제 덮어씌움!
+          if (mergedSnap.dailyStates && trueRealPrincipal) {
+            mergedSnap.dailyStates = mergedSnap.dailyStates.map(state => {
+              try {
+                let parsed = JSON.parse(state.json);
+                parsed.realPrincipal = trueRealPrincipal;
+                return { ...state, json: JSON.stringify(parsed) };
+              } catch(e) { return state; }
+            });
+          }
 
           localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(mergedSnap));
           lastBTResults[slotNum] = mergedSnap;
@@ -733,8 +730,10 @@ async function checkAndSyncWithServer(isInitial) {
         if (confData.basics.ticker && confData.basics.startDate) {
           const newSlotRes = await runBacktestMemory(confData, true, slotNum);
           if (newSlotRes && newSlotRes.status !== "error") {
+            // ⭐️ [첫 기록 보장] 스냅샷을 localStorage에 저장하여 checkAndRunAutoSave가 찾을 수 있게 함
+            localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(newSlotRes));
             lastBTResults[slotNum] = newSlotRes;
-            updateUIWithResult(newSlotRes, confData, slotNum, true);
+            updateUIWithResult(newSlotRes, confData, slotNum, false);
           }
         }
       }
@@ -794,9 +793,13 @@ function checkAndRunAutoSave() {
   setLED('loading');
   fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "AUTO_DAILY_SAVE", id: myUserId, logs: batchLogs }) })
     .then(() => {
-      let finalDate = batchLogs[batchLogs.length - 1].date;
+      // ⭐️ 각 슬롯별로 실제 전송된 마지막 날짜만 정확히 업데이트
       for (let i = 1; i <= MAX_SLOTS; i++) {
-        if (batchLogs.some(b => b[`s${i}`])) localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, finalDate);
+        const slotLogs = batchLogs.filter(b => b[`s${i}`]);
+        if (slotLogs.length > 0) {
+          const slotLastDate = slotLogs[slotLogs.length - 1].date;
+          localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, slotLastDate);
+        }
       }
       setLED('on');
       const header = document.getElementById('userDisplayHeader');
@@ -836,7 +839,6 @@ async function handleSave() {
   try {
     saveCurrentFormToSlot(targetSlot);
 
-    // 백테스트 실행 결과 확인 (최신 데이터 확보)
     const targetRes = await runBacktestMemory(slotConfigs[targetSlot], false, targetSlot);
 
     if (!targetRes || targetRes.status === "error") {
@@ -845,12 +847,23 @@ async function handleSave() {
       return;
     }
 
-    // [수정사항 2] 시트의 마지막 날짜 이후의 모든 거래일(dailyStates) 필터링
     const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`) || "1900-01-01";
-    const newLogs = targetRes.dailyStates.filter(s => s.date > sheetLastDate);
+
+    // ⭐️ [신규 슬롯 첫 기록 보장] 시트에 아무 기록도 없으면(1900-01-01) 전체 dailyStates를 전송
+    // 기존 슬롯이면 마지막 날짜 이후만 추출
+    let newLogs;
+    if (sheetLastDate === "1900-01-01") {
+      newLogs = targetRes.dailyStates || [];
+    } else {
+      newLogs = targetRes.dailyStates.filter(s => s.date > sheetLastDate);
+    }
 
     if (newLogs.length === 0) {
-      if (!confirm("시트에 이미 최신 데이터까지 기록되어 있습니다. 설정을 갱신하시겠습니까?")) {
+      if (confirm("반영할 새로운 기록이 없습니다. \n\n만약 4/20일 등의 과거 기록이 시트에서 누락되었다면, [확인]을 눌러 전체 데이터를 강제로 다시 전송하시겠습니까?")) {
+        newLogs = targetRes.dailyStates || [];
+        // ⭐️ 강제 전송 시 날짜 캐시를 초기화하여 확실하게 보내도록 유도
+        localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
+      } else {
         if (btn) btn.innerHTML = orgText;
         return;
       }
@@ -858,17 +871,29 @@ async function handleSave() {
 
     if (btn) btn.innerText = '저장 중...';
 
-    // GAS로 보낼 페이로드 구성
+    // ⭐️ [데이터 박제] 저장 직전 JSON 내 원금값을 화면 표시값으로 강제 고정
+    const trueSnap = lastBTResults[targetSlot];
+    if (trueSnap && trueSnap.summary) {
+      newLogs.forEach(log => {
+        log.asset = trueSnap.summary.totalAssets; // 화면의 총자산
+        let parsed = JSON.parse(log.json);
+        // 화면에 떠 있는 정확한 'realPrincipal'을 다시 한 번 박아넣습니다.
+        parsed.cash = trueSnap.summary.cash;
+        parsed.base_principal = trueSnap.summary.base;
+        parsed.realPrincipal = trueSnap.summary.realPrincipal; 
+        parsed.holdings = trueSnap.inv.map(p => ({ ...p }));
+        log.json = JSON.stringify(parsed);
+      });
+    }
+
     let payload = {
       action: "BACKUP_AND_SAVE_V4",
       id: myUserId,
       logs: newLogs.map(s => {
         let entry = { date: s.date };
-        // 슬롯 번호에 맞게 데이터 매핑 (s1, s2, ... s6)
         entry[`s${targetSlot}`] = { asset: s.asset, inout: s.inout, json: s.json };
         return entry;
       }),
-      // 설정값(Params) 업데이트
       params: (targetSlot === 1) ? slotConfigs[1] : null,
       params2: (targetSlot === 2) ? slotConfigs[2] : null,
       params3: (targetSlot === 3) ? slotConfigs[3] : null,
@@ -880,7 +905,6 @@ async function handleSave() {
     if (navigator.onLine) {
       await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
 
-      // 로컬 스토리지 날짜 갱신
       if (newLogs.length > 0) {
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, newLogs[newLogs.length - 1].date);
       }
@@ -895,6 +919,14 @@ async function handleSave() {
   } finally {
     if (btn) btn.innerHTML = orgText;
   }
+}
+
+function resetSyncDates() {
+  if (!confirm("🔄 모든 투자법의 시트 동기화 날짜 정보를 초기화하시겠습니까?\n\n(설정값은 지워지지 않으며, 다음 번 '시트에 반영' 클릭 시 누락된 모든 날짜가 시트로 다시 전송됩니다.)")) return;
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, "1900-01-01");
+  }
+  showToast("동기화 정보가 초기화되었습니다. 시트 반영을 시도하세요.", "✅");
 }
 
 function handleOfflineSave(payload) {
@@ -961,7 +993,6 @@ function updateCurrentStatusUI(slotNum) {
   const panel = document.getElementById('settingsStatusPanel');
   if (!panel) return;
 
-  // ⭐️ 수동 백테스트 중이라면 메모리 변수 대신, 로컬에 백업된 '진짜 실전 스냅샷'을 읽어옵니다.
   let res = lastBTResults[slotNum];
 
   if (isManualBacktestMode) {
@@ -984,11 +1015,11 @@ function updateCurrentStatusUI(slotNum) {
   const elCash = document.getElementById('statCash');
 
   if (!res || !res.summary) {
-    if(elDate) elDate.innerText = "-";
-    if(elTotal) elTotal.innerText = "-";
-    if(elRenew) elRenew.innerText = "-";
-    if(elPrincipal) elPrincipal.innerText = "-";
-    if(elCash) elCash.innerText = "-";
+    if (elDate) elDate.innerText = "-";
+    if (elTotal) elTotal.innerText = "-";
+    if (elRenew) elRenew.innerText = "-";
+    if (elPrincipal) elPrincipal.innerText = "-";
+    if (elCash) elCash.innerText = "-";
     return;
   }
 
@@ -996,24 +1027,74 @@ function updateCurrentStatusUI(slotNum) {
   const sheetDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "-";
   const fmt = (val) => "$" + Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
-  if(elDate) elDate.innerText = sheetDate;
-  if(elTotal) elTotal.innerText = fmt(s.totalAssets);
-  if(elRenew) elRenew.innerText = fmt(s.base);
-  if(elPrincipal) elPrincipal.innerText = fmt(s.realPrincipal || s.base);
-  if(elCash) elCash.innerText = fmt(s.cash);
+  // ⭐️ [시트 값 통일] 시트에 실제로 기록되는 마지막 dailyState의 JSON을 직접 읽어서 표시합니다.
+  let displayTotal = s.totalAssets;
+  let displayBase = s.base;
+  let displayPrincipal = s.realPrincipal || s.base;
+  let displayCash = s.cash;
+  let displayHoldings = [];
+
+  if (res.dailyStates && res.dailyStates.length > 0) {
+    const lastState = res.dailyStates[res.dailyStates.length - 1];
+    displayTotal = lastState.asset;
+    try {
+      const lastJson = JSON.parse(lastState.json);
+      displayCash = lastJson.cash;
+      displayBase = lastJson.base_principal;
+      displayPrincipal = lastJson.realPrincipal || displayPrincipal;
+      displayHoldings = lastJson.holdings || [];
+    } catch(e) { /* JSON 파싱 실패 시 summary 값 사용 */ }
+  } else if (res.inv) {
+    displayHoldings = res.inv;
+  }
+
+  if (elDate) elDate.innerText = sheetDate;
+  if (elTotal) elTotal.innerText = fmt(displayTotal);
+  if (elRenew) elRenew.innerText = fmt(displayBase);
+  if (elPrincipal) elPrincipal.innerText = fmt(displayPrincipal);
+  if (elCash) elCash.innerText = fmt(displayCash);
+
+  // 📦 보유 주식 (시트 꾸러미 데이터 - 꾸러미에 실제 저장되는 필드만 표시)
+  const elHoldings = document.getElementById('statHoldings');
+  if (elHoldings) {
+    if (displayHoldings.length === 0) {
+      elHoldings.innerHTML = '<span style="color:#64748b;">보유 주식 없음</span>';
+    } else {
+      let html = displayHoldings.map((h) => {
+        const m = h.mode || '-';
+        const t = h.tier || '-';
+        const bp = Number(h.buy_price || 0).toFixed(2);
+        const q = h.qty || 0;
+        const cost = Number(h.cost || 0).toFixed(2);
+        const d = h.days || 0;
+        const bd = h.buyDate || '-';
+        return `<div style="display:grid; grid-template-columns: 24px 24px 60px 44px 75px 32px 1fr; gap:4px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04); align-items:center; font-size:10.5px; white-space:nowrap; text-align:center;">` +
+          `<span style="color:#6366f1;">T${t}</span>` +
+          `<span style="color:#fbbf24;">${m}</span>` +
+          `<span>$${Number(bp).toFixed(2)}</span>` +
+          `<span style="color:#10b981;">${q}주</span>` +
+          `<span style="color:#f97316;">$${Number(cost).toFixed(2)}</span>` +
+          `<span style="color:#94a3b8;">${d}일</span>` +
+          `<span style="color:#64748b;">${bd.split('-').slice(1).join('-')}</span>` +
+          `</div>`;
+      }).join('');
+      elHoldings.innerHTML = html;
+    }
+  }
 }
 
 function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
   const existing = lastBTResults[slotNum];
   let finalRes = resBT;
 
-  if (existing && existing.isSynced && !resBT.isSynced && !isViewingHistory) {
+  // ⭐️ [거울 로직] 시트와 동기화된 데이터(existing)가 있다면, 
+  // 시뮬레이션 결과(resBT)에서는 '주문표'만 빌려오고 현황판(summary)은 시트 값을 유지합니다.
+  if (existing && existing.isSynced && !resBT.isSynced) {
     finalRes = {
-      ...existing,
+      ...existing, // 시트에서 가져온 날짜, 총자산, JSON(예수금, 원금 등) 100% 유지
       orders: resBT.orders,
       nextOrderInfo: resBT.nextOrderInfo,
-      orderDateStr: resBT.orderDateStr,
-      inv: resBT.inv
+      orderDateStr: resBT.orderDateStr
     };
   }
 
@@ -1109,7 +1190,7 @@ async function handleInstantOrder() {
     if (isActive) {
       const res = await runBacktestMemory(cfg, false, slotNum);
       if (res.status !== "error") {
-        lastBTResults[slotNum] = res;
+        // 🚨 중요: lastBTResults[slotNum] = res; 이 줄을 삭제하여 시뮬레이션 결과로 기존 시트 데이터를 덮어쓰지 않음
         updateUIWithResult(res, cfg, slotNum);
       }
     } else {
