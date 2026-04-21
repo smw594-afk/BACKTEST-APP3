@@ -830,13 +830,14 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const originalFirstDate = rawLogs[0].date;
   const trueStartDateStr = originalFirstDate;
 
-  // 💰 [전체 기간 원금 계산] 역추적 금지! 설정창의 '초기자산'을 100% 신뢰
-  const safeInitialCash = (typeof userInitialCash === 'number') ? userInitialCash : (parseFloat(userInitialCash) || 0);
+  // 💰 [원금 계산 로직 변경] 설정창 값이 아닌 시트의 첫날 총자산(C129 등)을 초기자산으로 사용
+  const firstDayAsset = rawLogs[0].asset || 0;  // 시트의 C129(투자법1 기준) 값
   const firstInout = rawLogs[0].inout || 0;
   const lastInout = rawLogs[rawLogs.length - 1].inout || 0;
 
+  // 원금 = (첫날 총자산) + (이후 추가된 순수 증액분)
   const totalInoutSumExcludeFirst = fixFloat(lastInout - firstInout);
-  const calculatedPrincipal = fixFloat(safeInitialCash + totalInoutSumExcludeFirst);
+  const calculatedPrincipal = fixFloat(firstDayAsset + totalInoutSumExcludeFirst);
 
   // 🗓️ [전체 타임라인 생성] 실제 로그는 필터링 없이 전체 기록을 그대로 사용합니다
   let chartDates = [], chartBalances = [], chartMdd = [], chartInout = [];
