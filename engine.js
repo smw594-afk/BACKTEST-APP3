@@ -382,7 +382,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         let oldBase = fixFloat(snap.summary.base || initialCash);
         cumulativeInOut = fixFloat(snap.summary.inout || 0);
 
-        // ⭐️ [버그 수정 2] 보유 주식이 없을 때 현금을 억지로 깎아버리는 로직 완전 삭제 (시트 현금 100% 신뢰)
+        // ⭐️ 보유 주식이 없어도 시트의 현금 상태를 100% 보존 (강제 초기화 삭제)
         base = oldBase;
 
         startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
@@ -805,7 +805,7 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
 }
 
 // 🌐 실전 데이터 처리 (Real Log Data)
-function processRealLogData(d, currentStrat, configStartDate) {
+function processRealLogData(d, currentStrat, userInitialCash) {
   if (!d || !d.logs || d.logs.length === 0) return null;
   const logs = d.logs; const meta = d.meta;
   let restoredInv = []; let restoredBase = 0; let realizedProfit = fixFloat(meta.realizedProfit) || 0; let cash = fixFloat(meta.currentCash) || 0; let serverQty = fixFloat(meta.qty) || 0; let serverAvg = fixFloat(meta.avgPrice) || 0;
@@ -814,51 +814,28 @@ function processRealLogData(d, currentStrat, configStartDate) {
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;
     let str = String(ds).trim();
-    // 1. 숫자와 하이픈/마침표/슬래시만 남기고 모두 제거
     str = str.replace(/[^0-9.\-\/]/g, '');
-    // 2. 구분자를 하이픈으로 통합
     str = str.replace(/[.\/]/g, '-');
-
     let p = str.split('-');
-    // 하이픈이 없는 경우 (예: 20260406) 처리
-    if (p.length === 1 && str.length >= 6) {
-      let y = str.slice(0, 4);
-      let m = str.slice(4, 6);
-      let d = str.slice(6, 8) || "01";
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-
-    if (p.length >= 3) {
-      let y = p[0];
-      if (y.length === 2) y = "20" + y;
-      let m = p[1].padStart(2, '0');
-      let d = p[2].padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    } else if (p.length === 2) {
-      let y = p[0];
-      if (y.length === 2) y = "20" + y;
-      let m = p[1].padStart(2, '0');
-      return `${y}-${m}-01`;
-    }
+    if (p.length === 1 && str.length >= 6) { let y = str.slice(0, 4); let m = str.slice(4, 6); let d = str.slice(6, 8) || "01"; return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`; }
+    if (p.length >= 3) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); let d = p[2].padStart(2, '0'); return `${y}-${m}-${d}`; } 
+    else if (p.length === 2) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); return `${y}-${m}-01`; }
     return str;
   };
   let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
   if (rawLogs.length === 0) return null;
   rawLogs.sort((a, b) => (a.date > b.date ? 1 : -1));
 
-  // ⭐️ 시트 로그의 진짜 첫 날짜 (B129/G129/L129 = 시트의 S6 역할)
   const originalFirstDate = rawLogs[0].date;
-  // CAGR 시작일은 항상 실제 기록의 첫 날짜 (configStartDate는 야후 데이터용이므로 사용하지 않음)
   const trueStartDateStr = originalFirstDate;
 
-  // 💰 [전체 기간 원금 계산] 필터링 전의 전체 로그를 기준으로 절대 원금을 계산합니다.
-  // ⭐️ [버그 수정 1] 매일의 누적 inout을 몽땅 더해버리는 치명적 오류 제거 (딱 한 번만 차이 계산)
-  const absoluteFirstAsset = rawLogs[0].asset || 0;
+  // 💰 [전체 기간 원금 계산] 역추적 금지! 설정창의 '초기자산'을 100% 신뢰
+  const safeInitialCash = (typeof userInitialCash === 'number') ? userInitialCash : (parseFloat(userInitialCash) || 0);
   const firstInout = rawLogs[0].inout || 0;
   const lastInout = rawLogs[rawLogs.length - 1].inout || 0;
   
   const totalInoutSumExcludeFirst = fixFloat(lastInout - firstInout);
-  const calculatedPrincipal = fixFloat(absoluteFirstAsset + totalInoutSumExcludeFirst);
+  const calculatedPrincipal = fixFloat(safeInitialCash + totalInoutSumExcludeFirst);
 
   // 🗓️ [전체 타임라인 생성] 실제 로그는 필터링 없이 전체 기록을 그대로 사용합니다
   let chartDates = [], chartBalances = [], chartMdd = [], chartInout = [];
@@ -1103,7 +1080,7 @@ function generateCombinedPeriodDataEngine(activeResults) {
   sortedDates.forEach(dt => {
     let dayAsset = 0;
     let dayInout = 0;
-    
+
     activeResults.forEach(r => {
       if (r.chartDates && r.chartBalances) {
         let idx = r.chartDates.indexOf(dt);
@@ -1140,7 +1117,7 @@ function generateCombinedPeriodDataEngine(activeResults) {
             }
           }
         }
-        
+
         dayAsset += currentAsset;
         dayInout += slotInoutVal;
       }
