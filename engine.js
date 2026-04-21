@@ -526,6 +526,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         json: JSON.stringify({
           cash: fixFloat(cash),
           base_principal: fixFloat(base),
+          realPrincipal: fixFloat(initialCash + cumulativeInOut),
           holdings: inv.map(p => ({ ...p }))
         })
       });
