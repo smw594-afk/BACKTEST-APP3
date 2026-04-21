@@ -382,14 +382,8 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         let oldBase = fixFloat(snap.summary.base || initialCash);
         cumulativeInOut = fixFloat(snap.summary.inout || 0);
 
-        if (inv.length === 0 && cumulativeRealizedProfit === 0) {
-          cash = initialCash;
-          base = basePrincipal;
-          cumulativeInOut = 0;
-        } else {
-          // ⭐️ [완전 삭제] 엔진이 임의로 자산을 보정하는 모든 로직(principalDiff)을 제거함
-          base = oldBase;
-        }
+        // ⭐️ [버그 수정 2] 보유 주식이 없을 때 현금을 억지로 깎아버리는 로직 완전 삭제 (시트 현금 100% 신뢰)
+        base = oldBase;
 
         startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
         if (startLoopIdx === -1) startLoopIdx = bDates.length;
@@ -858,12 +852,12 @@ function processRealLogData(d, currentStrat, configStartDate) {
   const trueStartDateStr = originalFirstDate;
 
   // 💰 [전체 기간 원금 계산] 필터링 전의 전체 로그를 기준으로 절대 원금을 계산합니다.
+  // ⭐️ [버그 수정 1] 매일의 누적 inout을 몽땅 더해버리는 치명적 오류 제거 (딱 한 번만 차이 계산)
   const absoluteFirstAsset = rawLogs[0].asset || 0;
-  let absoluteRunningInout = 0;
-  rawLogs.forEach(r => { absoluteRunningInout = fixFloat(absoluteRunningInout + r.inout); });
-
-  // ⭐️ [중요] 원금 = 첫날 총자산 + (전체 입출금 - 첫날 입출금)
-  const totalInoutSumExcludeFirst = fixFloat(absoluteRunningInout - (rawLogs[0].inout || 0));
+  const firstInout = rawLogs[0].inout || 0;
+  const lastInout = rawLogs[rawLogs.length - 1].inout || 0;
+  
+  const totalInoutSumExcludeFirst = fixFloat(lastInout - firstInout);
   const calculatedPrincipal = fixFloat(absoluteFirstAsset + totalInoutSumExcludeFirst);
 
   // 🗓️ [전체 타임라인 생성] 실제 로그는 필터링 없이 전체 기록을 그대로 사용합니다
