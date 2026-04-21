@@ -676,7 +676,7 @@ async function checkAndSyncWithServer(isInitial) {
         });
         localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
 
-        // ⭐️ [버그 수정] 설정창의 '진짜 초기자산'을 엔진으로 넘겨줌
+        // ⭐️ [버그 수정] 설정창의 '진짜 초기자산(C9)'을 엔진으로 넘겨줌
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, confData.basics.initialCash);
 
         if (realData) {
@@ -685,7 +685,7 @@ async function checkAndSyncWithServer(isInitial) {
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
           const trueAlgorithmicBase = isEngOk ? pureEngineRes.summary.base : realData.summary.base;
-          
+
           // ⭐️ [원금 원천 방지] 시트의 실전 원금 데이터(입출금 포함) 추출
           const trueRealPrincipal = realData.summary.realPrincipal;
 
