@@ -351,6 +351,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
     let cumulativeInOut = 0;
     let cumulativeRealizedProfit = 0;
+    let trackingRealPrincipal = initialCash; // ⭐️ 엔진 루프용 원금 추적 변수 초기화
     let res = { S: [], BA: [], BF: [], AV: [], INOUT: [], dailyStates: [], trades: [] };
 
     let activeSlot = slotNum || activeSettingsTab;
@@ -380,12 +381,17 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         cumulativeRealizedProfit = snap.summary.realizedProfit || 0;
 
         let oldBase = fixFloat(snap.summary.base || initialCash);
+        // ⭐️ [원금 오염 차단] 시트 데이터(스냅샷)가 있으면 설정창 값 대신 시트 원금을 상속받습니다.
+        trackingRealPrincipal = snap.summary.realPrincipal || initialCash; 
         cumulativeInOut = fixFloat(snap.summary.inout || 0);
 
-        // ⭐️ 보유 주식이 없어도 시트의 현금 상태를 100% 보존 (강제 초기화 삭제)
+        // ⭐️ 보유 주식이 없어도 시트의 현금 상태를 100% 보존
         base = oldBase;
 
-        startLoopIdx = bDates.findIndex(d => formatDateNY(d) > maxBuyDate);
+        // ⭐️ [4/20 누락 버그 해결] 무조건 시트의 마지막 날짜(4/17) 다음부터 루프 실행!
+        // (위에서 이미 선언된 lastSnapDateStr을 그대로 재사용)
+        lastSnapDateStr = res.S[res.S.length - 1]; 
+        startLoopIdx = bDates.findIndex(d => formatDateNY(d) > lastSnapDateStr);
         if (startLoopIdx === -1) startLoopIdx = bDates.length;
       }
     }
@@ -526,7 +532,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         json: JSON.stringify({
           cash: fixFloat(cash),
           base_principal: fixFloat(base),
-          realPrincipal: fixFloat(initialCash + cumulativeInOut),
+          realPrincipal: fixFloat(trackingRealPrincipal), // ⭐️ JSON에 원금 포함
           holdings: inv.map(p => ({ ...p }))
         })
       });
@@ -642,7 +648,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let tQty = inv.reduce((s, p) => s + p.qty, 0), avgPrice = tQty > 0 ? fixFloat(inv.reduce((s, p) => s + p.cost, 0) / tQty) : 0;
     let currPrice = full_c.length > 0 ? full_c[full_c.length - 1] : 0;
     let evalVal = fixFloat(inv.reduce((s, p_i) => s + (p_i.qty * currPrice), 0));
-    let realPrincipal = fixFloat(initialCash + cumulativeInOut);
+    let realPrincipal = fixFloat(trackingRealPrincipal); // ⭐️ 설정창 값 대신 시트(C129 기준)에서 확정된 원금 강제 유지
     let totalProfit = fixFloat(tAssets - realPrincipal);
 
     if (totalProfit === 0 && base !== tAssets) {
@@ -810,7 +816,8 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   if (!d || !d.logs || d.logs.length === 0) return null;
   const logs = d.logs; const meta = d.meta;
   let restoredInv = []; let restoredBase = 0; let realizedProfit = fixFloat(meta.realizedProfit) || 0; let cash = fixFloat(meta.currentCash) || 0; let serverQty = fixFloat(meta.qty) || 0; let serverAvg = fixFloat(meta.avgPrice) || 0;
-  if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) restoredInv = parsed.holdings; if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); } catch (e) { console.error("JSON 파싱 실패", e); } }
+  let restoredRealPrincipal = 0; // ⭐️ JSON에서 원금 추출용 변수
+  if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) restoredInv = parsed.holdings; if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
   let qty = 0, totalCost = 0; restoredInv.forEach(item => { qty += item.qty; totalCost += item.cost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;
@@ -824,24 +831,36 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     return str;
   };
   let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
-  if (rawLogs.length === 0) return null;
+  
+  if (rawLogs.length === 0) {
+    // ⭐️ [신규 시작 케이스] 시트에 기록이 아예 없다면?
+    // 설정창에 입력된 초기자산(C9)을 원금의 시작점으로 잡습니다.
+    const calculatedPrincipal = fixFloat(userInitialCash);
+    return {
+      summary: { realPrincipal: calculatedPrincipal, totalAssets: userInitialCash, cash: userInitialCash, inout: 0, base: userInitialCash },
+      status: "success",
+      chartDates: [],
+      chartBalances: [],
+      chartMdd: [],
+      isSynced: true
+    };
+  }
   rawLogs.sort((a, b) => (a.date > b.date ? 1 : -1));
 
   const originalFirstDate = rawLogs[0].date;
   const trueStartDateStr = originalFirstDate;
 
-  // 💰 [원금 계산 로직 변경] 시트의 첫날 총자산(C129) + D열 전체 합산 = 실질 원금
-  const firstDayAsset = rawLogs[0].asset || 0;  // 시트의 C129(투자법1 기준) 값
-
-  // D열은 누적값이 아닌 개별 일자 증감값이므로 전체 SUM 필요 = SUM(D129:D끝)
-  let totalInoutSumExcludeFirst = 0;
+  // ⭐️ [원금 공식 강제 통일] 시트 첫 기록 자산(C129 등) + D열(입출금) 전체 합산
+  let totalInoutSum = 0;
   for (let i = 0; i < rawLogs.length; i++) {
-    totalInoutSumExcludeFirst += (rawLogs[i].inout || 0);
+    totalInoutSum += (rawLogs[i].inout || 0);
   }
-  totalInoutSumExcludeFirst = fixFloat(totalInoutSumExcludeFirst);
-
-  // 원금 = (첫날 총자산) + SUM(입출금 전체)
-  const calculatedPrincipal = fixFloat(firstDayAsset + totalInoutSumExcludeFirst);
+  
+  // 시트의 첫 번째 줄(C129) 자산값을 가져옵니다.
+  const sheetStartingAsset = rawLogs.length > 0 ? rawLogs[0].asset : userInitialCash;
+  
+  // 💰 원금 정답 = C129 + SUM(D129:D)
+  const calculatedPrincipal = fixFloat(sheetStartingAsset + totalInoutSum);
 
   // 🗓️ [전체 타임라인 생성] 실제 로그는 필터링 없이 전체 기록을 그대로 사용합니다
   let chartDates = [], chartBalances = [], chartMdd = [], chartInout = [];
@@ -935,7 +954,28 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   let finalProfit = fixFloat(lastAsset - finalEffPrincipal);
   let finalYield = finalEffPrincipal > 0 ? finalProfit / finalEffPrincipal : 0;
 
-  let summary = { totalAssets: lastAsset, yield: finalYield, cagr: cagr, mdd: minMdd, calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0, totalProfit: finalProfit, realizedProfit: realizedProfit, qty: serverQty, avgPrice: serverAvg, evalReturn: evalReturn, evalVal: evalVal, cash: cash, depletion: depletion, currPrice: currPrice, currentMdd: chartMdd[chartMdd.length - 1], base: finalPrincipal, inout: totalInoutSumExcludeFirst, realPrincipal: calculatedPrincipal, trueStartDate: trueStartDateStr };
+  // ⭐️ summary 객체 생성 시 시트의 값을 그대로 매핑
+  let summary = { 
+    totalAssets: lastAsset, // 시트 C열 값
+    yield: finalYield, 
+    cagr: cagr, 
+    mdd: minMdd, 
+    calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0, 
+    totalProfit: finalProfit, 
+    realizedProfit: realizedProfit, 
+    qty: serverQty, 
+    avgPrice: serverAvg, 
+    evalReturn: evalReturn, 
+    evalVal: evalVal, 
+    cash: cash, // 시트 JSON의 cash 값
+    depletion: depletion, 
+    currPrice: currPrice, 
+    currentMdd: chartMdd[chartMdd.length - 1], 
+    base: finalPrincipal, // 시트 JSON의 base_principal 값
+    inout: totalInoutSum, 
+    realPrincipal: calculatedPrincipal, // 우리가 계산한 진짜 원금
+    trueStartDate: trueStartDateStr 
+  };
   let rawOrderOutput = []; let M_STRAT_T = MASTER_STRATEGIES[currentStrat] || MASTER_STRATEGIES["2M3D1-1P"]; let MODES_T = M_STRAT_T.modes; function c2_T(v) { return Math.ceil((v * 100) - 0.0000001) / 100.0; }
   if (restoredInv.length > 0) { restoredInv.forEach(p_i => { let modeData = MODES_T[p_i.mode] || MODES_T['SF']; let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0; let s_tgt = c2_T(p_i.buy_price * (1 + sellRate)); rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); }); }
   const finalOrders = rawOrderOutput.sort((a, b) => b[2] - a[2]);
