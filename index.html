@@ -130,38 +130,49 @@
 
       <div id="settingsStatusPanel" class="status-panel">
         <div class="status-panel-title"><span>📡 실시간 운용 현황</span></div>
-        <div class="status-row"><span>날짜</span><span id="statDate">-</span></div>
-        <div class="status-row"><span>현재 총자산</span><span id="statTotal">-</span></div>
-        <div class="status-row"><span>현재 갱신금</span><span id="statRenew">-</span></div>
-        <div class="status-row"><span>현재 원금</span><span id="statPrincipal">-</span></div>
-        <div class="status-row"><span>현재 예수금</span><span id="statCash">-</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px 12px;">
+          <div class="status-row"><span>날짜</span><span id="statDate">-</span></div>
+          <div><!-- 1행 2열 비움 --></div>
+          <div class="status-row"><span>총자산</span><span id="statTotal">-</span></div>
+          <div class="status-row"><span>갱신금</span><span id="statRenew">-</span></div>
+          <div class="status-row"><span>예수금</span><span id="statCash">-</span></div>
+          <div class="status-row"><span>원금</span><span id="statPrincipal">-</span></div>
+        </div>
+        <div id="statHoldingsArea" style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.08);">
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:2px; font-weight:600;">📦 보유 주식 (시트 꾸러미)</div>
+          <div id="statHoldings" style="font-size:11px; color:#e2e8f0;">-</div>
+        </div>
       </div>
 
-      <div style="margin-top:20px; display:flex; flex-direction:column; gap:8px;">
+      <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
         <style>
-          .btn-settings-row {
-            height: 45px;
+          .btn-settings-grid {
+            height: 48px;
             font-size: 13px;
             font-weight: 600;
+            padding: 0 4px;
+            border-radius: 8px;
           }
         </style>
-        <button id="runBtnSettings" class="btn-action btn-settings-row" onclick="runEngine()"
-          style="background: linear-gradient(135deg, #f59e0b, #d97706);">🚀 백테스트 실행 (Backtest)</button>
-        <button id="btnSyncSheet" class="btn-action btn-settings-row" onclick="restoreRealAccountMode()"
-          style="background: #475569;">📥 시트값 불러오기 (Sync)</button>
-        <button class="btn-action btn-settings-row" onclick="handleDeposit()"
-          style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 실전 증액하기 (입금)</button>
-        <button id="btnSaveTop" class="btn-action btn-save btn-settings-row" onclick="handleSave()"
-          style="background: linear-gradient(135deg, #10b981, #059669);">✅ 시트에 반영하기</button>
-        <button class="btn-action btn-adv" onclick="toggleSettings()" style="height:35px; opacity:0.7;">설정 닫기</button>
+        <button id="btnSaveTop" class="btn-action btn-save btn-settings-grid" onclick="handleSave()"
+          style="background: linear-gradient(135deg, #10b981, #059669);">✅ 시트에 반영</button>
+        <button id="runBtnSettings" class="btn-action btn-settings-grid" onclick="runEngine()"
+          style="background: linear-gradient(135deg, #f59e0b, #d97706);">🚀 백테스트</button>
+        <button class="btn-action btn-settings-grid" onclick="handleDeposit()"
+          style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 증액하기</button>
+        <button id="btnSyncSheet" class="btn-action btn-settings-grid" onclick="restoreRealAccountMode()"
+          style="background: #475569;">📥 시트값 불러오기</button>
       </div>
 
       <div
         style="margin-top:15px; display:flex; justify-content:space-between; align-items:center; opacity:0.5; font-size:10px;">
         <span>v<span id="settingsVersion"></span> (Dynamic)</span>
-        <button onclick="forceUpdateApp()"
-          style="background:none; border:1px solid #666; color:white; border-radius:4px; padding:2px 4px; cursor:pointer;">데이터
-          리셋</button>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <a href="javascript:void(0)" onclick="resetSyncDates()" style="color:#94a3b8; text-decoration:none;">🔄 동기화 복구</a>
+          <button onclick="forceUpdateApp()"
+            style="background:none; border:1px solid #666; color:white; border-radius:4px; padding:2px 4px; cursor:pointer;">데이터
+            리셋</button>
+        </div>
       </div>
     </div>
   </div>
