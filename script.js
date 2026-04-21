@@ -680,18 +680,19 @@ async function checkAndSyncWithServer(isInitial) {
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, configStartDate);
 
         if (realData) {
-          // ⭐️ [완벽 해결] 서버(시트)에 저장된 옛날 갱신금을 무시하고, 
-          // 엔진을 '강제 실행(force: true)'하여 수학적으로 완벽한 누적 갱신금(165주 기준)을 새로 뽑아옵니다.
+          // ⭐️ 163주 튕김 방지: 엔진을 '강제 실행(force: true)'하여 진짜 알고리즘 갱신금을 뽑아옴
           const pureEngineRes = await runBacktestMemory(confData, true, slotNum);
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
-          // 진짜 알고리즘 갱신금(base) 추출
           const trueAlgorithmicBase = isEngOk ? pureEngineRes.summary.base : realData.summary.base;
-          const trueRealPrincipal = realData.summary.realPrincipal;
+          
+          // ⭐️ 원금 뻥튀기 원천 차단 (불변 상태 하드코딩): 
+          // 실전 데이터의 원금에서 입출금을 미리 빼둔 순수한 '초기자산'만 박아넣어 더블카운팅 방지
+          const trueInout = realData.summary.inout || 0;
+          const trueOriginalPrincipal = realData.summary.realPrincipal - trueInout;
 
-          // 화면의 설정값을 옛날 데이터가 아닌 완벽한 알고리즘 데이터로 동기화
           confData.basics.renewCash = trueAlgorithmicBase;
-          confData.basics.initialCash = trueRealPrincipal;
+          confData.basics.initialCash = trueOriginalPrincipal;
           
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
           slotConfigs[slotNum] = confData;
@@ -700,9 +701,9 @@ async function checkAndSyncWithServer(isInitial) {
             ...realData,
             summary: isEngOk ? {
               ...pureEngineRes.summary,
-              base: trueAlgorithmicBase, // <-- 핵심: 서버값이 아닌 엔진의 진짜 갱신금 강제 유지!
+              base: trueAlgorithmicBase,
               inout: realData.summary.inout,
-              realPrincipal: trueRealPrincipal,
+              realPrincipal: realData.summary.realPrincipal,
               totalAssets: realData.summary.totalAssets,
               yield: realData.summary.yield,
               cagr: realData.summary.cagr,
