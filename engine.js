@@ -830,7 +830,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     else if (p.length === 2) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); return `${y}-${m}-01`; }
     return str;
   };
-  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[3]).replace(/[^0-9.-]+/g, "")) || 0; rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
+  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0; /* ⭐️ r[3]을 r[2]로 변경 */ rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
   
   if (rawLogs.length === 0) {
     // ⭐️ [신규 시작 케이스] 시트에 기록이 아예 없다면?
@@ -852,7 +852,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
 
   // ⭐️ [원금 공식 강제 통일] 시트 첫 기록 자산(C129 등) + D열(입출금) 전체 합산
   let totalInoutSum = 0;
-  for (let i = 0; i < rawLogs.length; i++) {
+  for (let i = 1; i < rawLogs.length; i++) {
     totalInoutSum += (rawLogs[i].inout || 0);
   }
   
