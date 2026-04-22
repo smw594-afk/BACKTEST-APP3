@@ -40,7 +40,7 @@ function generateDynamicDOM() {
     let orderHtml = '';
     for (let i = 1; i <= MAX_SLOTS; i++) {
       orderHtml += `
-        <div id="orderSlot${i}" style="flex:1; display:flex; flex-direction:column; min-width:0; display:none; border-left: ${i > 1 ? '1px solid rgba(255,255,255,0.1)' : 'none'}; padding-left: ${i > 1 ? '4px' : '0'};">
+        <div id="orderSlot${i}" style="flex:1; display:flex; flex-direction:column; min-width:160px; display:none; border-left: ${i > 1 ? '1px solid rgba(255,255,255,0.1)' : 'none'}; padding-left: ${i > 1 ? '4px' : '0'};">
           <div id="orderScroll${i}" style="flex:1; overflow-y:auto; min-height:0;" class="slim-scroll">
             <div id="orderView${i}" style="display:block;">
               <div class="slot-title" id="orderSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]}; font-size: 0.8em; margin-bottom: 2px;"></div>
@@ -695,28 +695,59 @@ async function checkAndSyncWithServer(isInitial) {
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
           slotConfigs[slotNum] = confData;
 
+          // ⭐️ [주문표 동기화] 최신 갱신금(base)으로 매수 주문 수량 재계산
+          let syncedOrders = [...(realData.orders || [])];
+          let syncedNextInfo = isEngOk ? { ...pureEngineRes.nextOrderInfo } : null;
+
+          if (isEngOk && pureEngineRes.orders) {
+            let engineBuyOrder = pureEngineRes.orders.find(o => o[0] === '매수');
+            if (engineBuyOrder && syncedNextInfo) {
+              let tTgt = engineBuyOrder[2];
+              let currentW = parseFloat(syncedNextInfo.weight) / 100;
+              let fBuy = (parseFloat(confData.basics.fBase) || 0) / 100;
+              // 시트의 진짜 갱신금/예수금으로 살 수 있는 수량 재계산
+              let tSeed = Math.min(realData.summary.base * currentW, realData.summary.cash);
+              let correctBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.00001) : 0;
+
+              if (correctBuyQty > 0) {
+                engineBuyOrder[3] = correctBuyQty;
+                syncedOrders.push(engineBuyOrder);
+                syncedNextInfo.qty = correctBuyQty;
+              }
+            }
+          }
+          syncedOrders.sort((a, b) => b[2] - a[2]);
+
           // 2. 스냅샷 꾸러미(snap) 구성 및 저장
           let mergedSnap = {
             ...realData,
-            summary: realData.summary, // ⭐️ 가상 엔진 데이터 대신 시트 데이터(realData.summary) 100% 강제 적용!
-            inv: realData.inv, // ⭐️ 엔진 결과 무시하고 시트 데이터 강제 고정!
+            summary: realData.summary,
+            inv: realData.inv,
             trades: isEngOk ? pureEngineRes.trades : realData.trades,
-            orders: (isEngOk && pureEngineRes.orders && pureEngineRes.orders.length > 0) ? pureEngineRes.orders : realData.orders,
-            nextOrderInfo: isEngOk ? pureEngineRes.nextOrderInfo : null,
+            orders: syncedOrders, // ⭐️ 보정된 주문표 적용
+            nextOrderInfo: syncedNextInfo,
             orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
             isSynced: true
           };
 
-          // ⭐️ [근본 원인 해결] 엔진이 생성한 dailyStates JSON 안의 realPrincipal을
-          // 시트 데이터의 정답 원금(C129 + SUM(D))으로 강제 덮어씌움!
-          if (mergedSnap.dailyStates && trueRealPrincipal) {
-            mergedSnap.dailyStates = mergedSnap.dailyStates.map(state => {
+          // ⭐️ [근본 원인 해결] 엔진이 생성한 dailyStates JSON의 과거값을 보정합니다.
+          if (mergedSnap.dailyStates && mergedSnap.dailyStates.length > 0) {
+            mergedSnap.dailyStates = mergedSnap.dailyStates.map((state, idx, arr) => {
               try {
                 let parsed = JSON.parse(state.json);
                 parsed.realPrincipal = trueRealPrincipal;
+                
+                // ⭐️ [증액 누락 완전 차단] 마지막 데이터(오늘)는 시트의 "실제 증액된 최신값"으로 덮어씌웁니다!
+                if (idx === arr.length - 1) {
+                  state.asset = realData.summary.totalAssets;
+                  parsed.cash = realData.summary.cash;
+                  parsed.base_principal = realData.summary.base;
+                  parsed.base = realData.summary.base;
+                }
+                
                 return { ...state, json: JSON.stringify(parsed) };
-              } catch(e) { return state; }
+              } catch (e) { return state; }
             });
           }
 
@@ -880,7 +911,7 @@ async function handleSave() {
         // 화면에 떠 있는 정확한 'realPrincipal'을 다시 한 번 박아넣습니다.
         parsed.cash = trueSnap.summary.cash;
         parsed.base_principal = trueSnap.summary.base;
-        parsed.realPrincipal = trueSnap.summary.realPrincipal; 
+        parsed.realPrincipal = trueSnap.summary.realPrincipal;
         parsed.holdings = trueSnap.inv.map(p => ({ ...p }));
         log.json = JSON.stringify(parsed);
       });
@@ -1027,14 +1058,17 @@ function updateCurrentStatusUI(slotNum) {
   const sheetDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "-";
   const fmt = (val) => "$" + Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
-  // ⭐️ [시트 값 통일] 시트에 실제로 기록되는 마지막 dailyState의 JSON을 직접 읽어서 표시합니다.
+  // ⭐️ [시트 값 통일] 현황판 출력 기준
   let displayTotal = s.totalAssets;
   let displayBase = s.base;
   let displayPrincipal = s.realPrincipal || s.base;
   let displayCash = s.cash;
   let displayHoldings = [];
 
-  if (res.dailyStates && res.dailyStates.length > 0) {
+  // ⭐️ [운영현황 증액 보장] 동기화된 데이터(isSynced)는 무조건 summary(시트 최신값)를 사용!
+  if (res.isSynced) {
+    displayHoldings = res.inv || [];
+  } else if (res.dailyStates && res.dailyStates.length > 0) {
     const lastState = res.dailyStates[res.dailyStates.length - 1];
     displayTotal = lastState.asset;
     try {
@@ -1043,7 +1077,7 @@ function updateCurrentStatusUI(slotNum) {
       displayBase = lastJson.base_principal;
       displayPrincipal = lastJson.realPrincipal || displayPrincipal;
       displayHoldings = lastJson.holdings || [];
-    } catch(e) { /* JSON 파싱 실패 시 summary 값 사용 */ }
+    } catch (e) { /* JSON 파싱 실패 시 summary 값 사용 */ }
   } else if (res.inv) {
     displayHoldings = res.inv;
   }
@@ -2207,10 +2241,10 @@ function handleDeposit() {
   fetch(GAS_URL, {
     method: 'POST', mode: 'no-cors',
     body: JSON.stringify({ action: "ADD_FUNDS", id: myUserId, slot: activeSettingsTab, amount: amount })
-  }).then(() => {
+  }).then(async () => { // ⭐️ async 추가
     showToast(`$${amount.toLocaleString()} 처리 완료! 데이터를 다시 불러옵니다.`, "💰");
     if (btn) btn.innerHTML = orgText;
-    refreshAllUI();
+    await checkAndSyncWithServer(false); // ⭐️ 서버 데이터 강제 다시 불러오기
   }).catch(e => {
     alert("처리 실패: 네트워크를 확인하세요.");
     setLED('error');
