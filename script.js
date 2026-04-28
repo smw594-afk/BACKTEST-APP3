@@ -39,28 +39,29 @@ function generateDynamicDOM() {
   if (orderContainer) {
     let orderHtml = '';
     for (let i = 1; i <= MAX_SLOTS; i++) {
+      const borderClass = i > 1 ? ' has-border-left' : '';
       orderHtml += `
-        <div id="orderSlot${i}" style="flex:1; display:flex; flex-direction:column; min-width:160px; display:none; border-left: ${i > 1 ? '1px solid rgba(255,255,255,0.1)' : 'none'}; padding-left: ${i > 1 ? '4px' : '0'};">
-          <div id="orderScroll${i}" style="flex:1; overflow-y:auto; min-height:0;" class="slim-scroll">
-            <div id="orderView${i}" style="display:block;">
-              <div class="slot-title" id="orderSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]}; font-size: 0.8em; margin-bottom: 2px;"></div>
+        <div id="orderSlot${i}" class="order-slot-container${borderClass}">
+          <div id="orderScroll${i}" class="order-scroll-area slim-scroll">
+            <div id="orderView${i}" class="view-pane-active">
+              <div class="slot-title slot-title-sm" id="orderSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};"></div>
               <table class="data-table">
                 <thead><tr><th>구분</th><th class="hidden">방식</th><th>가격</th><th>수량</th></tr></thead>
-                <tbody id="orderBody${i}"><tr><td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr></tbody>
+                <tbody id="orderBody${i}"><tr><td colspan="3" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
               </table>
             </div>
-            <div id="holdingsView${i}" style="display:none;">
+            <div id="holdingsView${i}" class="view-pane-hidden">
               <table class="data-table">
                 <thead><tr><th>T</th><th>M</th><th>B</th><th>S</th><th>Q</th><th>H</th></tr></thead>
-                <tbody id="holdingsBody${i}"><tr><td colspan="6" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr></tbody>
+                <tbody id="holdingsBody${i}"><tr><td colspan="6" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
               </table>
             </div>
           </div>
-          <div class="tier-footer" id="tierFooter${i}" style="display:none; margin-top:auto; flex-shrink:0;">
-            <div>T: <span id="tierCountVal${i}" style="color:var(--success);">-</span></div>
-            <div>M: <span id="modeCountVal${i}" style="color:var(--success);">-</span></div>
-            <div>W: <span id="weightCountVal${i}" style="color:var(--success);">-</span></div>
-            <div>Q: <span id="qtyCountVal${i}" style="color:var(--success);">-</span></div>
+          <div class="tier-footer" id="tierFooter${i}">
+            <div>T: <span id="tierCountVal${i}" class="tier-footer-val">-</span></div>
+            <div>M: <span id="modeCountVal${i}" class="tier-footer-val">-</span></div>
+            <div>W: <span id="weightCountVal${i}" class="tier-footer-val">-</span></div>
+            <div>Q: <span id="qtyCountVal${i}" class="tier-footer-val">-</span></div>
           </div>
         </div>`;
     }
@@ -69,31 +70,31 @@ function generateDynamicDOM() {
 
   if (tableContainer) {
     let tableHtml = `
-      <div id="monthlySlot0" style="flex:0; min-width:fit-content; width:fit-content; padding-right:1px; display:none;">
-        <div class="slot-title" style="color:var(--text-muted); padding-left:0; padding-right:0;">년월</div>
-        <table class="data-table" id="periodTable0" style="border-spacing: 0 1px;">
-          <thead><tr id="periodTableHead0"><th style="white-space:nowrap; width:1%; padding:0 !important; text-align:center; vertical-align:middle; height:16px;">년월</th></tr></thead>
-          <tbody id="periodBody0"><tr><td style="padding:0 !important; height:16px; text-align:center;">-</td></tr></tbody>
+      <div id="monthlySlot0" class="monthly-slot-0">
+        <div class="slot-title">년월</div>
+        <table class="data-table period-table-0" id="periodTable0">
+          <thead><tr id="periodTableHead0"><th>년월</th></tr></thead>
+          <tbody id="periodBody0"><tr><td>-</td></tr></tbody>
         </table>
       </div>`;
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
       tableHtml += `
-        <div id="monthlySlot${i}" style="flex:1; min-width:120px; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
+        <div id="monthlySlot${i}" class="monthly-slot-item">
           <div class="slot-title swipe-handler" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};" id="slot${i}TableName">투자법${i}</div>
           <table class="data-table" id="periodTable${i}">
             <thead><tr id="periodTableHead${i}"><th class="hide-on-narrow">총자산</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th></tr></thead>
-            <tbody id="periodBody${i}"><tr><td colspan="4" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr></tbody>
+            <tbody id="periodBody${i}"><tr><td colspan="4" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
           </table>
         </div>`;
     }
 
     tableHtml += `
-      <div id="monthlySlotCombined" style="flex:1; min-width:120px; display:none; border-left:1px solid rgba(255,255,255,0.1); padding-left:4px;">
+      <div id="monthlySlotCombined" class="monthly-slot-combined">
         <div class="slot-title swipe-handler" style="color:rgba(168, 85, 247, 0.9);">종합</div>
         <table class="data-table" id="periodTableCombined">
           <thead><tr id="periodTableHeadCombined"><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th></tr></thead>
-          <tbody id="periodBodyCombined"><tr><td colspan="3" style="padding:15px; color:#94a3b8;">데이터 대기 중...</td></tr></tbody>
+          <tbody id="periodBodyCombined"><tr><td colspan="3" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
         </table>
       </div>`;
 
@@ -695,36 +696,44 @@ async function checkAndSyncWithServer(isInitial) {
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
           slotConfigs[slotNum] = confData;
 
-          // ⭐️ [주문표 동기화] 최신 갱신금(base)으로 매수 주문 수량 재계산
-          let syncedOrders = [...(realData.orders || [])];
+          // 2. 스냅샷 꾸러미(snap) 구성 및 저장
+          // ⭐️ [퉁치기 핵심 수정] 엔진의 orders는 이미 퉁치기된 결과라 매수가 사라져 있을 수 있음.
+          // 따라서 nextOrderInfo + 전략 설정으로 원시(raw) 매수 주문을 직접 재구성합니다.
+          let combinedForTung = [...(realData.orders || [])]; // 시트의 원시 매도 주문들
+          
           let syncedNextInfo = isEngOk ? { ...pureEngineRes.nextOrderInfo } : null;
-
-          if (isEngOk && pureEngineRes.orders) {
-            let engineBuyOrder = pureEngineRes.orders.find(o => o[0] === '매수');
-            if (engineBuyOrder && syncedNextInfo) {
-              let tTgt = engineBuyOrder[2];
-              let currentW = parseFloat(syncedNextInfo.weight) / 100;
-              let fBuy = (parseFloat(confData.basics.fBase) || 0) / 100;
-              // 시트의 진짜 갱신금/예수금으로 살 수 있는 수량 재계산
-              let tSeed = Math.min(realData.summary.base * currentW, realData.summary.cash);
-              let correctBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.00001) : 0;
-
+          
+          if (isEngOk && syncedNextInfo && syncedNextInfo.qty > 0) {
+            // 엔진의 nextOrderInfo에서 원시 매수 정보 추출
+            const noi = syncedNextInfo;
+            const curStrat = confData.basics.strategy || '2M3D1-1P';
+            const M_STRAT = MASTER_STRATEGIES[curStrat];
+            if (M_STRAT && M_STRAT.modes[noi.mode]) {
+              const buyRate = M_STRAT.modes[noi.mode].buy[noi.tier - 1] || 0;
+              const lastClose = pureEngineRes.summary.currPrice;
+              const rawBuyPrice = Math.trunc((lastClose * (1 + buyRate) + 0.00001) * 100) / 100;
+              // 시트의 실제 갱신금/예수금 기준으로 수량 재계산
+              const fBuy = (parseFloat(confData.basics.fBase) || 0) / 100;
+              const currentW = parseFloat(noi.weight) / 100;
+              const tSeed = Math.min(realData.summary.base * currentW, realData.summary.cash);
+              const correctBuyQty = (rawBuyPrice > 0 && currentW > 0) ? Math.floor((tSeed / (rawBuyPrice * (1 + fBuy))) + 0.00001) : 0;
+              
               if (correctBuyQty > 0) {
-                engineBuyOrder[3] = correctBuyQty;
-                syncedOrders.push(engineBuyOrder);
+                combinedForTung.push(["매수", "LOC", rawBuyPrice, correctBuyQty]);
                 syncedNextInfo.qty = correctBuyQty;
               }
             }
           }
-          syncedOrders.sort((a, b) => b[2] - a[2]);
 
-          // 2. 스냅샷 꾸러미(snap) 구성 및 저장
+          // ⭐️ 시트의 매도 + 재구성된 원시 매수를 합쳐서 퉁치기 수행
+          let finalSyncedOrders = typeof run_tungchigi_master === 'function' ? run_tungchigi_master(combinedForTung) : combinedForTung;
+
           let mergedSnap = {
             ...realData,
             summary: realData.summary,
             inv: realData.inv,
             trades: isEngOk ? pureEngineRes.trades : realData.trades,
-            orders: syncedOrders, // ⭐️ 보정된 주문표 적용
+            orders: finalSyncedOrders, 
             nextOrderInfo: syncedNextInfo,
             orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
@@ -738,12 +747,22 @@ async function checkAndSyncWithServer(isInitial) {
                 let parsed = JSON.parse(state.json);
                 parsed.realPrincipal = trueRealPrincipal;
                 
-                // ⭐️ [증액 누락 완전 차단] 마지막 데이터(오늘)는 시트의 "실제 증액된 최신값"으로 덮어씌웁니다!
+                // ⭐️ [증액 누락 차단 로직 개선] 
+                // 마지막 데이터(오늘)에 대해, 시트에 이미 기록된 날짜라면 시트 값을 우선하되,
+                // 시트에 아직 없는 '오늘'의 계산값이라면 엔진의 값을 보존합니다.
                 if (idx === arr.length - 1) {
-                  state.asset = realData.summary.totalAssets;
-                  parsed.cash = realData.summary.cash;
-                  parsed.base_principal = realData.summary.base;
-                  parsed.base = realData.summary.base;
+                  const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
+                  if (state.date <= sheetLastDate) {
+                    // 시트에 이미 저장된 날짜인 경우에만 시트 값으로 동기화 (박제)
+                    state.asset = realData.summary.totalAssets;
+                    parsed.cash = realData.summary.cash;
+                    parsed.base_principal = realData.summary.base;
+                    parsed.base = realData.summary.base;
+                  } else {
+                    // 시트에 아직 없는 최신 날짜(오늘)라면 엔진의 계산값(매수 후 예수금 등)을 유지
+                    // 단, 원금 정보 등은 시트 기준 정보를 따름
+                    parsed.realPrincipal = trueRealPrincipal;
+                  }
                 }
                 
                 return { ...state, json: JSON.stringify(parsed) };
@@ -902,19 +921,20 @@ async function handleSave() {
 
     if (btn) btn.innerText = '저장 중...';
 
-    // ⭐️ [데이터 박제] 저장 직전 JSON 내 원금값을 화면 표시값으로 강제 고정
+    // ⭐️ [데이터 박제] 저장 직전 마지막 날짜의 데이터만 화면 표시값으로 보정합니다.
     const trueSnap = lastBTResults[targetSlot];
-    if (trueSnap && trueSnap.summary) {
-      newLogs.forEach(log => {
-        log.asset = trueSnap.summary.totalAssets; // 화면의 총자산
-        let parsed = JSON.parse(log.json);
-        // 화면에 떠 있는 정확한 'realPrincipal'을 다시 한 번 박아넣습니다.
-        parsed.cash = trueSnap.summary.cash;
-        parsed.base_principal = trueSnap.summary.base;
-        parsed.realPrincipal = trueSnap.summary.realPrincipal;
-        parsed.holdings = trueSnap.inv.map(p => ({ ...p }));
-        log.json = JSON.stringify(parsed);
-      });
+    if (trueSnap && trueSnap.summary && newLogs.length > 0) {
+      // 모든 로그가 아닌, 배열의 마지막 요소(가장 최신일)만 보정하여 과거 데이터 오염 방지
+      const lastLog = newLogs[newLogs.length - 1];
+      
+      // 만약 마지막 로그가 오늘 날짜와 일치한다면 화면의 최신 요약본으로 업데이트
+      lastLog.asset = trueSnap.summary.totalAssets; 
+      let parsed = JSON.parse(lastLog.json);
+      parsed.cash = trueSnap.summary.cash;
+      parsed.base_principal = trueSnap.summary.base;
+      parsed.realPrincipal = trueSnap.summary.realPrincipal;
+      parsed.holdings = trueSnap.inv.map(p => ({ ...p }));
+      lastLog.json = JSON.stringify(parsed);
     }
 
     let payload = {
@@ -1092,7 +1112,7 @@ function updateCurrentStatusUI(slotNum) {
   const elHoldings = document.getElementById('statHoldings');
   if (elHoldings) {
     if (displayHoldings.length === 0) {
-      elHoldings.innerHTML = '<span style="color:#64748b;">보유 주식 없음</span>';
+      elHoldings.innerHTML = '<span class="holdings-empty">보유 주식 없음</span>';
     } else {
       let html = displayHoldings.map((h) => {
         const m = h.mode || '-';
@@ -1102,7 +1122,7 @@ function updateCurrentStatusUI(slotNum) {
         const cost = Number(h.cost || 0).toFixed(2);
         const d = h.days || 0;
         const bd = h.buyDate || '-';
-        return `<div style="display:grid; grid-template-columns: 24px 24px 60px 44px 75px 32px 1fr; gap:4px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04); align-items:center; font-size:10.5px; white-space:nowrap; text-align:center;">` +
+        return `<div class="holdings-grid-row">` +
           `<span style="color:#6366f1;">T${t}</span>` +
           `<span style="color:#fbbf24;">${m}</span>` +
           `<span>$${Number(bp).toFixed(2)}</span>` +
@@ -1121,15 +1141,25 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
   const existing = lastBTResults[slotNum];
   let finalRes = resBT;
 
-  // ⭐️ [거울 로직] 시트와 동기화된 데이터(existing)가 있다면, 
-  // 시뮬레이션 결과(resBT)에서는 '주문표'만 빌려오고 현황판(summary)은 시트 값을 유지합니다.
+  // ⭐️ [거울 로직] 시트와 동기화된 데이터(existing)가 있더라도,
+  // 엔진이 계산한 '오늘'의 새로운 매매나 상태가 있다면 이를 우선 반영하도록 개선
   if (existing && existing.isSynced && !resBT.isSynced) {
-    finalRes = {
-      ...existing, // 시트에서 가져온 날짜, 총자산, JSON(예수금, 원금 등) 100% 유지
-      orders: resBT.orders,
-      nextOrderInfo: resBT.nextOrderInfo,
-      orderDateStr: resBT.orderDateStr
-    };
+    // 엔진 결과(resBT)의 마지막 날짜가 시트 데이터(existing)의 마지막 날짜보다 크다면 엔진 데이터 사용
+    const lastExistingDate = existing.chartDates && existing.chartDates.length > 0 ? existing.chartDates[existing.chartDates.length - 1] : "";
+    const lastBTDate = resBT.chartDates && resBT.chartDates.length > 0 ? resBT.chartDates[resBT.chartDates.length - 1] : "";
+    
+    if (lastBTDate > lastExistingDate) {
+      // 엔진이 더 최신 날짜를 가지고 있으므로 엔진 결과를 그대로 사용 (단, 시드 등은 시트 값 계승)
+      finalRes = resBT;
+    } else {
+      // 날짜가 같거나 시트가 더 최신이면 기존처럼 시트 데이터 구조 유지
+      finalRes = {
+        ...existing,
+        orders: resBT.orders,
+        nextOrderInfo: resBT.nextOrderInfo,
+        orderDateStr: resBT.orderDateStr
+      };
+    }
   }
 
   lastBTResults[slotNum] = finalRes;
