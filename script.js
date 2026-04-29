@@ -78,12 +78,17 @@ function generateDynamicDOM() {
       </div>`;
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
+      const headHtml = (i === 1)
+        ? '<th class="hide-on-narrow">총자산</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>'
+        : '<th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th>';
+      const colSpan = (i === 1) ? 4 : 3;
+
       tableHtml += `
         <div id="monthlySlot${i}" class="monthly-slot-item">
           <div class="slot-title swipe-handler" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};" id="slot${i}TableName">투자법${i}</div>
           <table class="data-table" id="periodTable${i}">
-            <thead><tr id="periodTableHead${i}"><th class="hide-on-narrow">총자산</th><th>수익금</th><th>수익률</th><th class="hide-on-cover">MDD</th></tr></thead>
-            <tbody id="periodBody${i}"><tr><td colspan="4" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
+            <thead><tr id="periodTableHead${i}">${headHtml}</tr></thead>
+            <tbody id="periodBody${i}"><tr><td colspan="${colSpan}" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
           </table>
         </div>`;
     }
@@ -776,12 +781,21 @@ async function checkAndSyncWithServer(isInitial) {
           // ⭐️ 시트의 매도 + 재구성된 원시 매수를 합쳐서 퉁치기 수행
           let finalSyncedOrders = typeof run_tungchigi_master === 'function' ? run_tungchigi_master(combinedForTung) : combinedForTung;
 
+          let isEngineNewer = false;
+          if (isEngOk) {
+            const lastEngDate = pureEngineRes.chartDates && pureEngineRes.chartDates.length > 0 ? pureEngineRes.chartDates[pureEngineRes.chartDates.length - 1] : "";
+            const lastRealDate = realData.chartDates && realData.chartDates.length > 0 ? realData.chartDates[realData.chartDates.length - 1] : "";
+            if (lastEngDate > lastRealDate) {
+              isEngineNewer = true;
+            }
+          }
+
           let mergedSnap = {
             ...realData,
-            summary: realData.summary,
-            inv: realData.inv,
+            summary: isEngineNewer ? { ...pureEngineRes.summary, realPrincipal: realData.summary.realPrincipal } : realData.summary,
+            inv: isEngineNewer ? pureEngineRes.inv : realData.inv,
             trades: isEngOk ? pureEngineRes.trades : realData.trades,
-            orders: finalSyncedOrders,
+            orders: isEngineNewer ? pureEngineRes.orders : finalSyncedOrders,
             nextOrderInfo: syncedNextInfo,
             orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
@@ -1205,7 +1219,8 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
         ...existing,
         orders: resBT.orders,
         nextOrderInfo: resBT.nextOrderInfo,
-        orderDateStr: resBT.orderDateStr
+        orderDateStr: resBT.orderDateStr,
+        currentStrat: resBT.currentStrat
       };
     }
   }
@@ -1931,4 +1946,13 @@ function scheduleNextAutoSave() {
 
 window.addEventListener('load', () => {
   scheduleNextAutoSave();
+});
+
+// 앱이 백그라운드에서 다시 활성화될 때 자동 갱신 확인
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    if (typeof shouldAutoRefresh === 'function' && shouldAutoRefresh()) {
+      handleInstantOrder();
+    }
+  }
 });
