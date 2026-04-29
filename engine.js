@@ -78,6 +78,17 @@ const MASTER_STRATEGIES = {
       Middle2: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
       Middle3: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
     }
+  },
+  "RSI 3M": {
+    config: { compR: 0.9, lossR: 0.304, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    modes: {
+      SF: { buy: [0.033, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028], sell: [0.026, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027], hold: [35, 19, 19, 19, 19, 19, 19, 19], weight: [0.052, 0.238, 0.056, 0.3, 0.297, 0.294, 0.08, 0.26] },
+      DEF: { buy: [0.032, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.074, 0.046, 0.046, 0.046, 0.046, 0.046, 0.046, 0.046], hold: [5, 5, 5, 5, 5, 5, 5, 5], weight: [0.097, 0.297, 0.11, 0.193, 0.244, 0.051, 0.296, 0.066] },
+      AG: { buy: [0.09, 0.049, 0.049, 0.049, 0.049, 0.049, 0.049, 0.049], sell: [0.026, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.062, 0.051, 0.052, 0.299, 0.129, 0.217, 0.051, 0.217] },
+      Middle: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [5, 5, 5, 5, 5, 5, 5, 5], weight: [0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179] },
+      Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [5, 5, 5, 5, 5, 5, 5, 5], weight: [0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179] },
+      Middle2: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [12, 12, 12, 12, 12, 12], weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05] }
+    }
   }
 };
 
@@ -382,7 +393,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
         let oldBase = fixFloat(snap.summary.base || initialCash);
         // ⭐️ [원금 오염 차단] 시트 데이터(스냅샷)가 있으면 설정창 값 대신 시트 원금을 상속받습니다.
-        trackingRealPrincipal = snap.summary.realPrincipal || initialCash; 
+        trackingRealPrincipal = snap.summary.realPrincipal || initialCash;
         cumulativeInOut = fixFloat(snap.summary.inout || 0);
 
         // ⭐️ 보유 주식이 없어도 시트의 현금 상태를 100% 보존
@@ -390,7 +401,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
         // ⭐️ [4/20 누락 버그 해결] 무조건 시트의 마지막 날짜(4/17) 다음부터 루프 실행!
         // (위에서 이미 선언된 lastSnapDateStr을 그대로 재사용)
-        lastSnapDateStr = res.S[res.S.length - 1]; 
+        lastSnapDateStr = res.S[res.S.length - 1];
         startLoopIdx = bDates.findIndex(d => formatDateNY(d) > lastSnapDateStr);
         if (startLoopIdx === -1) startLoopIdx = bDates.length;
       }
@@ -419,12 +430,18 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       let dtStr = formatDateNY(dtStrObj);
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
-        if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
-        else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF';
-        else if (rrv <= 50 && rv > 50) rsi_m = 'AG';
-        else if (rrv >= 50 && rv < 50) rsi_m = 'SF';
-        else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG';
-        else if (rrv > 65 && rrv > rv) rsi_m = 'SF';
+        if (curStrat === 'RSI 3M') {
+          if (rv >= 65.2) rsi_m = 'AG';
+          else if (rv <= 45.6) rsi_m = 'SF';
+          else rsi_m = 'DEF';
+        } else {
+          if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
+          else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF';
+          else if (rrv <= 50 && rv > 50) rsi_m = 'AG';
+          else if (rrv >= 50 && rv < 50) rsi_m = 'SF';
+          else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG';
+          else if (rrv > 65 && rrv > rv) rsi_m = 'SF';
+        }
       }
     }
 
@@ -437,12 +454,18 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
-        if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
-        else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF';
-        else if (rrv <= 50 && rv > 50) rsi_m = 'AG';
-        else if (rrv >= 50 && rv < 50) rsi_m = 'SF';
-        else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG';
-        else if (rrv > 65 && rrv > rv) rsi_m = 'SF';
+        if (curStrat === 'RSI 3M') {
+          if (rv >= 65.2) rsi_m = 'AG';
+          else if (rv <= 45.6) rsi_m = 'SF';
+          else rsi_m = 'DEF';
+        } else {
+          if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
+          else if (rrv >= 40 && rrv < 50 && rrv > rv) rsi_m = 'SF';
+          else if (rrv <= 50 && rv > 50) rsi_m = 'AG';
+          else if (rrv >= 50 && rv < 50) rsi_m = 'SF';
+          else if (rrv >= 50 && rrv < 60 && rrv < rv) rsi_m = 'AG';
+          else if (rrv > 65 && rrv > rv) rsi_m = 'SF';
+        }
       }
 
       let is3Drop = (idx >= 4) && (truncPct5((full_c[idx - 3] - full_c[idx - 4]) / full_c[idx - 4]) <= cDn3) && (truncPct5((full_c[idx - 2] - full_c[idx - 3]) / full_c[idx - 3]) <= cDn2) && (truncPct5((full_c[idx - 1] - full_c[idx - 2]) / full_c[idx - 2]) <= cDn1);
@@ -451,6 +474,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       if (is3Drop) {
         if (rsi_m === 'SF' && useMid1) applied_m = 'Middle';
         else if (rsi_m === 'AG' && useMid3) applied_m = 'Middle3';
+        else if (rsi_m === 'DEF' && curStrat === 'RSI 3M') applied_m = 'Middle';
       }
       if (!applied_m && isPlunge && useMid2) {
         applied_m = 'Middle2';
@@ -467,7 +491,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         let w_val = MODES[curr_m].weight[t - 1];
         seed = t2(Math.min(base * w_val, cash));
         b_tgt = t2(prev * (1 + MODES[curr_m].buy[t - 1]));
-        if (b_tgt > 0 && close <= b_tgt) b_qty = Math.floor(seed / (b_tgt * (1 + fBuy)) + 0.00001);
+        if (b_tgt > 0 && close <= b_tgt) b_qty = Math.floor(seed / (b_tgt * (1 + fBuy)) + 0.0001);
       }
 
       let d_sell_net = 0.0, d_buy_cost = 0.0, d_cf = 0.0, d_pl = 0.0, n_inv = [];
@@ -578,12 +602,18 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         let base_rv = wRsiMap[lastDateNYStr].dR;
         let base_rrv = wRsiMap[lastDateNYStr].dRR;
         if (base_rv !== 0) {
-          if (base_rrv <= 35 && base_rrv < base_rv) today_m = 'AG';
-          else if (base_rrv >= 40 && base_rrv < 50 && base_rrv > base_rv) today_m = 'SF';
-          else if (base_rrv <= 50 && base_rv > 50) today_m = 'AG';
-          else if (base_rrv >= 50 && base_rv < 50) today_m = 'SF';
-          else if (base_rrv >= 50 && base_rrv < 60 && base_rrv < base_rv) today_m = 'AG';
-          else if (base_rrv > 65 && base_rrv > base_rv) today_m = 'SF';
+          if (curStrat === 'RSI 3M') {
+            if (base_rv >= 65.2) today_m = 'AG';
+            else if (base_rv <= 45.6) today_m = 'SF';
+            else today_m = 'DEF';
+          } else {
+            if (base_rrv <= 35 && base_rrv < base_rv) today_m = 'AG';
+            else if (base_rrv >= 40 && base_rrv < 50 && base_rrv > base_rv) today_m = 'SF';
+            else if (base_rrv <= 50 && base_rv > 50) today_m = 'AG';
+            else if (base_rrv >= 50 && base_rv < 50) today_m = 'SF';
+            else if (base_rrv >= 50 && base_rrv < 60 && base_rrv < base_rv) today_m = 'AG';
+            else if (base_rrv > 65 && base_rrv > base_rv) today_m = 'SF';
+          }
         }
       }
 
@@ -593,12 +623,18 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
           const rv = lastBarInfo.dCurrent;
           const rrv = lastBarInfo.dR;
           if (rv !== 0) {
-            if (rrv <= 35 && rrv < rv) today_m = 'AG';
-            else if (rrv >= 40 && rrv < 50 && rrv > rv) today_m = 'SF';
-            else if (rrv <= 50 && rv > 50) today_m = 'AG';
-            else if (rrv >= 50 && rv < 50) today_m = 'SF';
-            else if (rrv >= 50 && rrv < 60 && rrv < rv) today_m = 'AG';
-            else if (rrv > 65 && rrv > rv) today_m = 'SF';
+            if (curStrat === 'RSI 3M') {
+              if (rv >= 65.6) today_m = 'AG';
+              else if (rv <= 45.6) today_m = 'SF';
+              else today_m = 'DEF';
+            } else {
+              if (rrv <= 35 && rrv < rv) today_m = 'AG';
+              else if (rrv >= 40 && rrv < 50 && rrv > rv) today_m = 'SF';
+              else if (rrv <= 50 && rv > 50) today_m = 'AG';
+              else if (rrv >= 50 && rv < 50) today_m = 'SF';
+              else if (rrv >= 50 && rrv < 60 && rrv < rv) today_m = 'AG';
+              else if (rrv > 65 && rrv > rv) today_m = 'SF';
+            }
           }
         }
       }
@@ -615,6 +651,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
         if (is3Drop_t) {
           if (today_m === 'SF' && useMid1) applied_m_t = 'Middle';
           else if (today_m === 'AG' && useMid3) applied_m_t = 'Middle3';
+          else if (today_m === 'DEF' && curStrat === 'RSI 3M') applied_m_t = 'Middle';
         }
         if (!applied_m_t && isPlunge_t && useMid2) {
           applied_m_t = 'Middle2';
@@ -630,7 +667,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
       let bTgtVal = MODES[today_m].buy[tTier - 1] || 0;
       let tTgt = t2(lastDataClose * (1 + bTgtVal));
-      let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.00001) : 0;
+      let todayBuyQty = (tTgt > 0 && currentW > 0) ? Math.floor((tSeed / (tTgt * (1 + fBuy))) + 0.0001) : 0;
       if (todayBuyQty > 0) rawOrderOutput.push(["매수", "LOC", tTgt, todayBuyQty]);
 
       inv.forEach(p_i => {
@@ -655,7 +692,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       totalProfit = fixFloat(tAssets - base);
     }
 
-    let yrs = (endDate - startDate) / (1000 * 60 * 60 * 24 * 365);
+    let yrs = (endDate - startDate) / (1000 * 60 * 60 * 24 * 365.25);
     let cagr = yrs > 0 ? (Math.pow((tAssets / realPrincipal), (1 / yrs)) - 1) : 0;
     let oMdd = res.BF.length > 0 ? Math.min(...res.BF) : 0;
 
@@ -831,7 +868,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     return str;
   };
   let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0; /* ⭐️ r[3]을 r[2]로 변경 */ rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
-  
+
   if (rawLogs.length === 0) {
     // ⭐️ [신규 시작 케이스] 시트에 기록이 아예 없다면?
     // 설정창에 입력된 초기자산(C9)을 원금의 시작점으로 잡습니다.
@@ -855,10 +892,10 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   for (let i = 1; i < rawLogs.length; i++) {
     totalInoutSum += (rawLogs[i].inout || 0);
   }
-  
+
   // 시트의 첫 번째 줄(C129) 자산값을 가져옵니다.
   const sheetStartingAsset = rawLogs.length > 0 ? rawLogs[0].asset : userInitialCash;
-  
+
   // 💰 원금 정답 = C129 + SUM(D129:D)
   const calculatedPrincipal = fixFloat(sheetStartingAsset + totalInoutSum);
 
@@ -955,26 +992,26 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   let finalYield = finalEffPrincipal > 0 ? finalProfit / finalEffPrincipal : 0;
 
   // ⭐️ summary 객체 생성 시 시트의 값을 그대로 매핑
-  let summary = { 
+  let summary = {
     totalAssets: lastAsset, // 시트 C열 값
-    yield: finalYield, 
-    cagr: cagr, 
-    mdd: minMdd, 
-    calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0, 
-    totalProfit: finalProfit, 
-    realizedProfit: realizedProfit, 
-    qty: serverQty, 
-    avgPrice: serverAvg, 
-    evalReturn: evalReturn, 
-    evalVal: evalVal, 
+    yield: finalYield,
+    cagr: cagr,
+    mdd: minMdd,
+    calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0,
+    totalProfit: finalProfit,
+    realizedProfit: realizedProfit,
+    qty: serverQty,
+    avgPrice: serverAvg,
+    evalReturn: evalReturn,
+    evalVal: evalVal,
     cash: cash, // 시트 JSON의 cash 값
-    depletion: depletion, 
-    currPrice: currPrice, 
-    currentMdd: chartMdd[chartMdd.length - 1], 
+    depletion: depletion,
+    currPrice: currPrice,
+    currentMdd: chartMdd[chartMdd.length - 1],
     base: finalPrincipal, // 시트 JSON의 base_principal 값
-    inout: totalInoutSum, 
+    inout: totalInoutSum,
     realPrincipal: calculatedPrincipal, // 우리가 계산한 진짜 원금
-    trueStartDate: trueStartDateStr 
+    trueStartDate: trueStartDateStr
   };
   let rawOrderOutput = []; let M_STRAT_T = MASTER_STRATEGIES[currentStrat] || MASTER_STRATEGIES["2M3D1-1P"]; let MODES_T = M_STRAT_T.modes; function c2_T(v) { return Math.ceil((v * 100) - 0.0000001) / 100.0; }
   if (restoredInv.length > 0) { restoredInv.forEach(p_i => { let modeData = MODES_T[p_i.mode] || MODES_T['SF']; let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0; let s_tgt = c2_T(p_i.buy_price * (1 + sellRate)); rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); }); }
