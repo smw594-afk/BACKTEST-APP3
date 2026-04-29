@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2103/2103633.png">
-  <title>V-TOTAL MASTER2</title>
+  <title>V-TOTAL MASTER3</title>
 
   <script>
     function detectLayout() {
@@ -46,7 +46,7 @@
 
   <div id="loginScreen" class="login-container hidden">
     <div class="login-inner">
-      <div class="login-title">📄 V-TOTAL MASTER2 <span id="loginVersion"
+      <div class="login-title">📄 V-TOTAL MASTER3 <span id="loginVersion"
           style="font-size:12px; opacity:0.5; font-weight:400;"></span></div>
       <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
       <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
@@ -103,6 +103,7 @@
           <select id="strategySelect" onchange="handleStrategyChange(this.value)">
             <option value="">-- 선택 안 함 --</option>
             <option value="1M">1M</option>
+            <option value="RSI 3M">RSI 3M</option>
             <option value="2M3D1-1P">2M3D1-1P</option>
             <option value="2M3D2(1.0)">2M3D2(1.0)</option>
             <option value="2M3D2(1.2)">2M3D2(1.2)</option>
@@ -138,7 +139,8 @@
           <div class="status-row"><span>예수금</span><span id="statCash">-</span></div>
           <div class="status-row"><span>원금</span><span id="statPrincipal">-</span></div>
         </div>
-        <div id="statHoldingsArea" style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.08);">
+        <div id="statHoldingsArea"
+          style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.08);">
           <div style="font-size:11px; color:#94a3b8; margin-bottom:2px; font-weight:600;">📦 보유 주식 (시트 꾸러미)</div>
           <div id="statHoldings" style="font-size:11px; color:#e2e8f0;">-</div>
         </div>
@@ -168,7 +170,8 @@
         style="margin-top:15px; display:flex; justify-content:space-between; align-items:center; opacity:0.5; font-size:10px;">
         <span>v<span id="settingsVersion"></span> (Dynamic)</span>
         <div style="display:flex; gap:10px; align-items:center;">
-          <a href="javascript:void(0)" onclick="resetSyncDates()" style="color:#94a3b8; text-decoration:none;">🔄 동기화 복구</a>
+          <a href="javascript:void(0)" onclick="resetSyncDates()" style="color:#94a3b8; text-decoration:none;">🔄 동기화
+            복구</a>
           <button onclick="forceUpdateApp()"
             style="background:none; border:1px solid #666; color:white; border-radius:4px; padding:2px 4px; cursor:pointer;">데이터
             리셋</button>
@@ -253,9 +256,10 @@
           style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; margin-bottom:4px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(255,255,255,0.05); max-height:180px; overflow-y:auto;"
           class="slim-scroll">
           <div class="input-group"><label>투자법 1</label>
-            <select id="qStrat1" style="border-color:#6366f1;">
+            <select id="qStrat1" style="border-color:#6366f1;" onchange="saveQuickConfigToLocal()">
               <option value="">없음</option>
               <option value="1M" selected>1M</option>
+              <option value="RSI 3M">RSI 3M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
@@ -264,9 +268,10 @@
             </select>
           </div>
           <div class="input-group"><label>투자법 2</label>
-            <select id="qStrat2" style="border-color:#10b981;">
+            <select id="qStrat2" style="border-color:#10b981;" onchange="saveQuickConfigToLocal()">
               <option value="">없음</option>
               <option value="1M">1M</option>
+              <option value="RSI 3M">RSI 3M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)" selected>2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
@@ -275,9 +280,10 @@
             </select>
           </div>
           <div class="input-group"><label>투자법 3</label>
-            <select id="qStrat3" style="border-color:#fbbf24;">
+            <select id="qStrat3" style="border-color:#fbbf24;" onchange="saveQuickConfigToLocal()">
               <option value="">없음</option>
               <option value="1M">1M</option>
+              <option value="RSI 3M">RSI 3M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)" selected>2M3D2(1.2)</option>
@@ -286,9 +292,10 @@
             </select>
           </div>
           <div class="input-group"><label>투자법 4</label>
-            <select id="qStrat4" style="border-color:#f43f5e;">
+            <select id="qStrat4" style="border-color:#f43f5e;" onchange="saveQuickConfigToLocal()">
               <option value="">없음</option>
               <option value="1M">1M</option>
+              <option value="RSI 3M">RSI 3M</option>
               <option value="2M3D1-1P" selected>2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
@@ -297,9 +304,10 @@
             </select>
           </div>
           <div class="input-group"><label>투자법 5</label>
-            <select id="qStrat5" style="border-color:#8b5cf6;">
+            <select id="qStrat5" style="border-color:#8b5cf6;" onchange="saveQuickConfigToLocal()">
               <option value="">없음</option>
               <option value="1M">1M</option>
+              <option value="RSI 3M">RSI 3M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
@@ -308,9 +316,10 @@
             </select>
           </div>
           <div class="input-group"><label>투자법 6</label>
-            <select id="qStrat6" style="border-color:#06b6d4;">
+            <select id="qStrat6" style="border-color:#06b6d4;" onchange="saveQuickConfigToLocal()">
               <option value="">없음</option>
               <option value="1M">1M</option>
+              <option value="RSI 3M">RSI 3M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
@@ -320,14 +329,14 @@
           </div>
         </div>
 
-        <div class="input-group"><label>티커</label><input type="text" id="qTicker" value="SOXL"></div>
-        <div class="input-group"><label>시작일</label><input type="date" id="qStartDate"></div>
-        <div class="input-group"><label>종료일</label><input type="date" id="qEndDate"></div>
+        <div class="input-group"><label>티커</label><input type="text" id="qTicker" value="SOXL" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group"><label>시작일</label><input type="date" id="qStartDate" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group"><label>종료일</label><input type="date" id="qEndDate" onchange="saveQuickConfigToLocal()"></div>
 
-        <div class="input-group"><label>초기자산</label><input type="text" id="qInitialCash"></div>
-        <div class="input-group"><label>갱신금</label><input type="text" id="qRenewCash"></div>
-        <div class="input-group"><label>수수료(%)</label><input type="number" id="qFBase" value="0.08" step="any"></div>
-        <div class="input-group"><label>SEC(%)</label><input type="number" id="qFSec" value="0.00278" step="any"></div>
+        <div class="input-group"><label>초기자산</label><input type="text" id="qInitialCash" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group"><label>갱신금</label><input type="text" id="qRenewCash" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group"><label>수수료(%)</label><input type="number" id="qFBase" value="0.08" step="any" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group"><label>SEC(%)</label><input type="number" id="qFSec" value="0.00278" step="any" onchange="saveQuickConfigToLocal()"></div>
 
         <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);">
           <input type="text" id="qBatchRaw" placeholder="시작일 종료일 초기자산 갱신금 붙여넣기"
@@ -346,6 +355,7 @@
   </div>
 
   <script src="engine.js" defer></script>
+  <script src="core.js" defer></script>
   <script src="script.js" defer></script>
 
 </body>
