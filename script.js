@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.200";
+const APP_VERSION = "3.300";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -17,7 +17,6 @@ let periodViewState = 0;
 let periodDisplayMode = 'chart';
 let isManualBacktestMode = false;
 let chartViewMode = 0;
-let periodBarChartInstance = null;
 
 // 동적 상태 관리 배열 (인덱스 1부터 사용하기 위해 MAX_SLOTS + 1 크기로 생성)
 let slotConfigs = Array(MAX_SLOTS + 1).fill(null);
@@ -513,6 +512,55 @@ function openQuickConfig() {
   const overlay = document.getElementById('quickConfigOverlay');
   if (!overlay) return;
 
+  loadQuickConfigFromLocal();
+  overlay.style.display = 'flex';
+}
+
+function saveQuickConfigToLocal() {
+  if (!myUserId) return;
+  const strats = [];
+  for (let k = 1; k <= MAX_SLOTS; k++) {
+    const el = document.getElementById('qStrat' + k);
+    strats.push(el ? el.value : "");
+  }
+
+  const config = {
+    strats: strats,
+    ticker: document.getElementById('qTicker').value,
+    startDate: document.getElementById('qStartDate').value,
+    endDate: document.getElementById('qEndDate').value,
+    initialCash: document.getElementById('qInitialCash').value,
+    renewCash: document.getElementById('qRenewCash').value,
+    fBase: document.getElementById('qFBase').value,
+    fSec: document.getElementById('qFSec').value
+  };
+
+  localStorage.setItem(`vtotal_quick_config_${myUserId}`, JSON.stringify(config));
+}
+
+function loadQuickConfigFromLocal() {
+  const saved = localStorage.getItem(`vtotal_quick_config_${myUserId}`);
+  if (saved) {
+    try {
+      const config = JSON.parse(saved);
+      if (config.strats) {
+        config.strats.forEach((st, idx) => {
+          const el = document.getElementById('qStrat' + (idx + 1));
+          if (el) el.value = st;
+        });
+      }
+      if (config.ticker !== undefined) document.getElementById('qTicker').value = config.ticker;
+      if (config.startDate !== undefined) document.getElementById('qStartDate').value = config.startDate;
+      if (config.endDate !== undefined) document.getElementById('qEndDate').value = config.endDate;
+      if (config.initialCash !== undefined) document.getElementById('qInitialCash').value = config.initialCash;
+      if (config.renewCash !== undefined) document.getElementById('qRenewCash').value = config.renewCash;
+      if (config.fBase !== undefined) document.getElementById('qFBase').value = config.fBase;
+      if (config.fSec !== undefined) document.getElementById('qFSec').value = config.fSec;
+      return;
+    } catch (e) { console.error("Failed to load quick config", e); }
+  }
+
+  // 기본값 (저장된 데이터가 없을 경우)
   if (document.getElementById('qStrat1')) document.getElementById('qStrat1').value = '1M';
   if (document.getElementById('qStrat2')) document.getElementById('qStrat2').value = '2M3D2(1.0)';
   if (document.getElementById('qStrat3')) document.getElementById('qStrat3').value = '2M3D2(1.2)';
@@ -528,9 +576,7 @@ function openQuickConfig() {
 
   document.getElementById('qFBase').value = document.getElementById('fBase').value || '0.08';
   document.getElementById('qFSec').value = document.getElementById('fSec').value || '0.00278';
-  document.getElementById('qBatchRaw').value = '';
-
-  overlay.style.display = 'flex';
+  if (document.getElementById('qBatchRaw')) document.getElementById('qBatchRaw').value = '';
 }
 
 function handleQuickBatchParse(val) {
@@ -550,6 +596,8 @@ function applyQuickConfig() {
   const r = document.getElementById('qRenewCash').value;
   const fb = document.getElementById('qFBase').value;
   const fs = document.getElementById('qFSec').value;
+
+  saveQuickConfigToLocal(); // 설정값 저장
 
   const strategies = [];
   for (let k = 1; k <= MAX_SLOTS; k++) {
@@ -700,9 +748,9 @@ async function checkAndSyncWithServer(isInitial) {
           // ⭐️ [퉁치기 핵심 수정] 엔진의 orders는 이미 퉁치기된 결과라 매수가 사라져 있을 수 있음.
           // 따라서 nextOrderInfo + 전략 설정으로 원시(raw) 매수 주문을 직접 재구성합니다.
           let combinedForTung = [...(realData.orders || [])]; // 시트의 원시 매도 주문들
-          
+
           let syncedNextInfo = isEngOk ? { ...pureEngineRes.nextOrderInfo } : null;
-          
+
           if (isEngOk && syncedNextInfo && syncedNextInfo.qty > 0) {
             // 엔진의 nextOrderInfo에서 원시 매수 정보 추출
             const noi = syncedNextInfo;
@@ -717,7 +765,7 @@ async function checkAndSyncWithServer(isInitial) {
               const currentW = parseFloat(noi.weight) / 100;
               const tSeed = Math.min(realData.summary.base * currentW, realData.summary.cash);
               const correctBuyQty = (rawBuyPrice > 0 && currentW > 0) ? Math.floor((tSeed / (rawBuyPrice * (1 + fBuy))) + 0.00001) : 0;
-              
+
               if (correctBuyQty > 0) {
                 combinedForTung.push(["매수", "LOC", rawBuyPrice, correctBuyQty]);
                 syncedNextInfo.qty = correctBuyQty;
@@ -733,7 +781,7 @@ async function checkAndSyncWithServer(isInitial) {
             summary: realData.summary,
             inv: realData.inv,
             trades: isEngOk ? pureEngineRes.trades : realData.trades,
-            orders: finalSyncedOrders, 
+            orders: finalSyncedOrders,
             nextOrderInfo: syncedNextInfo,
             orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
@@ -746,7 +794,7 @@ async function checkAndSyncWithServer(isInitial) {
               try {
                 let parsed = JSON.parse(state.json);
                 parsed.realPrincipal = trueRealPrincipal;
-                
+
                 // ⭐️ [증액 누락 차단 로직 개선] 
                 // 마지막 데이터(오늘)에 대해, 시트에 이미 기록된 날짜라면 시트 값을 우선하되,
                 // 시트에 아직 없는 '오늘'의 계산값이라면 엔진의 값을 보존합니다.
@@ -764,7 +812,7 @@ async function checkAndSyncWithServer(isInitial) {
                     parsed.realPrincipal = trueRealPrincipal;
                   }
                 }
-                
+
                 return { ...state, json: JSON.stringify(parsed) };
               } catch (e) { return state; }
             });
@@ -926,9 +974,9 @@ async function handleSave() {
     if (trueSnap && trueSnap.summary && newLogs.length > 0) {
       // 모든 로그가 아닌, 배열의 마지막 요소(가장 최신일)만 보정하여 과거 데이터 오염 방지
       const lastLog = newLogs[newLogs.length - 1];
-      
+
       // 만약 마지막 로그가 오늘 날짜와 일치한다면 화면의 최신 요약본으로 업데이트
-      lastLog.asset = trueSnap.summary.totalAssets; 
+      lastLog.asset = trueSnap.summary.totalAssets;
       let parsed = JSON.parse(lastLog.json);
       parsed.cash = trueSnap.summary.cash;
       parsed.base_principal = trueSnap.summary.base;
@@ -1147,7 +1195,7 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
     // 엔진 결과(resBT)의 마지막 날짜가 시트 데이터(existing)의 마지막 날짜보다 크다면 엔진 데이터 사용
     const lastExistingDate = existing.chartDates && existing.chartDates.length > 0 ? existing.chartDates[existing.chartDates.length - 1] : "";
     const lastBTDate = resBT.chartDates && resBT.chartDates.length > 0 ? resBT.chartDates[resBT.chartDates.length - 1] : "";
-    
+
     if (lastBTDate > lastExistingDate) {
       // 엔진이 더 최신 날짜를 가지고 있으므로 엔진 결과를 그대로 사용 (단, 시드 등은 시트 값 계승)
       finalRes = resBT;
@@ -1606,214 +1654,7 @@ function renderPeriodTableSlot(slotNum) {
   }
 }
 
-function renderPeriodBarChart() {
-  const canvas = document.getElementById('periodBarChart');
-  const wrapper = document.getElementById('periodBarChartWrapper');
-  if (!canvas || !wrapper) return;
 
-  if (periodBarChartInstance) { periodBarChartInstance.destroy(); periodBarChartInstance = null; }
-
-  canvas.style.display = 'block';
-  canvas.style.marginBottom = '0';
-  wrapper.style.padding = '0';
-  wrapper.style.margin = '0';
-  wrapper.style.lineHeight = '0';
-  wrapper.style.overflow = 'hidden';
-
-  const isYearly = (periodViewState === 1);
-  const globalDataArr = isYearly ? globalYearlyDataArr : globalMonthlyDataArr;
-
-  let allPeriods = new Set();
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (globalDataArr[i] && isSlotActive(i)) {
-      globalDataArr[i].forEach(r => allPeriods.add(r.period));
-    }
-  }
-  const sortedPeriods = [...allPeriods].sort().reverse();
-  if (sortedPeriods.length === 0) return;
-
-  const labels = sortedPeriods.map(p => {
-    if (periodViewState === 0 && p.length === 7) return p.substring(2).replace('-', '/');
-    return p;
-  });
-
-  const fx = isCurrencyKRW ? currentFXRate : 1;
-  const isKRW = isCurrencyKRW;
-  let datasets = [];
-
-  let activeSlotIndexes = [];
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && globalDataArr[i]) activeSlotIndexes.push(i);
-  }
-
-  // 데이터맵 생성
-  const slotMaps = Array(MAX_SLOTS + 1).fill(null);
-  activeSlotIndexes.forEach(i => {
-    slotMaps[i] = {};
-    globalDataArr[i].forEach(r => slotMaps[i][r.period] = r);
-  });
-
-  // 수익금 & 수익률 계산
-  const slotProfits = Array(MAX_SLOTS + 1).fill([]);
-  const slotRates = Array(MAX_SLOTS + 1).fill([]);
-
-  activeSlotIndexes.forEach(i => {
-    slotProfits[i] = sortedPeriods.map(p => slotMaps[i][p] ? Math.round((slotMaps[i][p].profit * fx) / (isKRW ? 10000 : 1)) : 0);
-    slotRates[i] = sortedPeriods.map(p => slotMaps[i][p] ? Number((slotMaps[i][p].rate * 100).toFixed(2)) : 0);
-  });
-
-  // 수익금 오차 방지를 위한 보정 (마지막 슬롯에게 잔여 오차 몰아주기)
-  if (activeSlotIndexes.length >= 2) {
-    const combinedMap = {};
-    const combinedData = isYearly ? globalCombinedYearlyData : globalCombinedMonthlyData;
-    if (combinedData) combinedData.forEach(r => combinedMap[r.period] = r);
-
-    const lastIdx = activeSlotIndexes[activeSlotIndexes.length - 1];
-    slotProfits[lastIdx] = sortedPeriods.map((p, pIdx) => {
-      let hasData = false;
-      activeSlotIndexes.forEach(si => { if (slotMaps[si][p]) hasData = true; });
-      if (!hasData) return 0;
-
-      const rawTotal = combinedMap[p] ? combinedMap[p].profit : 0;
-      const totalRounded = Math.round((rawTotal * fx) / (isKRW ? 10000 : 1));
-
-      let sumOther = 0;
-      for (let j = 0; j < activeSlotIndexes.length - 1; j++) {
-        sumOther += slotProfits[activeSlotIndexes[j]][pIdx];
-      }
-      return totalRounded - sumOther;
-    });
-  }
-
-  // 막대 그래프 데이터셋 추가
-  activeSlotIndexes.forEach((slotNum, index) => {
-    const isFirst = (index === 0);
-    const isLast = (index === activeSlotIndexes.length - 1);
-
-    let borderRadius = { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 };
-    if (activeSlotIndexes.length === 1) {
-      borderRadius = { topLeft: 4, topRight: 4, bottomLeft: 4, bottomRight: 4 };
-    } else {
-      if (isFirst) borderRadius = { topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4 };
-      else if (isLast) borderRadius = { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 };
-    }
-
-    datasets.push({
-      label: (getSlotConfig(slotNum)?.basics?.strategy || `투자법 ${slotNum}`) + ' 수익금',
-      data: slotProfits[slotNum],
-      backgroundColor: SLOT_COLORS[(slotNum - 1) % SLOT_COLORS.length] + '80', // 반투명
-      borderColor: SLOT_COLORS[(slotNum - 1) % SLOT_COLORS.length],
-      borderWidth: 1,
-      borderRadius: borderRadius,
-      yAxisID: 'y',
-      stack: 'profit',
-      order: 2
-    });
-  });
-
-  // 평균 수익률 꺾은선 추가
-  if (activeSlotIndexes.length > 0) {
-    const combinedRates = sortedPeriods.map((p, i) => {
-      let sum = 0;
-      activeSlotIndexes.forEach(si => sum += slotRates[si][i]);
-      return Number((sum / activeSlotIndexes.length).toFixed(2));
-    });
-
-    datasets.push({
-      label: '평균 수익률',
-      data: combinedRates,
-      type: 'line',
-      borderColor: '#a855f7',
-      backgroundColor: '#a855f7',
-      borderWidth: 3,
-      pointRadius: 2,
-      pointBackgroundColor: '#a855f7',
-      tension: 0.3,
-      yAxisID: 'yRate',
-      order: 1
-    });
-  }
-
-  if (datasets.length === 0) return;
-
-  const profitLabelPlugin = {
-    id: 'periodProfitLabels',
-    afterDatasetsDraw(chart) {
-      const { ctx } = chart;
-      ctx.save();
-      ctx.font = `bold 10px "Inter", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      const meta = chart.getDatasetMeta(datasets.findIndex(d => d.stack === 'profit'));
-      if (!meta || !meta.data) { ctx.restore(); return; }
-
-      const stackMetas = chart.data.datasets.map((d, i) => d.stack === 'profit' ? chart.getDatasetMeta(i) : null).filter(m => m !== null);
-      const topMeta = stackMetas[stackMetas.length - 1];
-
-      topMeta.data.forEach((bar, i) => {
-        let total = 0;
-        activeSlotIndexes.forEach(si => total += slotProfits[si][i]);
-        if (total === 0) return;
-
-        let label = isKRW
-          ? (total > 0 ? '+' : (total < 0 ? '-' : '')) + Math.abs(total).toLocaleString() + '만'
-          : (total > 0 ? '+$' : (total < 0 ? '-$' : '$')) + Math.abs(total).toLocaleString();
-
-        const yPos = total >= 0 ? bar.y - 5 : bar.y + 15;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fillText(label, bar.x, yPos);
-      });
-      ctx.restore();
-    }
-  };
-
-  const minBarWidth = isYearly ? 100 : 70;
-  const containerWidth = wrapper.parentElement.clientWidth;
-  const neededWidth = labels.length * minBarWidth;
-  wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';
-
-  const ctx = canvas.getContext('2d');
-  periodBarChartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: labels, datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 15, bottom: 4, left: 0, right: 0 } },
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 10,
-          titleFont: { family: 'Outfit', size: 12, weight: 'bold' }, bodyFont: { family: 'Inter', size: 11 }, cornerRadius: 8,
-          callbacks: {
-            label: function (c) {
-              const v = c.parsed.y;
-              if (c.dataset.yAxisID === 'yRate') return `${c.dataset.label}: ${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
-              if (isKRW) return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}${Math.abs(v).toLocaleString()}만원`;
-              return `${c.dataset.label}: ${v >= 0 ? '+$' : '-$'}${Math.abs(v).toLocaleString()}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          stacked: true, grid: { display: false, tickLength: 0, drawTicks: false, drawBorder: false },
-          ticks: { font: { family: 'Inter', size: 9 }, color: '#94a3b8', autoSkip: false, maxTicksLimit: 50 }
-        },
-        y: {
-          stacked: true, position: 'left', grid: { color: 'rgba(255, 255, 255, 0.05)', tickLength: 0, drawTicks: false, drawBorder: false },
-          ticks: { font: { family: 'Inter', size: 10 }, color: '#94a3b8', callback: function (v) { return isKRW ? v.toLocaleString() + '만' : '$' + v.toLocaleString(); } }
-        },
-        yRate: {
-          position: 'right', grid: { display: false },
-          ticks: { font: { family: 'Inter', size: 10, weight: 'bold' }, color: '#a855f7', callback: function (v) { return v + '%'; } },
-          title: { display: false }
-        }
-      }
-    },
-    plugins: [profitLabelPlugin]
-  });
-}
 
 function getBestResult(currentRes, slotNum) {
   if (isViewingHistory) return currentRes;
@@ -1962,221 +1803,7 @@ function refreshStatsTable() {
 
 function renderMetrics(s, days, slotNum) { refreshStatsTable(); }
 
-const peakAnnotationPlugin = {
-  id: 'peakAnnotation',
-  afterDatasetsDraw(chart) {
-    const { ctx, scales: { x, y, y1 }, data } = chart;
-    if (!data || !data.datasets || data.datasets.length === 0) return;
 
-    let globalMaxAsset = -Infinity, globalMaxAssetIdx = -1, globalMaxAssetColor = '#6366f1';
-    let globalMinMdd = Infinity, globalMinMddIdx = -1, globalMinMddColor = '#ef4444';
-
-    data.datasets.forEach((ds) => {
-      if (ds.label && ds.label.includes('자산') && ds.data) {
-        ds.data.forEach((val, i) => {
-          if (val !== null && val > globalMaxAsset) { globalMaxAsset = val; globalMaxAssetIdx = i; globalMaxAssetColor = ds.borderColor; }
-        });
-      }
-      if (ds.label && ds.label.includes('MDD') && ds.data) {
-        ds.data.forEach((val, i) => {
-          if (val !== null && val < globalMinMdd) { globalMinMdd = val; globalMinMddIdx = i; globalMinMddColor = ds.borderColor; }
-        });
-      }
-    });
-
-    const fontSize = 11;
-    ctx.save();
-    ctx.font = `bold ${fontSize}px "Outfit", "Inter", sans-serif`;
-
-    function drawLabel(text, px, py, color, isAsset) {
-      ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill();
-      let textX = px - 6, textY = isAsset ? py - 6 : py + 10;
-      ctx.textAlign = 'right'; ctx.textBaseline = isAsset ? 'bottom' : 'top';
-      if (px < 60) { textX = px + 6; ctx.textAlign = 'left'; }
-      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.strokeText(text, textX, textY); ctx.fillStyle = color; ctx.fillText(text, textX, textY);
-    }
-
-    if (globalMaxAssetIdx >= 0 && isFinite(globalMaxAsset)) {
-      const label = isCurrencyKRW ? `${Math.round(globalMaxAsset).toLocaleString()}만` : `$${Math.round(globalMaxAsset).toLocaleString()}`;
-      drawLabel(label, x.getPixelForValue(globalMaxAssetIdx), y.getPixelForValue(globalMaxAsset), globalMaxAssetColor, true);
-    }
-    if (globalMinMddIdx >= 0 && isFinite(globalMinMdd)) {
-      drawLabel(`${globalMinMdd.toFixed(1)}%`, x.getPixelForValue(globalMinMddIdx), y1.getPixelForValue(globalMinMdd), globalMinMddColor, false);
-    }
-    ctx.restore();
-  }
-};
-
-const titleClickPlugin = {
-  id: 'titleClick',
-  afterEvent(chart, args) {
-    const evt = args.event;
-    if (evt.type === 'click' && evt.y <= 28) toggleChartView();
-  }
-};
-
-window.currentChartSignature = "";
-
-function renderChartAll() {
-  const validRes = [];
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && lastBTResults[i]) validRes.push(lastBTResults[i]);
-  }
-  renderChart(validRes);
-}
-
-function renderChart(resultsArray) {
-  const validRes = (Array.isArray(resultsArray) ? resultsArray : Array.from(arguments)).filter(r => r && r.chartDates && r.chartBalances);
-  if (validRes.length === 0) {
-    if (myChart) { myChart.destroy(); myChart = null; }
-    window.currentChartSignature = "";
-    return;
-  }
-
-  const sigs = validRes.map(r => r.summary ? `${r.currentStrat}_${r.summary.totalAssets}_${r.chartDates.length}` : "null");
-  const newSig = sigs.join('|') + "|" + chartViewMode + "|" + isCurrencyKRW;
-
-  let namesStr = validRes.map(r => r.currentStrat);
-  let titleSuffix = namesStr.length > 0 ? (namesStr.length > 1 ? '(종합)' : `(${namesStr[0]})`) : '';
-
-  if (chartViewMode > 0 && chartViewMode <= MAX_SLOTS) {
-    const cfg = getSlotConfig(chartViewMode);
-    titleSuffix = `(${cfg?.basics?.strategy || `투자법 ${chartViewMode}`})`;
-  }
-
-  const cTitle = document.getElementById('chartTitle');
-  const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
-  if (cTitle) cTitle.innerHTML = `📈 성과추이 <span ${smallStyle}>${titleSuffix}</span>`;
-
-  if (window.currentChartSignature === newSig) return;
-  window.currentChartSignature = newSig;
-
-  if (myChart) myChart.destroy();
-  document.getElementById('chartBox').innerHTML = '<canvas id="balanceChart" class="view-transition"></canvas>';
-  const ctx = document.getElementById('balanceChart').getContext('2d');
-
-  const chartFontSize = 11;
-  Chart.defaults.font.size = chartFontSize;
-
-  const allDatesSet = new Set();
-  validRes.forEach(r => r.chartDates.forEach(d => allDatesSet.add(d)));
-  const universalDates = Array.from(allDatesSet).sort();
-  if (universalDates.length === 0) return;
-
-  const shortDates = universalDates.map(d => {
-    const p = d.split('-');
-    if (p.length < 3) return d;
-    let y = p[0].length === 4 ? p[0].substring(2) : p[0];
-    return `${y}-${parseInt(p[1])}-${p[2]}`;
-  });
-
-  const fx = isCurrencyKRW ? currentFXRate : 1;
-  const isKRW = isCurrencyKRW;
-
-  const alignData = (resDates, resValues, skipFX = false) => {
-    const map = {};
-    resDates.forEach((d, i) => { map[d] = resValues[i]; });
-    return universalDates.map(d => {
-      if (map[d] === undefined) return null;
-      if (skipFX) return map[d];
-      return isKRW ? Math.round(map[d] * fx / 10000) : Math.round(map[d]);
-    });
-  };
-
-  let datasets = [];
-  let allMddValues = [];
-
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && lastBTResults[i]) {
-      // chartViewMode가 0이면 모두 그림. 1 이상이면 해당 슬롯만 그림.
-      if (chartViewMode === 0 || chartViewMode === i) {
-        const res = lastBTResults[i];
-        const sName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
-        const alignedBA = alignData(res.chartDates, res.chartBalances, false);
-        const mdd = res.chartMdd.map(v => v * 100);
-        const alignedMDD = alignData(res.chartDates, mdd, true);
-
-        const color = SLOT_COLORS[(i - 1) % SLOT_COLORS.length];
-        const grad = ctx.createLinearGradient(0, 0, 0, 400);
-        grad.addColorStop(0, color + '4D'); // 30% alpha
-        grad.addColorStop(1, color + '00'); // 0% alpha
-
-        datasets.push(
-          { label: sName + ' 자산', data: alignedBA, borderColor: color, yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: grad, tension: 0.2 },
-          // 1️⃣ MDD 색상을 color로 변경 완료
-          { label: sName + ' MDD', data: alignedMDD, borderColor: color, borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
-        );
-        allMddValues = allMddValues.concat(mdd);
-      }
-    }
-  }
-
-  const worstMdd = Math.min.apply(null, allMddValues.filter(v => v !== null && isFinite(v)));
-  const dynamicMddMin = isFinite(worstMdd) ? Math.floor(worstMdd) - 10 : -50;
-
-  // 2️⃣ 툴팁 위치를 bottomLeft로 설정 완료 (x축 값을 0으로 고정)
-  if (Chart.Tooltip && !Chart.Tooltip.positioners.bottomLeft) {
-    Chart.Tooltip.positioners.bottomLeft = function (items) {
-      if (!items.length) return false;
-      const chart = this.chart;
-      return { x: 0, y: chart.height };
-    };
-  }
-
-  myChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels: shortDates, datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        title: { display: false }, legend: { display: false },
-        tooltip: {
-          // 3️⃣ 툴팁 속성을 bottomLeft 및 left 정렬로 변경 완료
-          enabled: true, position: 'bottomLeft', xAlign: 'left', yAlign: 'bottom',
-          backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 8,
-          titleFont: { family: 'Outfit', size: chartFontSize, weight: 'bold' }, bodyFont: { family: 'Inter', size: chartFontSize },
-          cornerRadius: 8, displayColors: true,
-          callbacks: {
-            label: function (c) {
-              let l = c.dataset.label || '';
-              if (l.includes('자산')) return `${l}: ${isKRW ? '' : '$'}${c.parsed.y.toLocaleString()}${isKRW ? '만' : ''}`;
-              if (l.includes('MDD')) return `${l}: ${c.parsed.y.toFixed(2)}%`;
-              return `${l}: ${c.parsed.y}`;
-            }
-          }
-        },
-        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } }
-      },
-      scales: {
-        y: {
-          position: 'left', grace: '10%', grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#94a3b8', callback: function (v) { return v.toLocaleString() + (isKRW ? '만' : '$'); } }
-        },
-        y1: {
-          position: 'right', min: dynamicMddMin, max: 0, grid: { display: false },
-          ticks: { font: { family: 'Inter', size: chartFontSize - 2 }, color: '#ef4444', callback: function (v) { return v.toFixed(1) + '%'; } }
-        }
-      }
-    },
-    plugins: [peakAnnotationPlugin, titleClickPlugin]
-  });
-
-  setTimeout(() => {
-    if (typeof myChart !== "undefined" && myChart && datasets.length > 0 && datasets[0].data.length > 0) {
-      const lastIdx = datasets[0].data.length - 1;
-      const meta = myChart.getDatasetMeta(0);
-      if (meta && meta.data && meta.data[lastIdx]) {
-        const point = meta.data[lastIdx];
-        const elements = datasets.map((_, i) => ({ datasetIndex: i, index: lastIdx }));
-        myChart.setActiveElements(elements);
-        myChart.tooltip.setActiveElements(elements, { x: point.x, y: point.y });
-        myChart.update();
-      }
-    }
-  }, 100);
-}
 
 window.addEventListener('DOMContentLoaded', () => {
   const setupSwipe = (elementId, callback) => {
@@ -2305,105 +1932,3 @@ function scheduleNextAutoSave() {
 window.addEventListener('load', () => {
   scheduleNextAutoSave();
 });
-
-function exportTradeHistoryToCSV() {
-  const slotNum = activeSettingsTab;
-  const res = lastBTResults[slotNum];
-
-  // dailyStates에는 주말/휴장일을 제외한 모든 거래일의 기록이 담겨있습니다.
-  if (!res || !res.dailyStates || res.dailyStates.length === 0) {
-    alert("저장할 매매 기록이 없습니다. 수동 백테스트를 실행해주세요.");
-    return;
-  }
-
-  // 1. 모든 매매기록(완료된 거래 + 현재 보유 중인 미실현 거래)을 매수일 기준으로 그룹화
-  const tradesByBuyDate = {};
-
-  // 완료된 거래 (매도 완료)
-  if (res.trades) {
-    res.trades.forEach(t => {
-      if (!tradesByBuyDate[t.buyDate]) tradesByBuyDate[t.buyDate] = [];
-      tradesByBuyDate[t.buyDate].push(t);
-    });
-  }
-
-  // 미실현 거래 (보유 중)
-  if (res.inv) {
-    res.inv.forEach(h => {
-      if (!tradesByBuyDate[h.buyDate]) tradesByBuyDate[h.buyDate] = [];
-      tradesByBuyDate[h.buyDate].push({
-        buyDate: h.buyDate,
-        sellDate: '보유중',
-        mode: h.mode,
-        tier: h.tier,
-        buyPrice: h.buy_price,
-        sellPrice: 0,
-        qty: h.qty
-      });
-    });
-  }
-
-  let csvContent = "\uFEFF"; // 한글 깨짐 방지 BOM
-  csvContent += "날짜(영업일),매도일,모드,티어,매수가,매도가,수량,총잔고(마감),갱신금(마감)\n";
-
-  // 2. 엔진이 기록한 모든 실제 거래일(dailyStates)을 순차적으로 순회
-  res.dailyStates.forEach(state => {
-    const dateStr = state.date;
-    const asset = state.asset.toFixed(2);
-
-    let renewCash = "0.00";
-    try {
-      const parsed = JSON.parse(state.json);
-      // 백테스트 엔진 내 base_principal 또는 base 필드 추출
-      renewCash = (parsed.base_principal || parsed.base || 0).toFixed(2);
-    } catch (e) { }
-
-    const dayTrades = tradesByBuyDate[dateStr];
-
-    if (dayTrades && dayTrades.length > 0) {
-      // 해당 날짜에 매수한 기록이 1개 이상 있는 경우 (각 매수 건별로 행 추가)
-      dayTrades.forEach(t => {
-        const sellD = t.sellDate || '-';
-        const sPrice = t.sellPrice > 0 ? t.sellPrice.toFixed(2) : '-';
-
-        const row = [
-          dateStr,
-          sellD,
-          t.mode,
-          t.tier,
-          t.buyPrice.toFixed(2),
-          sPrice,
-          t.qty,
-          asset,
-          renewCash
-        ];
-        csvContent += row.join(",") + "\n";
-      });
-    } else {
-      // 해당 날짜에 시드가 0이거나 조건이 안 맞아 매수를 아예 안 한 경우 (빈칸 기록)
-      const row = [
-        dateStr,
-        '-', // 매도일
-        '-', // 모드
-        '-', // 티어
-        '-', // 매수가
-        '-', // 매도가
-        '-', // 수량
-        asset, // 총잔고(마감)
-        renewCash // 갱신금(마감)
-      ];
-      csvContent += row.join(",") + "\n";
-    }
-  });
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", `VTOTAL_BACKTEST_SLOT${slotNum}_DAILY_LOG_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  showToast("모든 영업일 기록이 엑셀로 저장되었습니다.", "📊");
-}
