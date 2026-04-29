@@ -782,6 +782,119 @@ h2:hover {
   }
 }
 
+@media (max-width: 400px) {
+  .period-metrics { flex-direction: column; }
+}
+
+/* =========================================
+   V3.14 리팩토링: 동적 DOM 전용 스타일 클래스
+   ========================================= */
+
+/* 주문 슬롯 컨테이너 */
+.order-slot-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  display: none;
+}
+.order-slot-container.has-border-left {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 4px;
+}
+
+/* 주문 스크롤 영역 */
+.order-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* 뷰 패널 표시 토글 */
+.view-pane-active {
+  display: block;
+}
+.view-pane-hidden {
+  display: none;
+}
+
+/* 슬롯 제목 (주문표/월별 등) */
+.slot-title-sm {
+  font-size: 0.8em;
+  margin-bottom: 2px;
+}
+
+/* 티어 정보 푸터 */
+.tier-footer {
+  display: none;
+  margin-top: auto;
+  flex-shrink: 0;
+}
+.tier-footer-val {
+  color: var(--success);
+}
+
+/* 월별 테이블 0번 슬롯 (년월 표시용) */
+.monthly-slot-0 {
+  flex: 0;
+  min-width: fit-content;
+  width: fit-content;
+  padding-right: 1px;
+  display: none;
+}
+.monthly-slot-0 .slot-title {
+  color: var(--text-muted);
+  padding-left: 0;
+  padding-right: 0;
+}
+.period-table-0 {
+  border-spacing: 0 1px;
+}
+.period-table-0 th,
+.period-table-0 td {
+  padding: 0 !important;
+  text-align: center;
+  height: 16px;
+}
+.period-table-0 th {
+  white-space: nowrap;
+  width: 1%;
+  vertical-align: middle;
+}
+
+/* 월별 테이블 개별 슬롯 & 종합 슬롯 */
+.monthly-slot-item,
+.monthly-slot-combined {
+  flex: 1;
+  min-width: 120px;
+  display: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 4px;
+}
+
+/* 테이블 셀 내 중앙 정렬 & 회색 텍스트 (대기 중) */
+.table-empty-cell {
+  padding: 15px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+/* 보유 주식 목록 그리드 행 (현황판) */
+.holdings-grid-row {
+  display: grid;
+  grid-template-columns: 24px 24px 60px 44px 75px 32px 1fr;
+  gap: 4px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  align-items: center;
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-align: center;
+}
+.holdings-empty {
+  color: #64748b;
+}
+
 @media (max-width: 500px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
