@@ -65,11 +65,15 @@ body {
 }
 
 .card,
-.slim-scroll,
-#orderScroll1,
-#orderScroll2,
-#orderScroll3 {
+.slim-scroll {
   overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.order-scroll-area {
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: auto !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 .dashboard-grid {
