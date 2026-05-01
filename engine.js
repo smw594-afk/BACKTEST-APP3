@@ -3,11 +3,36 @@ const MASTER_STRATEGIES = {
   "1M": {
     config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
     modes: {
-      SF: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
-      Middle: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
-      AG: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
-      Middle2: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] },
-      Middle3: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023], hold: [7, 7, 7, 7, 7, 7], weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064] }
+      SF: {
+        buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
+        sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023],
+        hold: [7, 7, 7, 7, 7, 7],
+        weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064]
+      },
+      Middle: {
+        buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
+        sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023],
+        hold: [7, 7, 7, 7, 7, 7],
+        weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064]
+      },
+      AG: {
+        buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
+        sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023],
+        hold: [7, 7, 7, 7, 7, 7],
+        weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064]
+      },
+      Middle2: {
+        buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
+        sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023],
+        hold: [7, 7, 7, 7, 7, 7],
+        weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064]
+      },
+      Middle3: {
+        buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
+        sell: [0.023, 0.023, 0.023, 0.023, 0.023, 0.023],
+        hold: [7, 7, 7, 7, 7, 7],
+        weight: [0.08, 0.055, 0.06, 0.285, 0.084, 0.064]
+      }
     }
   },
   "2M3D2(2.1)": {
@@ -35,66 +60,206 @@ const MASTER_STRATEGIES = {
         weight: [0.061, 0.3, 0.05, 0.05, 0.242, 0.3, 0.295, 0.292]
       },
       // Middle2/3 모드: 9티어 체제 유지
-      Middle2: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] },
-      Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127] }
+      Middle2: {
+        buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044],
+        sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127]
+      },
+      Middle3: {
+        buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044],
+        sell: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127, 0.127]
+      }
     }
   },
   "2M3D1-1P": {
     config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: true, useMid3: true },
     modes: {
-      SF: { buy: [0.046, 0.046, 0.046, 0.046, 0.046, 0.046], sell: [0.018, 0.018, 0.018, 0.018, 0.018, 0.018], hold: [34, 34, 34, 34, 34, 34], weight: [0.13, 0.116, 0.289, 0.05, 0.273, 0.05] },
-      Middle: { buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [6, 6, 6, 6, 6, 6], weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] },
-      AG: { buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034], sell: [0.022, 0.022, 0.022, 0.022, 0.022, 0.022], hold: [7, 7, 7, 7, 7, 7], weight: [0.17, 0.08, 0.052, 0.3, 0.072, 0.247] },
-      Middle2: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [12, 12, 12, 12, 12, 12], weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05] },
-      Middle3: { buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [6, 6, 6, 6, 6, 6], weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3] }
+      SF: {
+        buy: [0.046, 0.046, 0.046, 0.046, 0.046, 0.046],
+        sell: [0.018, 0.018, 0.018, 0.018, 0.018, 0.018],
+        hold: [34, 34, 34, 34, 34, 34],
+        weight: [0.13, 0.116, 0.289, 0.05, 0.273, 0.05]
+      },
+      Middle: {
+        buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043],
+        sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014],
+        hold: [6, 6, 6, 6, 6, 6],
+        weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
+      },
+      AG: {
+        buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
+        sell: [0.022, 0.022, 0.022, 0.022, 0.022, 0.022],
+        hold: [7, 7, 7, 7, 7, 7],
+        weight: [0.17, 0.08, 0.052, 0.3, 0.072, 0.247]
+      },
+      Middle2: {
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025],
+        sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        hold: [12, 12, 12, 12, 12, 12],
+        weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+      },
+      Middle3: {
+        buy: [0.043, 0.043, 0.043, 0.043, 0.043, 0.043],
+        sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014],
+        hold: [6, 6, 6, 6, 6, 6],
+        weight: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
+      }
     }
   },
   "2M3D2(2.0)": {
     config: { compR: 0.814, lossR: 0.286, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
-      SF: { buy: [0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.001] },
-      Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [20, 20, 20, 20, 20, 20, 20], weight: [0.355, 0.355, 0.355, 0.355, 0.355, 0.355, 0.355] },
-      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.047, 0.39, 0.042, 0.043, 0.217, 0.22, 0.31, 0.45] },
-      Middle2: { buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131] },
-      Middle3: { buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12], weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131] }
+      SF: {
+        buy: [0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036],
+        sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016],
+        hold: [35, 35, 35, 35, 35, 35, 35, 35],
+        weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.001]
+      },
+      Middle: {
+        buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [20, 20, 20, 20, 20, 20, 20],
+        weight: [0.355, 0.355, 0.355, 0.355, 0.355, 0.355, 0.355]
+      },
+      AG: {
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025],
+        sell: [0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031],
+        hold: [8, 8, 8, 8, 8, 8, 8, 8],
+        weight: [0.047, 0.39, 0.042, 0.043, 0.217, 0.22, 0.31, 0.45]
+      },
+      Middle2: {
+        buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131]
+      },
+      Middle3: {
+        buy: [0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131]
+      }
     }
   },
   "2M3D2(1.2)": {
     config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
-      SF: { buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.046] },
-      Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [21, 21, 21, 21, 21, 21, 21, 21], weight: [0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352] },
-      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096] },
-      Middle2: { buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [13, 13, 13, 13, 13, 13, 13, 13], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
-      Middle3: { buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [13, 13, 13, 13, 13, 13, 13, 13], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
+      SF: {
+        buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035],
+        sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016],
+        hold: [35, 35, 35, 35, 35, 35, 35, 35],
+        weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.161, 0.31, 0.046]
+      },
+      Middle: {
+        buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [21, 21, 21, 21, 21, 21, 21, 21],
+        weight: [0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352, 0.352]
+      },
+      AG: {
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025],
+        sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032],
+        hold: [8, 8, 8, 8, 8, 8, 8, 8],
+        weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096]
+      },
+      Middle2: {
+        buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [13, 13, 13, 13, 13, 13, 13, 13],
+        weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129]
+      },
+      Middle3: {
+        buy: [0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.038],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [13, 13, 13, 13, 13, 13, 13, 13],
+        weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129]
+      }
     }
   },
   "2M3D2(1.0)": {
     config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
-      SF: { buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035], sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.143, 0.23, 0.040] },
-      Middle: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
-      AG: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032], hold: [8, 8, 8, 8, 8, 8, 8, 8], weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096] },
-      Middle2: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] },
-      Middle3: { buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03], sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003], hold: [12, 12, 12, 12, 12, 12, 12, 12], weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129] }
+      SF: {
+        buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035],
+        sell: [0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016, 0.016],
+        hold: [35, 35, 35, 35, 35, 35, 35, 35],
+        weight: [0.046, 0.143, 0.23, 0.046, 0.115, 0.143, 0.23, 0.040]
+      },
+      Middle: {
+        buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129]
+      },
+      AG: {
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025],
+        sell: [0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032, 0.032],
+        hold: [8, 8, 8, 8, 8, 8, 8, 8],
+        weight: [0.049, 0.216, 0.043, 0.043, 0.216, 0.216, 0.12, 0.096]
+      },
+      Middle2: {
+        buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129]
+      },
+      Middle3: {
+        buy: [0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+        sell: [0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003, 0.003],
+        hold: [12, 12, 12, 12, 12, 12, 12, 12],
+        weight: [0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129, 0.129]
+      }
     }
   },
   "RSI 3M": {
     config: { compR: 0.9, lossR: 0.304, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
-      SF: { buy: [0.033, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028], sell: [0.026, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027], hold: [35, 19, 19, 19, 19, 19, 19, 19], weight: [0.052, 0.238, 0.056, 0.3, 0.297, 0.294, 0.08, 0.26] },
-      DEF: { buy: [0.032, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039], sell: [0.074, 0.046, 0.046, 0.046, 0.046, 0.046, 0.046, 0.046], hold: [5, 5, 5, 5, 5, 5, 5, 5], weight: [0.097, 0.297, 0.11, 0.193, 0.244, 0.051, 0.296, 0.066] },
-      AG: { buy: [0.09, 0.049, 0.049, 0.049, 0.049, 0.049, 0.049, 0.049], sell: [0.026, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024], hold: [35, 35, 35, 35, 35, 35, 35, 35], weight: [0.062, 0.051, 0.052, 0.299, 0.129, 0.217, 0.051, 0.217] },
-      Middle: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [5, 5, 5, 5, 5, 5, 5, 5], weight: [0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179] },
-      Middle3: { buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044], sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014], hold: [5, 5, 5, 5, 5, 5, 5, 5], weight: [0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179] },
-      Middle2: { buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025], sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], hold: [12, 12, 12, 12, 12, 12], weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05] }
+      SF: {
+        buy: [0.033, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028],
+        sell: [0.026, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027],
+        hold: [35, 19, 19, 19, 19, 19, 19, 19],
+        weight: [0.052, 0.238, 0.056, 0.3, 0.297, 0.294, 0.08, 0.26]
+      },
+      DEF: {
+        buy: [0.032, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039],
+        sell: [0.074, 0.046, 0.046, 0.046, 0.046, 0.046, 0.046, 0.046],
+        hold: [5, 5, 5, 5, 5, 5, 5, 5],
+        weight: [0.097, 0.297, 0.11, 0.193, 0.244, 0.051, 0.296, 0.066]
+      },
+      AG: {
+        buy: [0.09, 0.049, 0.049, 0.049, 0.049, 0.049, 0.049, 0.049],
+        sell: [0.026, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024, 0.024],
+        hold: [35, 35, 35, 35, 35, 35, 35, 35],
+        weight: [0.062, 0.051, 0.052, 0.299, 0.129, 0.217, 0.051, 0.217]
+      },
+      Middle: {
+        buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044],
+        sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014],
+        hold: [5, 5, 5, 5, 5, 5, 5, 5],
+        weight: [0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179]
+      },
+      Middle3: {
+        buy: [0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044, 0.044],
+        sell: [0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014, 0.014],
+        hold: [5, 5, 5, 5, 5, 5, 5, 5],
+        weight: [0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179, 0.179]
+      },
+      Middle2: {
+        buy: [0.025, 0.025, 0.025, 0.025, 0.025, 0.025],
+        sell: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        hold: [12, 12, 12, 12, 12, 12],
+        weight: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+      }
     }
   }
 };
 
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwGUjfRXu03cvsYz9DqWEbnnvO0DketTn_D-0sbGImAps6Cy-nOYIGLF4YUUvviWOa2/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxh0b2Ho9f8lehi9I3NxWujT5JkWA1ZRVdEQ02cYZvxK_sO-yvZv5aCHivVNvIbi3HJ/exec";
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -169,7 +334,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
   if (!t) throw new Error("티커가 비어있습니다.");
   const memKey = `${t}_${p1}_${p2}`;
   if (!force && yahooCache[memKey]) return yahooCache[memKey];
-  if (!force && pendingFetches[memKey]) return await pendingFetches[memKey];
+  if (pendingFetches[memKey]) return await pendingFetches[memKey];
 
   const fetchPromise = (async () => {
     let cached = await getDB(t);
@@ -723,6 +888,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       chartMdd: res.BF,
       monthlyData: calculateMonthlyData(res.S, res.BA, res.BF, res.INOUT),
       yearlyData: calculateYearlyData(res.S, res.BA, res.BF, res.INOUT),
+      dailyData: calculateDailyData(res.S, res.BA, res.BF, res.INOUT),
       currentStrat: curStrat,
       nextOrderInfo: nextOrderInfo,
       dailyStates: res.dailyStates,
@@ -747,7 +913,7 @@ function calculateMonthlyData(dates, balances, mdds, inouts) {
 
     if (monthKey !== currentMonth) {
       let endBalance = balances[i - 1];
-      let endInout = inouts ? inouts[i - 1] : 0;
+      let endInout = (inouts && inouts[i - 1] !== undefined) ? inouts[i - 1] : 0;
 
       // 월간 순입출금 및 수익금 계산
       let inoutForPeriod = endInout - monthStartInout;
@@ -772,7 +938,7 @@ function calculateMonthlyData(dates, balances, mdds, inouts) {
 
     if (i === dates.length - 1) {
       let endBalance = balances[i];
-      let endInout = inouts ? inouts[i] : 0;
+      let endInout = (inouts && inouts[i] !== undefined) ? inouts[i] : 0;
 
       let inoutForPeriod = endInout - monthStartInout;
       let monthProfit = endBalance - monthStartBalance - inoutForPeriod;
@@ -805,7 +971,7 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
 
     if (yearKey !== currentYear) {
       let endBalance = balances[i - 1];
-      let endInout = inouts ? inouts[i - 1] : 0;
+      let endInout = (inouts && inouts[i - 1] !== undefined) ? inouts[i - 1] : 0;
 
       // 연간 순입출금 및 수익금 계산
       let inoutForPeriod = endInout - yearStartInout;
@@ -830,7 +996,7 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
 
     if (i === dates.length - 1) {
       let endBalance = balances[i];
-      let endInout = inouts ? inouts[i] : 0;
+      let endInout = (inouts && inouts[i] !== undefined) ? inouts[i] : 0;
 
       let inoutForPeriod = endInout - yearStartInout;
       let yearProfit = endBalance - yearStartBalance - inoutForPeriod;
@@ -847,6 +1013,37 @@ function calculateYearlyData(dates, balances, mdds, inouts) {
   }
   return yearly;
 }
+
+function calculateDailyData(dates, balances, mdds, inouts) {
+  if (!dates || dates.length === 0) return [];
+  let daily = [];
+
+  let startBalance = balances[0];
+  let startInout = (inouts && inouts.length > 0) ? inouts[0] : 0;
+
+  for (let i = 0; i < dates.length; i++) {
+    let dayKey = dates[i];
+    let endBalance = balances[i];
+    let endInout = (inouts && inouts[i] !== undefined) ? inouts[i] : 0;
+
+    let prevBalance = i > 0 ? balances[i - 1] : startBalance;
+    let prevInout = i > 0 ? inouts[i - 1] : startInout;
+
+    let inoutForPeriod = endInout - prevInout;
+    let dayProfit = endBalance - prevBalance - inoutForPeriod;
+    let basis = prevBalance + inoutForPeriod;
+
+    daily.push({
+      period: dayKey,
+      asset: endBalance,
+      rate: basis > 0 ? dayProfit / basis : 0,
+      profit: dayProfit,
+      mdd: mdds[i]
+    });
+  }
+  return daily;
+}
+
 
 // 🌐 실전 데이터 처리 (Real Log Data)
 function processRealLogData(d, currentStrat, userInitialCash) {
@@ -961,7 +1158,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     let periods = {};
     for (let i = 0; i < chartDatesFull.length; i++) {
       let parts = chartDatesFull[i].split('-');
-      let periodKey = type === 'month' ? `${parts[0]}-${parts[1]}` : parts[0];
+      let periodKey = type === 'month' ? `${parts[0]}-${parts[1]}` : (type === 'year' ? parts[0] : chartDatesFull[i]);
       if (!periods[periodKey]) { periods[periodKey] = { startIdx: i, endIdx: i, indices: [] }; }
       periods[periodKey].endIdx = i; periods[periodKey].indices.push(i);
     }
@@ -1035,6 +1232,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     chartInoutFull: chartInoutFull,
     monthlyData: calcPeriod('month'),
     yearlyData: calcPeriod('year'),
+    dailyData: calcPeriod('day'),
     currentStrat: currentStrat,
     isSynced: true // ⭐️ 시트 데이터 기반 결과는 동기화됨
   };
@@ -1146,8 +1344,8 @@ function calculateCombinedSummaryEngine(activeResults) {
 
 // 다중 슬롯 종합 월별/년별 차트 데이터 병합 계산
 function generateCombinedPeriodDataEngine(activeResults) {
-  if (!activeResults || activeResults.length === 0) return { monthly: [], yearly: [] };
-  if (activeResults.length === 1) return { monthly: activeResults[0].monthlyData, yearly: activeResults[0].yearlyData };
+  if (!activeResults || activeResults.length === 0) return { monthly: [], yearly: [], daily: [] };
+  if (activeResults.length === 1) return { monthly: activeResults[0].monthlyData, yearly: activeResults[0].yearlyData, daily: activeResults[0].dailyData };
 
   // 1. 모든 날짜 통합
   let allDatesSet = new Set();
@@ -1217,6 +1415,7 @@ function generateCombinedPeriodDataEngine(activeResults) {
   // 4. 기존 chunking 함수 재활용하여 결과 도출
   return {
     monthly: calculateMonthlyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse(),
-    yearly: calculateYearlyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse()
+    yearly: calculateYearlyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse(),
+    daily: calculateDailyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse()
   };
 }
