@@ -24,7 +24,8 @@ function renderPeriodBarChart() {
   wrapper.style.overflow = 'hidden';
 
   const isYearly = (periodViewState === 1);
-  const globalDataArr = isYearly ? globalYearlyDataArr : globalMonthlyDataArr;
+  const isDaily = (periodViewState === 2);
+  const globalDataArr = isDaily ? globalDailyDataArr : (isYearly ? globalYearlyDataArr : globalMonthlyDataArr);
 
   let allPeriods = new Set();
   for (let i = 1; i <= MAX_SLOTS; i++) {
@@ -36,6 +37,10 @@ function renderPeriodBarChart() {
   if (sortedPeriods.length === 0) return;
 
   const labels = sortedPeriods.map(p => {
+    if (periodViewState === 2 && p.includes('-')) {
+      const parts = p.split('-');
+      return parts[1] + '/' + parts[2];
+    }
     if (periodViewState === 0 && p.length === 7) return p.substring(2).replace('-', '/');
     return p;
   });
@@ -68,7 +73,7 @@ function renderPeriodBarChart() {
   // 수익금 오차 방지를 위한 보정 (마지막 슬롯에게 잔여 오차 몰아주기)
   if (activeSlotIndexes.length >= 2) {
     const combinedMap = {};
-    const combinedData = isYearly ? globalCombinedYearlyData : globalCombinedMonthlyData;
+    const combinedData = isDaily ? globalCombinedDailyData : (isYearly ? globalCombinedYearlyData : globalCombinedMonthlyData);
     if (combinedData) combinedData.forEach(r => combinedMap[r.period] = r);
 
     const lastIdx = activeSlotIndexes[activeSlotIndexes.length - 1];
@@ -170,7 +175,7 @@ function renderPeriodBarChart() {
     }
   };
 
-  const minBarWidth = isYearly ? 100 : 70;
+  const minBarWidth = isYearly ? 100 : (isDaily ? 50 : 70);
   const containerWidth = wrapper.parentElement.clientWidth;
   const neededWidth = labels.length * minBarWidth;
   wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';
