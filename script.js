@@ -24,8 +24,10 @@ let simulationConfigs = Array(MAX_SLOTS + 1).fill(null);
 let lastBTResults = Array(MAX_SLOTS + 1).fill(null);
 let globalMonthlyDataArr = Array(MAX_SLOTS + 1).fill(null);
 let globalYearlyDataArr = Array(MAX_SLOTS + 1).fill(null);
+let globalDailyDataArr = Array(MAX_SLOTS + 1).fill(null);
 let globalCombinedMonthlyData = [];
 let globalCombinedYearlyData = [];
+let globalCombinedDailyData = [];
 
 // 슬롯별 테마 색상 (반복 순환)
 const SLOT_COLORS = ['#6366f1', '#10b981', '#fbbf24', '#f43f5e', '#8b5cf6', '#06b6d4', '#eab308'];
@@ -159,6 +161,7 @@ function restoreLocalCache() {
         lastBTResults[i] = snap;
         globalMonthlyDataArr[i] = snap.monthlyData;
         globalYearlyDataArr[i] = snap.yearlyData;
+        globalDailyDataArr[i] = snap.dailyData;
 
         if (i === 1) initData(slotConfigs[1]); // 1번 슬롯 폼 복원
         renderOrderViewSlot(snap, i);
@@ -196,10 +199,13 @@ function showOrderView() {
 function shouldAutoRefresh() {
   if (!myUserId) return false;
   const now = new Date();
-  const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+  const nyTimeStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const nyHour = new Date(nyTimeStr).getHours();
   const nyDateStr = formatDateNY(now);
   const lastDate = localStorage.getItem('vtotal_last_auto_ny_' + myUserId);
-  if (nyHour >= 17) {
+  
+  // 뉴욕장 마감(16:00) 직후부터 업데이트 허용
+  if (nyHour >= 16) {
     if (lastDate !== nyDateStr) {
       localStorage.setItem('vtotal_last_auto_ny_' + myUserId, nyDateStr);
       return true;
@@ -395,6 +401,7 @@ function enterAppDirectly() {
         lastBTResults[i] = snap;
         globalMonthlyDataArr[i] = snap.monthlyData;
         globalYearlyDataArr[i] = snap.yearlyData;
+        globalDailyDataArr[i] = snap.dailyData;
         if (i === 1) {
           initData(slotConfigs[1]);
           document.getElementById('mainGrid').classList.remove('hide-order-panel');
@@ -1228,6 +1235,7 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
   lastBTResults[slotNum] = finalRes;
   globalMonthlyDataArr[slotNum] = finalRes.monthlyData;
   globalYearlyDataArr[slotNum] = finalRes.yearlyData;
+  globalDailyDataArr[slotNum] = finalRes.dailyData;
 
   if (slotNum === 1) {
     currentActiveConfigStr = JSON.stringify(config);
@@ -1282,9 +1290,9 @@ async function runEngine() {
     }
   };
 
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    await executeSlot(slotConfigs[i], isSlotActive(i), i);
-  }
+  await Promise.all(
+    Array.from({ length: MAX_SLOTS }, (_, i) => i + 1).map(i => executeSlot(slotConfigs[i], isSlotActive(i), i))
+  );
 
   updateSlotsVisibility();
   renderChartAll();
@@ -1325,9 +1333,9 @@ async function handleInstantOrder() {
     }
   };
 
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    await executeSlot(slotConfigs[i], isSlotActive(i), i);
-  }
+  await Promise.all(
+    Array.from({ length: MAX_SLOTS }, (_, i) => i + 1).map(i => executeSlot(slotConfigs[i], isSlotActive(i), i))
+  );
 
   updateSlotsVisibility();
   renderChartAll();
@@ -1362,6 +1370,7 @@ function calculateCombinedPeriodData() {
   const combinedData = generateCombinedPeriodDataEngine(results);
   globalCombinedMonthlyData = combinedData.monthly;
   globalCombinedYearlyData = combinedData.yearly;
+  globalCombinedDailyData = combinedData.daily;
 
   if (periodDisplayMode === 'chart') {
     renderPeriodBarChart();
@@ -1374,7 +1383,7 @@ function calculateCombinedPeriodData() {
   }
 
   if (myUserId) {
-    localStorage.setItem(`vtotal_snap_combined_${myUserId}`, JSON.stringify({ m: globalCombinedMonthlyData, y: globalCombinedYearlyData }));
+    localStorage.setItem(`vtotal_snap_combined_${myUserId}`, JSON.stringify({ m: globalCombinedMonthlyData, y: globalCombinedYearlyData, d: globalCombinedDailyData }));
   }
 }
 
@@ -1425,7 +1434,8 @@ function refreshOrderViewUI() {
   titleStr += ` <span style="font-size:0.75em; font-weight:normal; opacity:0.6; margin-left:8px;">(${date1})</span>`;
 
   const now = new Date();
-  const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+  const nyTimeStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const nyHour = new Date(nyTimeStr).getHours();
   let dForTag = now;
   if (nyHour >= 16) dForTag = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -1494,7 +1504,8 @@ function updatePeriodTitle() {
   if (!periodTitle) return;
   const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
   if (periodViewState === 0) periodTitle.innerHTML = `📅 월별 성과 <span ${smallStyle}>(종합)</span>`;
-  else periodTitle.innerHTML = `📅 년별 성과 <span ${smallStyle}>(종합)</span>`;
+  else if (periodViewState === 1) periodTitle.innerHTML = `📅 년별 성과 <span ${smallStyle}>(종합)</span>`;
+  else periodTitle.innerHTML = `📅 일별 성과 <span ${smallStyle}>(종합)</span>`;
 }
 
 function togglePeriodDisplayMode() {
@@ -1520,13 +1531,16 @@ function togglePeriodDisplayMode() {
 }
 
 function togglePeriodView() {
-  periodViewState = (periodViewState + 1) % 2;
+  periodViewState = (periodViewState + 1) % 3;
   updatePeriodTitle();
   if (periodDisplayMode === 'chart') {
     renderPeriodBarChart();
   } else {
     const TH_STYLE = "white-space:nowrap; padding:0 4px !important; text-align:center; vertical-align:middle; height:16px !important; line-height:16px !important; box-sizing:border-box !important; overflow:hidden;";
-    const head0Str = periodViewState === 0 ? `<th style="${TH_STYLE} width:1%;">년월</th>` : `<th style="${TH_STYLE} width:1%;">연도</th>`;
+    let head0Str = "";
+    if (periodViewState === 0) head0Str = `<th style="${TH_STYLE} width:1%;">년월</th>`;
+    else if (periodViewState === 1) head0Str = `<th style="${TH_STYLE} width:1%;">연도</th>`;
+    else head0Str = `<th style="${TH_STYLE} width:1%;">일자</th>`;
     const h0 = document.getElementById('periodTableHead0');
     if (h0) h0.innerHTML = head0Str;
 
@@ -1558,7 +1572,7 @@ function renderPeriodTableText(slotNum) {
 
   if (slotNum === 0) {
     let dataCandidate = [];
-    let mapArr = periodViewState === 1 ? [...globalYearlyDataArr, globalCombinedYearlyData] : [...globalMonthlyDataArr, globalCombinedMonthlyData];
+    let mapArr = periodViewState === 1 ? [...globalYearlyDataArr, globalCombinedYearlyData] : (periodViewState === 2 ? [...globalDailyDataArr, globalCombinedDailyData] : [...globalMonthlyDataArr, globalCombinedMonthlyData]);
     for (let d of mapArr) if (d && d.length > (dataCandidate.length || 0)) dataCandidate = d;
 
     if (!dataCandidate || dataCandidate.length === 0) {
@@ -1569,7 +1583,8 @@ function renderPeriodTableText(slotNum) {
     const sortedData = [...dataCandidate].sort((a, b) => b.period.localeCompare(a.period));
     tbody.innerHTML = sortedData.map(row => {
       let d = row.period;
-      if (d.includes('-')) { const p = d.split('-'); d = p[0].substring(2) + '/' + p[1]; }
+      if (periodViewState === 2 && d.includes('-')) { const p = d.split('-'); d = p[1] + '/' + p[2]; }
+      else if (d.includes('-')) { const p = d.split('-'); d = p[0].substring(2) + '/' + p[1]; }
       else if (d.length === 4) { d = d.substring(2); }
       return `<tr><td style="${CELL_STYLE} width:1%; text-align:center;">${d}</td></tr>`;
     }).join('');
@@ -1583,7 +1598,8 @@ function renderPeriodTableText(slotNum) {
 
   const mData = slotNum === 'Combined' ? globalCombinedMonthlyData : globalMonthlyDataArr[slotNum];
   const yData = slotNum === 'Combined' ? globalCombinedYearlyData : globalYearlyDataArr[slotNum];
-  let data = (periodViewState === 1) ? yData : mData;
+  const dData = slotNum === 'Combined' ? globalCombinedDailyData : globalDailyDataArr[slotNum];
+  let data = periodViewState === 1 ? yData : (periodViewState === 2 ? dData : mData);
 
   if (!data || data.length === 0) {
     tbody.innerHTML = `<tr><td colspan='4' style="${CELL_STYLE} text-align:center;">데이터가 없습니다.</td></tr>`;
@@ -1786,11 +1802,11 @@ function refreshStatsTable() {
     { key: 'evalReturn', label: '평가수익', type: 'color', pct: true },
     { key: 'qty', label: '주식수', type: 'raw', suffix: '주' },
     { key: 'currPrice', label: '현재가', type: 'price' },
-    { key: 'avgPrice', label: '평균단가', type: 'price' },
-    { key: 'base', label: '갱신금', type: 'fmt' },
     { key: 'mdd', label: '전체 MDD', type: 'color', pct: true },
     { key: 'cagr', label: 'CAGR', type: 'color', pct: true },
-    { key: 'calmar', label: '칼마비율', type: 'raw' }
+    { key: 'calmar', label: '칼마비율', type: 'raw' },
+    { key: 'base', label: '갱신금', type: 'fmt' },
+    { key: 'avgPrice', label: '평균단가', type: 'price' }
   ];
 
   let html = '<div style="display:flex; flex-direction:column; gap:2px; padding:2px; box-sizing:border-box;">';
