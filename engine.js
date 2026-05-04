@@ -762,31 +762,13 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
       const nextFriTS = getFridayEnd(lastDateNY);
       orderDateStr = (lastDateNY.getMonth() + 1) + "/" + lastDateNY.getDate();
 
-      let today_m = 'SF';
-      if (wRsiMap[lastDateNYStr]) {
-        let base_rv = wRsiMap[lastDateNYStr].dR;
-        let base_rrv = wRsiMap[lastDateNYStr].dRR;
-        if (base_rv !== 0) {
-          if (curStrat === 'RSI 3M') {
-            if (base_rv >= 65.2) today_m = 'AG';
-            else if (base_rv <= 45.6) today_m = 'SF';
-            else today_m = 'DEF';
-          } else {
-            if (base_rrv <= 35 && base_rrv < base_rv) today_m = 'AG';
-            else if (base_rrv >= 40 && base_rrv < 50 && base_rrv > base_rv) today_m = 'SF';
-            else if (base_rrv <= 50 && base_rv > 50) today_m = 'AG';
-            else if (base_rrv >= 50 && base_rv < 50) today_m = 'SF';
-            else if (base_rrv >= 50 && base_rrv < 60 && base_rrv < base_rv) today_m = 'AG';
-            else if (base_rrv > 65 && base_rrv > base_rv) today_m = 'SF';
-          }
-        }
-      }
+      let today_m = rsi_m;
 
       if (nextFriTS !== lastFriTS) {
         const lastBarInfo = wRsiMap[lastDateNYStr];
         if (lastBarInfo) {
-          const rv = lastBarInfo.dCurrent;
-          const rrv = lastBarInfo.dR;
+          const rv = lastBarInfo.dR;
+          const rrv = lastBarInfo.dRR;
           if (rv !== 0) {
             if (curStrat === 'RSI 3M') {
               if (rv >= 65.6) today_m = 'AG';
