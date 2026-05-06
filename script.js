@@ -806,6 +806,14 @@ async function checkAndSyncWithServer(isInitial) {
             nextOrderInfo: syncedNextInfo,
             orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
+            // ⭐️ [일별성과 누락 방지] 엔진이 더 최신이면 차트/테이블용 시계열 데이터도 엔진 것을 사용
+            chartDates: isEngineNewer ? pureEngineRes.chartDates : realData.chartDates,
+            chartBalances: isEngineNewer ? pureEngineRes.chartBalances : realData.chartBalances,
+            chartMdd: isEngineNewer ? pureEngineRes.chartMdd : realData.chartMdd,
+            chartInout: isEngineNewer ? pureEngineRes.chartInout : realData.chartInout,
+            monthlyData: isEngineNewer ? pureEngineRes.monthlyData : realData.monthlyData,
+            yearlyData: isEngineNewer ? pureEngineRes.yearlyData : realData.yearlyData,
+            dailyData: isEngineNewer ? pureEngineRes.dailyData : realData.dailyData,
             isSynced: true
           };
 
