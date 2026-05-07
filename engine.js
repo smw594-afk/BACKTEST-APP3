@@ -475,7 +475,7 @@ function run_tungchigi_master(paramsArr) {
 }
 
 // 🧠 백테스트 엔진 메인 프로세스
-async function runBacktestMemory(params, force = false, slotNum = null) {
+async function runBacktestMemory(params, force = false, slotNum = null, overrideSnap = null) {
   try {
     let ticker = params.basics.ticker.toString().trim(), startDate = new Date(params.basics.startDate);
     let endDateInput = params.basics.endDate;
@@ -537,14 +537,20 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
     let startLoopIdx = 0;
     let maxBuyDate = "";
 
-    // ⭐️ [수정] 수동 백테스트나 저장 모드(!isManualBacktestMode 아닐 때)에서는 스냅샷 상속 차단
-    // 그래야 시트 데이터와 현재 계산값이 다를 때 경고창을 정확히 띄울 수 있음.
-    if (!isManualBacktestMode && !force && snapStr) {
-      let snap = JSON.parse(snapStr);
+    let snapToUse = null;
+    if (overrideSnap) {
+      snapToUse = overrideSnap;
+    } else if (!isManualBacktestMode && !force && snapStr) {
+      try { snapToUse = JSON.parse(snapStr); } catch (e) { }
+    }
+
+    if (snapToUse) {
+      let snap = snapToUse;
       if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
-        res.S = snap.chartDates;
-        res.BA = snap.chartBalances;
-        res.BF = snap.chartMdd;
+        res.S = snap.chartDates.slice();
+        res.BA = snap.chartBalances.slice();
+        res.BF = snap.chartMdd.slice();
+        res.INOUT = (snap.chartInout || []).slice();
         res.trades = snap.trades || [];
 
         inv = snap.inv || [];
@@ -694,7 +700,7 @@ async function runBacktestMemory(params, force = false, slotNum = null) {
 
         if (totalBC <= cash) {
           d_cf -= totalBC;
-          inv.push({ buy_price: close, qty: b_qty, cost: totalBC, mode: curr_m, tier: t, days: 0, buyDate: dtStr });
+          inv.push({ buy_price: close, qty: b_qty, cost: fixFloat(totalBC), mode: curr_m, tier: t, days: 0, buyDate: dtStr });
         }
       }
 
@@ -1033,7 +1039,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const logs = d.logs; const meta = d.meta;
   let restoredInv = []; let restoredBase = 0; let realizedProfit = fixFloat(meta.realizedProfit) || 0; let cash = fixFloat(meta.currentCash) || 0; let serverQty = fixFloat(meta.qty) || 0; let serverAvg = fixFloat(meta.avgPrice) || 0;
   let restoredRealPrincipal = 0; // ⭐️ JSON에서 원금 추출용 변수
-  if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) restoredInv = parsed.holdings; if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
+  if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) { restoredInv = parsed.holdings.map(h => ({ ...h, buy_price: fixFloat(h.buy_price), cost: fixFloat(h.cost) })); } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
   let qty = 0, totalCost = 0; restoredInv.forEach(item => { qty += item.qty; totalCost += item.cost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;
