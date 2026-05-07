@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.300";
+const APP_VERSION = "3.301";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -741,8 +741,8 @@ async function checkAndSyncWithServer(isInitial) {
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, confData.basics.initialCash);
 
         if (realData) {
-          // 163주 튕김 방지용 엔진 강제 실행
-          const pureEngineRes = await runBacktestMemory(confData, true, slotNum);
+          // 163주 튕김 방지 및 최신 증액/출금 내역을 엔진에 반영하기 위해 realData 기반으로 이어서 계산
+          const pureEngineRes = await runBacktestMemory(confData, true, slotNum, realData);
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
           // ⭐️ 엔진의 가상 계산값을 버리고, 시트 꾸러미(JSON)의 진짜 갱신금을 추출
@@ -806,16 +806,42 @@ async function checkAndSyncWithServer(isInitial) {
             nextOrderInfo: syncedNextInfo,
             orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
             dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
-            // ⭐️ [일별성과 누락 방지] 엔진이 더 최신이면 차트/테이블용 시계열 데이터도 엔진 것을 사용
-            chartDates: isEngineNewer ? pureEngineRes.chartDates : realData.chartDates,
-            chartBalances: isEngineNewer ? pureEngineRes.chartBalances : realData.chartBalances,
-            chartMdd: isEngineNewer ? pureEngineRes.chartMdd : realData.chartMdd,
-            chartInout: isEngineNewer ? pureEngineRes.chartInout : realData.chartInout,
-            monthlyData: isEngineNewer ? pureEngineRes.monthlyData : realData.monthlyData,
-            yearlyData: isEngineNewer ? pureEngineRes.yearlyData : realData.yearlyData,
-            dailyData: isEngineNewer ? pureEngineRes.dailyData : realData.dailyData,
+            chartDates: realData.chartDates,
+            chartBalances: realData.chartBalances,
+            chartMdd: realData.chartMdd,
+            chartInout: realData.chartInout,
+            monthlyData: realData.monthlyData,
+            yearlyData: realData.yearlyData,
+            dailyData: realData.dailyData,
             isSynced: true
           };
+
+          // ⭐️ [버그 수정] 엔진이 더 최신이면 시트의 히스토리와 엔진의 최신분을 정교하게 병합 (Smart Merge)
+          if (isEngineNewer && pureEngineRes.chartDates && pureEngineRes.chartDates.length > 0) {
+            const lastRealDate = realData.chartDates[realData.chartDates.length - 1];
+            const newIndices = [];
+            for (let i = 0; i < pureEngineRes.chartDates.length; i++) {
+              if (pureEngineRes.chartDates[i] > lastRealDate) newIndices.push(i);
+            }
+
+            if (newIndices.length > 0) {
+              mergedSnap.chartDates = realData.chartDates.concat(newIndices.map(i => pureEngineRes.chartDates[i]));
+              mergedSnap.chartBalances = realData.chartBalances.concat(newIndices.map(i => pureEngineRes.chartBalances[i]));
+              mergedSnap.chartInout = realData.chartInout.concat(newIndices.map(i => pureEngineRes.chartInout[i] || 0));
+              
+              // MDD 전체 재계산 (Peak 추적 일관성 유지)
+              let peak = -Infinity;
+              mergedSnap.chartMdd = mergedSnap.chartBalances.map(b => {
+                if (b > peak) peak = b;
+                return peak > 0 ? (b - peak) / peak : 0;
+              });
+
+              // 성과 분석 데이터 재계산
+              mergedSnap.monthlyData = calculateMonthlyData(mergedSnap.chartDates, mergedSnap.chartBalances, mergedSnap.chartMdd, mergedSnap.chartInout);
+              mergedSnap.yearlyData = calculateYearlyData(mergedSnap.chartDates, mergedSnap.chartBalances, mergedSnap.chartMdd, mergedSnap.chartInout);
+              mergedSnap.dailyData = calculateDailyData(mergedSnap.chartDates, mergedSnap.chartBalances, mergedSnap.chartMdd, mergedSnap.chartInout);
+            }
+          }
 
           // ⭐️ [근본 원인 해결] 엔진이 생성한 dailyStates JSON의 과거값을 보정합니다.
           if (mergedSnap.dailyStates && mergedSnap.dailyStates.length > 0) {
@@ -1226,8 +1252,48 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
     const lastBTDate = resBT.chartDates && resBT.chartDates.length > 0 ? resBT.chartDates[resBT.chartDates.length - 1] : "";
 
     if (lastBTDate > lastExistingDate) {
-      // 엔진이 더 최신 날짜를 가지고 있으므로 엔진 결과를 그대로 사용 (단, 시드 등은 시트 값 계승)
-      finalRes = resBT;
+      // ⭐️ [Smart Merge] 엔진이 더 최신이면 기존 시트 데이터 뒤에 엔진의 새로운 날짜들만 붙임
+      const newIndices = [];
+      for (let i = 0; i < resBT.chartDates.length; i++) {
+        if (resBT.chartDates[i] > lastExistingDate) newIndices.push(i);
+      }
+
+      if (newIndices.length > 0) {
+        const mergedDates = existing.chartDates.concat(newIndices.map(i => resBT.chartDates[i]));
+        const mergedBalances = existing.chartBalances.concat(newIndices.map(i => resBT.chartBalances[i]));
+        const mergedInout = (existing.chartInout || []).concat(newIndices.map(i => (resBT.chartInout ? resBT.chartInout[i] : 0)));
+        
+        let peak = -Infinity;
+        const mergedMdd = mergedBalances.map(b => {
+          if (b > peak) peak = b;
+          return peak > 0 ? (b - peak) / peak : 0;
+        });
+
+        finalRes = {
+          ...existing,
+          orders: resBT.orders,
+          nextOrderInfo: resBT.nextOrderInfo,
+          orderDateStr: resBT.orderDateStr,
+          currentStrat: resBT.currentStrat,
+          chartDates: mergedDates,
+          chartBalances: mergedBalances,
+          chartInout: mergedInout,
+          chartMdd: mergedMdd,
+          monthlyData: calculateMonthlyData(mergedDates, mergedBalances, mergedMdd, mergedInout),
+          yearlyData: calculateYearlyData(mergedDates, mergedBalances, mergedMdd, mergedInout),
+          dailyData: calculateDailyData(mergedDates, mergedBalances, mergedMdd, mergedInout),
+          dailyStates: (existing.dailyStates || []).concat(resBT.dailyStates || [])
+        };
+      } else {
+        // 날짜가 같거나 뒤처지면 기존 데이터 구조 유지
+        finalRes = {
+          ...existing,
+          orders: resBT.orders,
+          nextOrderInfo: resBT.nextOrderInfo,
+          orderDateStr: resBT.orderDateStr,
+          currentStrat: resBT.currentStrat
+        };
+      }
     } else {
       // 날짜가 같거나 시트가 더 최신이면 기존처럼 시트 데이터 구조 유지
       finalRes = {
