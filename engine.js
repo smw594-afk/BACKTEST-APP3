@@ -773,11 +773,11 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       if (nextFriTS !== lastFriTS) {
         const lastBarInfo = wRsiMap[lastDateNYStr];
         if (lastBarInfo) {
-          const rv = lastBarInfo.dR;
-          const rrv = lastBarInfo.dRR;
+          const rv = lastBarInfo.dCurrent;
+          const rrv = lastBarInfo.dR;
           if (rv !== 0) {
             if (curStrat === 'RSI 3M') {
-              if (rv >= 65.6) today_m = 'AG';
+              if (rv >= 65.2) today_m = 'AG';
               else if (rv <= 45.6) today_m = 'SF';
               else today_m = 'DEF';
             } else {
