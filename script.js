@@ -386,7 +386,16 @@ function enterAppDirectly() {
   // 슬롯 데이터 복원
   for (let i = 1; i <= MAX_SLOTS; i++) {
     const savedStr = localStorage.getItem(`vtotal_conf${i}_${myUserId}`);
-    if (savedStr) { try { slotConfigs[i] = JSON.parse(savedStr); } catch (e) { } }
+    if (savedStr) {
+      try {
+        let parsed = JSON.parse(savedStr);
+        if (parsed && parsed.basics && parsed.basics.strategy === 'RSI 3M') {
+          parsed.basics.strategy = '3M3D1-R';
+          localStorage.setItem(`vtotal_conf${i}_${myUserId}`, JSON.stringify(parsed));
+        }
+        slotConfigs[i] = parsed;
+      } catch (e) { }
+    }
 
     // 호환성: 1번 슬롯 예전 키 처리
     if (i === 1 && !savedStr) {
@@ -735,6 +744,11 @@ async function checkAndSyncWithServer(isInitial) {
         globalYearlyDataArr[slotNum] = null;
         globalDailyDataArr[slotNum] = null;
         return;
+      }
+
+      // 호환성 처리: 시트에 저장된 구버전 전략명 마이그레이션
+      if (confData.basics.strategy === 'RSI 3M') {
+        confData.basics.strategy = '3M3D1-R';
       }
 
       localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
