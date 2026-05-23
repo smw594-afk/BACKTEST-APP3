@@ -214,7 +214,7 @@ const MASTER_STRATEGIES = {
       }
     }
   },
-  "RSI 3M": {
+  "3M3D1-R": {
     config: { compR: 0.9, lossR: 0.304, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: {
@@ -601,7 +601,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       let dtStr = formatDateNY(dtStrObj);
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
-        if (curStrat === 'RSI 3M') {
+        if (curStrat === '3M3D1-R') {
           if (rv >= 65.2) rsi_m = 'AG';
           else if (rv <= 45.6) rsi_m = 'SF';
           else rsi_m = 'DEF';
@@ -625,7 +625,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
 
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
-        if (curStrat === 'RSI 3M') {
+        if (curStrat === '3M3D1-R') {
           if (rv >= 65.2) rsi_m = 'AG';
           else if (rv <= 45.6) rsi_m = 'SF';
           else rsi_m = 'DEF';
@@ -645,7 +645,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       if (is3Drop) {
         if (rsi_m === 'SF' && useMid1) applied_m = 'Middle';
         else if (rsi_m === 'AG' && useMid3) applied_m = 'Middle3';
-        else if (rsi_m === 'DEF' && curStrat === 'RSI 3M') applied_m = 'Middle';
+        else if (rsi_m === 'DEF' && curStrat === '3M3D1-R') applied_m = 'Middle';
       }
       if (!applied_m && isPlunge && useMid2) {
         applied_m = 'Middle2';
@@ -776,7 +776,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
           const rv = lastBarInfo.dCurrent;
           const rrv = lastBarInfo.dR;
           if (rv !== 0) {
-            if (curStrat === 'RSI 3M') {
+            if (curStrat === '3M3D1-R') {
               if (rv >= 65.2) today_m = 'AG';
               else if (rv <= 45.6) today_m = 'SF';
               else today_m = 'DEF';
@@ -804,7 +804,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
         if (is3Drop_t) {
           if (today_m === 'SF' && useMid1) applied_m_t = 'Middle';
           else if (today_m === 'AG' && useMid3) applied_m_t = 'Middle3';
-          else if (today_m === 'DEF' && curStrat === 'RSI 3M') applied_m_t = 'Middle';
+          else if (today_m === 'DEF' && curStrat === '3M3D1-R') applied_m_t = 'Middle';
         }
         if (!applied_m_t && isPlunge_t && useMid2) {
           applied_m_t = 'Middle2';
