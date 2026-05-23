@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.301";
+const APP_VERSION = "3.31";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -629,6 +629,11 @@ function applyQuickConfig() {
     const slotNum = idx + 1;
     if (st === "") {
       simulationConfigs[slotNum] = null;
+      // ⭐️ 수동 백테스트 실행 시 빈 슬롯은 기존 백테스트 결과를 확실하게 비워줌
+      lastBTResults[slotNum] = null;
+      globalMonthlyDataArr[slotNum] = null;
+      globalYearlyDataArr[slotNum] = null;
+      globalDailyDataArr[slotNum] = null;
     } else {
       simulationConfigs[slotNum] = {
         basics: {
@@ -722,6 +727,13 @@ async function checkAndSyncWithServer(isInitial) {
       if (!confData || !confData.basics || !confData.basics.strategy) {
         localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
+        localStorage.removeItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
+        // ⭐️ 서버에 정보가 없으면 메모리의 이전 흔적도 깨끗이 비워줌
+        slotConfigs[slotNum] = null;
+        lastBTResults[slotNum] = null;
+        globalMonthlyDataArr[slotNum] = null;
+        globalYearlyDataArr[slotNum] = null;
+        globalDailyDataArr[slotNum] = null;
         return;
       }
 
@@ -976,9 +988,17 @@ function triggerOptimisticSave() {
       if (res.status !== "error") updateUIWithResult(res, currentParams, targetSlot);
     });
   } else {
+    // ⭐️ 설정 드롭다운을 비활성화하는 즉시 로컬 캐시와 이전 성과 메모리를 완벽히 청소
+    localStorage.removeItem(`vtotal_snap${targetSlot}_${myUserId}`);
+    localStorage.removeItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`);
     lastBTResults[targetSlot] = null;
+    globalMonthlyDataArr[targetSlot] = null;
+    globalYearlyDataArr[targetSlot] = null;
+    globalDailyDataArr[targetSlot] = null;
     updateSlotsVisibility();
+    calculateCombinedPeriodData();
     renderChartAll();
+    refreshStatsTable();
   }
   updateSlotsVisibility();
 }
@@ -991,6 +1011,47 @@ async function handleSave() {
 
   try {
     saveCurrentFormToSlot(targetSlot);
+
+    // ⭐️ "선택 안 함" 설정 분기 처리: 성과 지표와 주문을 백테스트 돌리지 않고 비우며 서버 설정도 null로 초기화
+    if (!isSlotActive(targetSlot)) {
+      localStorage.removeItem(`vtotal_conf${targetSlot}_${myUserId}`);
+      localStorage.removeItem(`vtotal_snap${targetSlot}_${myUserId}`);
+      localStorage.removeItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`);
+      slotConfigs[targetSlot] = null;
+      lastBTResults[targetSlot] = null;
+      globalMonthlyDataArr[targetSlot] = null;
+      globalYearlyDataArr[targetSlot] = null;
+      globalDailyDataArr[targetSlot] = null;
+
+      let payload = {
+        action: "BACKUP_AND_SAVE_V4",
+        id: myUserId,
+        logs: [],
+        params: (targetSlot === 1) ? null : slotConfigs[1],
+        params2: (targetSlot === 2) ? null : slotConfigs[2],
+        params3: (targetSlot === 3) ? null : slotConfigs[3],
+        params4: (targetSlot === 4) ? null : slotConfigs[4],
+        params5: (targetSlot === 5) ? null : slotConfigs[5],
+        params6: (targetSlot === 6) ? null : slotConfigs[6]
+      };
+      payload[`params${targetSlot === 1 ? '' : targetSlot}`] = null;
+
+      if (navigator.onLine) {
+        await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
+        showToast(`[투자법 ${targetSlot}] 비활성화 설정이 시트에 반영되었습니다.`, "✅");
+      } else {
+        handleOfflineSave(payload);
+      }
+
+      updateSlotsVisibility();
+      calculateCombinedPeriodData();
+      renderChartAll();
+      refreshStatsTable();
+      updateCurrentStatusUI(targetSlot);
+
+      if (btn) btn.innerHTML = orgText;
+      return;
+    }
 
     const targetRes = await runBacktestMemory(slotConfigs[targetSlot], false, targetSlot);
 
@@ -1361,6 +1422,9 @@ async function runEngine() {
       }
     } else {
       lastBTResults[slotNum] = null;
+      globalMonthlyDataArr[slotNum] = null;
+      globalYearlyDataArr[slotNum] = null;
+      globalDailyDataArr[slotNum] = null;
     }
   };
 
@@ -1404,6 +1468,9 @@ async function handleInstantOrder() {
       }
     } else {
       lastBTResults[slotNum] = null;
+      globalMonthlyDataArr[slotNum] = null;
+      globalYearlyDataArr[slotNum] = null;
+      globalDailyDataArr[slotNum] = null;
     }
   };
 
