@@ -501,6 +501,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
     let basePrincipal = fixFloat(realTimeRenew);
 
     let curStrat = params.basics.strategy || '2M3D1-1P';
+    if (curStrat === 'RSI 3M') curStrat = '3M3D1-R';
     if (!MASTER_STRATEGIES[curStrat]) curStrat = '2M3D1-1P';
     let M_STRAT = MASTER_STRATEGIES[curStrat];
     let cfg = M_STRAT.config;
@@ -1198,7 +1199,12 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     realPrincipal: calculatedPrincipal, // 우리가 계산한 진짜 원금
     trueStartDate: trueStartDateStr
   };
-  let rawOrderOutput = []; let M_STRAT_T = MASTER_STRATEGIES[currentStrat] || MASTER_STRATEGIES["2M3D1-1P"]; let MODES_T = M_STRAT_T.modes; function c2_T(v) { return Math.ceil((v * 100) - 0.0000001) / 100.0; }
+  let rawOrderOutput = [];
+  let targetStrat = currentStrat;
+  if (targetStrat === 'RSI 3M') targetStrat = '3M3D1-R';
+  let M_STRAT_T = MASTER_STRATEGIES[targetStrat] || MASTER_STRATEGIES["2M3D1-1P"];
+  let MODES_T = M_STRAT_T.modes;
+  function c2_T(v) { return Math.ceil((v * 100) - 0.0000001) / 100.0; }
   if (restoredInv.length > 0) { restoredInv.forEach(p_i => { let modeData = MODES_T[p_i.mode] || MODES_T['SF']; let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0; let s_tgt = c2_T(p_i.buy_price * (1 + sellRate)); rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); }); }
   const finalOrders = rawOrderOutput.sort((a, b) => b[2] - a[2]);
   return {
