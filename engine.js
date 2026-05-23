@@ -259,7 +259,7 @@ const MASTER_STRATEGIES = {
 
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxh0b2Ho9f8lehi9I3NxWujT5JkWA1ZRVdEQ02cYZvxK_sO-yvZv5aCHivVNvIbi3HJ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxj8j6kAVkVCwwNx2KeCbPjvFfuRwUsQ5WqnOBz6KKjmT4WJ6b-UbpALfO7pJk5UXOnww/exec";
 const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
