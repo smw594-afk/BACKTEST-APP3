@@ -522,7 +522,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       fetchYahooData("QQQ", startTs, endTs, true, force)
     ]);
     window.globalMainData = mainDataAll;
-    let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = 0;
+    let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = mainDataAll.dates.length;
     let firstPrevClose = (startIndex > 0) ? mainDataAll.close[startIndex - 1] : mainDataAll.open[0], wRsiMap = calculateWRSI_WFRI(qqqData);
 
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
