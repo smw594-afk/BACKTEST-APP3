@@ -737,6 +737,7 @@ async function checkAndSyncWithServer(isInitial) {
         localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
+        localStorage.removeItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`);
         // ⭐️ 서버에 정보가 없으면 메모리의 이전 흔적도 깨끗이 비워줌
         slotConfigs[slotNum] = null;
         lastBTResults[slotNum] = null;
@@ -755,13 +756,18 @@ async function checkAndSyncWithServer(isInitial) {
       slotConfigs[slotNum] = confData;
 
       let sheetLastDate = "1900-01-01";
+      let existingDates = [];
 
       if (perfSlotData && perfSlotData.logs && perfSlotData.logs.length > 0) {
         perfSlotData.logs.forEach(r => {
           let dt = parseDateStr(r[0]);
-          if (dt && dt > sheetLastDate) sheetLastDate = dt;
+          if (dt) {
+            existingDates.push(dt);
+            if (dt > sheetLastDate) sheetLastDate = dt;
+          }
         });
         localStorage.setItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`, sheetLastDate);
+        localStorage.setItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`, existingDates.join(","));
 
         // ⭐️ [버그 수정] 설정창의 '진짜 초기자산(C9)'을 엔진으로 넘겨줌
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, confData.basics.initialCash);
@@ -947,10 +953,12 @@ async function checkAndSyncWithServer(isInitial) {
 
 function checkAndRunAutoSave() {
   let combinedMap = {};
-  const addStates = (res, slotKey, lastDate) => {
+  const addStates = (res, slotKey, slotNum) => {
     if (!res || !res.dailyStates) return;
+    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`) || "";
+    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
     res.dailyStates.forEach(state => {
-      if (state.date > lastDate) {
+      if (!existingDatesSet.has(state.date)) {
         if (!combinedMap[state.date]) {
           let baseObj = { date: state.date };
           for (let i = 1; i <= MAX_SLOTS; i++) baseObj[`s${i}`] = null;
@@ -962,8 +970,7 @@ function checkAndRunAutoSave() {
   };
 
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    let sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`) || "1900-01-01";
-    addStates(lastBTResults[i], `s${i}`, sheetLastDate);
+    addStates(lastBTResults[i], `s${i}`, i);
   }
 
   let batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -972,12 +979,19 @@ function checkAndRunAutoSave() {
   setLED('loading');
   fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "AUTO_DAILY_SAVE", id: myUserId, logs: batchLogs }) })
     .then(() => {
-      // ⭐️ 각 슬롯별로 실제 전송된 마지막 날짜만 정확히 업데이트
+      // ⭐️ 각 슬롯별로 실제 전송된 마지막 날짜 및 전체 날짜 목록 업데이트
       for (let i = 1; i <= MAX_SLOTS; i++) {
         const slotLogs = batchLogs.filter(b => b[`s${i}`]);
         if (slotLogs.length > 0) {
           const slotLastDate = slotLogs[slotLogs.length - 1].date;
           localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, slotLastDate);
+          
+          const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`) || "";
+          const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
+          slotLogs.forEach(b => {
+            existingDatesSet.add(b.date);
+          });
+          localStorage.setItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`, Array.from(existingDatesSet).join(","));
         }
       }
       setLED('on');
@@ -1005,6 +1019,7 @@ function triggerOptimisticSave() {
     // ⭐️ 설정 드롭다운을 비활성화하는 즉시 로컬 캐시와 이전 성과 메모리를 완벽히 청소
     localStorage.removeItem(`vtotal_snap${targetSlot}_${myUserId}`);
     localStorage.removeItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`);
+    localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
     lastBTResults[targetSlot] = null;
     globalMonthlyDataArr[targetSlot] = null;
     globalYearlyDataArr[targetSlot] = null;
@@ -1031,6 +1046,7 @@ async function handleSave() {
       localStorage.removeItem(`vtotal_conf${targetSlot}_${myUserId}`);
       localStorage.removeItem(`vtotal_snap${targetSlot}_${myUserId}`);
       localStorage.removeItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`);
+      localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
       slotConfigs[targetSlot] = null;
       lastBTResults[targetSlot] = null;
       globalMonthlyDataArr[targetSlot] = null;
@@ -1076,14 +1092,16 @@ async function handleSave() {
     }
 
     const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`) || "1900-01-01";
+    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`) || "";
+    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
 
     // ⭐️ [신규 슬롯 첫 기록 보장] 시트에 아무 기록도 없으면(1900-01-01) 전체 dailyStates를 전송
-    // 기존 슬롯이면 마지막 날짜 이후만 추출
+    // 기존 슬롯이면 존재하지 않는 날짜만 추출
     let newLogs;
     if (sheetLastDate === "1900-01-01") {
       newLogs = targetRes.dailyStates || [];
     } else {
-      newLogs = targetRes.dailyStates.filter(s => s.date > sheetLastDate);
+      newLogs = targetRes.dailyStates.filter(s => !existingDatesSet.has(s.date));
     }
 
     if (newLogs.length === 0) {
@@ -1091,6 +1109,7 @@ async function handleSave() {
         newLogs = targetRes.dailyStates || [];
         // ⭐️ 강제 전송 시 날짜 캐시를 초기화하여 확실하게 보내도록 유도
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
+        localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
       } else {
         if (btn) btn.innerHTML = orgText;
         return;
@@ -1135,7 +1154,17 @@ async function handleSave() {
       await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
 
       if (newLogs.length > 0) {
-        localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, newLogs[newLogs.length - 1].date);
+        let maxDate = sheetLastDate;
+        const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`) || "";
+        const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
+
+        newLogs.forEach(s => {
+          if (s.date > maxDate) maxDate = s.date;
+          existingDatesSet.add(s.date);
+        });
+
+        localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, maxDate);
+        localStorage.setItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`, Array.from(existingDatesSet).join(","));
       }
 
       showToast(`${newLogs.length}일치의 기록이 시트에 반영되었습니다.`, "✅");
@@ -1154,6 +1183,7 @@ function resetSyncDates() {
   if (!confirm("🔄 모든 투자법의 시트 동기화 날짜 정보를 초기화하시겠습니까?\n\n(설정값은 지워지지 않으며, 다음 번 '시트에 반영' 클릭 시 누락된 모든 날짜가 시트로 다시 전송됩니다.)")) return;
   for (let i = 1; i <= MAX_SLOTS; i++) {
     localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, "1900-01-01");
+    localStorage.removeItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`);
   }
   showToast("동기화 정보가 초기화되었습니다. 시트 반영을 시도하세요.", "✅");
 }
