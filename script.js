@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.31";
+const APP_VERSION = "3.33";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
