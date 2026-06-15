@@ -8,8 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2103/2103633.png">
-  <title>V-TOTAL MASTER3.0</title>
+  <link rel="apple-touch-icon" href="/logo.png?v=3">
+  <link rel="icon" href="/logo.png?v=3">
+  <title>V-QUANT</title>
 
   <script>
     function detectLayout() {
@@ -25,12 +26,14 @@
       const btnInstant = document.getElementById('btnInstant');
       const btnRun = document.getElementById('runBtn');
       const btnSettings = document.getElementById('btnSettings');
+      const btnPerf = document.getElementById('btnPerfShow');
       const btnStats = document.getElementById('btnStatsShow');
 
-      if (btnInstant) btnInstant.innerHTML = isMobile ? '<span id="icoInstant">⚡</span>' : '<span id="icoInstant">⚡</span><span class="btn-text">주문표</span>';
+      if (btnInstant) btnInstant.innerHTML = isMobile ? '<span id="icoInstant">🏠</span>' : '<span id="icoInstant">🏠</span><span class="btn-text">홈</span>';
       if (btnRun) btnRun.innerHTML = isMobile ? '<span id="icoRun">🚀</span>' : '<span id="icoRun">🚀</span><span class="btn-text">백테스트</span>';
       if (btnSettings) btnSettings.innerHTML = isMobile ? '⚙️' : '⚙️<span class="btn-text">설정</span>';
-      if (btnStats) btnStats.innerHTML = isMobile ? '<span id="icoStatsShow">📄</span>' : '<span id="icoStatsShow">📄</span><span class="btn-text">성과지표</span>';
+      if (btnPerf) btnPerf.innerHTML = isMobile ? '<span id="icoPerfShow">📊</span>' : '<span id="icoPerfShow">📊</span><span class="btn-text">성과</span>';
+      if (btnStats) btnStats.innerHTML = isMobile ? '<span id="icoStatsShow">📄</span>' : '<span id="icoStatsShow">📄</span><span class="btn-text">내역</span>';
     }
 
     window.addEventListener('resize', () => { detectLayout(); if (window.myChart) window.myChart.resize(); });
@@ -46,7 +49,7 @@
 
   <div id="loginScreen" class="login-container hidden">
     <div class="login-inner">
-      <div class="login-title">📄 V-TOTAL MASTER3.0 <span id="loginVersion"
+      <div class="login-title">📄 V-QUANT <span id="loginVersion"
           style="font-size:12px; opacity:0.5; font-weight:400;"></span></div>
       <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
       <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
@@ -56,20 +59,6 @@
     </div>
   </div>
 
-  <div class="top-bar hidden" id="topBar">
-    <div class="top-left">
-      <div id="ledLamp" class="led-lamp"></div>
-      <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃">로딩중...</div>
-    </div>
-    <div class="top-right">
-      <button id="btnStatsShow" class="top-icon-btn" title="성과지표 모드 (길게 누르면 강제갱신)"><span
-          id="icoStatsShow">📄</span><span class="btn-text">성과지표</span></button>
-      <button id="btnInstant" class="top-icon-btn" title="주문표 UI (길게 누르면 갱신)"><span id="icoInstant">⚡</span><span
-          class="btn-text">주문표</span></button>
-      <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️<span
-          class="btn-text">설정</span></button>
-    </div>
-  </div>
 
   <div id="toastContainer" class="toast-container"></div>
 
@@ -78,8 +67,7 @@
       <h3>⚙️ 투자 설정</h3>
       <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px;" id="settingsTabContainer">
         <button id="tabSlot1" onclick="switchSettingsTab(1)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:linear-gradient(135deg, #6366f1, #4f46e5);">투자법
-          1</button>
+          style="flex:1 1 30%; height:32px; font-size:11px; background:linear-gradient(135deg, #6366f1, #4f46e5);">투자법 1</button>
         <button id="tabSlot2" onclick="switchSettingsTab(2)" class="btn-action"
           style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 2</button>
         <button id="tabSlot3" onclick="switchSettingsTab(3)" class="btn-action"
@@ -92,40 +80,68 @@
           style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 6</button>
       </div>
       <div id="alwaysVisibleInputs">
-        <div class="input-group"><label>티커</label><input type="text" id="ticker" onchange="triggerOptimisticSave()">
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">티커</label><input type="text" id="ticker" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">투자법</label>
+            <select id="strategySelect" style="width: 100%; min-width: 0;" onchange="handleStrategyChange(this.value)">
+              <option value="">-- 선택 안 함 --</option>
+              <option value="1M">1M</option>
+              <option value="3M3D1-R">3M3D1-R</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+            </select>
+          </div>
         </div>
-        <div class="input-group"><label>시작일</label><input type="date" id="startDate" onchange="triggerOptimisticSave()">
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">시작일</label><input type="date" id="startDate" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">종료일</label><input type="date" id="endDate" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
         </div>
-        <div class="input-group"><label>종료일</label><input type="date" id="endDate" onchange="triggerOptimisticSave()">
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">초기자산</label><input type="text" id="initialCash" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">수수료(%)</label><input type="number" id="fBase" step="any" style="width: 100%; min-width: 0;"
+              onchange="triggerOptimisticSave()"></div>
         </div>
-        <div class="input-group">
-          <label>투자법</label>
-          <select id="strategySelect" onchange="handleStrategyChange(this.value)">
-            <option value="">-- 선택 안 함 --</option>
-            <option value="1M">1M</option>
-            <option value="3M3D1-R">3M3D1-R</option>
-            <option value="2M3D1-1P">2M3D1-1P</option>
-            <option value="2M3D2(1.0)">2M3D2(1.0)</option>
-            <option value="2M3D2(1.2)">2M3D2(1.2)</option>
-            <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-            <option value="2M3D2(2.1)">2M3D2(2.1)</option>
-          </select>
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">갱신금</label><input type="text" id="renewCash" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">SEC(%)</label><input type="number" id="fSec" step="any" style="width: 100%; min-width: 0;"
+              onchange="triggerOptimisticSave()"></div>
         </div>
-        <div class="input-group"><label>초기자산($)</label><input type="text" id="initialCash"
-            onchange="triggerOptimisticSave()"></div>
-        <div class="input-group"><label>갱신금($)</label><input type="text" id="renewCash"
-            onchange="triggerOptimisticSave()"></div>
-        <div class="input-group"><label>수수료(%)</label><input type="number" id="fBase" step="any"
-            onchange="triggerOptimisticSave()"></div>
-        <div class="input-group"><label>SEC(%)</label><input type="number" id="fSec" step="any"
-            onchange="triggerOptimisticSave()"></div>
-        <div class="input-group">
-          <label>기본 통화</label>
-          <select id="defaultCurrency" onchange="updateDefaultCurrency(this.value)"
-            style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: #fbbf24; font-weight: bold;">
-            <option value="USD">달러(USD)</option>
-            <option value="KRW">원화(KRW)</option>
-          </select>
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">통화</label>
+            <select id="defaultCurrency" onchange="updateDefaultCurrency(this.value)" style="width: 100%; min-width: 0;">
+              <option value="USD">USD</option>
+              <option value="KRW">KRW</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">배경</label>
+            <select id="themeSelect" onchange="updateTheme(this.value)" style="width: 100%; min-width: 0;">
+              <option value="light" selected>라이트</option>
+              <option value="dark">다크</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">주문표</label>
+            <select id="combinedModeSelect" onchange="updateCombinedMode(this.value)" style="width: 100%; min-width: 0;">
+              <option value="combined" selected>통합주문</option>
+              <option value="normal">일반</option>
+              <option value="combined_normal">통합+일반</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">폰트</label>
+            <select id="fontSizeSelect" onchange="updateFontSize(this.value)" style="width: 100%; min-width: 0;">
+              <option value="9px">폰트 9.0px</option>
+              <option value="9.5px">폰트 9.5px</option>
+              <option value="10px">폰트 10.0px</option>
+              <option value="10.5px" selected>폰트 10.5px (기본)</option>
+              <option value="11px">폰트 11.0px</option>
+              <option value="11.5px">폰트 11.5px</option>
+              <option value="12px">폰트 12.0px</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -163,17 +179,17 @@
         <button class="btn-action btn-settings-grid" onclick="handleDeposit()"
           style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 증액하기</button>
         <button id="btnSyncSheet" class="btn-action btn-settings-grid" onclick="restoreRealAccountMode()"
-          style="background: #475569;">📥 시트값 불러오기</button>
+          style="background: #475569;">📥 시트에서 불러오기</button>
       </div>
 
       <div
         style="margin-top:15px; display:flex; justify-content:space-between; align-items:center; opacity:0.5; font-size:10px;">
         <span>v<span id="settingsVersion"></span> (Dynamic)</span>
         <div style="display:flex; gap:10px; align-items:center;">
-          <a href="javascript:void(0)" onclick="resetSyncDates()" style="color:#94a3b8; text-decoration:none;">🔄 동기화
+          <a href="javascript:void(0)" onclick="resetSyncDates()" style="color:var(--text-muted); text-decoration:none;">🔄 동기화
             복구</a>
           <button onclick="forceUpdateApp()"
-            style="background:none; border:1px solid #666; color:white; border-radius:4px; padding:2px 4px; cursor:pointer;">데이터
+            style="background:none; border:1px solid var(--text-muted); color:var(--text); border-radius:4px; padding:2px 4px; cursor:pointer;">데이터
             리셋</button>
         </div>
       </div>
@@ -184,8 +200,10 @@
 
     <div class="card panel-order" id="panelOrder">
       <div class="section-header swipe-handler" id="orderHeader">
-        <h2 id="orderTitle" style="margin:0; color:var(--primary); cursor:pointer;" onclick="toggleOrderView()"
-          title="클릭하여 주문표/보유계좌 전환">⚡ 주문표</h2>
+        <div style="display:flex; align-items:center;">
+          <h2 id="orderTitle" style="margin:0; color:var(--primary); cursor:pointer;" onclick="toggleOrderView()"
+            title="클릭하여 주문표/통합주문표/보유계좌 전환">⚡ 주문표</h2>
+        </div>
         <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
           <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub" title="주문표 세로 확장">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
@@ -196,18 +214,20 @@
         </div>
       </div>
       <div id="dualOrderContainer" class="slim-scroll"
-        style="display:flex; gap:4px; flex:1; overflow-x:auto; overflow-y:hidden; min-height:0;">
+        style="display:flex; gap:4px; flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch;">
       </div>
     </div>
 
+    <!-- 성과 탭 중단1: 년별 성과 -->
     <div class="card panel-monthly" id="panelMonthly">
       <div class="section-header swipe-handler" id="monthlyHeader">
-        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 월별 성과</h2>
+        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 년별 성과 그래프</h2>
         <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환"
           style="font-size:20px; display:flex; align-items:center; justify-content:center;">
           <span id="icoPeriodMode">🔢</span>
         </button>
       </div>
+      <!-- 홈 화면용 차트/테이블 -->
       <div id="periodChartContainer" class="slim-scroll"
         style="flex:1; overflow-x:auto; overflow-y:hidden; min-height:0; position:relative;">
         <div id="periodBarChartWrapper" style="height:100%; min-width:100%;">
@@ -219,17 +239,97 @@
         <div style="display:flex; gap:2px; min-height:min-content; min-width:max-content;" id="periodTableFlex">
         </div>
       </div>
+      <!-- 성과 탭 전용: 년별 성과 막대그래프 -->
+      <div id="perfYearlyChartContainer" class="slim-scroll"
+        style="flex:1; overflow-x:auto; overflow-y:hidden; min-height:0; position:relative; display:none;">
+        <div id="perfYearlyChartWrapper" style="height:100%; min-width:100%;">
+          <canvas id="perfYearlyBarChart"></canvas>
+        </div>
+      </div>
+      <!-- 성과 탭 전용: 년별 성과 테이블 -->
+      <div id="perfYearlyTableContainer" class="slim-scroll"
+        style="flex:1; overflow:auto; min-height:0; display:none; -webkit-overflow-scrolling:touch;">
+        <div style="display:flex; gap:2px; min-height:min-content; min-width:max-content;" id="perfYearlyTableFlex">
+        </div>
+      </div>
+    </div>
+
+    <!-- 성과 탭 중단2: 월별 성과 -->
+    <div class="card panel-monthly-chart hidden" id="panelMonthlyChart">
+      <div class="section-header swipe-handler" id="monthlyChartHeader">
+        <h2 id="periodChartTitle" class="period-toggle" onclick="togglePeriodView()" title="월별 성과">📅 월별 성과 그래프</h2>
+        <!-- 성과 탭 전용 월별 차트/테이블 토글 버튼 -->
+        <button id="btnPeriodModeMonthly" onclick="togglePeriodDisplayModeMonthly()" class="btn-icon-sub" title="차트/테이블 전환"
+          style="font-size:20px; display:none; align-items:center; justify-content:center; margin-left:auto;">
+          <span>🔢</span>
+        </button>
+      </div>
+      <!-- 성과 탭 전용: 월별 성과 막대그래프 -->
+      <div id="perfMonthlyChartContainer" class="slim-scroll"
+        style="flex:1; overflow-x:auto; overflow-y:hidden; min-height:0; position:relative;">
+        <div id="perfMonthlyChartWrapper" style="height:100%; min-width:100%;">
+          <canvas id="perfMonthlyBarChart"></canvas>
+        </div>
+      </div>
+      <!-- 성과 탭 전용: 월별 성과 테이블 -->
+      <div id="perfMonthlyTableContainer" class="slim-scroll"
+        style="flex:1; overflow:auto; min-height:0; display:none; -webkit-overflow-scrolling:touch;">
+        <div style="display:flex; gap:2px; min-height:min-content; min-width:max-content;" id="perfMonthlyTableFlex">
+        </div>
+      </div>
+    </div>
+
+    <!-- 성과 탭 하단: 일별 성과 -->
+    <div class="card panel-daily-chart hidden" id="panelDailyChart">
+      <div class="section-header swipe-handler" id="dailyChartHeader">
+        <h2 id="periodDailyTitle" class="period-toggle" title="일별 성과">📅 일별 성과 그래프</h2>
+        <!-- 성과 탭 전용 일괄 차트/테이블 토글 버튼 (4단 이동) -->
+        <button id="btnPeriodModeYearly" onclick="togglePeriodDisplayModeYearly()" class="btn-icon-sub" title="차트/테이블 전환"
+          style="font-size:20px; display:none; align-items:center; justify-content:center; margin-left:auto;">
+          <span>🔢</span>
+        </button>
+      </div>
+      <!-- 성과 탭 전용: 일별 성과 막대그래프 -->
+      <div id="perfDailyChartContainer" class="slim-scroll"
+        style="flex:1; overflow-x:auto; overflow-y:hidden; min-height:0; position:relative;">
+        <div id="perfDailyChartWrapper" style="height:100%; min-width:100%;">
+          <canvas id="perfDailyBarChart"></canvas>
+        </div>
+      </div>
+      <!-- 성과 탭 전용: 일별 성과 테이블 -->
+      <div id="perfDailyTableContainer" class="slim-scroll"
+        style="flex:1; overflow:auto; min-height:0; display:none; -webkit-overflow-scrolling:touch;">
+        <div style="display:flex; gap:2px; min-height:min-content; min-width:max-content;" id="perfDailyTableFlex">
+        </div>
+      </div>
     </div>
 
     <div class="card panel-stats hidden" id="panelStats">
       <div class="section-header">
-        <h2 id="statsTitle">📄 성과 지표</h2>
-        <div id="statsActionArea" style="margin-left:auto; display:flex; gap:8px;"></div>
+        <h2 id="statsTitle" style="cursor:pointer;" onclick="toggleStatsDisplayMode()" title="클릭하여 표/그래프 전환">📡 실시간 운영현황</h2>
+        <!-- 차트용 지표 선택기 (기본 숨김) -->
+        <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; margin-left:auto; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 4px; outline:none; cursor:pointer;">
+          <option value="totalAssets">총자산</option>
+          <option value="base">갱신금</option>
+          <option value="cash">예수금</option>
+          <option value="evalVal">평가금</option>
+          <option value="realPrincipal">원금</option>
+        </select>
+        <div id="statsActionArea" style="margin-left:8px; display:flex; gap:8px;"></div>
       </div>
-      <div class="slim-scroll" style="flex:1; overflow-x:auto; overflow-y:hidden; min-height:0; padding:4px 0;">
-        <table id="statsTable"
-          style="width:100%; border-collapse:collapse; font-size:11px; color:var(--text-white); min-width:500px;">
-        </table>
+      <!-- 표 컨테이너 -->
+      <div id="statsTableContainer" class="slim-scroll" style="flex:1; overflow:auto; min-height:0; padding:4px 0; -webkit-overflow-scrolling:touch;">
+        <div id="statsTable"
+          style="width:100%; font-size:10.5px; color:var(--text-white);">
+        </div>
+      </div>
+      <!-- 차트 컨테이너 (기본 숨김) -->
+      <div id="statsChartContainer" class="slim-scroll" style="display:none; flex:1; overflow:hidden; min-height:0; position:relative; padding:10px 0px 10px 4px; justify-content:space-between; align-items:center; gap:2px;">
+        <div style="position:relative; flex:1; height:100%; max-height:245px; display:flex; justify-content:center; align-items:center;">
+          <canvas id="statsPieChart"></canvas>
+        </div>
+        <div id="statsChartLegend" class="stats-chart-legend" style="display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-start; gap:6px; font-size:10px; font-weight:500; padding-bottom:12px; padding-right:0px; height:100%; box-sizing:border-box; overflow:hidden; margin-left:auto; flex-shrink:0;">
+        </div>
       </div>
     </div>
 
@@ -238,12 +338,55 @@
         <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/개별순환)" style="cursor:pointer;">📈 성과추이
         </h2>
         <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()"
-          style="margin-left: auto; background: none; color: #fff; border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-right: 0px; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: none;">
+          style="margin-left: auto; background: none; color: var(--text); border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-right: 0px; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: none;">
           <img src="https://flagcdn.com/w40/kr.png"
             style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">KRW
         </button>
       </div>
       <div class="chart-container" id="chartBox"></div>
+    </div>
+
+    <div class="card panel-history hidden" id="panelHistory">
+      <div class="section-header">
+        <h2 id="historyTitle">📜 실전 매도 내역</h2>
+        <div id="historyActionArea" style="margin-left:auto; display:flex; gap:8px;"></div>
+      </div>
+      <div class="slim-scroll" style="flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:4px 0;">
+        <table id="historyTable" style="width:100%; border-collapse:collapse; font-size:10.5px; color:var(--text-white); min-width:100%;">
+          <thead>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-weight:700;">
+              <th style="width:12%; padding:2px 1px; text-align:center;">투자법</th>
+              <th style="width:14%; padding:2px 1px; text-align:center;">진입일</th>
+              <th style="width:14%; padding:2px 1px; text-align:center;">청산일</th>
+              <th style="width:12%; padding:2px 1px; text-align:center;">모드/T</th>
+              <th style="width:12%; padding:2px 1px; text-align:center;">진입가</th>
+              <th style="width:12%; padding:2px 1px; text-align:center;">청산가</th>
+              <th style="width:12%; padding:2px 1px; text-align:center;">수량</th>
+              <th style="width:12%; padding:2px 1px; text-align:center;">수익금</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">매매 내역이 없습니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="top-bar hidden" id="topBar">
+    <div class="top-left">
+      <div id="ledLamp" class="led-lamp"></div>
+      <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃">로딩중...</div>
+    </div>
+    <div class="top-right">
+      <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)"><span id="icoInstant">🏠</span><span
+          class="btn-text">홈</span></button>
+      <button id="btnPerfShow" class="top-icon-btn" title="성과 모드 (길게 누르면 강제갱신)" onclick="showPerfView()"><span
+          id="icoPerfShow">📊</span><span class="btn-text">성과</span></button>
+      <button id="btnStatsShow" class="top-icon-btn" title="내역 모드 (길게 누르면 강제갱신)"><span
+          id="icoStatsShow">📄</span><span class="btn-text">내역</span></button>
+      <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️<span
+          class="btn-text">설정</span></button>
     </div>
   </div>
 
@@ -354,9 +497,9 @@
     </div>
   </div>
 
-  <script src="engine.js" defer></script>
-  <script src="core.js" defer></script>
-  <script src="script.js" defer></script>
+  <script src="engine.js?v=cf_v3350" defer></script>
+  <script src="core.js?v=cf_v3350" defer></script>
+  <script src="script.js?v=cf_v3350" defer></script>
 
 </body>
 

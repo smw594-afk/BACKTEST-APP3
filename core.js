@@ -5,16 +5,83 @@
 // ---------------------------------------------------------
 let periodBarChartInstance = null;
 window.currentChartSignature = "";
+window.currentBarChartSignature = "";
+let renderPeriodBarChartTimeout = null;
 
 // ---------------------------------------------------------
 // [2] 월별/연별 수익금 막대 차트 (Bar Chart)
 // ---------------------------------------------------------
 function renderPeriodBarChart() {
-  const canvas = document.getElementById('periodBarChart');
-  const wrapper = document.getElementById('periodBarChartWrapper');
-  if (!canvas || !wrapper) return;
+  if (window.skipChartRendering) return;
+  const grid = document.getElementById('mainGrid');
+  if (grid && grid.classList.contains('perf-tab-layout')) {
+    if (renderPeriodBarChartTimeout) clearTimeout(renderPeriodBarChartTimeout);
+    renderPeriodBarChartTimeout = setTimeout(() => {
+      if (typeof renderPeriodBarChartRaw === 'function') {
+        renderPeriodBarChartRaw('perfYearlyBarChart', 1);
+        renderPeriodBarChartRaw('perfMonthlyBarChart', 0);
+        renderPeriodBarChartRaw('perfDailyBarChart', 2);
+      }
+    }, 50);
+  } else {
+    if (renderPeriodBarChartTimeout) clearTimeout(renderPeriodBarChartTimeout);
+    renderPeriodBarChartTimeout = setTimeout(() => renderPeriodBarChartRaw(), 50);
+  }
+}
 
-  if (periodBarChartInstance) { periodBarChartInstance.destroy(); periodBarChartInstance = null; }
+function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
+  if (window.skipChartRendering) return;
+  
+  const targetCanvasId = canvasIdOverride || 'periodBarChart';
+  const targetViewState = (viewStateOverride !== undefined) ? viewStateOverride : periodViewState;
+  const wrapperId = targetCanvasId === 'periodBarChart' ? 'periodBarChartWrapper' : 
+                    (targetCanvasId === 'perfYearlyBarChart' ? 'perfYearlyChartWrapper' :
+                    (targetCanvasId === 'perfDailyBarChart' ? 'perfDailyChartWrapper' : 'perfMonthlyChartWrapper'));
+  const wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return;
+
+  const appFontSizeStr = getComputedStyle(document.documentElement).getPropertyValue('--app-font-size') || "10.5px";
+  const appFontSize = parseFloat(appFontSizeStr) || 10.5;
+
+  const isYearly = (targetViewState === 1);
+  const isDaily = (targetViewState === 2);
+  const globalDataArr = isDaily ? globalDailyDataArr : (isYearly ? globalYearlyDataArr : globalMonthlyDataArr);
+
+  let activeSlotIndexes = [];
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    if (isSlotActive(i) && globalDataArr[i]) activeSlotIndexes.push(i);
+  }
+
+  // 데이터 변경이 없을 경우 렌더링 생략 (점멸 방지)
+  const sigParts = activeSlotIndexes.map(i => {
+    const data = globalDataArr[i] || [];
+    const lastItem = (data.length > 0) ? data[data.length - 1] : null;
+    const lastProfit = (lastItem && typeof lastItem.profit !== 'undefined' && lastItem.profit !== null) ? Math.round(lastItem.profit) : 0;
+    return `${i}_${data.length}_${lastProfit}`;
+  });
+  const newSig = sigParts.join('|') + "|" + targetViewState + "|" + isCurrencyKRW + "|" + currentFXRate;
+
+  if (!window.barChartSignatures) window.barChartSignatures = {};
+  if (window.barChartSignatures[targetCanvasId] === newSig) return;
+  window.barChartSignatures[targetCanvasId] = newSig;
+
+  if (!window.barChartInstances) window.barChartInstances = {};
+  // 기존 차트 확실히 해제 및 Canvas 재생성으로 인스턴스 충돌 방지
+  if (targetCanvasId === 'periodBarChart') {
+    if (periodBarChartInstance) {
+      periodBarChartInstance.destroy();
+      periodBarChartInstance = null;
+    }
+  } else {
+    if (window.barChartInstances[targetCanvasId]) {
+      window.barChartInstances[targetCanvasId].destroy();
+      window.barChartInstances[targetCanvasId] = null;
+    }
+  }
+
+  wrapper.innerHTML = `<canvas id="${targetCanvasId}"></canvas>`;
+  const canvas = document.getElementById(targetCanvasId);
+  const ctx = canvas.getContext('2d');
 
   canvas.style.display = 'block';
   canvas.style.marginBottom = '0';
@@ -23,25 +90,29 @@ function renderPeriodBarChart() {
   wrapper.style.lineHeight = '0';
   wrapper.style.overflow = 'hidden';
 
-  const isYearly = (periodViewState === 1);
-  const isDaily = (periodViewState === 2);
-  const globalDataArr = isDaily ? globalDailyDataArr : (isYearly ? globalYearlyDataArr : globalMonthlyDataArr);
-
   let allPeriods = new Set();
   for (let i = 1; i <= MAX_SLOTS; i++) {
     if (globalDataArr[i] && isSlotActive(i)) {
-      globalDataArr[i].forEach(r => allPeriods.add(r.period));
+      globalDataArr[i].forEach(r => {
+        if (isDaily) {
+          if (r.period && r.period.includes('-') && r.period.length >= 8) {
+            allPeriods.add(r.period);
+          }
+        } else {
+          allPeriods.add(r.period);
+        }
+      });
     }
   }
   const sortedPeriods = [...allPeriods].sort().reverse();
   if (sortedPeriods.length === 0) return;
 
   const labels = sortedPeriods.map(p => {
-    if (periodViewState === 2 && p.includes('-')) {
+    if (targetViewState === 2 && p.includes('-')) {
       const parts = p.split('-');
       return parts[1] + '/' + parts[2];
     }
-    if (periodViewState === 0 && p.length === 7) return p.substring(2).replace('-', '/');
+    if (targetViewState === 0 && p.length === 7) return p.substring(2).replace('-', '/');
     return p;
   });
 
@@ -49,10 +120,7 @@ function renderPeriodBarChart() {
   const isKRW = isCurrencyKRW;
   let datasets = [];
 
-  let activeSlotIndexes = [];
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && globalDataArr[i]) activeSlotIndexes.push(i);
-  }
+
 
   // 데이터맵 생성
   const slotMaps = Array(MAX_SLOTS + 1).fill(null);
@@ -82,7 +150,8 @@ function renderPeriodBarChart() {
       activeSlotIndexes.forEach(si => { if (slotMaps[si][p]) hasData = true; });
       if (!hasData) return 0;
 
-      const rawTotal = combinedMap[p] ? combinedMap[p].profit : 0;
+      if (!combinedMap[p]) return slotProfits[lastIdx][pIdx]; // 합산 데이터가 아직 없으면 오차 보정 생략
+      const rawTotal = combinedMap[p].profit;
       const totalRounded = Math.round((rawTotal * fx) / (isKRW ? 10000 : 1));
 
       let sumOther = 0;
@@ -119,28 +188,7 @@ function renderPeriodBarChart() {
     });
   });
 
-  // 평균 수익률 꺾은선 추가
-  if (activeSlotIndexes.length > 0) {
-    const combinedRates = sortedPeriods.map((p, i) => {
-      let sum = 0;
-      activeSlotIndexes.forEach(si => sum += slotRates[si][i]);
-      return Number((sum / activeSlotIndexes.length).toFixed(2));
-    });
 
-    datasets.push({
-      label: '평균 수익률',
-      data: combinedRates,
-      type: 'line',
-      borderColor: '#a855f7',
-      backgroundColor: '#a855f7',
-      borderWidth: 3,
-      pointRadius: 2,
-      pointBackgroundColor: '#a855f7',
-      tension: 0.3,
-      yAxisID: 'yRate',
-      order: 1
-    });
-  }
 
   if (datasets.length === 0) return;
 
@@ -148,27 +196,30 @@ function renderPeriodBarChart() {
     id: 'periodProfitLabels',
     afterDatasetsDraw(chart) {
       const { ctx } = chart;
+      const cData = chart.customData || { activeSlotIndexes, slotProfits, datasets };
       ctx.save();
-      ctx.font = `bold 10px "Inter", sans-serif`;
+      ctx.font = `bold ${appFontSize - 0.5}px "Inter", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      const meta = chart.getDatasetMeta(datasets.findIndex(d => d.stack === 'profit'));
+      const meta = chart.getDatasetMeta(cData.datasets.findIndex(d => d.stack === 'profit'));
       if (!meta || !meta.data) { ctx.restore(); return; }
 
       const stackMetas = chart.data.datasets.map((d, i) => d.stack === 'profit' ? chart.getDatasetMeta(i) : null).filter(m => m !== null);
+      if (stackMetas.length === 0) { ctx.restore(); return; }
       const topMeta = stackMetas[stackMetas.length - 1];
 
       topMeta.data.forEach((bar, i) => {
         let total = 0;
-        activeSlotIndexes.forEach(si => total += slotProfits[si][i]);
+        cData.activeSlotIndexes.forEach(si => total += cData.slotProfits[si][i]);
         if (total === 0) return;
 
-        let label = isKRW
+        let label = isCurrencyKRW
           ? (total > 0 ? '+' : (total < 0 ? '-' : '')) + Math.abs(total).toLocaleString() + '만'
           : (total > 0 ? '+$' : (total < 0 ? '-$' : '$')) + Math.abs(total).toLocaleString();
 
         const yPos = total >= 0 ? bar.y - 5 : bar.y + 15;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        const isLightMode = document.body.classList.contains('light-mode');
+        ctx.fillStyle = isLightMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)';
         ctx.fillText(label, bar.x, yPos);
       });
       ctx.restore();
@@ -180,10 +231,10 @@ function renderPeriodBarChart() {
   const neededWidth = labels.length * minBarWidth;
   wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';
 
-  const ctx = canvas.getContext('2d');
-  periodBarChartInstance = new Chart(ctx, {
+  const chartInstance = new Chart(ctx, {
     type: 'bar',
     data: { labels: labels, datasets: datasets },
+    customData: { activeSlotIndexes, slotProfits, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       layout: { padding: { top: 15, bottom: 4, left: 0, right: 0 } },
@@ -192,12 +243,12 @@ function renderPeriodBarChart() {
         legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 10,
-          titleFont: { family: 'Outfit', size: 12, weight: 'bold' }, bodyFont: { family: 'Inter', size: 11 }, cornerRadius: 8,
+          titleFont: { family: 'Outfit', size: appFontSize + 1.5, weight: 'bold' }, bodyFont: { family: 'Inter', size: appFontSize + 0.5 }, cornerRadius: 8,
           callbacks: {
             label: function (c) {
               const v = c.parsed.y;
               if (c.dataset.yAxisID === 'yRate') return `${c.dataset.label}: ${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
-              if (isKRW) return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}${Math.abs(v).toLocaleString()}만원`;
+              if (isCurrencyKRW) return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}${Math.abs(v).toLocaleString()}만원`;
               return `${c.dataset.label}: ${v >= 0 ? '+$' : '-$'}${Math.abs(v).toLocaleString()}`;
             }
           }
@@ -206,21 +257,27 @@ function renderPeriodBarChart() {
       scales: {
         x: {
           stacked: true, grid: { display: false, tickLength: 0, drawTicks: false, drawBorder: false },
-          ticks: { font: { family: 'Inter', size: 9 }, color: '#94a3b8', autoSkip: false, maxTicksLimit: 50 }
+          ticks: { font: { family: 'Inter', size: appFontSize - 1.5 }, color: '#94a3b8', autoSkip: false, maxTicksLimit: 50 }
         },
         y: {
           stacked: true, position: 'left', grid: { color: 'rgba(255, 255, 255, 0.05)', tickLength: 0, drawTicks: false, drawBorder: false },
-          ticks: { font: { family: 'Inter', size: 10 }, color: '#94a3b8', callback: function (v) { return isKRW ? v.toLocaleString() + '만' : '$' + v.toLocaleString(); } }
+          ticks: { font: { family: 'Inter', size: appFontSize - 0.5 }, color: '#94a3b8', callback: function (v) { return isCurrencyKRW ? v.toLocaleString() + '만' : '$' + v.toLocaleString(); } }
         },
         yRate: {
           position: 'right', grid: { display: false },
-          ticks: { font: { family: 'Inter', size: 10, weight: 'bold' }, color: '#a855f7', callback: function (v) { return v + '%'; } },
+          ticks: { font: { family: 'Inter', size: appFontSize - 0.5, weight: 'bold' }, color: '#a855f7', callback: function (v) { return v + '%'; } },
           title: { display: false }
         }
       }
     },
     plugins: [profitLabelPlugin]
   });
+
+  if (targetCanvasId === 'periodBarChart') {
+    periodBarChartInstance = chartInstance;
+  } else {
+    window.barChartInstances[targetCanvasId] = chartInstance;
+  }
 }
 
 // ---------------------------------------------------------
@@ -248,7 +305,8 @@ const peakAnnotationPlugin = {
       }
     });
 
-    const fontSize = 11;
+    const appFontSizeStr = getComputedStyle(document.documentElement).getPropertyValue('--app-font-size') || "10.5px";
+    const fontSize = parseFloat(appFontSizeStr) || 11;
     ctx.save();
     ctx.font = `bold ${fontSize}px "Outfit", "Inter", sans-serif`;
 
@@ -321,7 +379,8 @@ function renderChart(resultsArray) {
   document.getElementById('chartBox').innerHTML = '<canvas id="balanceChart" class="view-transition"></canvas>';
   const ctx = document.getElementById('balanceChart').getContext('2d');
 
-  const chartFontSize = 11;
+  const appFontSizeStr = getComputedStyle(document.documentElement).getPropertyValue('--app-font-size') || "10.5px";
+  const chartFontSize = parseFloat(appFontSizeStr) || 11;
   Chart.defaults.font.size = chartFontSize;
 
   const allDatesSet = new Set();
@@ -423,20 +482,6 @@ function renderChart(resultsArray) {
     },
     plugins: [peakAnnotationPlugin, titleClickPlugin]
   });
-
-  setTimeout(() => {
-    if (typeof myChart !== "undefined" && myChart && datasets.length > 0 && datasets[0].data.length > 0) {
-      const lastIdx = datasets[0].data.length - 1;
-      const meta = myChart.getDatasetMeta(0);
-      if (meta && meta.data && meta.data[lastIdx]) {
-        const point = meta.data[lastIdx];
-        const elements = datasets.map((_, i) => ({ datasetIndex: i, index: lastIdx }));
-        myChart.setActiveElements(elements);
-        myChart.tooltip.setActiveElements(elements, { x: point.x, y: point.y });
-        myChart.update();
-      }
-    }
-  }, 100);
 }
 
 // ---------------------------------------------------------

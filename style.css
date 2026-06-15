@@ -20,6 +20,7 @@ body {
   --text-muted: #94a3b8;
   --success: #10b981;
   --danger: #ef4444;
+  --app-font-size: 10.5px;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@400;600;700&display=swap');
@@ -38,6 +39,8 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+
 
 @keyframes fadeIn {
   from {
@@ -92,16 +95,95 @@ body {
 }
 
 .dashboard-grid.perf-metrics-layout {
-  grid-template-areas: "stats" "monthly" "chart";
+  grid-template-areas: "stats" "order" "history";
+  grid-template-rows: 1.4fr 1.4fr 1.2fr !important;
 }
 
 .dashboard-grid.perf-metrics-layout .panel-order {
-  display: none !important;
+  display: flex !important;
+  grid-area: order;
 }
 
 .dashboard-grid.perf-metrics-layout .panel-stats {
   display: flex !important;
   grid-area: stats;
+}
+
+.dashboard-grid.perf-metrics-layout .panel-history {
+  display: flex !important;
+  grid-area: history;
+}
+
+.dashboard-grid.perf-metrics-layout .panel-monthly,
+.dashboard-grid.perf-metrics-layout .panel-chart {
+  display: none !important;
+}
+
+.dashboard-grid.backtest-view-layout {
+  grid-template-areas: "stats" "monthly" "chart";
+}
+
+.dashboard-grid.backtest-view-layout .panel-stats {
+  display: flex !important;
+  grid-area: stats;
+}
+
+.dashboard-grid.backtest-view-layout .panel-order,
+.dashboard-grid.backtest-view-layout .panel-history {
+  display: none !important;
+}
+
+.dashboard-grid.perf-tab-layout {
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "stats" "monthly" "monthly-chart" "daily-chart" !important;
+  grid-template-rows: 1fr 1fr 1fr 1fr !important;
+}
+
+.dashboard-grid.perf-tab-layout .panel-stats {
+  display: flex !important;
+  grid-area: stats;
+  padding: 4px 8px !important;
+}
+
+#statsTable td, #statsTable th {
+  white-space: nowrap !important;
+}
+
+.dashboard-grid.perf-tab-layout .panel-monthly {
+  display: flex !important;
+  grid-area: monthly;
+}
+
+.dashboard-grid.perf-tab-layout .panel-monthly-chart {
+  display: flex !important;
+  grid-area: monthly-chart;
+}
+
+.dashboard-grid.perf-tab-layout .panel-daily-chart {
+  display: flex !important;
+  grid-area: daily-chart;
+}
+
+.dashboard-grid.perf-tab-layout .panel-order,
+.dashboard-grid.perf-tab-layout .panel-chart,
+.dashboard-grid.perf-tab-layout .panel-history {
+  display: none !important;
+}
+
+.dashboard-grid.perf-tab-layout #btnPeriodMode {
+  display: none !important;
+}
+
+
+/* 성과 탭 패널 overflow 설정 */
+.dashboard-grid.perf-tab-layout .panel-monthly,
+.dashboard-grid.perf-tab-layout .panel-monthly-chart,
+.dashboard-grid.perf-tab-layout .panel-daily-chart {
+  overflow: hidden;
+}
+
+.dashboard-grid:not(.perf-metrics-layout) .panel-history {
+  display: none !important;
 }
 
 .dashboard-grid.order-expanded {
@@ -129,9 +211,9 @@ body {
   height: 36px;
   background: rgba(30, 41, 59, 0.5);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--card-border);
+  border-top: 1px solid var(--card-border);
   padding: 0 16px;
-  margin-bottom: 4px;
+  margin-top: 4px;
   border-radius: 12px;
 }
 
@@ -230,6 +312,8 @@ body {
   width: 90%;
   max-width: 400px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .status-panel {
@@ -436,6 +520,7 @@ select {
   outline: none;
   transition: all 0.2s;
   text-align: center;
+  box-sizing: border-box;
 }
 
 input:focus {
@@ -454,7 +539,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 .data-table {
   width: 100%;
   border-collapse: separate;
-  border-spacing: 0 1px;
+  border-spacing: 1px 1px;
 }
 
 .data-table th {
@@ -467,6 +552,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   letter-spacing: -0.1px;
   -webkit-user-select: none;
   user-select: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
 }
 
 .slot-title {
@@ -478,11 +564,11 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 .data-table td {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02) !important;
   padding: 2px 0.5px;
   text-align: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.02);
-  font-size: 11px !important;
+  border-top: none !important;
+  font-size: var(--app-font-size, 10.5px) !important;
   line-height: 1;
   -webkit-user-select: none;
   user-select: none;
@@ -742,7 +828,7 @@ h2:hover {
   padding-top: 4px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
-  font-size: 11px;
+  font-size: calc(var(--app-font-size, 10.5px) - 2px) !important;
   font-weight: 700;
   display: flex;
   justify-content: center;
@@ -799,7 +885,7 @@ h2:hover {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 160px;
+  min-width: 40px;
   display: none;
 }
 .order-slot-container.has-border-left {
@@ -906,6 +992,10 @@ h2:hover {
     grid-template-areas: "order" "monthly" "chart";
   }
 
+  .dashboard-grid.backtest-view-layout {
+    grid-template-areas: "stats" "monthly" "chart";
+  }
+
   .dashboard-grid.order-expanded {
     grid-template-areas: "order" "order" "chart" !important;
   }
@@ -916,6 +1006,33 @@ h2:hover {
 
   .panel-stats {
     display: none !important;
+  }
+
+  .dashboard-grid.perf-metrics-layout {
+    grid-template-areas: "stats" "order" "history" !important;
+    grid-template-rows: 1.4fr 1.4fr 1.2fr !important;
+  }
+  .dashboard-grid.perf-metrics-layout .panel-stats,
+  .dashboard-grid.backtest-view-layout .panel-stats {
+    display: flex !important;
+  }
+
+  .dashboard-grid.perf-tab-layout {
+    grid-template-columns: 1fr !important;
+    grid-template-areas: "stats" "monthly" "monthly-chart" "daily-chart" !important;
+    grid-template-rows: 1fr 1fr 1fr 1fr !important;
+  }
+  .dashboard-grid.perf-tab-layout .panel-stats {
+    display: flex !important;
+  }
+  .dashboard-grid.perf-tab-layout .panel-monthly {
+    display: flex !important;
+  }
+  .dashboard-grid.perf-tab-layout .panel-monthly-chart {
+    display: flex !important;
+  }
+  .dashboard-grid.perf-tab-layout .panel-daily-chart {
+    display: flex !important;
   }
 }
 
@@ -1155,4 +1272,201 @@ h2:hover {
 .data-table th,
 .data-table td {
   white-space: nowrap;
+}
+
+/* =========================================
+   Light Mode Overrides
+   ========================================= */
+body.light-mode {
+  --bg: #f1f5f9;
+  --card: rgba(255, 255, 255, 0.9);
+  --card-border: rgba(0, 0, 0, 0.1);
+  --text: #0f172a;
+  --text-muted: #475569;
+  background: #f1f5f9 !important;
+  color: var(--text);
+}
+
+body.light-mode .card,
+body.light-mode .settings-modal,
+body.light-mode .login-inner {
+  background: var(--card) !important;
+  border-color: var(--card-border) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-mode input,
+body.light-mode select {
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: var(--text) !important;
+  border-color: var(--card-border) !important;
+}
+
+body.light-mode .top-bar {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-top-color: var(--card-border) !important;
+}
+
+body.light-mode .data-table td {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-top-color: transparent !important;
+}
+
+body.light-mode .data-table th {
+  color: var(--text-muted) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode .metric-card {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-mode .metric-value,
+body.light-mode .tier-footer span,
+body.light-mode #syncStatusDisplay span,
+body.light-mode .last-sync-time,
+body.light-mode #loginVersion {
+  color: var(--text) !important;
+}
+
+body.light-mode .login-title,
+body.light-mode h2,
+body.light-mode .settings-modal h3,
+body.light-mode .slot-title,
+body.light-mode #chartTitle {
+  color: var(--primary) !important;
+}
+
+body.light-mode .status-panel {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border-color: var(--card-border) !important;
+}
+
+body.light-mode .section-header {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.15) !important;
+}
+
+body.light-mode .slot-title {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+/* 실시간 운영현황 & 성과지표 음영 추가 (격자선 제거) */
+.stats-row {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: none !important;
+}
+body.light-mode .stats-row {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border: none !important;
+}
+.stats-row > div:not(:first-child) {
+  border-left: none !important;
+}
+body.light-mode .stats-row > div:not(:first-child) {
+  border-left: none !important;
+}
+
+/* 실전 매매내역 스타일 (주문표와 동일하게 변경) */
+#historyTable {
+  border-collapse: separate !important;
+  border-spacing: 1px 1px !important;
+}
+#historyTable th {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+#historyTable td {
+  border: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+#historyTable tr td:first-child {
+  border-radius: 3px 0 0 3px;
+}
+#historyTable tr td:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+body.light-mode #historyTable th {
+  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+body.light-mode #historyTable td {
+  border: none !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* 보유현황 스타일 (주문표와 동일하게 변경) */
+#combinedHoldingsView .data-table td,
+[id^="holdingsView"] .data-table td {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: none !important;
+}
+body.light-mode #combinedHoldingsView .data-table td,
+body.light-mode [id^="holdingsView"] .data-table td {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border: none !important;
+}
+
+#combinedHoldingsView .data-table,
+[id^="holdingsView"] .data-table {
+  border-collapse: separate !important;
+  border-spacing: 1px 1px !important;
+}
+
+#combinedHoldingsView .data-table th,
+[id^="holdingsView"] .data-table th {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+body.light-mode #combinedHoldingsView .data-table th,
+body.light-mode [id^="holdingsView"] .data-table th {
+  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+/* 보유현황 내 테이블의 td 폰트 크기 축소 (실전 매매내역과 통일) */
+#combinedHoldingsView .data-table td,
+[id^="holdingsView"] .data-table td {
+  font-size: var(--app-font-size, 10.5px) !important;
+}
+
+/* 실전 매매내역 및 보유현황 th 헤더 폰트 크기 별도 고정 유지 */
+#combinedHoldingsView .data-table th,
+[id^="holdingsView"] .data-table th,
+#historyTable th {
+  font-size: 11px !important;
+}
+
+/* 실전 매매내역 td 및 실시간 운영현황 stats-row의 폰트 크기 조절 */
+#historyTableBody td,
+.stats-row div {
+  font-size: var(--app-font-size, 10.5px) !important;
+}
+
+/* 성과 탭 레이아웃에서 타이틀의 커서를 기본값으로 지정 */
+.perf-tab-layout .period-toggle {
+  cursor: default !important;
+}
+
+/* 보유현황 보기 상태일 때 주문 슬롯 컨테이너의 min-width를 320px로 복원 */
+.holdings-view-active .order-slot-container {
+  min-width: 320px !important;
+}
+
+/* 수익금 전용 파란색(+) 및 빨간색(-) 색상 정의 */
+.profit-plus {
+  color: #3b82f6 !important; /* 다크 모드 파란색 */
+  font-weight: 700;
+}
+.profit-minus {
+  color: #ef4444 !important; /* 다크 모드 빨간색 */
+  font-weight: 700;
+}
+
+body.light-mode .profit-plus {
+  color: #1d4ed8 !important; /* 라이트 모드 파란색 */
+}
+body.light-mode .profit-minus {
+  color: #b91c1c !important; /* 라이트 모드 빨간색 */
 }
