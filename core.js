@@ -264,6 +264,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
           ticks: { font: { family: 'Inter', size: appFontSize - 0.5 }, color: '#94a3b8', callback: function (v) { return isCurrencyKRW ? v.toLocaleString() + '만' : '$' + v.toLocaleString(); } }
         },
         yRate: {
+          display: false,
           position: 'right', grid: { display: false },
           ticks: { font: { family: 'Inter', size: appFontSize - 0.5, weight: 'bold' }, color: '#a855f7', callback: function (v) { return v + '%'; } },
           title: { display: false }

@@ -1,4 +1,4 @@
-// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.35";
 const MAX_SLOTS = 6;
@@ -195,7 +195,7 @@ function setLED(status) {
 }
 
 async function restoreRealAccountMode() {
-  if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 구글 시트의 데이터가 D1 DB로 이관되어 교체됩니다.")) return;
+  if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 구글 시트 데이터로 교체됩니다.")) return;
   isViewingHistory = false;
   isManualBacktestMode = false;
   updateHeaderDisplay();
@@ -689,7 +689,8 @@ function renderCombinedOrderBook() {
 
   tbody.innerHTML = sortedOrders.map(o => {
     const cls = o[0] === '매수' ? 'buy' : 'sell';
-    return `<tr><td class="${cls}">${o[0]}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`;
+    const sideText = (o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0];
+    return `<tr><td class="${cls}">${sideText}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`;
   }).join('');
 }
 
@@ -735,7 +736,12 @@ function renderCombinedHoldings() {
     try {
       const modeData = MASTER_STRATEGIES[o.stratName].modes[o.mode];
       const sellPct = modeData.sell[o.tier - 1] || modeData.sell[0];
-      sellPriceStr = "$" + (Math.ceil((o.buy_price * (1 + sellPct) * 100) - 0.000001) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+      const rawSellPrice = (Math.ceil((o.buy_price * (1 + sellPct) * 100) - 0.000001) / 100);
+      if (isCurrencyKRW) {
+        sellPriceStr = "₩" + Math.round(rawSellPrice * currentFXRate).toLocaleString();
+      } else {
+        sellPriceStr = "$" + rawSellPrice.toLocaleString(undefined, { minimumFractionDigits: 2 });
+      }
       let holdLimit = modeData.hold[o.tier - 1] || modeData.hold[0];
       if (o.buyDate && window.globalMainData && window.globalMainData.dates) {
         const bIdx = window.globalMainData.dates.findIndex(d => formatDateNY(d) === o.buyDate);
@@ -772,12 +778,23 @@ function renderCombinedHoldings() {
       const buyPrice = parseFloat(o.buy_price || o.buyPrice) || 0;
       const qty = parseFloat(o.qty) || 0;
       const profit = (o.currPrice - buyPrice) * qty;
-      const profitSign = profit > 0 ? "+" : "";
-      profitStr = profitSign + "$" + profit.toLocaleString(undefined, { minimumFractionDigits: 2 });
+      const sign = profit < 0 ? "-" : "";
+      if (isCurrencyKRW) {
+        profitStr = sign + "₩" + Math.round(profit * currentFXRate).toLocaleString();
+      } else {
+        profitStr = sign + "$" + Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2 });
+      }
       profitClass = profit > 0 ? "profit-plus" : (profit < 0 ? "profit-minus" : "");
     }
 
-    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 개별 보유현황 토글">#${o.slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td>$${Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="hide-on-cover sell-price" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}" style="font-weight:700;">${profitStr}</td></tr>`;
+    let buyPriceStr = "";
+    if (isCurrencyKRW) {
+      buyPriceStr = "₩" + Math.round(Number(o.buy_price) * currentFXRate).toLocaleString();
+    } else {
+      buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    }
+
+    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 개별 보유현황 토글">#${o.slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td>${buyPriceStr}</td><td class="hide-on-cover sell-price" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}" style="font-weight:700;">${profitStr}</td></tr>`;
   }).join('');
 }
 
@@ -843,11 +860,14 @@ function loadSlotToForm(slotNum) {
 
 function isSlotActive(num) {
   const cfg = isManualBacktestMode ? simulationConfigs[num] : slotConfigs[num];
+  if (cfg && cfg.basics && cfg.basics.strategy === "정지") return false;
   return !!(cfg && cfg.basics && cfg.basics.strategy && cfg.basics.strategy !== "");
 }
 
 function getSlotConfig(num) {
-  return isManualBacktestMode ? simulationConfigs[num] : slotConfigs[num];
+  const cfg = isManualBacktestMode ? simulationConfigs[num] : slotConfigs[num];
+  if (cfg && cfg.basics && cfg.basics.strategy === "정지") return null;
+  return cfg;
 }
 
 function updateSlotsVisibility() {
@@ -1338,6 +1358,23 @@ async function checkAndSyncWithServer(isInitial) {
       return null;
     };
 
+    const loadSheetData = async () => {
+      const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
+      const dataInit = await resInit.json();
+
+      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const pName = i === 1 ? 'config' : `config${i}`;
+        const sName = dataInit[pName]?.basics?.strategy || slotConfigs[i]?.basics?.strategy || "";
+        perfUrl += `&strat${i}=${encodeURIComponent(sName)}`;
+      }
+
+      const resPerf = await fetch(perfUrl);
+      const dataPerf = await resPerf.json();
+      dataInit.hasSheet = true;
+      return { dataInit, dataPerf };
+    };
+
     window.skipChartRendering = true;
     for (let i = 1; i <= MAX_SLOTS; i++) {
       await runFastEngine(slotConfigs[i], isSlotActive(i), i);
@@ -1347,20 +1384,11 @@ async function checkAndSyncWithServer(isInitial) {
 
     const track2Promise = (async () => {
       try {
-        const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
-        const dataInit = await resInit.json();
-
-        let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
-        for (let i = 1; i <= MAX_SLOTS; i++) {
-          let pName = i === 1 ? 'config' : `config${i}`;
-          let sName = dataInit[pName]?.basics?.strategy || slotConfigs[i]?.basics?.strategy || "";
-          perfUrl += `&strat${i}=${encodeURIComponent(sName)}`;
-        }
-
-        const resPerf = await fetch(perfUrl);
-        const dataPerf = await resPerf.json();
-        return { dataInit, dataPerf };
-      } catch (e) { console.error("Track 2 Error:", e); return null; }
+        return await loadSheetData();
+      } catch (e) { 
+        console.error("Sheet Sync Error:", e); 
+        return null; 
+      }
     })();
 
     restoreFromPerfLayout();
@@ -1618,57 +1646,70 @@ async function checkAndSyncWithServer(isInitial) {
   }
 }
 
-function checkAndRunAutoSave() {
-  let combinedMap = {};
-  const addStates = (res, slotKey, slotNum) => {
-    if (!res || !res.dailyStates) return;
-    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`) || "";
-    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
-    res.dailyStates.forEach(state => {
-      if (!existingDatesSet.has(state.date)) {
-        if (!combinedMap[state.date]) {
-          let baseObj = { date: state.date };
-          for (let i = 1; i <= MAX_SLOTS; i++) baseObj[`s${i}`] = null;
-          combinedMap[state.date] = baseObj;
-        }
-        combinedMap[state.date][slotKey] = state;
-      }
-    });
+function buildSheetSavePayload(slot, config, states) {
+  const payload = {
+    action: "AUTO_DAILY_SAVE",
+    id: myUserId
   };
 
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    addStates(lastBTResults[i], `s${i}`, i);
+  if (config) {
+    payload[slot === 1 ? "params" : `params${slot}`] = config;
   }
 
-  let batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
-  if (batchLogs.length === 0) return;
+  payload.logs = (states || []).map(state => {
+    const row = { date: state.date };
+    row[`s${slot}`] = {
+      asset: state.asset,
+      inout: state.inout || 0,
+      json: state.json
+    };
+    return row;
+  });
 
-  setLED('loading');
-  fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "AUTO_DAILY_SAVE", id: myUserId, logs: batchLogs }) })
-    .then(() => {
-      // ⭐️ 각 슬롯별로 실제 전송된 마지막 날짜 및 전체 날짜 목록 업데이트
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        const slotLogs = batchLogs.filter(b => b[`s${i}`]);
-        if (slotLogs.length > 0) {
-          const slotLastDate = slotLogs[slotLogs.length - 1].date;
-          localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, slotLastDate);
-          
-          const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`) || "";
-          const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
-          slotLogs.forEach(b => {
-            existingDatesSet.add(b.date);
-          });
-          localStorage.setItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`, Array.from(existingDatesSet).join(","));
+  return payload;
+}
+
+async function saveSlotToSheet(slot, config, states) {
+  const payload = buildSheetSavePayload(slot, config, states);
+  await fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { status: "success" };
+}
+
+function checkAndRunAutoSave() {
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const res = lastBTResults[i];
+    if (!res || !res.dailyStates) continue;
+    
+    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`) || "";
+    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
+    const newLogs = res.dailyStates.filter(s => !existingDatesSet.has(s.date));
+    
+    if (newLogs.length === 0) continue;
+    
+    setLED('loading');
+    
+    saveSlotToSheet(i, slotConfigs[i], newLogs)
+    .then(data => {
+      if (data.status === "success") {
+        const maxDate = newLogs.reduce((max, s) => s.date > max ? s.date : max, "1900-01-01");
+        localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, maxDate);
+        
+        newLogs.forEach(s => existingDatesSet.add(s.date));
+        localStorage.setItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`, Array.from(existingDatesSet).join(","));
+        
+        setLED('on');
+        const header = document.getElementById('userDisplayHeader');
+        if (header) {
+          header.innerText = myUserId + " (시트 자동 누계 완료!)";
+          setTimeout(() => { if (header.innerText.includes("자동 누계")) header.innerText = myUserId; }, 3000);
         }
-      }
-      setLED('on');
-      const header = document.getElementById('userDisplayHeader');
-      if (header) {
-        header.innerText = myUserId + " (누락 데이터 자동 백업 완료!)";
-        setTimeout(() => { if (header.innerText.includes("백업 완료")) header.innerText = myUserId; }, 3000);
       }
     })
     .catch(() => { setLED('off'); });
+  }
 }
 
 function triggerOptimisticSave() {
@@ -1719,24 +1760,11 @@ async function handleSave() {
       globalYearlyDataArr[targetSlot] = null;
       globalDailyDataArr[targetSlot] = null;
 
-      let payload = {
-        action: "BACKUP_AND_SAVE_V4",
-        id: myUserId,
-        logs: [],
-        params: (targetSlot === 1) ? null : slotConfigs[1],
-        params2: (targetSlot === 2) ? null : slotConfigs[2],
-        params3: (targetSlot === 3) ? null : slotConfigs[3],
-        params4: (targetSlot === 4) ? null : slotConfigs[4],
-        params5: (targetSlot === 5) ? null : slotConfigs[5],
-        params6: (targetSlot === 6) ? null : slotConfigs[6]
-      };
-      payload[`params${targetSlot === 1 ? '' : targetSlot}`] = null;
-
       if (navigator.onLine) {
-        await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
+        await saveSlotToSheet(targetSlot, null, []);
         showToast(`[V-QUANT 2-${targetSlot}] 비활성화 설정이 시트에 반영되었습니다.`, "✅");
       } else {
-        handleOfflineSave(payload);
+        handleOfflineSave(buildSheetSavePayload(targetSlot, null, []));
       }
 
       updateSlotsVisibility();
@@ -1793,24 +1821,8 @@ async function handleSave() {
       lastLog.json = JSON.stringify(parsed);
     }
 
-    let payload = {
-      action: "BACKUP_AND_SAVE_V4",
-      id: myUserId,
-      logs: newLogs.map(s => {
-        let entry = { date: s.date };
-        entry[`s${targetSlot}`] = { asset: s.asset, inout: s.inout, json: s.json };
-        return entry;
-      }),
-      params: (targetSlot === 1) ? slotConfigs[1] : null,
-      params2: (targetSlot === 2) ? slotConfigs[2] : null,
-      params3: (targetSlot === 3) ? slotConfigs[3] : null,
-      params4: (targetSlot === 4) ? slotConfigs[4] : null,
-      params5: (targetSlot === 5) ? slotConfigs[5] : null,
-      params6: (targetSlot === 6) ? slotConfigs[6] : null
-    };
-
     if (navigator.onLine) {
-      await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
+      await saveSlotToSheet(targetSlot, slotConfigs[targetSlot], newLogs);
 
       if (newLogs.length > 0) {
         let maxDate = sheetLastDate;
@@ -1828,7 +1840,7 @@ async function handleSave() {
 
       showToast(`${newLogs.length}일치의 기록이 시트에 반영되었습니다.`, "✅");
     } else {
-      handleOfflineSave(payload);
+      handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
   } catch (err) {
     console.error("Save Error:", err);
@@ -1858,13 +1870,19 @@ function checkPendingSync() {
   if (pendingData && navigator.onLine) {
     if (confirm("오프라인 상태에서 저장된 최신 데이터가 있습니다. 지금 시트에 반영하시겠습니까?")) {
       const payload = JSON.parse(pendingData);
-      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-        .then(() => {
+      fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "success" || data.status === "ok") {
           localStorage.removeItem('vtotal_pending_sync');
           showToast("보류중인 데이터가 시트에 성공적으로 반영되었습니다.");
-        }).catch(e => {
-          showToast("서버 오류로 반영이 지연되었습니다.", "❌");
-        });
+        }
+      }).catch(e => {
+        showToast("서버 오류로 반영이 지연되었습니다.", "❌");
+      });
     }
   }
 }
@@ -2186,6 +2204,7 @@ async function runEngine() {
   showToast("백테스트 엔진 실행 완료");
 }
 
+
 async function handleInstantOrder() {
   if (window.isServerSyncing) {
     console.log("서버 동기화 진행 중이므로 수동 갱신을 보류합니다.");
@@ -2222,6 +2241,7 @@ async function handleInstantOrder() {
   restoreBtn();
   triggerIconAnim('icoInstant');
   showToast("실전 주문표 최신화 완료");
+  refreshOrderViewUI();
 }
 
 function calculateCombinedPeriodData() {
@@ -2440,7 +2460,12 @@ function renderHoldingsTableSlot(inv, stratName, slotNum) {
     try {
       const modeData = MASTER_STRATEGIES[stratName].modes[o.mode];
       const sellPct = modeData.sell[o.tier - 1] || modeData.sell[0];
-      sellPriceStr = "$" + (Math.ceil((o.buy_price * (1 + sellPct) * 100) - 0.000001) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+      const rawSellPrice = (Math.ceil((o.buy_price * (1 + sellPct) * 100) - 0.000001) / 100);
+      if (isCurrencyKRW) {
+        sellPriceStr = "₩" + Math.round(rawSellPrice * currentFXRate).toLocaleString();
+      } else {
+        sellPriceStr = "$" + rawSellPrice.toLocaleString(undefined, { minimumFractionDigits: 2 });
+      }
       let holdLimit = modeData.hold[o.tier - 1] || modeData.hold[0];
       if (o.buyDate && window.globalMainData && window.globalMainData.dates) {
         const bIdx = window.globalMainData.dates.findIndex(d => formatDateNY(d) === o.buyDate);
@@ -2477,12 +2502,23 @@ function renderHoldingsTableSlot(inv, stratName, slotNum) {
       const buyPrice = parseFloat(o.buy_price || o.buyPrice) || 0;
       const qty = parseFloat(o.qty) || 0;
       const profit = (currPrice - buyPrice) * qty;
-      const profitSign = profit > 0 ? "+" : "";
-      profitStr = profitSign + "$" + profit.toLocaleString(undefined, { minimumFractionDigits: 2 });
+      const sign = profit < 0 ? "-" : "";
+      if (isCurrencyKRW) {
+        profitStr = sign + "₩" + Math.round(profit * currentFXRate).toLocaleString();
+      } else {
+        profitStr = sign + "$" + Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2 });
+      }
       profitClass = profit > 0 ? "profit-plus" : (profit < 0 ? "profit-minus" : "");
     }
 
-    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 통합 보유현황 토글">#${slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td>$${Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="hide-on-cover sell-price" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}" style="font-weight:700;">${profitStr}</td></tr>`;
+    let buyPriceStr = "";
+    if (isCurrencyKRW) {
+      buyPriceStr = "₩" + Math.round(Number(o.buy_price) * currentFXRate).toLocaleString();
+    } else {
+      buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    }
+
+    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 통합 보유현황 토글">#${slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td>${buyPriceStr}</td><td class="hide-on-cover sell-price" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}" style="font-weight:700;">${profitStr}</td></tr>`;
   }).join('');
 }
 
@@ -2499,7 +2535,10 @@ function renderOrderTableSlot(orders, slotNum) {
     return orderSortOrder === 'desc' ? (pB - pA) : (pA - pB);
   });
 
-  tbody.innerHTML = sortedOrders.map(o => `<tr><td class="${o[0] === '매수' ? 'buy' : 'sell'}">${o[0]}</td><td class="hidden">${o[1]}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`).join('');
+  tbody.innerHTML = sortedOrders.map(o => {
+    const sideText = (o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0];
+    return `<tr><td class="${o[0] === '매수' ? 'buy' : 'sell'}">${sideText}</td><td class="hidden">${o[1]}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`;
+  }).join('');
 }
 
 function updatePeriodTitle() {
@@ -2720,10 +2759,20 @@ function refreshAllUI() {
   }
   renderChartAll();
   refreshStatsTable();
+  refreshOrderViewUI();
+  if (isStatsMode) renderDBTradeHistory();
 }
 
 function toggleCurrencyMode() {
   isCurrencyKRW = !isCurrencyKRW;
+  const val = isCurrencyKRW ? 'KRW' : 'USD';
+  if (myUserId) {
+    localStorage.setItem(`vtotal_pref_currency_${myUserId}`, val);
+  }
+  const defaultCurrSelect = document.getElementById('defaultCurrency');
+  if (defaultCurrSelect) {
+    defaultCurrSelect.value = val;
+  }
   syncCurrencyUI();
   refreshAllUI();
 }
@@ -2742,10 +2791,13 @@ function syncCurrencyUI() {
 }
 
 function updateDefaultCurrency(val) {
+  isCurrencyKRW = (val === 'KRW');
   if (myUserId) {
     localStorage.setItem(`vtotal_pref_currency_${myUserId}`, val);
-    showToast(`기본 통화가 ${val === 'KRW' ? '원화' : '달러'}로 설정되었습니다. 새로고침 시 적용됩니다.`);
+    showToast(`기본 통화가 ${val === 'KRW' ? '원화' : '달러'}로 설정되었습니다.`);
   }
+  syncCurrencyUI();
+  refreshAllUI();
 }
 
 function updateTheme(val) {
@@ -3181,9 +3233,9 @@ function renderRealtimeStatusTable(table) {
   const metricsList = [
     { key: 'date', label: '날짜', type: 'raw' },
     { key: 'totalAssets', label: '총자산', type: 'fmt' },
-    { key: 'base', label: '진입가', type: 'fmt' },
+    { key: 'base', label: '갱신금', type: 'fmt' },
     { key: 'cash', label: '예수금', type: 'fmt' },
-    { key: 'evalVal', label: '청산가', type: 'fmt' },
+    { key: 'evalVal', label: '평가금', type: 'fmt' },
     { key: 'realPrincipal', label: '원금', type: 'fmt' },
     { key: 'yield', label: '수익률', type: 'color', pct: true },
     { key: 'totalProfit', label: '수익금', type: 'color' },
@@ -3335,7 +3387,7 @@ function handleDeposit() {
   }).then(async () => { // ⭐️ async 추가
     showToast(`$${amount.toLocaleString()} 처리 완료! 데이터를 다시 불러옵니다.`, "💰");
     if (btn) btn.innerHTML = orgText;
-    await checkAndSyncWithServer(false); // ⭐️ 서버 데이터 강제 다시 불러오기
+    await checkAndSyncWithServer(false); // 시트 데이터 강제 다시 불러오기
   }).catch(e => {
     alert("처리 실패: 네트워크를 확인하세요.");
     setLED('error');
@@ -3384,17 +3436,37 @@ function renderDBTradeHistory() {
     return;
   }
 
-  try {
+ try {
     let allTrades = [];
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (isSlotActive(i)) {
         const res = lastBTResults[i];
         if (res && res.trades) {
           console.log(`[매매내역] 슬롯 #${i} 거래 데이터 수:`, res.trades.length);
-          const slotTrades = res.trades.map(t => ({
-            ...t,
-            slotNum: i
-          }));
+          
+         // 💡 [최종 핵심 수정] 존재하지 않는 변수 대신, 엔진 결과(res) 안에 이미 
+          // 안전하게 저장되어 있는 '현재가(currPrice)'를 직접 꺼내어 덮어씌웁니다!
+          const slotTrades = res.trades.map(t => {
+            // 기존 매도가(sellPrice 또는 sell_price) 확인
+            let finalPrice = parseFloat(t.sellPrice || t.sell_price) || 0;
+            
+            // 매도가가 비정상(0 또는 null)일 경우 방어 로직 발동
+            if (finalPrice <= 0) {
+              // res 객체의 summary 안에 들어있는 정확한 현재가(예: 272.5)를 추출합니다.
+              const currentPrice = parseFloat(res.summary?.currPrice || res.currPrice) || 0;
+              if (currentPrice > 0) {
+                finalPrice = currentPrice;
+              }
+            }
+
+            return {
+              ...t,
+              slotNum: i,
+              sellPrice: finalPrice,   // 보정된 가격 강제 주입
+              sell_price: finalPrice   // 어떤 변수명을 쓰더라도 정상 작동하도록 둘 다 세팅
+            };
+          });
+          
           allTrades = allTrades.concat(slotTrades);
         } else {
           console.log(`[매매내역] 슬롯 #${i} 결과 없음 또는 trades 속성 없음`);
@@ -3423,8 +3495,8 @@ function renderDBTradeHistory() {
 
     tbody.innerHTML = allTrades.map(t => {
       const slot = t.slotNum;
-      let buyDate = t.buyDate || t.buy_date || "-";
-      let sellDate = t.sellDate || t.sell_date || "-";
+      let buyDate = parseDateStr(t.buyDate || t.buy_date || "-");
+      let sellDate = parseDateStr(t.sellDate || t.sell_date || "-");
 
       if (buyDate && buyDate.includes('-') && buyDate.length === 10) {
         buyDate = buyDate.substring(2);
@@ -3441,17 +3513,33 @@ function renderDBTradeHistory() {
       const profit = Number(t.profit !== undefined ? t.profit : 0);
 
       const profitClass = profit > 0 ? "profit-plus" : (profit < 0 ? "profit-minus" : "");
-      const profitSign = profit > 0 ? "+" : "";
+      const sign = profit < 0 ? "-" : "";
+      let profitStr = "";
+      if (isCurrencyKRW) {
+        profitStr = sign + "₩" + Math.round(profit * currentFXRate).toLocaleString();
+      } else {
+        profitStr = sign + "$" + Math.abs(profit).toLocaleString(undefined, {minimumFractionDigits: 2});
+      }
+
+      let buyPriceStr = "";
+      let sellPriceStr = "";
+      if (isCurrencyKRW) {
+        buyPriceStr = "₩" + Math.round(buyPrice * currentFXRate).toLocaleString();
+        sellPriceStr = "₩" + Math.round(sellPrice * currentFXRate).toLocaleString();
+      } else {
+        buyPriceStr = "$" + buyPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
+        sellPriceStr = "$" + sellPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
+      }
 
       return `<tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
         <td style="width:12%; padding:2px 1px; text-align:center; color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; font-size:10px;">#${slot}</td>
         <td style="width:14%; padding:2px 1px; text-align:center; color:var(--text-muted); font-size:10px;">${buyDate}</td>
         <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px;">${sellDate}</td>
         <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${mode}/T${tier}</td>
-        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">$${buyPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">$${sellPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${buyPriceStr}</td>
+        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${sellPriceStr}</td>
         <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${qty}</td>
-        <td style="width:12%; padding:2px 1px; text-align:center; font-weight:700; font-size:10px;" class="${profitClass}">${profitSign}$${profit.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        <td style="width:12%; padding:2px 1px; text-align:center; font-weight:700; font-size:10px;" class="${profitClass}">${profitStr}</td>
       </tr>`;
     }).join('');
     console.log("[매매내역] 렌더링 완료. 총 거래 건수:", allTrades.length);
@@ -3486,36 +3574,61 @@ function reconstructRealTrades(logs, slotNum) {
     const curHoldings = curLog.holdings;
     const nextHoldings = nextLog.holdings;
     
-    curHoldings.forEach(curItem => {
-      const curBuyDate = getBuyDate(curItem);
-      const curMode = getMode(curItem);
-      const curTier = getTier(curItem);
-
-      const matchingNextItem = nextHoldings.find(nextItem => 
-        getBuyDate(nextItem) === curBuyDate && 
-        getMode(nextItem) === curMode && 
-        getTier(nextItem) === curTier
-      );
-      
-      let curQty = Number(curItem.qty || 0);
-      let nextQty = matchingNextItem ? Number(matchingNextItem.qty || 0) : 0;
-      let soldQty = 0;
-      
-      if (!matchingNextItem) {
-        soldQty = curQty;
-      } else if (nextQty < curQty) {
-        soldQty = curQty - nextQty;
+    const curMap = {};
+    curHoldings.forEach(item => {
+      const k = `${getBuyDate(item)}_${getMode(item)}_${getTier(item)}`;
+      if (!curMap[k]) {
+        curMap[k] = {
+          buyDate: getBuyDate(item),
+          mode: item.mode,
+          tier: item.tier,
+          qty: 0,
+          buy_price: parseFloat(item.buy_price || item.buyPrice || 0)
+        };
       }
+      curMap[k].qty += parseFloat(item.qty || 0);
+    });
+
+    const nextMap = {};
+    nextHoldings.forEach(item => {
+      const k = `${getBuyDate(item)}_${getMode(item)}_${getTier(item)}`;
+      if (!nextMap[k]) {
+        nextMap[k] = { qty: 0 };
+      }
+      nextMap[k].qty += parseFloat(item.qty || 0);
+    });
+
+    Object.keys(curMap).forEach(k => {
+      const curItem = curMap[k];
+      const nextItem = nextMap[k];
+      
+      const curQty = curItem.qty;
+      const nextQty = nextItem ? nextItem.qty : 0;
+      
+      const soldQty = curQty - nextQty;
       
       if (soldQty > 0 && !isNaN(soldQty)) {
-        const buyDate = curBuyDate || curLog.date;
+        const buyDate = curItem.buyDate || curLog.date;
         const sellDate = nextLog.date;
         
         let buyPrice = Number(getClosePriceOnDate(buyDate, slotNum) || curItem.buy_price || 0);
         let sellPrice = Number(getClosePriceOnDate(sellDate, slotNum) || 0);
         
         if (buyPrice === 0 || isNaN(buyPrice)) buyPrice = Number(curItem.buy_price || 0);
-        if (sellPrice === 0 || isNaN(sellPrice)) sellPrice = buyPrice;
+        if (sellPrice === 0 || isNaN(sellPrice)) {
+          try {
+            const stratName = slotConfigs[slotNum]?.basics?.strategy || "";
+            const modeData = MASTER_STRATEGIES[stratName]?.modes[curItem.mode];
+            if (modeData) {
+              const sellPct = modeData.sell[curItem.tier - 1] || modeData.sell[0];
+              sellPrice = Math.ceil((buyPrice * (1 + sellPct) * 100) - 0.000001) / 100;
+            } else {
+              sellPrice = buyPrice;
+            }
+          } catch(e) {
+            sellPrice = buyPrice;
+          }
+        }
         
         const cfg = slotConfigs[slotNum];
         const fBuy = (cfg && cfg.basics) ? (parseFloat(cfg.basics.fBase) || 0) / 100 : 0.0008;
@@ -3551,16 +3664,17 @@ function reconstructRealTrades(logs, slotNum) {
 function getClosePriceOnDate(dateStr, slotNum) {
   const mainData = (window.globalMainDataSlot && window.globalMainDataSlot[slotNum]) || window.globalMainData;
   if (!mainData || !mainData.dates) return null;
+  const targetDate = parseDateStr(dateStr);
   
-  let idx = mainData.dates.findIndex(d => formatDateNY(d) === dateStr);
+  let idx = mainData.dates.findIndex(d => parseDateStr(formatDateNY(d)) === targetDate);
   if (idx !== -1) {
     return mainData.close[idx];
   }
   
   let bestIdx = -1;
   for (let i = 0; i < mainData.dates.length; i++) {
-    const dStr = formatDateNY(mainData.dates[i]);
-    if (dStr <= dateStr) {
+    const dStr = parseDateStr(formatDateNY(mainData.dates[i]));
+    if (dStr <= targetDate) {
       bestIdx = i;
     } else {
       break;

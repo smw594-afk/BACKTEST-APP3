@@ -256,7 +256,6 @@ const MASTER_STRATEGIES = {
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz5oD4M9ninAUdnr4jexbjKvoQsvX6OCDJZgE5eUAi3zTC14tqhfYYAIGgf1CSFZmToMA/exec";
-const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 const CF_WORKER_URL = "https://autumn-limit-001e.smw594.workers.dev";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -271,7 +270,7 @@ async function updateCurrentFXRate(callback = null) {
   try {
     const nowTs = Math.floor(Date.now() / 1000);
     const pastTs = nowTs - (86400 * 5);
-    const yUrl = `${VERCEL_URL}?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
+    const yUrl = `${CF_WORKER_URL}/api/yahoo?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
     const response = await fetch(yUrl);
     const res = await response.json();
     if (!res.error && res.chart && res.chart.result[0]) {
@@ -308,7 +307,99 @@ function formatComma(val) {
 }
 function unformatComma(val) { return String(val).replace(/,/g, ''); }
 const formatterNY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
-function formatDateNY(dateObj) { return formatterNY.format(dateObj); }
+function formatDateNY(dateObj) {
+  if (typeof dateObj === 'string') {
+    let s = dateObj.replace(/\//g, '-');
+    if (s.length >= 10 && s.charAt(4) === '-' && s.charAt(7) === '-') {
+      return s.substring(0, 10);
+    }
+  }
+  const d = (dateObj instanceof Date) ? dateObj : new Date(dateObj);
+  if (isNaN(d.getTime())) return '';
+  let formatted = formatterNY.format(d);
+  return formatted.replace(/\//g, '-');
+}
+function normalizeDateKey(value) {
+  if (!value) return "";
+  if (value instanceof Date) {
+    const parts = formatterNY.formatToParts(value);
+    const y = parts.find(p => p.type === 'year')?.value || "";
+    const m = parts.find(p => p.type === 'month')?.value || "";
+    const d = parts.find(p => p.type === 'day')?.value || "";
+    return (y && m && d) ? `${y}-${m}-${d}` : "";
+  }
+
+  let raw = String(value).trim();
+  if (!raw) return "";
+  if (raw.includes('T')) raw = raw.split('T')[0];
+  raw = raw.replace(/[.\/]/g, '-');
+
+  let match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) {
+    return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+  }
+
+  match = raw.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (match) {
+    return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+  }
+
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? raw : normalizeDateKey(d);
+}
+function dateFromKey(dateKey) {
+  return new Date(`${dateKey}T12:00:00Z`);
+}
+function normalizePriceSeries(series, ticker) {
+  const map = new Map();
+  if (series && series.dates && Array.isArray(series.dates)) {
+    for (let i = 0; i < series.dates.length; i++) {
+      const key = normalizeDateKey(series.dates[i]);
+      if (!key || series.close[i] === null || series.close[i] === undefined) continue;
+      map.set(key, {
+        date: dateFromKey(key),
+        close: series.close[i],
+        open: series.open ? series.open[i] : series.close[i]
+      });
+    }
+  }
+
+  const keys = Array.from(map.keys()).sort();
+  return {
+    ticker: ticker || (series && series.ticker) || "",
+    dates: keys.map(k => map.get(k).date),
+    close: keys.map(k => map.get(k).close),
+    open: keys.map(k => map.get(k).open)
+  };
+}
+function mergePriceSeries(base, incoming, ticker) {
+  const merged = normalizePriceSeries(base, ticker);
+  const fresh = normalizePriceSeries(incoming, ticker);
+  const map = new Map();
+
+  for (let i = 0; i < merged.dates.length; i++) {
+    map.set(normalizeDateKey(merged.dates[i]), {
+      date: merged.dates[i],
+      close: merged.close[i],
+      open: merged.open[i]
+    });
+  }
+  for (let i = 0; i < fresh.dates.length; i++) {
+    map.set(normalizeDateKey(fresh.dates[i]), {
+      date: fresh.dates[i],
+      close: fresh.close[i],
+      open: fresh.open[i]
+    });
+  }
+
+  const keys = Array.from(map.keys()).filter(Boolean).sort();
+  return {
+    ticker,
+    dates: keys.map(k => dateFromKey(k)),
+    close: keys.map(k => map.get(k).close),
+    open: keys.map(k => map.get(k).open)
+  };
+}
 function pyRound2(num) { let factor = 100, temp = num * factor, rounded = Math.round(temp); if (Math.abs(temp % 1) === 0.5) rounded = (Math.floor(temp) % 2 === 0) ? Math.floor(temp) : Math.ceil(temp); return rounded / factor; }
 
 function getFridayEnd(d) {
@@ -336,17 +427,20 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
   const fetchPromise = (async () => {
     let cached = await getDB(t);
     if (!cached) { cached = { ticker: t, dates: [], close: [], open: [] }; }
+    cached = normalizePriceSeries(cached, t);
     const requestedStart = p1 * 1000, requestedEnd = p2 * 1000;
     const lastCachedTs = cached.dates.length > 0 ? (new Date(cached.dates[cached.dates.length - 1])).getTime() : 0;
     const firstCachedTs = cached.dates.length > 0 ? (new Date(cached.dates[0])).getTime() : Infinity;
     let fetchP1 = p1, fetchP2 = p2, isDelta = false;
     const now = Date.now();
     const enoughOld = (firstCachedTs <= requestedStart + 43200000);
+    const cacheRepairKey = 'vtotal_price_cache_repair_v2_' + t;
+    const needsCacheRepair = localStorage.getItem(cacheRepairKey) !== '1';
 
-    if (force || !enoughOld || (requestedEnd - lastCachedTs > 86400000)) {
+    if (force || needsCacheRepair || !enoughOld || (requestedEnd - lastCachedTs > 86400000)) {
       fetchP1 = p1; fetchP2 = p2; isDelta = false;
       fetchP2 = fetchP2 + (86400 * 3);
-      let yUrl = `${VERCEL_URL}?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
+      let yUrl = `${CF_WORKER_URL}/api/yahoo?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
       try {
         let res;
         try {
@@ -365,10 +459,12 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
         let newDates = [], newClose = [], newOpen = [], lastDay = "";
         for (let i = 0; i < ts.length; i++) {
           if (cls[i] !== null) {
-            let dateObj = new Date(ts[i] * 1000); let dayStr = formatDateNY(dateObj); let cVal = rnd ? pyRound2(cls[i]) : cls[i]; let oVal = rnd ? pyRound2(ops[i]) : ops[i];
-            if (dayStr !== lastDay) { newDates.push(dateObj); newClose.push(cVal); newOpen.push(oVal); lastDay = dayStr; } else { newClose[newClose.length - 1] = cVal; newOpen[newOpen.length - 1] = oVal; }
+            let dateObj = new Date(ts[i] * 1000); let dayStr = normalizeDateKey(dateObj); let cVal = rnd ? pyRound2(cls[i]) : cls[i]; let oVal = rnd ? pyRound2(ops[i]) : ops[i];
+            if (dayStr !== lastDay) { newDates.push(dateFromKey(dayStr)); newClose.push(cVal); newOpen.push(oVal); lastDay = dayStr; } else { newClose[newClose.length - 1] = cVal; newOpen[newOpen.length - 1] = oVal; }
           }
         }
+        const previousCached = cached;
+        const incoming = { ticker: t, dates: newDates, close: newClose, open: newOpen };
         if (isDelta) {
           const lastStr = formatDateNY(new Date(lastCachedTs));
           const freshIdx = newDates.findIndex(d => formatDateNY(d) > lastStr);
@@ -378,13 +474,14 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
           let newLastStr = newDates.length > 0 ? formatDateNY(newDates[newDates.length - 1]) : "1900-01-01";
           if (existingLastStr > newLastStr) { console.warn(`데이터 누락 감지! 기존 캐시 보호.`); } else { cached.dates = newDates; cached.close = newClose; cached.open = newOpen; }
         }
-        const todayNYStr = formatDateNY(new Date()); const nowNY = new Date(); const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));
-        if (cached.dates.length > 0) { const lastDayNY = formatDateNY(new Date(cached.dates[cached.dates.length - 1])); if (lastDayNY === todayNYStr) { if (nyHour < 17) { cached.dates.pop(); cached.close.pop(); cached.open.pop(); } } }
-        await setDB(cached); localStorage.setItem('vtotal_last_fetch_' + t, now.toString());
+        cached = mergePriceSeries(previousCached, incoming, t);
+        const todayNYStr = normalizeDateKey(new Date()); const nowNY = new Date(); const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));
+        if (cached.dates.length > 0) { const lastDayNY = normalizeDateKey(cached.dates[cached.dates.length - 1]); if (lastDayNY === todayNYStr) { if (nyHour < 17) { cached.dates.pop(); cached.close.pop(); cached.open.pop(); } } }
+        await setDB(cached); localStorage.setItem('vtotal_last_fetch_' + t, now.toString()); localStorage.setItem(cacheRepairKey, '1');
       } catch (e) { throw new Error("데이터 수집 실패: " + e.message); }
     }
     const finalResult = { dates: [], close: [], open: [] }; const reqS = requestedStart, reqE = requestedEnd;
-    for (let i = 0, len = cached.dates.length; i < len; i++) { const d = cached.dates[i]; const ts = (d instanceof Date) ? d.getTime() : new Date(d).getTime(); if (ts >= reqS && ts <= reqE + (86400 * 1000 * 5)) { finalResult.dates.push(d); finalResult.close.push(cached.close[i]); finalResult.open.push(cached.open[i]); } }
+    for (let i = 0, len = cached.dates.length; i < len; i++) { const key = normalizeDateKey(cached.dates[i]); const ts = dateFromKey(key).getTime(); if (ts >= reqS && ts <= reqE + (86400 * 1000 * 5)) { finalResult.dates.push(dateFromKey(key)); finalResult.close.push(cached.close[i]); finalResult.open.push(cached.open[i]); } }
     yahooCache[memKey] = finalResult; return finalResult;
   })();
   pendingFetches[memKey] = fetchPromise; const result = await fetchPromise; delete pendingFetches[memKey]; return result;
@@ -528,8 +625,8 @@ function run_tungchigi_master(paramsArr) {
   const mult = sortOrder === "desc" ? -1 : 1;
   return Object.values(grouped).sort((a, b) => (a.price - b.price) * mult).map(r => {
     if (r.method === "MOC") {
-      // 🎯 첫 번째 칸을 "MOC매도"로 바꾸고 가격을 0.01로 유지하여 NaN 방지 및 명확한 표기
-      return ["MOC매도", "MOC", 0.01, r.qty]; 
+      // 🎯 MOC 출력 시 가격을 빈칸("")으로 변경하여 구글 시트 에러 원천 차단
+      return ["매도", "MOC", "", r.qty]; 
     } else {
       return [r.side, r.method, r.price, r.qty];
     }
@@ -585,7 +682,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       if (!window.globalMainDataSlot) window.globalMainDataSlot = {};
       window.globalMainDataSlot[slotNum] = mainDataAll;
     }
-    let startIndex = mainDataAll.dates.findIndex(d => d >= startDate); if (startIndex === -1) startIndex = mainDataAll.dates.length;
+    let startIndex = mainDataAll.dates.findIndex(d => { const dTs = (d instanceof Date) ? d.getTime() : new Date(d).getTime(); return dTs >= startDate.getTime(); }); if (startIndex === -1) startIndex = mainDataAll.dates.length;
     let firstPrevClose = (startIndex > 0) ? mainDataAll.close[startIndex - 1] : mainDataAll.open[0], wRsiMap = calculateWRSI_WFRI(qqqData);
 
     let cash = initialCash, prev_total = initialCash, peak = initialCash, base = basePrincipal, inv = [];
@@ -595,7 +692,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
     let res = { S: [], BA: [], BF: [], AV: [], INOUT: [], dailyStates: [], trades: [] };
 
     let activeSlot = slotNum || activeSettingsTab;
-    let bDates = mainDataAll.dates.filter(d => d <= endDate && d >= startDate);
+    let bDates = mainDataAll.dates.filter(d => { const dTs = (d instanceof Date) ? d.getTime() : new Date(d).getTime(); return dTs <= endDate.getTime() && dTs >= startDate.getTime(); });
     const snapKey = `vtotal_snap${activeSlot}_` + myUserId;
     const snapStr = localStorage.getItem(snapKey);
     let startLoopIdx = 0;
@@ -879,7 +976,6 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
         let h_limit = p_mode.hold[hIdx] || 1;
 
         if (p_i.days >= h_limit - 1) {
-            // 엔진 메모리 상에서는 0.01로 보내야 퉁치기 엔진이 제대로 묶어서 계산함
             rawOrderOutput.push(["매도", "MOC", 0.01, p_i.qty]);
         } else {
             rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]);
@@ -1247,12 +1343,13 @@ function processRealLogData(d, currentStrat, userInitialCash) {
       let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0; 
       let s_tgt = c2_T(p_i.buy_price * (1 + sellRate)); 
 
+      // 🎯 시트에서 불러온 데이터도 보유 한계일 검사 적용 (덮어쓰기 방지)
       let hIdx = Math.min(p_i.tier - 1, modeData.hold.length - 1);
       let h_limit = modeData.hold[hIdx] || 1;
 
       if (p_i.days !== undefined && p_i.days >= h_limit - 1) {
-          // 🎯 0.01로 엔진에서 계산을 마친 후 화면 UI 출력을 위해 텍스트 교체 (오류 방지)
-          rawOrderOutput.push(["MOC매도", "MOC", 0.01, p_i.qty]);
+          // 🎯 시트 표기를 위해 MOC의 가격을 빈칸("")으로 변경하여 구글시트 연동 에러 원천 차단
+          rawOrderOutput.push(["매도", "MOC", "", p_i.qty]);
       } else {
           rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); 
       }
@@ -1261,7 +1358,8 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   
   const sortOrder = localStorage.getItem(`vtotal_sort_order_${window.myUserId || ""}`) || "asc";
   const mult = sortOrder === "desc" ? -1 : 1;
-  const finalOrders = rawOrderOutput.sort((a, b) => (a[2] - b[2]) * mult);
+  // 정렬 시 가격이 ""(빈칸)인 경우 0으로 취급하여 에러 방지
+  const finalOrders = rawOrderOutput.sort((a, b) => ((a[2] === "" ? 0 : a[2]) - (b[2] === "" ? 0 : b[2])) * mult);
 
   return {
     status: "success",
