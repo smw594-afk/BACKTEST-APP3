@@ -271,7 +271,8 @@ async function updateCurrentFXRate(callback = null) {
   try {
     const nowTs = Math.floor(Date.now() / 1000);
     const pastTs = nowTs - (86400 * 5);
-    const yUrl = `${VERCEL_URL}?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
+    // 환율 정보도 버셀 대신 클라우드플레어 API 경로를 타도록 수정
+    const yUrl = `${CF_WORKER_URL}/api/yahoo?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
     const response = await fetch(yUrl);
     const res = await response.json();
     if (!res.error && res.chart && res.chart.result[0]) {
@@ -343,24 +344,24 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
     const now = Date.now();
     const enoughOld = (firstCachedTs <= requestedStart + 43200000);
 
-    if (force || !enoughOld || (requestedEnd - lastCachedTs > 86400000)) {
+if (force || !enoughOld || (requestedEnd - lastCachedTs > 86400000)) {
       fetchP1 = p1; fetchP2 = p2; isDelta = false;
       fetchP2 = fetchP2 + (86400 * 3);
-      let yUrl = `${VERCEL_URL}?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
+      // 버셀 주소 대신 클라우드플레어 워커 주소로 바로 타겟 설정
+      let yUrl = `${CF_WORKER_URL}/api/yahoo?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
       try {
         let res;
         try {
+          // 클라우드플레어 워커에서만 주가 정보를 직접 가져옴
           const response = await fetch(yUrl); res = await response.json(); 
           if (res.error) throw new Error(res.error);
           if (!res.chart || !res.chart.result || !res.chart.result[0]) throw new Error("Invalid Yahoo Data Format");
           const tsCheck = res.chart.result[0].timestamp;
           if (t.toUpperCase() === 'SOXL' && (!tsCheck || tsCheck.length === 0)) throw new Error("SOXL Data Empty");
         } catch (err) {
-          console.warn(`[야후 주가 수집 에러] ${t} - Vercel 실패, Cloudflare 백업 호출 시도: ` + err.message);
-          yUrl = `${CF_WORKER_URL}/api/yahoo?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
-          const response = await fetch(yUrl); res = await response.json();
-          if (res.error) throw new Error(res.error);
+          throw new Error("Cloudflare 데이터 수집 실패: " + err.message);
         }
+
         const r = res.chart.result[0], ts = r.timestamp, cls = r.indicators.quote[0].close, ops = r.indicators.quote[0].open;
         let newDates = [], newClose = [], newOpen = [], lastDay = "";
         for (let i = 0; i < ts.length; i++) {
