@@ -256,6 +256,7 @@ const MASTER_STRATEGIES = {
 // engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz5oD4M9ninAUdnr4jexbjKvoQsvX6OCDJZgE5eUAi3zTC14tqhfYYAIGgf1CSFZmToMA/exec";
+const VERCEL_URL = "https://yahoo-proxy-gamma.vercel.app/api/yahoo";
 const CF_WORKER_URL = "https://autumn-limit-001e.smw594.workers.dev";
 
 // 🛡️ IndexedDB (캐싱 및 데이터 관리)
@@ -270,7 +271,7 @@ async function updateCurrentFXRate(callback = null) {
   try {
     const nowTs = Math.floor(Date.now() / 1000);
     const pastTs = nowTs - (86400 * 5);
-    const yUrl = `${CF_WORKER_URL}/api/yahoo?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
+    const yUrl = `${VERCEL_URL}?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
     const response = await fetch(yUrl);
     const res = await response.json();
     if (!res.error && res.chart && res.chart.result[0]) {

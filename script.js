@@ -1,4 +1,4 @@
-﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.35";
 const MAX_SLOTS = 6;
@@ -195,7 +195,7 @@ function setLED(status) {
 }
 
 async function restoreRealAccountMode() {
-  if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 구글 시트 데이터로 교체됩니다.")) return;
+  if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 구글 시트의 데이터가 D1 DB로 이관되어 교체됩니다.")) return;
   isViewingHistory = false;
   isManualBacktestMode = false;
   updateHeaderDisplay();
@@ -1358,23 +1358,6 @@ async function checkAndSyncWithServer(isInitial) {
       return null;
     };
 
-    const loadSheetData = async () => {
-      const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
-      const dataInit = await resInit.json();
-
-      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        const pName = i === 1 ? 'config' : `config${i}`;
-        const sName = dataInit[pName]?.basics?.strategy || slotConfigs[i]?.basics?.strategy || "";
-        perfUrl += `&strat${i}=${encodeURIComponent(sName)}`;
-      }
-
-      const resPerf = await fetch(perfUrl);
-      const dataPerf = await resPerf.json();
-      dataInit.hasSheet = true;
-      return { dataInit, dataPerf };
-    };
-
     window.skipChartRendering = true;
     for (let i = 1; i <= MAX_SLOTS; i++) {
       await runFastEngine(slotConfigs[i], isSlotActive(i), i);
@@ -1382,11 +1365,171 @@ async function checkAndSyncWithServer(isInitial) {
     window.skipChartRendering = false;
     if (typeof periodDisplayMode !== 'undefined' && periodDisplayMode === 'chart') renderPeriodBarChart();
 
+    const processSyncData = (syncData) => {
+      let dataInit = { hasSheet: true };
+      let dataPerf = {};
+      if (syncData.configs) {
+        syncData.configs.forEach(row => {
+          const slotKey = row.slot_num === 1 ? 'config' : `config${row.slot_num}`;
+          try {
+            dataInit[slotKey] = JSON.parse(row.config_json);
+          } catch(e) {
+            console.error(`Config JSON Parse Error (Slot ${row.slot_num}):`, e);
+          }
+        });
+      }
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        dataPerf[`strat${i}`] = { 
+          logs: [],
+          meta: { realizedProfit: 0, currentCash: 0, qty: 0, avgPrice: 0, tickerPrice: 0 },
+          json: "",
+          trades: []
+        };
+      }
+      if (syncData.states) {
+        const sortedStates = [...syncData.states].sort((a, b) => a.date.localeCompare(b.date));
+        sortedStates.forEach(row => {
+          const sKey = `strat${row.slot_num}`;
+          if (dataPerf[sKey]) {
+            dataPerf[sKey].logs.push([
+              row.date,
+              row.asset,
+              row.inout || 0.0,
+              row.state_json
+            ]);
+            
+            try {
+              const stateObj = JSON.parse(row.state_json);
+              dataPerf[sKey].json = row.state_json;
+              
+              let totalQty = 0;
+              let totalCost = 0;
+              if (stateObj.holdings) {
+                stateObj.holdings.forEach(h => {
+                  totalQty += (h.qty || 0);
+                  totalCost += (h.cost || (h.qty * (h.buy_price || h.buyPrice || 0)) || 0);
+                });
+              }
+              
+              dataPerf[sKey].meta = {
+                realizedProfit: stateObj.realizedProfit || 0,
+                currentCash: stateObj.cash || 0,
+                qty: totalQty,
+                avgPrice: totalQty > 0 ? (totalCost / totalQty) : 0,
+                tickerPrice: 0
+              };
+            } catch(e) {}
+          }
+        });
+      }
+      if (syncData.trades) {
+        syncData.trades.forEach(row => {
+          const sKey = `strat${row.slot_num}`;
+          if (dataPerf[sKey]) {
+            dataPerf[sKey].trades.push({
+              buyDate: row.buy_date,
+              sellDate: row.sell_date,
+              mode: row.mode,
+              tier: row.tier,
+              buy_price: row.buy_price,
+              sell_price: row.sell_price,
+              qty: row.qty,
+              profit: row.profit,
+              total_balance: row.total_balance,
+              renew_cash: row.renew_cash
+            });
+          }
+        });
+      }
+      return { dataInit, dataPerf };
+    };
+
     const track2Promise = (async () => {
       try {
-        return await loadSheetData();
+        const syncUrl = `${CF_WORKER_URL}/api/sync?id=${myUserId}`;
+        const syncRes = await fetch(syncUrl);
+        const syncData = await syncRes.json();
+        
+        if (isInitial || !syncData.configs || syncData.configs.length === 0) {
+          console.log("[CF-D1] 데이터가 비어있거나 강제 복원이 격발되어 구글 시트 마이그레이션을 시작합니다...");
+          showToast("📥 시트에서 DB로 데이터 이관 중...", "🔄");
+          
+          const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
+          const gasInit = await resInit.json();
+          
+          let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
+          for (let i = 1; i <= MAX_SLOTS; i++) {
+            let pName = i === 1 ? 'config' : `config${i}`;
+            let sName = gasInit[pName]?.basics?.strategy || slotConfigs[i]?.basics?.strategy || "";
+            perfUrl += `&strat${i}=${encodeURIComponent(sName)}`;
+          }
+          const resPerf = await fetch(perfUrl);
+          const gasPerf = await resPerf.json();
+          
+          for (let i = 1; i <= MAX_SLOTS; i++) {
+            const pName = i === 1 ? 'config' : `config${i}`;
+            const sName = `strat${i}`;
+            const cfg = gasInit[pName];
+            const perfSlot = gasPerf[sName];
+            
+            if (cfg && cfg.basics && cfg.basics.strategy) {
+              let statesPayload = [];
+              if (perfSlot && perfSlot.logs && perfSlot.logs.length > 0) {
+                statesPayload = perfSlot.logs.map(r => {
+                  return {
+                    date: parseDateStr(r[0]),
+                    asset: parseFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0,
+                    inout: parseFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0,
+                    json: r[3] || "{}"
+                  };
+                }).filter(s => s.date && s.asset > 0);
+              }
+              
+              const realData = processRealLogData(perfSlot, cfg.basics.strategy, cfg.basics.initialCash);
+              let tradesPayload = [];
+              if (realData) {
+                const engineRes = await runBacktestMemory(cfg, true, i, realData);
+                if (engineRes && engineRes.trades) {
+                  tradesPayload = engineRes.trades.map(t => ({
+                    buyDate: t.buyDate || t.buy_date || "",
+                    sellDate: t.sellDate || t.sell_date || "",
+                    mode: t.mode || "SF",
+                    tier: parseInt(t.tier || 1),
+                    buyPrice: parseFloat(t.buyPrice || t.buy_price || 0),
+                    sellPrice: parseFloat(t.sellPrice || t.sell_price || 0),
+                    qty: parseFloat(t.qty || 0),
+                    profit: parseFloat(t.profit || 0),
+                    totalBalance: parseFloat(t.totalBalance || t.total_balance || 0),
+                    renewCash: parseFloat(t.renewCash || t.renew_cash || 0)
+                  }));
+                }
+              }
+              
+              const savePayload = {
+                id: myUserId,
+                slot: i,
+                config: cfg,
+                states: statesPayload,
+                trades: tradesPayload,
+                gasUrl: GAS_URL
+              };
+              
+              await fetch(`${CF_WORKER_URL}/api/save`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(savePayload)
+              });
+            }
+          }
+          
+          const retryRes = await fetch(syncUrl);
+          const retryData = await retryRes.json();
+          return processSyncData(retryData);
+        } else {
+          return processSyncData(syncData);
+        }
       } catch (e) { 
-        console.error("Sheet Sync Error:", e); 
+        console.error("Track 2 D1 Sync Error:", e); 
         return null; 
       }
     })();
@@ -1646,38 +1789,6 @@ async function checkAndSyncWithServer(isInitial) {
   }
 }
 
-function buildSheetSavePayload(slot, config, states) {
-  const payload = {
-    action: "AUTO_DAILY_SAVE",
-    id: myUserId
-  };
-
-  if (config) {
-    payload[slot === 1 ? "params" : `params${slot}`] = config;
-  }
-
-  payload.logs = (states || []).map(state => {
-    const row = { date: state.date };
-    row[`s${slot}`] = {
-      asset: state.asset,
-      inout: state.inout || 0,
-      json: state.json
-    };
-    return row;
-  });
-
-  return payload;
-}
-
-async function saveSlotToSheet(slot, config, states) {
-  const payload = buildSheetSavePayload(slot, config, states);
-  await fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-  return { status: "success" };
-}
-
 function checkAndRunAutoSave() {
   for (let i = 1; i <= MAX_SLOTS; i++) {
     const res = lastBTResults[i];
@@ -1691,7 +1802,41 @@ function checkAndRunAutoSave() {
     
     setLED('loading');
     
-    saveSlotToSheet(i, slotConfigs[i], newLogs)
+    const tradesPayload = (res.trades || []).map(t => {
+      return {
+        buyDate: t.buyDate || t[1] || "",
+        sellDate: t.sellDate || t[2] || "",
+        mode: t.mode || t[3] || "SF",
+        tier: parseInt(t.tier || t[4] || 1),
+        buyPrice: parseFloat(t.buyPrice || t[5] || 0),
+        sellPrice: parseFloat(t.sellPrice || t[6] || 0),
+        qty: parseFloat(t.qty || t[7] || 0),
+        profit: parseFloat(t.profit || t[8] || 0),
+        totalBalance: parseFloat(t.totalBalance || t[9] || 0),
+        renewCash: parseFloat(t.renewCash || t[10] || 0)
+      };
+    });
+    
+    const payload = {
+      id: myUserId,
+      slot: i,
+      config: slotConfigs[i],
+      states: newLogs.map(s => ({
+        date: s.date,
+        asset: s.asset,
+        inout: s.inout || 0,
+        json: s.json
+      })),
+      trades: tradesPayload,
+      gasUrl: GAS_URL
+    };
+    
+    fetch(`${CF_WORKER_URL}/api/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
     .then(data => {
       if (data.status === "success") {
         const maxDate = newLogs.reduce((max, s) => s.date > max ? s.date : max, "1900-01-01");
@@ -1703,7 +1848,7 @@ function checkAndRunAutoSave() {
         setLED('on');
         const header = document.getElementById('userDisplayHeader');
         if (header) {
-          header.innerText = myUserId + " (시트 자동 누계 완료!)";
+          header.innerText = myUserId + " (D1 DB 자동 누계 완료!)";
           setTimeout(() => { if (header.innerText.includes("자동 누계")) header.innerText = myUserId; }, 3000);
         }
       }
@@ -1760,11 +1905,24 @@ async function handleSave() {
       globalYearlyDataArr[targetSlot] = null;
       globalDailyDataArr[targetSlot] = null;
 
+      const payload = {
+        id: myUserId,
+        slot: targetSlot,
+        config: null,
+        states: [],
+        trades: [],
+        gasUrl: GAS_URL
+      };
+
       if (navigator.onLine) {
-        await saveSlotToSheet(targetSlot, null, []);
-        showToast(`[V-QUANT 2-${targetSlot}] 비활성화 설정이 시트에 반영되었습니다.`, "✅");
+        await fetch(`${CF_WORKER_URL}/api/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        showToast(`[V-QUANT 2-${targetSlot}] 비활성화 설정이 D1 DB에 반영되었습니다.`, "✅");
       } else {
-        handleOfflineSave(buildSheetSavePayload(targetSlot, null, []));
+        handleOfflineSave(payload);
       }
 
       updateSlotsVisibility();
@@ -1797,7 +1955,7 @@ async function handleSave() {
     }
 
     if (newLogs.length === 0) {
-      if (confirm("반영할 새로운 기록이 없습니다. \n\n만약 4/20일 등의 과거 기록이 시트에서 누락되었다면, [확인]을 눌러 전체 데이터를 강제로 다시 전송하시겠습니까?")) {
+      if (confirm("반영할 새로운 기록이 없습니다. \n\n만약 4/20일 등의 과거 기록이 D1 DB에서 누락되었다면, [확인]을 눌러 전체 데이터를 강제로 다시 전송하시겠습니까?")) {
         newLogs = targetRes.dailyStates || [];
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
         localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
@@ -1821,8 +1979,41 @@ async function handleSave() {
       lastLog.json = JSON.stringify(parsed);
     }
 
+    const tradesPayload = (targetRes.trades || []).map(t => {
+      return {
+        buyDate: t.buyDate || t[1] || "",
+        sellDate: t.sellDate || t[2] || "",
+        mode: t.mode || t[3] || "SF",
+        tier: parseInt(t.tier || t[4] || 1),
+        buyPrice: parseFloat(t.buyPrice || t[5] || 0),
+        sellPrice: parseFloat(t.sellPrice || t[6] || 0),
+        qty: parseFloat(t.qty || t[7] || 0),
+        profit: parseFloat(t.profit || t[8] || 0),
+        totalBalance: parseFloat(t.totalBalance || t[9] || 0),
+        renewCash: parseFloat(t.renewCash || t[10] || 0)
+      };
+    });
+
+    const payload = {
+      id: myUserId,
+      slot: targetSlot,
+      config: slotConfigs[targetSlot],
+      states: newLogs.map(s => ({
+        date: s.date,
+        asset: s.asset,
+        inout: s.inout || 0,
+        json: s.json
+      })),
+      trades: tradesPayload,
+      gasUrl: GAS_URL
+    };
+
     if (navigator.onLine) {
-      await saveSlotToSheet(targetSlot, slotConfigs[targetSlot], newLogs);
+      await fetch(`${CF_WORKER_URL}/api/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
       if (newLogs.length > 0) {
         let maxDate = sheetLastDate;
@@ -1838,9 +2029,9 @@ async function handleSave() {
         localStorage.setItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`, Array.from(existingDatesSet).join(","));
       }
 
-      showToast(`${newLogs.length}일치의 기록이 시트에 반영되었습니다.`, "✅");
+      showToast(`${newLogs.length}일치의 기록이 D1 DB에 반영되었습니다.`, "✅");
     } else {
-      handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
+      handleOfflineSave(payload);
     }
   } catch (err) {
     console.error("Save Error:", err);
@@ -1851,12 +2042,12 @@ async function handleSave() {
 }
 
 function resetSyncDates() {
-  if (!confirm("🔄 모든 투자법의 시트 동기화 날짜 정보를 초기화하시겠습니까?\n\n(설정값은 지워지지 않으며, 다음 번 '시트에 반영' 클릭 시 누락된 모든 날짜가 시트로 다시 전송됩니다.)")) return;
+  if (!confirm("🔄 모든 투자법의 DB 동기화 날짜 정보를 초기화하시겠습니까?\n\n(설정값은 지워지지 않으며, 다음 번 'DB에 반영' 클릭 시 누락된 모든 날짜가 D1 DB로 다시 전송됩니다.)")) return;
   for (let i = 1; i <= MAX_SLOTS; i++) {
     localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, "1900-01-01");
     localStorage.removeItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`);
   }
-  showToast("동기화 정보가 초기화되었습니다. 시트 반영을 시도하세요.", "✅");
+  showToast("동기화 정보가 초기화되었습니다. DB 반영을 시도하세요.", "✅");
 }
 
 function handleOfflineSave(payload) {
@@ -1868,17 +2059,18 @@ function handleOfflineSave(payload) {
 function checkPendingSync() {
   const pendingData = localStorage.getItem('vtotal_pending_sync');
   if (pendingData && navigator.onLine) {
-    if (confirm("오프라인 상태에서 저장된 최신 데이터가 있습니다. 지금 시트에 반영하시겠습니까?")) {
+    if (confirm("오프라인 상태에서 저장된 최신 데이터가 있습니다. 지금 D1 DB에 반영하시겠습니까?")) {
       const payload = JSON.parse(pendingData);
-      fetch(GAS_URL, {
+      fetch(`${CF_WORKER_URL}/api/save`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
       .then(r => r.json())
       .then(data => {
-        if (data.status === "success" || data.status === "ok") {
+        if (data.status === "success") {
           localStorage.removeItem('vtotal_pending_sync');
-          showToast("보류중인 데이터가 시트에 성공적으로 반영되었습니다.");
+          showToast("보류중인 데이터가 D1 DB에 성공적으로 반영되었습니다.");
         }
       }).catch(e => {
         showToast("서버 오류로 반영이 지연되었습니다.", "❌");
@@ -2204,6 +2396,53 @@ async function runEngine() {
   showToast("백테스트 엔진 실행 완료");
 }
 
+const fetchCalculateOrderFromServer = async (config, slotNum) => {
+  try {
+    const snapStr = localStorage.getItem(`vtotal_snap${slotNum}_${myUserId}`);
+    if (!snapStr) return null;
+    const snap = JSON.parse(snapStr);
+    
+    const statePayload = {
+      cash: snap.summary.cash,
+      base_principal: snap.summary.base,
+      realPrincipal: snap.summary.realPrincipal || snap.summary.base,
+      holdings: snap.inv || []
+    };
+    
+    const reqBody = {
+      config: config,
+      state: statePayload,
+      id: myUserId,
+      slot: slotNum
+    };
+    
+    const response = await fetch(`${CF_WORKER_URL}/api/calculate-order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reqBody)
+    });
+    
+    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    const data = await response.json();
+    if (data && data.status === "success") {
+      const mergedRes = {
+        ...snap,
+        orders: data.orders,
+        rawOrders: data.orders,
+        nextOrderInfo: data.nextOrderInfo,
+        orderDateStr: data.orderDateStr,
+        currentStrat: data.currentStrat,
+        inv: data.inv,
+        isSynced: true
+      };
+      return mergedRes;
+    }
+    return null;
+  } catch (err) {
+    console.warn(`[CF-Order] API 주문 연산 실패 (로컬 엔진 폴백):`, err);
+    return null;
+  }
+};
 
 async function handleInstantOrder() {
   if (window.isServerSyncing) {
@@ -2220,7 +2459,10 @@ async function handleInstantOrder() {
 
   const executeSlot = async (cfg, isActive, slotNum) => {
     if (isActive) {
-      const res = await runBacktestMemory(cfg, false, slotNum);
+      let res = await fetchCalculateOrderFromServer(cfg, slotNum);
+      if (!res) {
+        res = await runBacktestMemory(cfg, false, slotNum);
+      }
       if (res && res.status !== "error") {
         updateUIWithResult(res, cfg, slotNum);
       }
@@ -3387,7 +3629,7 @@ function handleDeposit() {
   }).then(async () => { // ⭐️ async 추가
     showToast(`$${amount.toLocaleString()} 처리 완료! 데이터를 다시 불러옵니다.`, "💰");
     if (btn) btn.innerHTML = orgText;
-    await checkAndSyncWithServer(false); // 시트 데이터 강제 다시 불러오기
+    await checkAndSyncWithServer(false); // ⭐️ 서버 데이터 강제 다시 불러오기
   }).catch(e => {
     alert("처리 실패: 네트워크를 확인하세요.");
     setLED('error');

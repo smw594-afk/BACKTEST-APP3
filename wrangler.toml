@@ -1,0 +1,19 @@
+name = "autumn-limit-001e"
+main = "worker.js"
+compatibility_date = "2024-04-01"
+
+# ⏰ 백그라운드 자동 연산 스케줄러 설정 (한국 시간 화~토 오전 6시 10분 및 7시 10분 가동)
+# 미국 서머타임(DST) 적용 여부에 대응하기 위해 하루 2번 실행하며, 백엔드 중복 연산 방지 로직을 통해 하루에 1번만 안전하게 매칭됩니다.
+[triggers]
+crons = ["10 21 * * 2-6", "10 22 * * 2-6"] 
+
+# 🗄️ D1 에지 데이터베이스 바인딩 설정
+[[d1_databases]]
+binding = "DB"
+database_name = "backtest-db"
+database_id = "c8422418-0114-4c3a-9bd5-c4ee71d4da07"
+
+# ⚡ KV 네임스페이스 바인딩 설정 (주가 캐시 및 성능 최적화용)
+[[kv_namespaces]]
+binding = "VTOTAL_KV"
+id = "65636562b33a42c38bb16284c3b3d6cc"
