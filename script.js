@@ -1,6 +1,6 @@
 ﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.35";
+const APP_VERSION = "3.36";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -697,7 +697,7 @@ function renderCombinedOrderBook() {
   tbody.innerHTML = sortedOrders.map(o => {
     const cls = o[0] === '매수' ? 'buy' : 'sell';
     const sideText = (o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0];
-    return `<tr><td class="${cls}">${sideText}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`;
+    return `<tr><td class="${cls}">${sideText}</td><td class="${cls}">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}">${o[3]}주</td></tr>`;
   }).join('');
 }
 
@@ -2768,7 +2768,8 @@ function renderOrderTableSlot(orders, slotNum) {
 
   tbody.innerHTML = sortedOrders.map(o => {
     const sideText = (o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0];
-    return `<tr><td class="${o[0] === '매수' ? 'buy' : 'sell'}">${sideText}</td><td class="hidden">${o[1]}</td><td>$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td>${o[3]}주</td></tr>`;
+    const cls = o[0] === '매수' ? 'buy' : 'sell';
+    return `<tr><td class="${cls}">${sideText}</td><td class="hidden">${o[1]}</td><td class="${cls}">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}">${o[3]}주</td></tr>`;
   }).join('');
 }
 

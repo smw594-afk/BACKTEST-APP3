@@ -792,12 +792,12 @@ h2:hover {
 }
 
 .buy {
-  color: var(--danger);
+  color: #ef4444 !important;
   font-weight: 700;
 }
 
 .sell {
-  color: var(--primary);
+  color: #3b82f6 !important;
   font-weight: 700;
 }
 
