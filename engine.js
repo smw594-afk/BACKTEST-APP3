@@ -891,6 +891,11 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       }
     }
 
+    if (res.S.length === 0) {
+      peak = Math.max(peak, initialCash);
+      prev_total = initialCash;
+    }
+
     let rawOrderOutput = [], orderDateStr = "날짜 확인 불가";
     let nextOrderInfo = { tier: "-", mode: "-", weight: "-", qty: "-" };
 
@@ -985,7 +990,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       nextOrderInfo = { tier: tTier, mode: today_m, weight: (currentW * 100).toFixed(1), qty: todayBuyQty };
     }
 
-    let lastIdx = res.BA.length - 1, tAssets = res.BA[lastIdx];
+    let lastIdx = res.BA.length - 1, tAssets = lastIdx >= 0 ? res.BA[lastIdx] : initialCash;
     let totalRealizedProfit = fixFloat(cumulativeRealizedProfit);
     let tQty = inv.reduce((s, p) => s + p.qty, 0), avgPrice = tQty > 0 ? fixFloat(inv.reduce((s, p) => s + p.cost, 0) / tQty) : 0;
     let currPrice = full_c.length > 0 ? full_c[full_c.length - 1] : 0;
@@ -1010,7 +1015,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       realizedProfit: fixFloat(tAssets - base),
       qty: tQty, avgPrice: avgPrice, evalReturn: tQty > 0 ? (currPrice - avgPrice) / avgPrice : 0,
       evalVal: evalVal, cash: cash, depletion: tAssets > 0 ? (evalVal / tAssets) : 0,
-      currPrice: currPrice, currentMdd: res.BF[lastIdx],
+      currPrice: currPrice, currentMdd: lastIdx >= 0 ? res.BF[lastIdx] : 0,
       base: base, inout: cumulativeInOut, realPrincipal: realPrincipal, peak: peak
     };
 
@@ -1036,7 +1041,10 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       chartInout: res.INOUT,
       isSynced: false 
     };
-  } catch (e) { return { status: "error", message: e.toString() }; }
+  } catch (e) {
+    console.error("runBacktestMemory error:", e);
+    return { status: "error", message: e.toString() };
+  }
 }
 
 function calculateMonthlyData(dates, balances, mdds, inouts) {

@@ -226,7 +226,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
     }
   };
 
-  const minBarWidth = isYearly ? 100 : (isDaily ? 50 : 70);
+  const minBarWidth = isYearly ? 100 : (isDaily ? 35 : 49);
   const containerWidth = wrapper.parentElement.clientWidth;
   const neededWidth = labels.length * minBarWidth;
   wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';

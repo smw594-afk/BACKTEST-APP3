@@ -840,10 +840,25 @@ function updateSettingsTabButtons() {
   }
 }
 
+function getSlotDisabledKey(slotNum, userId = myUserId) {
+  return `vtotal_slot_disabled_${slotNum}_${userId || ""}`;
+}
+
+function isSlotLocallyDisabled(slotNum, userId = myUserId) {
+  return localStorage.getItem(getSlotDisabledKey(slotNum, userId)) === "1";
+}
+
+function setSlotLocallyDisabled(slotNum, disabled, userId = myUserId) {
+  const key = getSlotDisabledKey(slotNum, userId);
+  if (disabled) localStorage.setItem(key, "1");
+  else localStorage.removeItem(key);
+}
+
 function saveCurrentFormToSlot(slotNum) {
   const cfg = gatherParams();
   slotConfigs[slotNum] = cfg;
   localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify(cfg));
+  setSlotLocallyDisabled(slotNum, cfg?.basics?.strategy === "정지");
 }
 
 function loadSlotToForm(slotNum) {
@@ -978,7 +993,7 @@ async function handleLogin() {
           const initData = await initResp.json();
           for (let i = 1; i <= MAX_SLOTS; i++) {
             const prop = i === 1 ? 'config' : `config${i}`;
-            if (initData[prop]) {
+            if (initData[prop] && !isSlotLocallyDisabled(i, id)) {
               localStorage.setItem(`vtotal_conf${i}_${id}`, JSON.stringify(initData[prop]));
             }
           }
@@ -1419,11 +1434,30 @@ async function checkAndSyncWithServer(isInitial) {
     perfLastCheckTime = new Date().getTime();
 
     const syncSlotWithSheet = async (confData, perfSlotData, slotNum) => {
+      if (isSlotLocallyDisabled(slotNum)) {
+        const localStopped = localStorage.getItem(`vtotal_conf${slotNum}_${myUserId}`);
+        if (localStopped) {
+          try { slotConfigs[slotNum] = JSON.parse(localStopped); } catch (e) { }
+        } else {
+          slotConfigs[slotNum] = { basics: { strategy: "정지" } };
+          localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify(slotConfigs[slotNum]));
+        }
+        localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
+        localStorage.removeItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
+        localStorage.removeItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`);
+        lastBTResults[slotNum] = null;
+        globalMonthlyDataArr[slotNum] = null;
+        globalYearlyDataArr[slotNum] = null;
+        globalDailyDataArr[slotNum] = null;
+        return;
+      }
+
       if (!confData || !confData.basics || !confData.basics.strategy) {
         localStorage.removeItem(`vtotal_conf${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_snap${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`);
+        localStorage.removeItem(getSheetConfigSnapshotKey(slotNum));
         // ⭐️ 서버에 정보가 없으면 메모리의 이전 흔적도 깨끗이 비워줌
         slotConfigs[slotNum] = null;
         lastBTResults[slotNum] = null;
@@ -1439,6 +1473,7 @@ async function checkAndSyncWithServer(isInitial) {
       }
 
       localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
+      rememberSheetConfigSnapshot(slotNum, confData);
       slotConfigs[slotNum] = confData;
 
       let sheetLastDate = "1900-01-01";
@@ -1473,6 +1508,7 @@ async function checkAndSyncWithServer(isInitial) {
           // 1. 설정 꾸러미(conf) 업데이트 및 저장
           // 🚨 설정창의 갱신금(renewCash)을 덮어쓰는 로직을 삭제하여 사용자의 설정값을 보존합니다.
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
+          rememberSheetConfigSnapshot(slotNum, confData);
           slotConfigs[slotNum] = confData;
 
           // 2. 스냅샷 꾸러미(snap) 구성 및 저장
@@ -1669,6 +1705,51 @@ function buildSheetSavePayload(slot, config, states) {
   return payload;
 }
 
+function getSheetConfigSnapshotKey(slot) {
+  return `vtotal_sheet_conf_snapshot_${slot}_${myUserId}`;
+}
+
+function normalizeConfigForCompare(config) {
+  return JSON.stringify(config?.basics || {});
+}
+
+function hasSheetConfigChanged(slot, config) {
+  const saved = localStorage.getItem(getSheetConfigSnapshotKey(slot));
+  if (!saved) return false;
+  return saved !== normalizeConfigForCompare(config);
+}
+
+function rememberSheetConfigSnapshot(slot, config) {
+  if (config) localStorage.setItem(getSheetConfigSnapshotKey(slot), normalizeConfigForCompare(config));
+}
+
+function buildInitialSheetState(config) {
+  const basics = config && config.basics ? config.basics : {};
+  const startDate = basics.startDate || formatDateNY(new Date());
+  const initialCash = Number(unformatComma(basics.initialCash || basics.renewCash || 0)) || 0;
+  if (!startDate || initialCash <= 0) return null;
+
+  return {
+    date: startDate,
+    asset: initialCash,
+    inout: 0,
+    json: JSON.stringify({
+      cash: initialCash,
+      base_principal: initialCash,
+      base: initialCash,
+      realPrincipal: initialCash,
+      realizedProfit: 0,
+      holdings: []
+    })
+  };
+}
+
+function getDisplaySheetDate(slotNum, res = null, config = null) {
+  const rawDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "";
+  if (rawDate && rawDate !== "-" && rawDate !== "1900-01-01") return rawDate;
+  return config?.basics?.startDate || res?.chartDates?.[0] || res?.dailyStates?.[0]?.date || "-";
+}
+
 async function saveSlotToSheet(slot, config, states) {
   const payload = buildSheetSavePayload(slot, config, states);
   await fetch(GAS_URL, {
@@ -1678,15 +1759,32 @@ async function saveSlotToSheet(slot, config, states) {
   return { status: "success" };
 }
 
+function validateSheetAppendWindow(slot, config, sheetLastDate, options = {}) {
+  if (!sheetLastDate || sheetLastDate === "1900-01-01") return true;
+  const startDate = config?.basics?.startDate || "";
+  if (!startDate || startDate >= sheetLastDate) return true;
+
+  const msg = `저장 차단: 투자법 ${slot}의 시작일(${startDate})이 시트 마지막 날짜(${sheetLastDate})보다 과거입니다.\n\n기존 시트 기록 보호를 위해 시트에 반영하지 않았습니다.`;
+  if (options.alert) alert(msg);
+  else if (!options.silent) showToast(msg, "⚠️");
+  console.warn(msg);
+  return false;
+}
+
 function checkAndRunAutoSave() {
   for (let i = 1; i <= MAX_SLOTS; i++) {
     const res = lastBTResults[i];
     if (!res || !res.dailyStates) continue;
     
+    const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`) || "1900-01-01";
+    if (!validateSheetAppendWindow(i, slotConfigs[i], sheetLastDate, { silent: true })) continue;
+
     const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`) || "";
     const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
-    const newLogs = res.dailyStates.filter(s => !existingDatesSet.has(s.date));
-    
+    let newLogs = res.dailyStates.filter(s => !existingDatesSet.has(s.date));
+    if (sheetLastDate !== "1900-01-01") {
+      newLogs = newLogs.filter(s => s.date > sheetLastDate);
+    }
     if (newLogs.length === 0) continue;
     
     setLED('loading');
@@ -1750,11 +1848,14 @@ async function handleSave() {
     saveCurrentFormToSlot(targetSlot);
 
     if (!isSlotActive(targetSlot)) {
-      localStorage.removeItem(`vtotal_conf${targetSlot}_${myUserId}`);
       localStorage.removeItem(`vtotal_snap${targetSlot}_${myUserId}`);
       localStorage.removeItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`);
       localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
-      slotConfigs[targetSlot] = null;
+      const stoppedConfig = slotConfigs[targetSlot] || { basics: { strategy: "정지" } };
+      stoppedConfig.basics.strategy = "정지";
+      slotConfigs[targetSlot] = stoppedConfig;
+      localStorage.setItem(`vtotal_conf${targetSlot}_${myUserId}`, JSON.stringify(stoppedConfig));
+      setSlotLocallyDisabled(targetSlot, true);
       lastBTResults[targetSlot] = null;
       globalMonthlyDataArr[targetSlot] = null;
       globalYearlyDataArr[targetSlot] = null;
@@ -1777,27 +1878,76 @@ async function handleSave() {
       return;
     }
 
-    const targetRes = await runBacktestMemory(slotConfigs[targetSlot], false, targetSlot);
+    const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`) || "1900-01-01";
+    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`) || "";
+    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
+    const isFirstSheetSetup = sheetLastDate === "1900-01-01" && existingDatesSet.size === 0;
 
-    if (!targetRes || targetRes.status === "error") {
-      showToast("❌ 계산 중 오류가 발생했습니다.");
+    if (!validateSheetAppendWindow(targetSlot, slotConfigs[targetSlot], sheetLastDate, { alert: true })) {
       if (btn) btn.innerHTML = orgText;
       return;
     }
 
-    const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`) || "1900-01-01";
-    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`) || "";
-    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
+    if (!isFirstSheetSetup && hasSheetConfigChanged(targetSlot, slotConfigs[targetSlot])) {
+      const ok = confirm("시트에 기록이 있는 상태에서 설정값이 변경되었습니다.\n\n다시 한번 확인해주세요.\n\n확인을 누르면 변경된 설정값을 시트에 반영합니다.");
+      if (!ok) {
+        if (btn) btn.innerHTML = orgText;
+        return;
+      }
+    }
+
+    let targetRes = await runBacktestMemory(slotConfigs[targetSlot], false, targetSlot);
+    if (!targetRes || targetRes.status === "error") {
+      console.warn("시트 반영 전 계산 실패:", targetRes?.message || targetRes);
+      if (sheetLastDate === "1900-01-01") {
+        const initialState = buildInitialSheetState(slotConfigs[targetSlot]);
+        const parsed = initialState ? JSON.parse(initialState.json) : { cash: 0, base_principal: 0, realPrincipal: 0 };
+        targetRes = {
+          status: "success",
+          inv: [],
+          trades: [],
+          dailyStates: [],
+          chartDates: [],
+          chartBalances: [],
+          chartMdd: [],
+          chartInout: [],
+          summary: {
+            totalAssets: parsed.cash,
+            cash: parsed.cash,
+            base: parsed.base_principal,
+            realPrincipal: parsed.realPrincipal,
+            totalProfit: 0,
+            realizedProfit: 0,
+            qty: 0,
+            evalVal: 0,
+            currPrice: 0,
+            currentMdd: 0,
+            inout: 0
+          }
+        };
+      } else {
+        showToast("❌ 계산 중 오류가 발생했습니다.");
+        if (btn) btn.innerHTML = orgText;
+        return;
+      }
+    }
 
     let newLogs;
     if (sheetLastDate === "1900-01-01") {
       newLogs = targetRes.dailyStates || [];
     } else {
       newLogs = targetRes.dailyStates.filter(s => !existingDatesSet.has(s.date));
+      newLogs = newLogs.filter(s => s.date > sheetLastDate);
     }
 
     if (newLogs.length === 0) {
-      if (confirm("반영할 새로운 기록이 없습니다. \n\n만약 4/20일 등의 과거 기록이 시트에서 누락되었다면, [확인]을 눌러 전체 데이터를 강제로 다시 전송하시겠습니까?")) {
+      if (isFirstSheetSetup) {
+        if (!confirm("시트에 데이터가 없습니다.\n\n확인을 누르시면 설정값만 시트에 전송하여 첫 설정을 마치겠습니다.\n\n매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.")) {
+          if (btn) btn.innerHTML = orgText;
+          return;
+        }
+        newLogs = [];
+      } else if (confirm("시트에 새로 반영할 기록이 없습니다.\n\n시트의 설정값은 그대로 두고, 앱의 동기화 날짜 정보만 초기화하여 계산된 기록을 다시 전송하시겠습니까?")) {
         newLogs = targetRes.dailyStates || [];
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
         localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
@@ -1805,6 +1955,9 @@ async function handleSave() {
         if (btn) btn.innerHTML = orgText;
         return;
       }
+    } else if (isFirstSheetSetup && !confirm("시트에 데이터가 없습니다.\n\n확인을 누르시면 설정값만 시트에 전송하여 첫 설정을 마치겠습니다.\n\n매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.")) {
+      if (btn) btn.innerHTML = orgText;
+      return;
     }
 
     if (btn) btn.innerText = '저장 중...';
@@ -1823,6 +1976,7 @@ async function handleSave() {
 
     if (navigator.onLine) {
       await saveSlotToSheet(targetSlot, slotConfigs[targetSlot], newLogs);
+      rememberSheetConfigSnapshot(targetSlot, slotConfigs[targetSlot]);
 
       if (newLogs.length > 0) {
         let maxDate = sheetLastDate;
@@ -1838,7 +1992,7 @@ async function handleSave() {
         localStorage.setItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`, Array.from(existingDatesSet).join(","));
       }
 
-      showToast(`${newLogs.length}일치의 기록이 시트에 반영되었습니다.`, "✅");
+      showToast(newLogs.length > 0 ? `${newLogs.length}일치의 기록이 시트에 반영되었습니다.` : "설정값이 시트에 반영되었습니다. 매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.", "✅");
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
@@ -1888,9 +2042,24 @@ function checkPendingSync() {
 }
 window.addEventListener('online', checkPendingSync);
 
+function setupCashAutoFill(initialCashValue = "", renewCashValue = "") {
+  const pInput = document.getElementById('initialCash');
+  const rInput = document.getElementById('renewCash');
+  if (!pInput || !rInput) return;
+  rInput.dataset.manual = renewCashValue && renewCashValue !== initialCashValue ? "1" : (rInput.dataset.manual || "0");
+  pInput.oninput = function () {
+    pInput.value = formatComma(pInput.value);
+    if (rInput.dataset.manual !== "1") rInput.value = pInput.value;
+  };
+  rInput.oninput = function () {
+    rInput.dataset.manual = "1";
+    rInput.value = formatComma(rInput.value);
+  };
+}
+
 function initData(d) {
   if (!d || !d.basics) return; const b = d.basics;
-  document.getElementById('ticker').value = b.ticker || '';
+  document.getElementById('ticker').value = b.ticker || 'SOXL';
   document.getElementById('startDate').value = b.startDate || '';
   document.getElementById('endDate').value = b.endDate || '';
   document.getElementById('initialCash').value = formatComma(b.initialCash || '');
@@ -1899,16 +2068,18 @@ function initData(d) {
   document.getElementById('fBase').value = b.fBase !== undefined ? b.fBase : '';
   document.getElementById('fSec').value = b.fSec !== undefined ? b.fSec : '';
 
-  const pInput = document.getElementById('initialCash');
-  const rInput = document.getElementById('renewCash');
-  if (pInput && rInput) {
-    pInput.oninput = function () { pInput.value = formatComma(pInput.value); };
-    rInput.oninput = function () { rInput.value = formatComma(rInput.value); };
-  }
+  setupCashAutoFill(b.initialCash || "", b.renewCash || "");
   updateCurrentStatusUI(activeSettingsTab);
 }
 
-function handleStrategyChange(strategyName) { document.getElementById('strategySelect').value = strategyName; triggerOptimisticSave(); }
+function handleStrategyChange(strategyName) {
+  document.getElementById('strategySelect').value = strategyName;
+  if (strategyName) {
+    document.getElementById('fBase').value = 0;
+    document.getElementById('fSec').value = 0;
+  }
+  triggerOptimisticSave();
+}
 
 function gatherParams() {
   return {
@@ -1956,11 +2127,13 @@ function updateCurrentStatusUI(slotNum) {
     if (elRenew) elRenew.innerText = "-";
     if (elPrincipal) elPrincipal.innerText = "-";
     if (elCash) elCash.innerText = "-";
+    const elHoldings = document.getElementById('statHoldings');
+    if (elHoldings) elHoldings.innerHTML = '<span class="holdings-empty">보유 주식 없음</span>';
     return;
   }
 
   const s = res.summary;
-  const sheetDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "-";
+  const sheetDate = getDisplaySheetDate(slotNum, res, slotConfigs[slotNum]);
   const fmt = (val) => "$" + Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
   // ⭐️ [시트 값 통일] 현황판 출력 기준
@@ -2287,7 +2460,16 @@ function calculateCombinedPeriodData() {
 }
 
 function renderOrderViewSlot(res, slotNum) {
-  if (!res) return;
+  if (!res) {
+    renderOrderTableSlot([], slotNum);
+    renderHoldingsTableSlot([], "", slotNum);
+    const nameEl = document.getElementById('orderSlot' + slotNum + 'Name');
+    if (nameEl) nameEl.innerText = "";
+    const holdingsNameEl = document.getElementById('holdingsSlot' + slotNum + 'Name');
+    if (holdingsNameEl) holdingsNameEl.innerText = "";
+    refreshOrderViewUI();
+    return;
+  }
   renderOrderTableSlot(res.orders, slotNum);
   renderHoldingsTableSlot(res.inv || [], res.currentStrat, slotNum);
 
@@ -3102,7 +3284,7 @@ function getDisplayStatusData(res, slotNum) {
     }
     sheetDate = firstActiveDate || "-";
   } else {
-    sheetDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`) || "-";
+    sheetDate = getDisplaySheetDate(slotNum, res, slotConfigs[slotNum]);
   }
   
   let displayTotal = s.totalAssets !== undefined ? s.totalAssets : (s.total_assets || 0);
@@ -3146,7 +3328,32 @@ function getDisplayStatusData(res, slotNum) {
     displayEval = s.evalVal !== undefined ? s.evalVal : (displayTotal - displayCash);
   }
   
+  const calcEvalProfit = (targetRes) => {
+    const currPrice = parseFloat(targetRes?.summary?.currPrice || targetRes?.currPrice || 0);
+    if (!targetRes?.inv || currPrice <= 0) return null;
+    return targetRes.inv.reduce((sum, h) => {
+      const buyPrice = parseFloat(h.buy_price || h.buyPrice || 0);
+      const qty = parseFloat(h.qty || 0);
+      return sum + ((currPrice - buyPrice) * qty);
+    }, 0);
+  };
+
   let displayTotalProfit = displayTotal - displayPrincipal;
+  let displayEvalProfit = calcEvalProfit(res);
+  if (slotNum === 'Combined') {
+    displayEvalProfit = 0;
+    let hasHoldingsProfit = false;
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (!isSlotActive(i)) continue;
+      const p = calcEvalProfit(getBestResult(lastBTResults[i], i));
+      if (p !== null) {
+        displayEvalProfit += p;
+        hasHoldingsProfit = true;
+      }
+    }
+    if (!hasHoldingsProfit) displayEvalProfit = null;
+  }
+  if (displayEvalProfit === null) displayEvalProfit = displayEval * displayEvalReturn;
   
   return {
     date: sheetDate,
@@ -3159,6 +3366,7 @@ function getDisplayStatusData(res, slotNum) {
     currentMdd: displayCurrentMdd,
     yield: displayYield,
     evalReturn: displayEvalReturn,
+    evalProfit: displayEvalProfit,
     totalProfit: displayTotalProfit,
     depletion: displayDepletion,
     avgPrice: displayAvgPrice
@@ -3233,17 +3441,18 @@ function renderRealtimeStatusTable(table) {
   const metricsList = [
     { key: 'date', label: '날짜', type: 'raw' },
     { key: 'totalAssets', label: '총자산', type: 'fmt' },
-    { key: 'base', label: '갱신금', type: 'fmt' },
-    { key: 'cash', label: '예수금', type: 'fmt' },
-    { key: 'evalVal', label: '평가금', type: 'fmt' },
     { key: 'realPrincipal', label: '원금', type: 'fmt' },
     { key: 'yield', label: '수익률', type: 'color', pct: true },
     { key: 'totalProfit', label: '수익금', type: 'color' },
-    { key: 'evalReturn', label: '평가수익', type: 'color', pct: true },
+    { key: 'evalVal', label: '평가금', type: 'fmt' },
+    { key: 'evalProfit', label: '평가수익', type: 'color' },
+    { key: 'evalReturn', label: '평가수익률', type: 'color', pct: true },
     { key: 'qty', label: '주식수', type: 'raw', suffix: '주' },
     { key: 'avgPrice', label: '평균단가', type: 'price' },
     { key: 'currentMdd', label: '현재 MDD', type: 'color', pct: true },
-    { key: 'depletion', label: '진행도', type: 'color', pct: true }
+    { key: 'depletion', label: '진행도', type: 'color', pct: true },
+    { key: 'cash', label: '예수금', type: 'fmt' },
+    { key: 'base', label: '갱신금', type: 'fmt' }
   ];
 
   let html = '<div style="display:flex; flex-direction:column; width:100%; gap:1px; padding:2px; box-sizing:border-box;">';
@@ -3276,6 +3485,34 @@ function renderRealtimeStatusTable(table) {
 }
 
 function renderMetrics(s, days, slotNum) { refreshStatsTable(); }
+
+function setupDragScrollX(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el || el.dataset.dragScrollReady === "1") return;
+  el.dataset.dragScrollReady = "1";
+  let dragging = false;
+  let startX = 0;
+  let startLeft = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    if (el.scrollWidth <= el.clientWidth + 5) return;
+    dragging = true;
+    startX = e.clientX;
+    startLeft = el.scrollLeft;
+    el.setPointerCapture?.(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    el.scrollLeft = startLeft - (e.clientX - startX);
+  });
+  const stop = (e) => {
+    dragging = false;
+    try { el.releasePointerCapture?.(e.pointerId); } catch (_) { }
+  };
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+  el.addEventListener('pointerleave', stop);
+}
 
 
 
@@ -3319,6 +3556,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   setupSwipe('orderHeader', () => toggleOrderView());
+  setupDragScrollX('dualOrderContainer');
   setupSwipe('monthlyHeader', () => togglePeriodView());
 
   // ⭐️ 안전한 순환 로직: 무한루프 방지 및 비어있는 슬롯 자동 건너뛰기
@@ -3367,7 +3605,7 @@ function triggerIconAnim(iconId) {
 }
 
 function handleDeposit() {
-  const activeSlotName = (activeSettingsTab <= MAX_SLOTS) ? `V-QUANT 2-${activeSettingsTab}` : "V-QUANT 2";
+  const activeSlotName = slotConfigs[activeSettingsTab]?.basics?.strategy || `V-QUANT 2-${activeSettingsTab}`;
   let amountStr = prompt(`[${activeSlotName}] 얼마를 증액(입금)하시겠습니까?\n(달러 단위로 숫자만 입력하세요)`);
   if (!amountStr) return;
   let amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''));
@@ -3416,6 +3654,7 @@ function scheduleNextAutoSave() {
 }
 
 window.addEventListener('load', () => {
+  setupCashAutoFill();
   scheduleNextAutoSave();
 });
 

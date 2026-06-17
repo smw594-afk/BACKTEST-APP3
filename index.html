@@ -42,7 +42,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" defer></script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=cf_v3378">
 </head>
 
 <body>
@@ -81,7 +81,7 @@
       </div>
       <div id="alwaysVisibleInputs">
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">티커</label><input type="text" id="ticker" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">티커</label><select id="ticker" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"><option value="SOXL">SOXL</option><option value="TQQQ">TQQQ</option></select></div>
           <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">투자법</label>
             <select id="strategySelect" style="width: 100%; min-width: 0;" onchange="handleStrategyChange(this.value)">
               <option value="">-- 선택 안 함 --</option>
@@ -338,11 +338,6 @@
       <div class="section-header">
         <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/개별순환)" style="cursor:pointer;">📈 성과추이
         </h2>
-        <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()"
-          style="margin-left: auto; background: none; color: var(--text); border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-right: 0px; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: none;">
-          <img src="https://flagcdn.com/w40/kr.png"
-            style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">KRW
-        </button>
       </div>
       <div class="chart-container" id="chartBox"></div>
     </div>
@@ -350,7 +345,13 @@
     <div class="card panel-history hidden" id="panelHistory">
       <div class="section-header">
         <h2 id="historyTitle">📜 실전 매도 내역</h2>
-        <div id="historyActionArea" style="margin-left:auto; display:flex; gap:8px;"></div>
+        <div id="historyActionArea" style="margin-left:auto; display:flex; gap:8px;">
+          <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()"
+            style="background: none; color: var(--text); border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-right: 0px; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: none;">
+            <img src="https://flagcdn.com/w40/kr.png"
+              style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">KRW
+          </button>
+        </div>
       </div>
       <div class="slim-scroll" style="flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:4px 0;">
         <table id="historyTable" style="width:100%; border-collapse:collapse; font-size:10.5px; color:var(--text-white); min-width:100%;">
@@ -504,9 +505,9 @@
     </div>
   </div>
 
-  <script src="engine.js?v=cf_v3353" defer></script>
-  <script src="core.js?v=cf_v3353" defer></script>
-  <script src="script.js?v=cf_v3353" defer></script>
+  <script src="engine.js?v=cf_v3378" defer></script>
+  <script src="core.js?v=cf_v3378" defer></script>
+  <script src="script.js?v=cf_v3378" defer></script>
 
 </body>
 

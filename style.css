@@ -75,7 +75,7 @@ body {
 
 .order-scroll-area {
   overscroll-behavior-y: none;
-  overscroll-behavior-x: auto !important;
+  overscroll-behavior-x: contain !important;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -187,16 +187,19 @@ body {
 }
 
 .dashboard-grid.order-expanded {
-  grid-template-areas: "order" "order" "chart" !important;
-  grid-template-rows: 1fr 1.5fr 1.5fr !important;
+  grid-template-areas: "order" !important;
+  grid-template-rows: 1fr !important;
 }
 
 .dashboard-grid.force-3-col.order-expanded {
-  grid-template-areas: "order order settings" "chart chart chart" !important;
-  grid-template-rows: 1fr 1fr !important;
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "order" !important;
+  grid-template-rows: 1fr !important;
 }
 
-.dashboard-grid.order-expanded .panel-monthly {
+.dashboard-grid.order-expanded .panel-monthly,
+.dashboard-grid.order-expanded .panel-chart,
+.dashboard-grid.order-expanded .panel-settings {
   display: none !important;
 }
 
@@ -574,6 +577,18 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   user-select: none;
 }
 
+[id^="orderView"] .data-table td,
+#combinedOrderView .data-table td {
+  background: rgba(255, 255, 255, 0.012) !important;
+  border: none !important;
+}
+
+body.light-mode [id^="orderView"] .data-table td,
+body.light-mode #combinedOrderView .data-table td {
+  background: rgba(0, 0, 0, 0.012) !important;
+  border: none !important;
+}
+
 .data-table tr td:first-child {
   border-radius: 3px 0 0 3px;
 }
@@ -882,10 +897,10 @@ h2:hover {
 
 /* 주문 슬롯 컨테이너 */
 .order-slot-container {
-  flex: 1;
+  flex: 1 1 110px;
   display: flex;
   flex-direction: column;
-  min-width: 40px;
+  min-width: 110px;
   display: none;
 }
 .order-slot-container.has-border-left {
@@ -897,6 +912,7 @@ h2:hover {
 .order-scroll-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 
@@ -997,7 +1013,8 @@ h2:hover {
   }
 
   .dashboard-grid.order-expanded {
-    grid-template-areas: "order" "order" "chart" !important;
+    grid-template-areas: "order" !important;
+    grid-template-rows: 1fr !important;
   }
 
   .dashboard-grid.hide-order-panel {
@@ -1268,6 +1285,12 @@ h2:hover {
   -webkit-overflow-scrolling: touch;
 }
 
+#dualOrderContainer {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  touch-action: pan-x pan-y;
+}
+
 /* 4. 테이블 셀 압축 방지 (6슬롯 데이터 늘어남 대응) */
 .data-table th,
 .data-table td {
@@ -1399,12 +1422,12 @@ body.light-mode #historyTable td {
 /* 보유현황 스타일 (주문표와 동일하게 변경) */
 #combinedHoldingsView .data-table td,
 [id^="holdingsView"] .data-table td {
-  background: rgba(255, 255, 255, 0.02) !important;
+  background: rgba(255, 255, 255, 0.012) !important;
   border: none !important;
 }
 body.light-mode #combinedHoldingsView .data-table td,
 body.light-mode [id^="holdingsView"] .data-table td {
-  background: rgba(0, 0, 0, 0.02) !important;
+  background: rgba(0, 0, 0, 0.012) !important;
   border: none !important;
 }
 
@@ -1452,6 +1475,21 @@ body.light-mode [id^="holdingsView"] .data-table th {
 /* 보유현황 보기 상태일 때 주문 슬롯 컨테이너의 min-width를 320px로 복원 */
 .holdings-view-active .order-slot-container {
   min-width: 320px !important;
+}
+
+.holdings-view-active #combinedOrderSlot {
+  flex: 1 1 100% !important;
+  min-width: 100% !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.holdings-view-active #combinedHoldingsView {
+  width: 100% !important;
+}
+
+.holdings-view-active #combinedHoldingsView .data-table {
+  width: 100% !important;
 }
 
 /* 수익금 전용 파란색(+) 및 빨간색(-) 색상 정의 */
