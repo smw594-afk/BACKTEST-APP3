@@ -316,8 +316,11 @@ function preparePerfLayout() {
     if (btnPeriodModeDaily) btnPeriodModeDaily.innerHTML = '<span>📊</span>';
   }
 
-  // 기존 환율 버튼은 숨김 (statsTable 영역만 노출)
   currencyBtns.forEach(btn => { btn.style.display = 'none'; });
+  const dailyCurrencyBtn = document.getElementById('btnCurrencyToggleDaily');
+  if (dailyCurrencyBtn) dailyCurrencyBtn.style.display = 'flex';
+  const chartCurrencyBtn = document.getElementById('btnCurrencyToggleChart');
+  if (chartCurrencyBtn) chartCurrencyBtn.style.display = 'none';
 
   const statsCurrencyBtn = document.getElementById('statsCurrencyToggle');
   if (statsCurrencyBtn) statsCurrencyBtn.style.display = 'flex';
@@ -363,6 +366,10 @@ function restoreFromPerfLayout() {
   if (perfDailyChartCard) perfDailyChartCard.classList.add('hidden');
 
   currencyBtns.forEach(btn => { btn.style.display = 'none'; });
+  const dailyCurrencyBtn = document.getElementById('btnCurrencyToggleDaily');
+  if (dailyCurrencyBtn) dailyCurrencyBtn.style.display = 'none';
+  const chartCurrencyBtn = document.getElementById('btnCurrencyToggleChart');
+  if (chartCurrencyBtn) chartCurrencyBtn.style.display = 'flex';
 
   const statsCurrencyBtn = document.getElementById('statsCurrencyToggle');
   if (statsCurrencyBtn) statsCurrencyBtn.style.display = 'none';
@@ -1610,8 +1617,8 @@ async function checkAndSyncWithServer(isInitial) {
                 // 마지막 데이터(오늘)에 대해, 시트에 이미 기록된 날짜라면 시트 값을 우선하되,
                 // 시트에 아직 없는 '오늘'의 계산값이라면 엔진의 값을 보존합니다.
                 if (idx === arr.length - 1) {
-                  const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
-                  if (state.date <= sheetLastDate) {
+                  const sheetLastDate = normalizeSheetStateDate(localStorage.getItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`));
+                  if (normalizeSheetStateDate(state.date) <= sheetLastDate) {
                     // 시트에 이미 저장된 날짜인 경우에만 시트 값으로 동기화 (박제)
                     state.asset = realData.summary.totalAssets;
                     parsed.cash = realData.summary.cash;
@@ -1682,6 +1689,31 @@ async function checkAndSyncWithServer(isInitial) {
   }
 }
 
+function normalizeSheetStateDate(value) {
+  if (!value) return "";
+  let text = String(value).trim();
+  text = text.replace(/\s*\(.*?\)\s*/g, "");
+  text = text.replace(/[년월일.\/,_]/g, "-");
+  text = text.replace(/\s+/g, "");
+  if (text.endsWith("-")) text = text.slice(0, -1);
+
+  const parts = text.split("-");
+  if (parts.length >= 3) {
+    let year = parts[0];
+    if (year.length === 2) year = `20${year}`;
+    return `${year}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+  }
+
+  return text.split("T")[0];
+}
+
+function sortSheetStates(states) {
+  return (states || [])
+    .filter(state => state && normalizeSheetStateDate(state.date))
+    .slice()
+    .sort((a, b) => normalizeSheetStateDate(a.date).localeCompare(normalizeSheetStateDate(b.date)));
+}
+
 function buildSheetSavePayload(slot, config, states) {
   const payload = {
     action: "AUTO_DAILY_SAVE",
@@ -1692,11 +1724,18 @@ function buildSheetSavePayload(slot, config, states) {
     payload[slot === 1 ? "params" : `params${slot}`] = config;
   }
 
-  payload.logs = (states || []).map(state => {
-    const row = { date: state.date };
+  const sortedStates = sortSheetStates(states);
+  let previousCumulativeInout = sortedStates.length > 0 ? (Number(sortedStates[0].inout) || 0) : 0;
+
+  payload.logs = sortedStates.map((state, index) => {
+    const currentCumulativeInout = Number(state.inout) || 0;
+    const dailyInout = index === 0 ? 0 : currentCumulativeInout - previousCumulativeInout;
+    previousCumulativeInout = currentCumulativeInout;
+
+    const row = { date: normalizeSheetStateDate(state.date) };
     row[`s${slot}`] = {
       asset: state.asset,
-      inout: state.inout || 0,
+      inout: dailyInout,
       json: state.json
     };
     return row;
@@ -1763,6 +1802,7 @@ function validateSheetAppendWindow(slot, config, sheetLastDate, options = {}) {
   if (!sheetLastDate || sheetLastDate === "1900-01-01") return true;
   const startDate = config?.basics?.startDate || "";
   if (!startDate || startDate >= sheetLastDate) return true;
+  if (!options.enforceStartDate) return true;
 
   const msg = `저장 차단: 투자법 ${slot}의 시작일(${startDate})이 시트 마지막 날짜(${sheetLastDate})보다 과거입니다.\n\n기존 시트 기록 보호를 위해 시트에 반영하지 않았습니다.`;
   if (options.alert) alert(msg);
@@ -1776,15 +1816,16 @@ function checkAndRunAutoSave() {
     const res = lastBTResults[i];
     if (!res || !res.dailyStates) continue;
     
-    const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`) || "1900-01-01";
+    const sheetLastDate = normalizeSheetStateDate(localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`)) || "1900-01-01";
     if (!validateSheetAppendWindow(i, slotConfigs[i], sheetLastDate, { silent: true })) continue;
 
     const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`) || "";
     const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
-    let newLogs = res.dailyStates.filter(s => !existingDatesSet.has(s.date));
+    let newLogs = res.dailyStates.filter(s => !existingDatesSet.has(normalizeSheetStateDate(s.date)));
     if (sheetLastDate !== "1900-01-01") {
-      newLogs = newLogs.filter(s => s.date > sheetLastDate);
+      newLogs = newLogs.filter(s => normalizeSheetStateDate(s.date) > sheetLastDate);
     }
+    newLogs = sortSheetStates(newLogs);
     if (newLogs.length === 0) continue;
     
     setLED('loading');
@@ -1792,10 +1833,13 @@ function checkAndRunAutoSave() {
     saveSlotToSheet(i, slotConfigs[i], newLogs)
     .then(data => {
       if (data.status === "success") {
-        const maxDate = newLogs.reduce((max, s) => s.date > max ? s.date : max, "1900-01-01");
+        const maxDate = newLogs.reduce((max, s) => {
+          const date = normalizeSheetStateDate(s.date);
+          return date > max ? date : max;
+        }, "1900-01-01");
         localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, maxDate);
         
-        newLogs.forEach(s => existingDatesSet.add(s.date));
+        newLogs.forEach(s => existingDatesSet.add(normalizeSheetStateDate(s.date)));
         localStorage.setItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`, Array.from(existingDatesSet).join(","));
         
         setLED('on');
@@ -1878,17 +1922,19 @@ async function handleSave() {
       return;
     }
 
-    const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`) || "1900-01-01";
+    const sheetLastDate = normalizeSheetStateDate(localStorage.getItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`)) || "1900-01-01";
     const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`) || "";
     const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
     const isFirstSheetSetup = sheetLastDate === "1900-01-01" && existingDatesSet.size === 0;
 
-    if (!validateSheetAppendWindow(targetSlot, slotConfigs[targetSlot], sheetLastDate, { alert: true })) {
+    const configChangedFromSheet = !isFirstSheetSetup && hasSheetConfigChanged(targetSlot, slotConfigs[targetSlot]);
+
+    if (!validateSheetAppendWindow(targetSlot, slotConfigs[targetSlot], sheetLastDate, { alert: true, enforceStartDate: configChangedFromSheet })) {
       if (btn) btn.innerHTML = orgText;
       return;
     }
 
-    if (!isFirstSheetSetup && hasSheetConfigChanged(targetSlot, slotConfigs[targetSlot])) {
+    if (configChangedFromSheet) {
       const ok = confirm("시트에 기록이 있는 상태에서 설정값이 변경되었습니다.\n\n다시 한번 확인해주세요.\n\n확인을 누르면 변경된 설정값을 시트에 반영합니다.");
       if (!ok) {
         if (btn) btn.innerHTML = orgText;
@@ -1936,9 +1982,10 @@ async function handleSave() {
     if (sheetLastDate === "1900-01-01") {
       newLogs = targetRes.dailyStates || [];
     } else {
-      newLogs = targetRes.dailyStates.filter(s => !existingDatesSet.has(s.date));
-      newLogs = newLogs.filter(s => s.date > sheetLastDate);
+      newLogs = targetRes.dailyStates.filter(s => !existingDatesSet.has(normalizeSheetStateDate(s.date)));
+      newLogs = newLogs.filter(s => normalizeSheetStateDate(s.date) > sheetLastDate);
     }
+    newLogs = sortSheetStates(newLogs);
 
     if (newLogs.length === 0) {
       if (isFirstSheetSetup) {
@@ -1948,7 +1995,7 @@ async function handleSave() {
         }
         newLogs = [];
       } else if (confirm("시트에 새로 반영할 기록이 없습니다.\n\n시트의 설정값은 그대로 두고, 앱의 동기화 날짜 정보만 초기화하여 계산된 기록을 다시 전송하시겠습니까?")) {
-        newLogs = targetRes.dailyStates || [];
+        newLogs = sortSheetStates(targetRes.dailyStates || []);
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
         localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
       } else {
@@ -1962,18 +2009,6 @@ async function handleSave() {
 
     if (btn) btn.innerText = '저장 중...';
 
-    const trueSnap = lastBTResults[targetSlot];
-    if (trueSnap && trueSnap.summary && newLogs.length > 0) {
-      const lastLog = newLogs[newLogs.length - 1];
-      lastLog.asset = trueSnap.summary.totalAssets;
-      let parsed = JSON.parse(lastLog.json);
-      parsed.cash = trueSnap.summary.cash;
-      parsed.base_principal = trueSnap.summary.base;
-      parsed.realPrincipal = trueSnap.summary.realPrincipal;
-      parsed.holdings = trueSnap.inv.map(p => ({ ...p }));
-      lastLog.json = JSON.stringify(parsed);
-    }
-
     if (navigator.onLine) {
       await saveSlotToSheet(targetSlot, slotConfigs[targetSlot], newLogs);
       rememberSheetConfigSnapshot(targetSlot, slotConfigs[targetSlot]);
@@ -1984,8 +2019,9 @@ async function handleSave() {
         const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
 
         newLogs.forEach(s => {
-          if (s.date > maxDate) maxDate = s.date;
-          existingDatesSet.add(s.date);
+          const date = normalizeSheetStateDate(s.date);
+          if (date > maxDate) maxDate = date;
+          existingDatesSet.add(date);
         });
 
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, maxDate);

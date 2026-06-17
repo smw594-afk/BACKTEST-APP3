@@ -42,7 +42,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" defer></script>
-  <link rel="stylesheet" href="style.css?v=cf_v3378">
+  <link rel="stylesheet" href="style.css?v=cf_v3383">
 </head>
 
 <body>
@@ -259,8 +259,8 @@
     <div class="card panel-monthly-chart hidden" id="panelMonthlyChart">
       <div class="section-header swipe-handler" id="monthlyChartHeader">
         <h2 id="periodChartTitle" class="period-toggle" onclick="togglePeriodView()" title="월별 성과">📅 월별 성과 그래프</h2>
-        <!-- 성과 탭 전용 월별 차트/테이블 토글 버튼 -->
-        <button id="btnPeriodModeMonthly" onclick="togglePeriodDisplayModeMonthly()" class="btn-icon-sub" title="차트/테이블 전환"
+        <!-- 성과 탭 전용 일괄 차트/테이블 토글 버튼 -->
+        <button id="btnPeriodModeYearly" onclick="togglePeriodDisplayModeYearly()" class="btn-icon-sub" title="차트/테이블 전환"
           style="font-size:20px; display:none; align-items:center; justify-content:center; margin-left:auto;">
           <span>🔢</span>
         </button>
@@ -284,10 +284,9 @@
     <div class="card panel-daily-chart hidden" id="panelDailyChart">
       <div class="section-header swipe-handler" id="dailyChartHeader">
         <h2 id="periodDailyTitle" class="period-toggle" title="일별 성과">📅 일별 성과 그래프</h2>
-        <!-- 성과 탭 전용 일괄 차트/테이블 토글 버튼 (4단 이동) -->
-        <button id="btnPeriodModeYearly" onclick="togglePeriodDisplayModeYearly()" class="btn-icon-sub" title="차트/테이블 전환"
-          style="font-size:20px; display:none; align-items:center; justify-content:center; margin-left:auto;">
-          <span>🔢</span>
+        <button id="btnCurrencyToggleDaily" class="btn-currency-toggle" onclick="toggleCurrencyMode()" title="통화 전환"
+          style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; margin-left:auto; display:none; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
+          KRW
         </button>
       </div>
       <!-- 성과 탭 전용: 일별 성과 막대그래프 -->
@@ -338,6 +337,10 @@
       <div class="section-header">
         <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/개별순환)" style="cursor:pointer;">📈 성과추이
         </h2>
+        <button id="btnCurrencyToggleChart" class="btn-currency-toggle" onclick="toggleCurrencyMode()" title="통화 전환"
+          style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; margin-left:auto; display:flex; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
+          KRW
+        </button>
       </div>
       <div class="chart-container" id="chartBox"></div>
     </div>
@@ -505,9 +508,9 @@
     </div>
   </div>
 
-  <script src="engine.js?v=cf_v3378" defer></script>
-  <script src="core.js?v=cf_v3378" defer></script>
-  <script src="script.js?v=cf_v3378" defer></script>
+  <script src="engine.js?v=cf_v3383" defer></script>
+  <script src="core.js?v=cf_v3383" defer></script>
+  <script src="script.js?v=cf_v3383" defer></script>
 
 </body>
 
