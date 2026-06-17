@@ -868,6 +868,19 @@ function saveCurrentFormToSlot(slotNum) {
   setSlotLocallyDisabled(slotNum, cfg?.basics?.strategy === "정지");
 }
 
+function applySheetConfigToSlot(slotNum, confData) {
+  if (!confData || !confData.basics) return;
+  if (confData.basics.strategy === 'RSI 3M') confData.basics.strategy = '3M3D1-R';
+
+  slotConfigs[slotNum] = { basics: { ...confData.basics } };
+  localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify(slotConfigs[slotNum]));
+  rememberSheetConfigSnapshot(slotNum, slotConfigs[slotNum]);
+
+  if (slotNum === activeSettingsTab) {
+    initData(slotConfigs[slotNum]);
+  }
+}
+
 function loadSlotToForm(slotNum) {
   const cfg = slotConfigs[slotNum];
   if (cfg && cfg.basics) {
@@ -1475,13 +1488,7 @@ async function checkAndSyncWithServer(isInitial) {
       }
 
       // 호환성 처리: 시트에 저장된 구버전 전략명 마이그레이션
-      if (confData.basics.strategy === 'RSI 3M') {
-        confData.basics.strategy = '3M3D1-R';
-      }
-
-      localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
-      rememberSheetConfigSnapshot(slotNum, confData);
-      slotConfigs[slotNum] = confData;
+      applySheetConfigToSlot(slotNum, confData);
 
       let sheetLastDate = "1900-01-01";
       let existingDates = [];
@@ -1513,7 +1520,6 @@ async function checkAndSyncWithServer(isInitial) {
           const trueRealPrincipal = realData.summary.realPrincipal;
 
           // 1. 설정 꾸러미(conf) 업데이트 및 저장
-          // 🚨 설정창의 갱신금(renewCash)을 덮어쓰는 로직을 삭제하여 사용자의 설정값을 보존합니다.
           localStorage.setItem(`vtotal_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
           rememberSheetConfigSnapshot(slotNum, confData);
           slotConfigs[slotNum] = confData;
@@ -2082,14 +2088,21 @@ function setupCashAutoFill(initialCashValue = "", renewCashValue = "") {
   const pInput = document.getElementById('initialCash');
   const rInput = document.getElementById('renewCash');
   if (!pInput || !rInput) return;
-  rInput.dataset.manual = renewCashValue && renewCashValue !== initialCashValue ? "1" : (rInput.dataset.manual || "0");
+  const initialRaw = unformatComma(initialCashValue || "");
+  const renewRaw = unformatComma(renewCashValue || "");
+  rInput.dataset.manual = renewRaw && renewRaw !== initialRaw ? "1" : "0";
   pInput.oninput = function () {
     pInput.value = formatComma(pInput.value);
-    if (rInput.dataset.manual !== "1") rInput.value = pInput.value;
+    if (rInput.dataset.manual !== "1" || !unformatComma(rInput.value)) {
+      rInput.dataset.manual = "0";
+      rInput.value = pInput.value;
+    }
   };
   rInput.oninput = function () {
-    rInput.dataset.manual = "1";
     rInput.value = formatComma(rInput.value);
+    const nextRenew = unformatComma(rInput.value);
+    const nextInitial = unformatComma(pInput.value);
+    rInput.dataset.manual = nextRenew && nextRenew !== nextInitial ? "1" : "0";
   };
 }
 
