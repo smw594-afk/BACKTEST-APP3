@@ -379,7 +379,7 @@ body {
 .sub-actions-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 
 .hidden {
@@ -580,13 +580,13 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
 [id^="orderView"] .data-table td,
 #combinedOrderView .data-table td {
-  background: rgba(255, 255, 255, 0.012) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
   border: none !important;
 }
 
 body.light-mode [id^="orderView"] .data-table td,
 body.light-mode #combinedOrderView .data-table td {
-  background: rgba(0, 0, 0, 0.012) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
   border: none !important;
 }
 
@@ -783,7 +783,7 @@ h2:hover {
 }
 
 .val-plus {
-  color: var(--success) !important;
+  color: #3b82f6 !important;
   font-weight: 700;
 }
 
@@ -807,9 +807,17 @@ h2:hover {
   font-weight: 700;
 }
 
+.buy-price {
+  color: #ef4444 !important;
+}
+
 .sell {
-  color: #3b82f6 !important;
+  color: var(--success) !important;
   font-weight: 700;
+}
+
+.sell-price {
+  color: var(--success) !important;
 }
 
 .chart-container {
@@ -1381,6 +1389,19 @@ body.light-mode .metric-card {
   border: 1px solid rgba(0, 0, 0, 0.05) !important;
 }
 
+body.light-mode .order-slot-container.has-border-left {
+  border-left-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-mode .tier-footer {
+  border-top-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-mode .monthly-slot-item,
+body.light-mode .monthly-slot-combined {
+  border-left-color: rgba(0, 0, 0, 0.12) !important;
+}
+
 body.light-mode .metric-value,
 body.light-mode .tier-footer span,
 body.light-mode #syncStatusDisplay span,
@@ -1408,6 +1429,56 @@ body.light-mode .section-header {
 
 body.light-mode .slot-title {
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode [id^="monthlySlot0"] > .slot-title {
+  color: var(--text-muted) !important;
+}
+
+body.light-mode [id^="monthlySlotCombined"] > .slot-title {
+  color: rgba(168, 85, 247, 0.9) !important;
+}
+
+body.light-mode [id^="slot1TableName"],
+body.light-mode #orderSlot1Name,
+body.light-mode #holdingsSlot1Name {
+  color: #6366f1 !important;
+}
+
+body.light-mode [id^="slot2TableName"],
+body.light-mode #orderSlot2Name,
+body.light-mode #holdingsSlot2Name {
+  color: #10b981 !important;
+}
+
+body.light-mode [id^="slot3TableName"],
+body.light-mode #orderSlot3Name,
+body.light-mode #holdingsSlot3Name {
+  color: #fbbf24 !important;
+}
+
+body.light-mode [id^="slot4TableName"],
+body.light-mode #orderSlot4Name,
+body.light-mode #holdingsSlot4Name {
+  color: #f43f5e !important;
+}
+
+body.light-mode [id^="slot5TableName"],
+body.light-mode #orderSlot5Name,
+body.light-mode #holdingsSlot5Name {
+  color: #8b5cf6 !important;
+}
+
+body.light-mode [id^="slot6TableName"],
+body.light-mode #orderSlot6Name,
+body.light-mode #holdingsSlot6Name {
+  color: #06b6d4 !important;
+}
+
+body.light-mode [id^="slot7TableName"],
+body.light-mode #orderSlot7Name,
+body.light-mode #holdingsSlot7Name {
+  color: #eab308 !important;
 }
 
 /* 실시간 운영현황 & 성과지표 음영 추가 (격자선 제거) */
@@ -1455,6 +1526,11 @@ body.light-mode #historyTable td {
   background: rgba(0, 0, 0, 0.02) !important;
 }
 
+.date-sync-highlight,
+.date-sync-highlight-row > td {
+  font-weight: 800 !important;
+}
+
 /* 통합 보유현황은 실전 매매내역과 같은 한 장짜리 테이블 스타일로 표시 */
 #combinedHoldingsView .data-table {
   border-collapse: separate !important;
@@ -1494,13 +1570,13 @@ body.light-mode #combinedHoldingsView .data-table td {
 
 /* 개별 보유현황은 투자법별 칸을 유지하고 전체 영역에서 좌우 스크롤 */
 [id^="holdingsView"] .data-table td {
-  background: rgba(255, 255, 255, 0.012) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
   border: none !important;
   font-size: var(--app-font-size, 10.5px) !important;
 }
 
 body.light-mode [id^="holdingsView"] .data-table td {
-  background: rgba(0, 0, 0, 0.012) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
   border: none !important;
 }
 
@@ -1544,6 +1620,11 @@ body.light-mode [id^="holdingsView"] .data-table th {
 
 #statsTable .stats-profit-rate {
   font-size: calc(var(--app-font-size, 10.5px) - 2px) !important;
+  line-height: 1;
+}
+
+#statsTable .stats-label-note {
+  font-size: calc(var(--app-font-size, 10.5px) - 1px) !important;
   line-height: 1;
 }
 
@@ -1601,26 +1682,53 @@ body.light-mode [id^="holdingsView"] .data-table th {
   font-weight: 700;
 }
 
+#combinedHoldingsBody .profit-plus,
+#combinedHoldingsBody .profit-minus,
+[id^="holdingsBody"] .profit-plus,
+[id^="holdingsBody"] .profit-minus,
+#historyTableBody .profit-plus,
+#historyTableBody .profit-minus {
+  font-weight: 400 !important;
+}
+
+#combinedHoldingsBody .date-sync-highlight-row > .profit-plus,
+#combinedHoldingsBody .date-sync-highlight-row > .profit-minus,
+[id^="holdingsBody"] .date-sync-highlight-row > .profit-plus,
+[id^="holdingsBody"] .date-sync-highlight-row > .profit-minus,
+#historyTableBody .date-sync-highlight-row > .profit-plus,
+#historyTableBody .date-sync-highlight-row > .profit-minus {
+  font-weight: 800 !important;
+}
+
 .stats-chart-legend {
   position: absolute;
-  inset: 6px 4px 6px 4px;
+  inset: 6px auto 6px 4px;
   z-index: 2;
-  display: grid;
-  grid-template-columns: 165px;
-  grid-auto-rows: min-content;
-  align-content: start;
-  justify-content: start;
-  gap: 4px;
-  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: calc(100% - 12px);
+  max-height: calc(100% - 12px);
+  padding-right: 2px;
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.stats-chart-legend::-webkit-scrollbar {
+  display: none;
 }
 
 .stats-donut-wrap {
   position: absolute;
-  left: calc(165px + (100% - 165px) / 2);
-  top: calc((100% - 34px) / 2);
-  width: clamp(150px, calc(100% - 190px), 205px);
-  height: clamp(150px, calc(100% - 48px), 205px);
-  max-height: calc(100% - 44px);
+  left: calc(172px + (100% - 172px) / 2);
+  top: 50%;
+  width: clamp(170px, min(calc(100% - 184px), calc(100% - 6px)), 320px);
+  height: clamp(170px, calc(100% - 6px), 320px);
+  max-height: calc(100% - 6px);
   transform: translate(-50%, -50%);
   display: flex;
   justify-content: center;
@@ -1635,42 +1743,46 @@ body.light-mode [id^="holdingsView"] .data-table th {
 
 .stats-asset-legend-row {
   display: grid;
+  flex: 0 0 auto;
   grid-template-columns: 8px 38px auto;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   width: 138px;
   min-width: 138px;
-  padding: 3px 5px;
-  border-radius: 7px;
+  min-height: 16px;
+  padding: 1px 4px;
+  border-radius: 5px;
   background: transparent;
   border: 1px solid transparent;
 }
 
 .stats-asset-cash,
 .stats-asset-eval,
-.stats-asset-principal {
-  position: absolute;
-  bottom: 0;
-  width: calc((100% - 9.6px) / 3);
+.stats-asset-principal,
+.stats-asset-total {
+  position: static;
+  width: 153px;
   min-width: 0;
-  grid-template-columns: 8px 26px minmax(0, 1fr);
+  grid-template-columns: 8px 38px auto;
   gap: 1px;
 }
 
 .stats-asset-eval {
-  left: 0;
   background: rgba(37, 99, 235, 0.16);
   border-color: rgba(37, 99, 235, 0.32);
 }
 
 .stats-asset-cash {
-  left: calc((100% - 9.6px) / 3 + 4.8px);
   background: rgba(124, 58, 237, 0.16);
   border-color: rgba(124, 58, 237, 0.32);
 }
 
 .stats-asset-principal {
-  left: calc((100% - 9.6px) / 3 * 2 + 9.6px);
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.stats-asset-total {
   background: rgba(255, 255, 255, 0.02);
   border-color: rgba(255, 255, 255, 0.06);
 }
@@ -1737,6 +1849,11 @@ body.light-mode .stats-asset-principal {
   border-color: rgba(15, 23, 42, 0.08);
 }
 
+body.light-mode .stats-asset-total {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
 body.light-mode .stats-asset-plain {
   background: rgba(0, 0, 0, 0.02);
   border-color: rgba(15, 23, 42, 0.08);
@@ -1752,4 +1869,11 @@ body.light-mode .profit-plus {
 }
 body.light-mode .profit-minus {
   color: #b91c1c !important; /* 라이트 모드 빨간색 */
+}
+body.light-mode .val-plus {
+  color: #1d4ed8 !important;
+}
+
+body.light-mode .val-minus {
+  color: #b91c1c !important;
 }

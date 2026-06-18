@@ -1,4 +1,4 @@
-﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.37";
 const MAX_SLOTS = 6;
@@ -50,6 +50,52 @@ function saveStatsDisplayMode() {
 
 function savePerfStatsMode() {
   localStorage.setItem(getPerfStatsModeKey(), perfStatsMode);
+}
+
+function normalizeHighlightDate(dateValue) {
+  if (!dateValue || dateValue === "-") return "";
+  const normalized = parseDateStr(dateValue);
+  if (!normalized || normalized === "-") return "";
+  return normalized.length === 10 ? normalized.substring(2) : normalized;
+}
+
+function getPrimaryStrategyDisplayDate() {
+  const res = getBestResult(lastBTResults[1], 1);
+  const rawDate = getDisplaySheetDate(1, res, slotConfigs[1]);
+  return normalizeHighlightDate(rawDate);
+}
+
+function isPrimaryStrategyDate(dateValue) {
+  const primaryDate = getPrimaryStrategyDisplayDate();
+  return primaryDate && normalizeHighlightDate(dateValue) === primaryDate;
+}
+
+function getDateHighlightClass(dateValue) {
+  return isPrimaryStrategyDate(dateValue) ? ' class="date-sync-highlight"' : '';
+}
+
+function applyPrimaryDateHighlight() {
+  const primaryDate = getPrimaryStrategyDisplayDate();
+  if (!primaryDate) return;
+  const selectors = [
+    '#combinedHoldingsBody tr td:nth-child(2)',
+    '[id^="holdingsBody"] tr td:nth-child(2)',
+    '#historyTableBody tr td:nth-child(3)'
+  ];
+  document.querySelectorAll(selectors.join(',')).forEach((cell) => {
+    const row = cell.closest('tr');
+    if (row) row.classList.toggle('date-sync-highlight-row', normalizeHighlightDate(cell.textContent) === primaryDate);
+  });
+}
+
+function resetOrderExpansion() {
+  const grid = document.getElementById('mainGrid');
+  const btn = document.getElementById('btnExpandOrder');
+  if (grid) {
+    grid.classList.remove('order-expanded');
+    if (periodViewState === 2) grid.classList.add('monthly-expanded');
+  }
+  if (btn) btn.classList.remove('active');
 }
 
 // 개별 보유현황 토글 함수
@@ -570,6 +616,7 @@ function updateStatsTitleByMode() {
 
 function showStatsView() {
   restoreFromPerfLayout();
+  resetOrderExpansion();
   // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode) {
     restoreLocalCache();
@@ -604,6 +651,7 @@ function showStatsView() {
 }
 
 function showPerfView() {
+  resetOrderExpansion();
   // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode) {
     restoreLocalCache();
@@ -828,7 +876,7 @@ function renderCombinedHoldings() {
       const profit = (o.currPrice - buyPrice) * qty;
       const sign = profit < 0 ? "-" : "";
       if (isCurrencyKRW) {
-        profitStr = sign + "₩" + Math.round(profit * currentFXRate).toLocaleString();
+        profitStr = sign + "₩" + Math.round(Math.abs(profit) * currentFXRate).toLocaleString();
       } else {
         profitStr = sign + "$" + Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2 });
       }
@@ -842,13 +890,14 @@ function renderCombinedHoldings() {
       buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
-    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 개별 보유현황 토글">#${o.slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td>${buyPriceStr}</td><td class="hide-on-cover sell-price" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}" style="font-weight:700;">${profitStr}</td></tr>`;
+    return `<tr><td style="cursor:pointer; text-decoration:underline; color:${SLOT_COLORS[(o.slotNum - 1) % SLOT_COLORS.length]};" onclick="toggleIndividualHoldings(event)" title="클릭하여 개별 보유현황 토글">#${o.slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td class="buy-price">${buyPriceStr}</td><td class="hide-on-cover sell-price">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 }
 
 function toggleOrderExpansion() {
   const grid = document.getElementById('mainGrid');
   const btn = document.getElementById('btnExpandOrder');
+  if (!grid || !btn) return;
   const isExpanded = grid.classList.toggle('order-expanded');
   if (isExpanded) { btn.classList.add('active'); grid.classList.remove('monthly-expanded'); }
   else { btn.classList.remove('active'); if (periodViewState === 2) grid.classList.add('monthly-expanded'); }
@@ -2707,6 +2756,8 @@ function refreshOrderViewUI() {
   const titleEl = document.getElementById('orderTitle');
   if (titleEl) titleEl.innerHTML = titleStr;
 
+  applyPrimaryDateHighlight();
+
   for (let i = 1; i <= MAX_SLOTS; i++) {
     ['orderView', 'holdingsView'].forEach(prefix => {
       const el = document.getElementById(prefix + i);
@@ -2786,7 +2837,7 @@ function renderHoldingsTableSlot(inv, stratName, slotNum) {
       const profit = (currPrice - buyPrice) * qty;
       const sign = profit < 0 ? "-" : "";
       if (isCurrencyKRW) {
-        profitStr = sign + "₩" + Math.round(profit * currentFXRate).toLocaleString();
+        profitStr = sign + "₩" + Math.round(Math.abs(profit) * currentFXRate).toLocaleString();
       } else {
         profitStr = sign + "$" + Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2 });
       }
@@ -2800,7 +2851,7 @@ function renderHoldingsTableSlot(inv, stratName, slotNum) {
       buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
-    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 통합 보유현황 토글">#${slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td>${buyPriceStr}</td><td class="hide-on-cover sell-price" style="color:var(--danger);">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}" style="font-weight:700;">${profitStr}</td></tr>`;
+    return `<tr><td style="cursor:pointer; text-decoration:underline;" onclick="toggleIndividualHoldings(event)" title="클릭하여 통합 보유현황 토글">#${slotNum}</td><td>${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td class="buy-price">${buyPriceStr}</td><td class="hide-on-cover sell-price">${sellPriceStr}</td><td>${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 }
 
@@ -3593,8 +3644,15 @@ function renderRealtimeStatusTable(table) {
     if (m.key === 'date') return v;
     
     if (m.type === 'fmt') {
-      if (isCurrencyKRW) return Math.round(Number(v) * fx / 10000).toLocaleString() + '만';
-      return '$' + Math.round(Number(v)).toLocaleString();
+      const formattedValue = isCurrencyKRW
+        ? Math.round(Number(v) * fx / 10000).toLocaleString() + '만'
+        : '$' + Math.round(Number(v)).toLocaleString();
+      if (m.key === 'evalVal') {
+        const depletion = Number(data.depletion || 0);
+        const progressText = (Math.abs(depletion) * 100).toFixed(1) + '%';
+        return `<span class="stats-profit-value">${formattedValue}<span class="stats-profit-rate">(${progressText})</span></span>`;
+      }
+      return formattedValue;
     }
     if (m.type === 'color') {
       let num = Number(v);
@@ -3631,22 +3689,21 @@ function renderRealtimeStatusTable(table) {
   const metricsList = [
     { key: 'date', label: '날짜', type: 'raw' },
     { key: 'totalAssets', label: '총자산', type: 'fmt' },
-    { key: 'realPrincipal', label: '원금', type: 'fmt' },
     { key: 'totalProfit', label: '총 수익', type: 'profitWithRate', rateKey: 'yield' },
     { key: 'yearProfit', label: '년 수익', type: 'period', kind: 'year' },
     { key: 'monthProfit', label: '월 수익', type: 'period', kind: 'month' },
     { key: 'dayProfit', label: '일 수익', type: 'period', kind: 'day' },
-    { key: 'evalVal', label: '평가금', type: 'fmt' },
     { key: 'evalProfit', label: '평가수익', type: 'profitWithRate', rateKey: 'evalReturn' },
     { key: 'qty', label: '주식수', type: 'raw', suffix: '주' },
+    { key: 'evalVal', label: '평가금<span class="stats-label-note">(진행도)</span>', type: 'fmt' },
     { key: 'avgPrice', label: '평균단가', type: 'price' },
     { key: 'currentMdd', label: '현재 MDD', type: 'color', pct: true },
-    { key: 'mdd', label: 'MDD', type: 'color', pct: true },
-    { key: 'depletion', label: '진행도', type: 'color', pct: true },
-    { key: 'cash', label: '예수금', type: 'fmt' },
-    { key: 'base', label: '갱신금', type: 'fmt' },
+    { key: 'mdd', label: '전체 MDD', type: 'color', pct: true },
     { key: 'cagr', label: 'CAGR', type: 'color', pct: true },
-    { key: 'calmar', label: '칼마비율', type: 'raw' }
+    { key: 'calmar', label: '칼마비율', type: 'raw' },
+    { key: 'realPrincipal', label: '원금', type: 'fmt' },
+    { key: 'base', label: '갱신금', type: 'fmt' },
+    { key: 'cash', label: '예수금', type: 'fmt' }
   ];
 
   let html = '<div style="display:flex; flex-direction:column; width:100%; gap:1px; padding:2px; box-sizing:border-box;">';
@@ -3976,15 +4033,16 @@ function renderDBTradeHistory() {
 
       return `<tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
         <td style="width:12%; padding:2px 1px; text-align:center; color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; font-size:10px;">#${slot}</td>
-        <td style="width:14%; padding:2px 1px; text-align:center; color:var(--text-muted); font-size:10px;">${buyDate}</td>
+        <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px;">${buyDate}</td>
         <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px;">${sellDate}</td>
         <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${mode}/T${tier}</td>
-        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${buyPriceStr}</td>
-        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${sellPriceStr}</td>
+        <td class="buy-price" style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${buyPriceStr}</td>
+        <td class="sell-price" style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${sellPriceStr}</td>
         <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;">${qty}</td>
-        <td style="width:12%; padding:2px 1px; text-align:center; font-weight:700; font-size:10px;" class="${profitClass}">${profitStr}</td>
+        <td style="width:12%; padding:2px 1px; text-align:center; font-size:10px;" class="${profitClass}">${profitStr}</td>
       </tr>`;
     }).join('');
+    applyPrimaryDateHighlight();
     console.log("[매매내역] 렌더링 완료. 총 거래 건수:", allTrades.length);
   } catch (e) {
     console.error("[매매내역] 렌더링 중 런타임 오류 발생:", e);
@@ -4286,15 +4344,39 @@ window.updateStatsPieChart = function() {
     return `${formatChartMoney(row.profit, true)}(${(Number(row.rate || 0) * 100).toFixed(1)}%)`;
   };
 
-  const legendRows = [
+  const colorizeProfitValue = (valueText, rawValue) => {
+    const num = Number(rawValue || 0);
+    if (num > 0) return `<span class="profit-plus">${valueText}</span>`;
+    if (num < 0) return `<span class="profit-minus">${valueText}</span>`;
+    return valueText;
+  };
+
+  const formatPeriodLegendValue = (row) => {
+    if (!row) return '-';
+    return colorizeProfitValue(formatPeriodValue(row), Number(row.profit || 0));
+  };
+
+  let legendRows = [
     { label: '총 수익', value: totalProfit, pctBase: realPrincipal, pctDigits: 1, tone: 'profit' },
     { label: '년 수익', customValue: formatPeriodValue(getLatestPeriodRow('year')), tone: 'profit' },
     { label: '월 수익', customValue: formatPeriodValue(getLatestPeriodRow('month')), tone: 'profit' },
     { label: '일 수익', customValue: formatPeriodValue(getLatestPeriodRow('day')), tone: 'profit' },
     { label: '평가금', value: evalVal, color: '#2563eb', pctBase: chartTotal, tone: 'eval' },
     { label: '예수금', value: cash, color: '#7c3aed', pctBase: chartTotal, tone: 'cash' },
-    { label: '원금', value: realPrincipal, tone: 'principal' }
+    { label: '원금', value: realPrincipal, tone: 'principal' },
+    { label: '총자산', value: totalAssets, tone: 'total' }
   ];
+  legendRows = [
+    { ...legendRows[0], customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}(${formatPct(totalProfit, realPrincipal, 1)})`, totalProfit), value: undefined, pctBase: undefined },
+    { ...legendRows[1], customValue: formatPeriodLegendValue(getLatestPeriodRow('year')) },
+    { ...legendRows[2], customValue: formatPeriodLegendValue(getLatestPeriodRow('month')) },
+    { ...legendRows[3], customValue: formatPeriodLegendValue(getLatestPeriodRow('day')) },
+    legendRows.find(row => row.tone === 'eval') || legendRows[4],
+    legendRows.find(row => row.tone === 'cash') || legendRows[5],
+    legendRows.find(row => row.tone === 'principal') || legendRows[6],
+    legendRows.find(row => row.tone === 'total') || legendRows[7]
+  ].filter(Boolean);
+
   const legendContainer = document.getElementById('statsChartLegend');
   if (legendContainer) {
     legendContainer.innerHTML = legendRows.map(row => `
@@ -4326,10 +4408,10 @@ window.updateStatsPieChart = function() {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `700 ${Math.max(10, appFontPx + 2)}px Outfit, Inter, sans-serif`;
-      ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';
+      ctx.fillStyle = isDark ? '#ffffff' : '#000000';
       ctx.fillText(formatChartMoney(totalAssets, true), centerX, centerY - 4);
       ctx.font = `600 ${Math.max(9, appFontPx)}px Outfit, Inter, sans-serif`;
-      ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.82)' : 'rgba(71, 85, 105, 0.82)';
+      ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.82)' : 'rgba(100, 116, 139, 0.85)';
       ctx.fillText('총자산', centerX, centerY + 13);
       ctx.restore();
     }
@@ -4342,11 +4424,11 @@ window.updateStatsPieChart = function() {
       datasets: [{
         data: [cash, evalVal],
         backgroundColor: ['#7c3aed', '#2563eb'],
-        borderWidth: isDark ? 2 : 1,
-        borderColor: isDark ? '#1e293b' : '#ffffff',
+        borderWidth: 0,
+        borderColor: 'transparent',
         borderRadius: 0,
         hoverOffset: 5,
-        spacing: 0
+        spacing: 2
       }]
     },
     plugins: [centerTextPlugin],

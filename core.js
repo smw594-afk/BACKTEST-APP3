@@ -231,7 +231,28 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
     }
   };
 
-  const minBarWidth = isYearly ? 100 : (isDaily ? 35 : 49);
+  const zeroLinePlugin = {
+    id: `periodZeroLine_${targetCanvasId}`,
+    beforeDatasetsDraw(chart) {
+      if (targetViewState === 1) return;
+      const yScale = chart.scales && chart.scales.y;
+      if (!yScale) return;
+      const yZero = yScale.getPixelForValue(0);
+      const { ctx, chartArea } = chart;
+      if (!chartArea || yZero < chartArea.top || yZero > chartArea.bottom) return;
+      const isLightMode = document.body.classList.contains('light-mode');
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, yZero);
+      ctx.lineTo(chartArea.right, yZero);
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = isLightMode ? 'rgba(15, 23, 42, 0.22)' : 'rgba(255, 255, 255, 0.22)';
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  const minBarWidth = isYearly ? 100 : (isDaily ? 35 : 39);
   const containerWidth = wrapper.parentElement.clientWidth;
   const neededWidth = labels.length * minBarWidth;
   wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';
@@ -243,7 +264,8 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
     options: {
       responsive: true, maintainAspectRatio: false,
       layout: { padding: { top: 15, bottom: 0, left: 0, right: 0 } },
-      interaction: { mode: 'index', intersect: false },
+      events: ['click'],
+      interaction: { mode: 'index', intersect: true },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -268,6 +290,24 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
           stacked: true, position: 'left', grid: { color: 'rgba(255, 255, 255, 0.05)', tickLength: 0, drawTicks: false, drawBorder: false },
           ticks: { font: { family: 'Inter', size: appFontSize - 0.5 }, color: '#94a3b8', callback: function (v) { return isCurrencyKRW ? v.toLocaleString() + '만' : '$' + v.toLocaleString(); } }
         },
+        yMirror: {
+          display: isDaily,
+          stacked: true,
+          position: 'right',
+          grid: { display: false, drawTicks: false, drawBorder: false },
+          afterDataLimits: function(scale) {
+            const yScale = scale.chart.scales.y;
+            if (!yScale) return;
+            scale.min = yScale.min;
+            scale.max = yScale.max;
+          },
+          afterBuildTicks: function(scale) {
+            const yScale = scale.chart.scales.y;
+            if (!yScale || !Array.isArray(yScale.ticks)) return;
+            scale.ticks = yScale.ticks.map(t => ({ ...t }));
+          },
+          ticks: { font: { family: 'Inter', size: appFontSize - 0.5 }, color: '#94a3b8', callback: function (v) { return isCurrencyKRW ? v.toLocaleString() + '\uB9CC' : '$' + v.toLocaleString(); } }
+        },
         yRate: {
           display: false,
           position: 'right', grid: { display: false },
@@ -276,7 +316,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
         }
       }
     },
-    plugins: [profitLabelPlugin]
+    plugins: [zeroLinePlugin, profitLabelPlugin]
   });
 
   if (targetCanvasId === 'periodBarChart') {
@@ -284,6 +324,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
   } else {
     window.barChartInstances[targetCanvasId] = chartInstance;
   }
+
 }
 
 // ---------------------------------------------------------
@@ -391,7 +432,7 @@ function renderChart(resultsArray) {
 
   const allDatesSet = new Set();
   validRes.forEach(r => r.chartDates.forEach(d => allDatesSet.add(d)));
-  const universalDates = Array.from(allDatesSet).sort();
+  const universalDates = Array.from(allDatesSet).sort().reverse();
   if (universalDates.length === 0) return;
 
   const shortDates = universalDates.map(d => {
@@ -456,6 +497,7 @@ function renderChart(resultsArray) {
     data: { labels: shortDates, datasets: datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      events: ['click'],
       interaction: { mode: 'index', intersect: false },
       plugins: {
         title: { display: false }, legend: { display: false },
