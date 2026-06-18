@@ -798,7 +798,7 @@ h2:hover {
 }
 
 #statsTable .stats-profit-rate {
-  font-size: calc(var(--app-font-size, 10.5px) - 3px);
+  font-size: calc(var(--app-font-size, 10.5px) - 2px);
   line-height: 1;
 }
 
@@ -1539,11 +1539,11 @@ body.light-mode [id^="holdingsView"] .data-table th {
 }
 
 #statsTable .stats-profit-value {
-  font-size: calc(var(--app-font-size, 10.5px) - 2px) !important;
+  font-size: calc(var(--app-font-size, 10.5px) - 1px) !important;
 }
 
 #statsTable .stats-profit-rate {
-  font-size: calc(var(--app-font-size, 10.5px) - 3px) !important;
+  font-size: calc(var(--app-font-size, 10.5px) - 2px) !important;
   line-height: 1;
 }
 
@@ -1618,9 +1618,9 @@ body.light-mode [id^="holdingsView"] .data-table th {
   position: absolute;
   left: calc(165px + (100% - 165px) / 2);
   top: calc((100% - 34px) / 2);
-  width: 142px;
-  height: 142px;
-  max-height: 205px;
+  width: clamp(150px, calc(100% - 190px), 205px);
+  height: clamp(150px, calc(100% - 48px), 205px);
+  max-height: calc(100% - 44px);
   transform: translate(-50%, -50%);
   display: flex;
   justify-content: center;
@@ -1629,8 +1629,8 @@ body.light-mode [id^="holdingsView"] .data-table th {
 }
 
 .stats-donut-wrap canvas {
-  max-width: 142px !important;
-  max-height: 142px !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
 }
 
 .stats-asset-legend-row {
@@ -1702,14 +1702,14 @@ body.light-mode [id^="holdingsView"] .data-table th {
 .stats-asset-label {
   color: var(--text-muted);
   font-size: var(--app-font-size, 10.5px);
-  font-weight: 400;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .stats-asset-legend-row b {
   color: var(--text);
   font-size: var(--app-font-size, 10.5px);
-  font-weight: 400;
+  font-weight: 700;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;

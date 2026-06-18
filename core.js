@@ -175,13 +175,18 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
       else if (isLast) borderRadius = { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 };
     }
 
+    const resolveBarRadius = (ctx) => {
+      const value = Number(ctx.raw || 0);
+      return value < 0 ? { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 } : borderRadius;
+    };
+
     datasets.push({
       label: (getSlotConfig(slotNum)?.basics?.strategy || `투자법 ${slotNum}`) + ' 수익금',
       data: slotProfits[slotNum],
       backgroundColor: SLOT_COLORS[(slotNum - 1) % SLOT_COLORS.length] + '80', // 반투명
       borderColor: SLOT_COLORS[(slotNum - 1) % SLOT_COLORS.length],
       borderWidth: 1,
-      borderRadius: borderRadius,
+      borderRadius: resolveBarRadius,
       yAxisID: 'y',
       stack: 'profit',
       order: 2

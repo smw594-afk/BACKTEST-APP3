@@ -26,6 +26,32 @@ let statsDisplayMode = "chart";
 let perfStatsMode = "performance";
 let statsPieChartInstance = null;
 
+function getStatsDisplayModeKey() {
+  return `vtotal_stats_display_mode_${myUserId || 'guest'}`;
+}
+
+function getPerfStatsModeKey() {
+  return `vtotal_perf_stats_mode_${myUserId || 'guest'}`;
+}
+
+function loadStatsDisplayMode() {
+  const saved = localStorage.getItem(getStatsDisplayModeKey());
+  return saved === 'table' ? 'table' : 'chart';
+}
+
+function loadPerfStatsMode() {
+  const saved = localStorage.getItem(getPerfStatsModeKey());
+  return saved === 'realtime' ? 'realtime' : 'performance';
+}
+
+function saveStatsDisplayMode() {
+  localStorage.setItem(getStatsDisplayModeKey(), statsDisplayMode);
+}
+
+function savePerfStatsMode() {
+  localStorage.setItem(getPerfStatsModeKey(), perfStatsMode);
+}
+
 // 개별 보유현황 토글 함수
 function toggleIndividualHoldings(event) {
   if (event) {
@@ -552,10 +578,10 @@ function showStatsView() {
 
   isStatsMode = true;
   isOrderView = false;
-  statsDisplayMode = "chart";
+  statsDisplayMode = loadStatsDisplayMode();
   
   const statsTitle = document.getElementById('statsTitle');
-  if (statsTitle) statsTitle.innerHTML = '💼 자산현황';
+  if (statsTitle) statsTitle.innerHTML = statsDisplayMode === 'chart' ? '💼 자산현황' : '📡 실시간 운영현황';
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
@@ -587,10 +613,10 @@ function showPerfView() {
   isStatsMode = false;
   isOrderView = false;
   statsDisplayMode = "table";
-  perfStatsMode = "performance";
+  perfStatsMode = loadPerfStatsMode();
   
   const statsTitle = document.getElementById('statsTitle');
-  if (statsTitle) statsTitle.innerHTML = '📄 성과 지표';
+  if (statsTitle) statsTitle.innerHTML = perfStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
@@ -3208,11 +3234,21 @@ function refreshStatsTable() {
   const selector = document.getElementById('statsMetricSelector');
 
   if (grid && grid.classList.contains('perf-metrics-layout')) {
-    // 내역 뷰: 자산현황 표시
-    if (tableContainer) tableContainer.style.display = 'none';
-    if (chartContainer) chartContainer.style.display = 'flex';
-    if (selector) selector.style.display = 'block';
-    if (actionArea) actionArea.style.display = 'none';
+    // 내역 뷰: 마지막으로 본 자산현황/실시간 운영현황 표시 상태를 유지
+    const statsTitle = document.getElementById('statsTitle');
+    if (statsTitle) statsTitle.innerHTML = statsDisplayMode === 'chart' ? '💼 자산현황' : '📡 실시간 운영현황';
+    if (statsDisplayMode === 'chart') {
+      if (tableContainer) tableContainer.style.display = 'none';
+      if (chartContainer) chartContainer.style.display = 'flex';
+      if (selector) selector.style.display = 'block';
+      if (actionArea) actionArea.style.display = 'none';
+      setTimeout(() => updateStatsPieChart(), 60);
+    } else {
+      if (tableContainer) tableContainer.style.display = 'block';
+      if (chartContainer) chartContainer.style.display = 'none';
+      if (selector) selector.style.display = 'none';
+      if (actionArea) actionArea.style.display = 'flex';
+    }
     renderRealtimeStatusTable(table);
   } else if (grid && grid.classList.contains('perf-tab-layout')) {
     // 성과 뷰: 제목 클릭으로 성과 지표와 실시간 운영현황을 전환
@@ -4123,6 +4159,7 @@ function toggleStatsDisplayMode() {
   const grid = document.getElementById('mainGrid');
   if (grid && grid.classList.contains('perf-tab-layout')) {
     perfStatsMode = perfStatsMode === 'performance' ? 'realtime' : 'performance';
+    savePerfStatsMode();
     const statsTitle = document.getElementById('statsTitle');
     if (statsTitle) statsTitle.innerHTML = perfStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
     statsDisplayMode = "table";
@@ -4150,6 +4187,7 @@ function toggleStatsDisplayMode() {
     return;
   }
   statsDisplayMode = statsDisplayMode === 'table' ? 'chart' : 'table';
+  saveStatsDisplayMode();
   updateStatsTitleByMode();
   const tableContainer = document.getElementById('statsTableContainer');
   const chartContainer = document.getElementById('statsChartContainer');
