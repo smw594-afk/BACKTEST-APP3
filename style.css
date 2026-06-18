@@ -271,8 +271,9 @@ body {
   justify-content: center;
   transition: all 0.2s;
   font-size: 18px;
-  padding: 5px 8px;
-  gap: 5px;
+  min-width: 34px;
+  padding: 5px 5px;
+  gap: 0;
   font-family: inherit;
   font-weight: 600;
   white-space: nowrap;
@@ -791,6 +792,16 @@ h2:hover {
   font-weight: 700;
 }
 
+#statsTable .val-plus,
+#statsTable .val-minus {
+  font-weight: 400;
+}
+
+#statsTable .stats-profit-rate {
+  font-size: calc(var(--app-font-size, 10.5px) - 3px);
+  line-height: 1;
+}
+
 .buy {
   color: #ef4444 !important;
   font-weight: 700;
@@ -1200,7 +1211,9 @@ h2:hover {
   flex-direction: column;
   height: 100%;
   min-height: 200px;
-  padding: 10px 0;
+  padding: 4px 0 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 #periodBarChartWrapper {
@@ -1213,6 +1226,30 @@ h2:hover {
 #periodBarChart {
   width: 100% !important;
   height: 100% !important;
+}
+
+#perfYearlyChartContainer,
+#perfMonthlyChartContainer,
+#perfDailyChartContainer {
+  padding-bottom: 0 !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#periodChartContainer::-webkit-scrollbar,
+#perfYearlyChartContainer::-webkit-scrollbar,
+#perfMonthlyChartContainer::-webkit-scrollbar,
+#perfDailyChartContainer::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+#perfYearlyChartWrapper,
+#perfMonthlyChartWrapper,
+#perfDailyChartWrapper {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 @media (max-width: 500px) {
@@ -1287,7 +1324,6 @@ h2:hover {
 
 #dualOrderContainer {
   overflow-x: auto !important;
-  overflow-y: hidden !important;
   touch-action: pan-x pan-y;
 }
 
@@ -1419,44 +1455,79 @@ body.light-mode #historyTable td {
   background: rgba(0, 0, 0, 0.02) !important;
 }
 
-/* 보유현황 스타일 (주문표와 동일하게 변경) */
-#combinedHoldingsView .data-table td,
+/* 통합 보유현황은 실전 매매내역과 같은 한 장짜리 테이블 스타일로 표시 */
+#combinedHoldingsView .data-table {
+  border-collapse: separate !important;
+  border-spacing: 1px 1px !important;
+  width: 100% !important;
+}
+
+#combinedHoldingsView .data-table th {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  font-size: 11px !important;
+}
+
+#combinedHoldingsView .data-table td {
+  border: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  font-size: var(--app-font-size, 10.5px) !important;
+}
+
+#combinedHoldingsView .data-table tr td:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+#combinedHoldingsView .data-table tr td:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+body.light-mode #combinedHoldingsView .data-table th {
+  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode #combinedHoldingsView .data-table td {
+  border: none !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* 개별 보유현황은 투자법별 칸을 유지하고 전체 영역에서 좌우 스크롤 */
 [id^="holdingsView"] .data-table td {
   background: rgba(255, 255, 255, 0.012) !important;
   border: none !important;
+  font-size: var(--app-font-size, 10.5px) !important;
 }
-body.light-mode #combinedHoldingsView .data-table td,
+
 body.light-mode [id^="holdingsView"] .data-table td {
   background: rgba(0, 0, 0, 0.012) !important;
   border: none !important;
 }
 
-#combinedHoldingsView .data-table,
 [id^="holdingsView"] .data-table {
   border-collapse: separate !important;
   border-spacing: 1px 1px !important;
+  width: 100% !important;
 }
 
-#combinedHoldingsView .data-table th,
 [id^="holdingsView"] .data-table th {
   border: none !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  font-size: 11px !important;
 }
-body.light-mode #combinedHoldingsView .data-table th,
+
+[id^="holdingsView"] .data-table th:last-child,
+[id^="holdingsView"] .data-table td:last-child {
+  min-width: 64px !important;
+  white-space: nowrap !important;
+}
+
 body.light-mode [id^="holdingsView"] .data-table th {
   border: none !important;
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
 }
 
-/* 보유현황 내 테이블의 td 폰트 크기 축소 (실전 매매내역과 통일) */
-#combinedHoldingsView .data-table td,
-[id^="holdingsView"] .data-table td {
-  font-size: var(--app-font-size, 10.5px) !important;
-}
-
-/* 실전 매매내역 및 보유현황 th 헤더 폰트 크기 별도 고정 유지 */
-#combinedHoldingsView .data-table th,
-[id^="holdingsView"] .data-table th,
+/* 실전 매매내역 th 헤더 폰트 크기 별도 고정 유지 */
 #historyTable th {
   font-size: 11px !important;
 }
@@ -1467,14 +1538,42 @@ body.light-mode [id^="holdingsView"] .data-table th {
   font-size: var(--app-font-size, 10.5px) !important;
 }
 
+#statsTable .stats-profit-value {
+  font-size: calc(var(--app-font-size, 10.5px) - 2px) !important;
+}
+
+#statsTable .stats-profit-rate {
+  font-size: calc(var(--app-font-size, 10.5px) - 3px) !important;
+  line-height: 1;
+}
+
 /* 성과 탭 레이아웃에서 타이틀의 커서를 기본값으로 지정 */
 .perf-tab-layout .period-toggle {
   cursor: default !important;
 }
 
-/* 보유현황 보기 상태일 때 주문 슬롯 컨테이너의 min-width를 320px로 복원 */
+/* 보유현황 보기 상태일 때 전체 보유현황 판이 한 번에 좌우 스크롤되도록 유지 */
+.holdings-view-active #dualOrderContainer {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  min-width: 0 !important;
+  touch-action: none !important;
+  cursor: grab;
+}
+
+.holdings-view-active #dualOrderContainer:active {
+  cursor: grabbing;
+}
+
+.holdings-view-active .order-scroll-area {
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  touch-action: inherit !important;
+}
+
 .holdings-view-active .order-slot-container {
-  min-width: 320px !important;
+  flex: 0 0 330px !important;
+  min-width: 330px !important;
 }
 
 .holdings-view-active #combinedOrderSlot {
@@ -1500,6 +1599,152 @@ body.light-mode [id^="holdingsView"] .data-table th {
 .profit-minus {
   color: #ef4444 !important; /* 다크 모드 빨간색 */
   font-weight: 700;
+}
+
+.stats-chart-legend {
+  position: absolute;
+  inset: 6px 4px 6px 4px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 165px;
+  grid-auto-rows: min-content;
+  align-content: start;
+  justify-content: start;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.stats-donut-wrap {
+  position: absolute;
+  left: calc(165px + (100% - 165px) / 2);
+  top: calc((100% - 34px) / 2);
+  width: 142px;
+  height: 142px;
+  max-height: 205px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
+.stats-donut-wrap canvas {
+  max-width: 142px !important;
+  max-height: 142px !important;
+}
+
+.stats-asset-legend-row {
+  display: grid;
+  grid-template-columns: 8px 38px auto;
+  align-items: center;
+  gap: 2px;
+  width: 138px;
+  min-width: 138px;
+  padding: 3px 5px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.stats-asset-cash,
+.stats-asset-eval,
+.stats-asset-principal {
+  position: absolute;
+  bottom: 0;
+  width: calc((100% - 9.6px) / 3);
+  min-width: 0;
+  grid-template-columns: 8px 26px minmax(0, 1fr);
+  gap: 1px;
+}
+
+.stats-asset-eval {
+  left: 0;
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.32);
+}
+
+.stats-asset-cash {
+  left: calc((100% - 9.6px) / 3 + 4.8px);
+  background: rgba(124, 58, 237, 0.16);
+  border-color: rgba(124, 58, 237, 0.32);
+}
+
+.stats-asset-principal {
+  left: calc((100% - 9.6px) / 3 * 2 + 9.6px);
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.stats-asset-plain {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.stats-asset-profit {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: transparent;
+  width: 153px;
+  min-width: 153px;
+}
+
+.stats-asset-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+.stats-asset-dot-spacer {
+  width: 7px;
+  height: 7px;
+}
+
+.stats-asset-label {
+  color: var(--text-muted);
+  font-size: var(--app-font-size, 10.5px);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.stats-asset-legend-row b {
+  color: var(--text);
+  font-size: var(--app-font-size, 10.5px);
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.light-mode .stats-asset-legend-row {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body.light-mode .stats-asset-eval {
+  background: rgba(37, 99, 235, 0.13);
+  border-color: rgba(37, 99, 235, 0.24);
+}
+
+body.light-mode .stats-asset-cash {
+  background: rgba(124, 58, 237, 0.13);
+  border-color: rgba(124, 58, 237, 0.24);
+}
+
+body.light-mode .stats-asset-principal {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+body.light-mode .stats-asset-plain {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+body.light-mode .stats-asset-profit {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: transparent;
 }
 
 body.light-mode .profit-plus {

@@ -29,11 +29,11 @@
       const btnPerf = document.getElementById('btnPerfShow');
       const btnStats = document.getElementById('btnStatsShow');
 
-      if (btnInstant) btnInstant.innerHTML = isMobile ? '<span id="icoInstant">🏠</span>' : '<span id="icoInstant">🏠</span><span class="btn-text">홈</span>';
+      if (btnInstant) btnInstant.innerHTML = '<span id="icoInstant">🏠</span>';
       if (btnRun) btnRun.innerHTML = isMobile ? '<span id="icoRun">🚀</span>' : '<span id="icoRun">🚀</span><span class="btn-text">백테스트</span>';
-      if (btnSettings) btnSettings.innerHTML = isMobile ? '⚙️' : '⚙️<span class="btn-text">설정</span>';
-      if (btnPerf) btnPerf.innerHTML = isMobile ? '<span id="icoPerfShow">📊</span>' : '<span id="icoPerfShow">📊</span><span class="btn-text">성과</span>';
-      if (btnStats) btnStats.innerHTML = isMobile ? '<span id="icoStatsShow">📄</span>' : '<span id="icoStatsShow">📄</span><span class="btn-text">내역</span>';
+      if (btnSettings) btnSettings.innerHTML = '⚙️';
+      if (btnPerf) btnPerf.innerHTML = '<span id="icoPerfShow">📊</span>';
+      if (btnStats) btnStats.innerHTML = '<span id="icoStatsShow">📄</span>';
     }
 
     window.addEventListener('resize', () => { detectLayout(); if (window.myChart) window.myChart.resize(); });
@@ -42,7 +42,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" defer></script>
-  <link rel="stylesheet" href="style.css?v=cf_v3391">
+  <link rel="stylesheet" href="style.css?v=cf_v3443">
 </head>
 
 <body>
@@ -306,14 +306,10 @@
 
     <div class="card panel-stats hidden" id="panelStats">
       <div class="section-header">
-        <h2 id="statsTitle" style="cursor:pointer;" onclick="toggleStatsDisplayMode()" title="클릭하여 표/그래프 전환">📡 실시간 운영현황</h2>
-        <!-- 차트용 지표 선택기 (기본 숨김) -->
-        <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; margin-left:auto; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 4px; outline:none; cursor:pointer;">
-          <option value="totalAssets">총자산</option>
-          <option value="base">갱신금</option>
-          <option value="cash">예수금</option>
-          <option value="evalVal">평가금</option>
-          <option value="realPrincipal">원금</option>
+        <h2 id="statsTitle" style="cursor:pointer;" onclick="toggleStatsDisplayMode()" title="클릭하여 표/그래프 전환">💼 자산현황</h2>
+        <!-- 차트용 투자법 선택기 (기본 숨김) -->
+        <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; margin-left:auto; width:75px; max-width:75px; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 2px; outline:none; cursor:pointer;">
+          <option value="combined">통합</option>
         </select>
         <div id="statsActionArea" style="margin-left:8px; display:flex; gap:8px;"></div>
       </div>
@@ -324,11 +320,11 @@
         </div>
       </div>
       <!-- 차트 컨테이너 (기본 숨김) -->
-      <div id="statsChartContainer" class="slim-scroll" style="display:none; flex:1; overflow:hidden; min-height:0; position:relative; padding:10px 0px 10px 4px; justify-content:space-between; align-items:center; gap:2px;">
-        <div style="position:relative; flex:1; height:100%; max-height:245px; display:flex; justify-content:center; align-items:center;">
-          <canvas id="statsPieChart"></canvas>
+      <div id="statsChartContainer" class="slim-scroll" style="display:none; flex:1; overflow:hidden; min-height:0; position:relative; padding:8px 4px; justify-content:center; align-items:center; gap:8px;">
+        <div id="statsChartLegend" class="stats-chart-legend">
         </div>
-        <div id="statsChartLegend" class="stats-chart-legend" style="display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-start; gap:6px; font-size:10px; font-weight:500; padding-bottom:12px; padding-right:0px; height:100%; box-sizing:border-box; overflow:hidden; margin-left:auto; flex-shrink:0;">
+        <div class="stats-donut-wrap">
+          <canvas id="statsPieChart"></canvas>
         </div>
       </div>
     </div>
@@ -384,14 +380,12 @@
       <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃">로딩중...</div>
     </div>
     <div class="top-right">
-      <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)"><span id="icoInstant">🏠</span><span
-          class="btn-text">홈</span></button>
+      <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)"><span id="icoInstant">🏠</span></button>
       <button id="btnPerfShow" class="top-icon-btn" title="성과 모드 (길게 누르면 강제갱신)" onclick="showPerfView()"><span
-          id="icoPerfShow">📊</span><span class="btn-text">성과</span></button>
+          id="icoPerfShow">📊</span></button>
       <button id="btnStatsShow" class="top-icon-btn" title="내역 모드 (길게 누르면 강제갱신)"><span
-          id="icoStatsShow">📄</span><span class="btn-text">내역</span></button>
-      <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️<span
-          class="btn-text">설정</span></button>
+          id="icoStatsShow">📄</span></button>
+      <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️</button>
     </div>
   </div>
 
@@ -508,9 +502,9 @@
     </div>
   </div>
 
-  <script src="engine.js?v=cf_v3391" defer></script>
-  <script src="core.js?v=cf_v3391" defer></script>
-  <script src="script.js?v=cf_v3391" defer></script>
+  <script src="engine.js?v=cf_v3443" defer></script>
+  <script src="core.js?v=cf_v3443" defer></script>
+  <script src="script.js?v=cf_v3443" defer></script>
 
 </body>
 

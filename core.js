@@ -214,12 +214,12 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
         if (total === 0) return;
 
         let label = isCurrencyKRW
-          ? (total > 0 ? '+' : (total < 0 ? '-' : '')) + Math.abs(total).toLocaleString() + '만'
-          : (total > 0 ? '+$' : (total < 0 ? '-$' : '$')) + Math.abs(total).toLocaleString();
+          ? (total < 0 ? '-' : '') + Math.abs(total).toLocaleString() + '만'
+          : (total < 0 ? '-$' : '$') + Math.abs(total).toLocaleString();
 
         const yPos = total >= 0 ? bar.y - 5 : bar.y + 15;
         const isLightMode = document.body.classList.contains('light-mode');
-        ctx.fillStyle = isLightMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = total < 0 ? '#ef4444' : (isLightMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)');
         ctx.fillText(label, bar.x, yPos);
       });
       ctx.restore();
@@ -237,7 +237,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
     customData: { activeSlotIndexes, slotProfits, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 15, bottom: 4, left: 0, right: 0 } },
+      layout: { padding: { top: 15, bottom: 0, left: 0, right: 0 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
@@ -247,9 +247,9 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
           callbacks: {
             label: function (c) {
               const v = c.parsed.y;
-              if (c.dataset.yAxisID === 'yRate') return `${c.dataset.label}: ${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
-              if (isCurrencyKRW) return `${c.dataset.label}: ${v >= 0 ? '+' : '-'}${Math.abs(v).toLocaleString()}만원`;
-              return `${c.dataset.label}: ${v >= 0 ? '+$' : '-$'}${Math.abs(v).toLocaleString()}`;
+              if (c.dataset.yAxisID === 'yRate') return `${c.dataset.label}: ${v < 0 ? '-' : ''}${Math.abs(v).toFixed(2)}%`;
+              if (isCurrencyKRW) return `${c.dataset.label}: ${v < 0 ? '-' : ''}${Math.abs(v).toLocaleString()}만원`;
+              return `${c.dataset.label}: ${v < 0 ? '-$' : '$'}${Math.abs(v).toLocaleString()}`;
             }
           }
         }
@@ -257,7 +257,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
       scales: {
         x: {
           stacked: true, grid: { display: false, tickLength: 0, drawTicks: false, drawBorder: false },
-          ticks: { font: { family: 'Inter', size: appFontSize - 1.5 }, color: '#94a3b8', autoSkip: false, maxTicksLimit: 50 }
+          ticks: { font: { family: 'Inter', size: appFontSize - 1.5 }, color: '#94a3b8', autoSkip: false, maxTicksLimit: 50, padding: 0 }
         },
         y: {
           stacked: true, position: 'left', grid: { color: 'rgba(255, 255, 255, 0.05)', tickLength: 0, drawTicks: false, drawBorder: false },
