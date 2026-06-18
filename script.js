@@ -1655,11 +1655,13 @@ async function checkAndSyncWithServer(isInitial) {
             }
           }
 
+          const sheetTrades = reconstructRealTrades(perfSlotData.logs, slotNum);
+
           let mergedSnap = {
             ...realData,
             summary: isEngineNewer ? { ...pureEngineRes.summary, realPrincipal: realData.summary.realPrincipal } : realData.summary,
             inv: isEngineNewer ? pureEngineRes.inv : realData.inv,
-            trades: reconstructRealTrades(perfSlotData.logs, slotNum),
+            trades: sheetTrades,
             orders: isEngineNewer ? pureEngineRes.orders : finalSyncedOrders,
             rawOrders: isEngineNewer ? pureEngineRes.rawOrders : combinedForTung,
             nextOrderInfo: syncedNextInfo,
@@ -1730,7 +1732,10 @@ async function checkAndSyncWithServer(isInitial) {
                 return { ...state, json: JSON.stringify(parsed) };
               } catch (e) { return state; }
             });
-            mergedSnap.trades = reconstructRealTrades(buildTradeLogsFromDailyStates(mergedSnap.dailyStates), slotNum);
+            const stateTrades = reconstructRealTrades(buildTradeLogsFromDailyStates(mergedSnap.dailyStates), slotNum);
+            if (stateTrades.length >= (mergedSnap.trades || []).length) {
+              mergedSnap.trades = stateTrades;
+            }
           }
 
           localStorage.setItem(`vtotal_snap${slotNum}_${myUserId}`, JSON.stringify(mergedSnap));
@@ -1760,7 +1765,7 @@ async function checkAndSyncWithServer(isInitial) {
 
     renderChartAll();
     calculateCombinedPeriodData();
-    if (isStatsMode) renderDBTradeHistory();
+    renderDBTradeHistory();
 
     // 🟢 [버그 수정 1] 서버 동기화 완료 후 현재 탭의 설정값을 화면 입력창에 강제로 채워넣음
     loadSlotToForm(activeSettingsTab);
@@ -2555,6 +2560,7 @@ async function handleInstantOrder() {
   triggerIconAnim('icoInstant');
   showToast("실전 주문표 최신화 완료");
   refreshOrderViewUI();
+  renderDBTradeHistory();
 }
 
 function calculateCombinedPeriodData() {
@@ -3090,6 +3096,11 @@ function refreshAllUI() {
   const grid = document.getElementById('mainGrid');
   if (grid && grid.classList.contains('perf-tab-layout')) {
     renderPerfTables();
+    if (typeof renderPeriodBarChartRaw === 'function') {
+      if (yearlyDisplayMode === 'chart') renderPeriodBarChartRaw('perfYearlyBarChart', 1);
+      if (monthlyDisplayMode === 'chart') renderPeriodBarChartRaw('perfMonthlyBarChart', 0);
+      if (dailyDisplayMode === 'chart') renderPeriodBarChartRaw('perfDailyBarChart', 2);
+    }
   }
   renderChartAll();
   refreshStatsTable();
@@ -3256,30 +3267,6 @@ function refreshStatsTable() {
   }
 
   const grid = document.getElementById('mainGrid');
-  if (grid && grid.classList.contains('perf-tab-layout')) {
-    const btn = document.createElement('button');
-    btn.id = 'statsCurrencyToggle';
-    btn.className = 'btn-currency-toggle';
-    btn.onclick = toggleCurrencyMode;
-    btn.style.marginLeft = "auto";
-    btn.style.background = "none";
-    btn.style.color = "var(--text)";
-    btn.style.border = "none";
-    btn.style.outline = "none";
-    btn.style.padding = "4px";
-    btn.style.fontSize = "11px";
-    btn.style.fontWeight = "bold";
-    btn.style.cursor = "pointer";
-    btn.style.transition = "all 0.2s";
-    btn.style.display = "flex";
-    btn.style.alignItems = "center";
-    btn.style.justifyContent = "center";
-    btn.style.minWidth = "40px";
-    btn.style.boxShadow = "none";
-    actionArea.appendChild(btn);
-    if (typeof syncCurrencyUI === 'function') syncCurrencyUI();
-  }
-
   const tableContainer = document.getElementById('statsTableContainer');
   const chartContainer = document.getElementById('statsChartContainer');
   const selector = document.getElementById('statsMetricSelector');
@@ -3939,8 +3926,11 @@ function renderDBTradeHistory() {
         if (res) {
           let trades = Array.isArray(res.trades) ? res.trades : [];
           if (res.isSynced && res.dailyStates && res.dailyStates.length > 0) {
-            trades = reconstructRealTrades(buildTradeLogsFromDailyStates(res.dailyStates), i);
-            res.trades = trades;
+            const reconstructedTrades = reconstructRealTrades(buildTradeLogsFromDailyStates(res.dailyStates), i);
+            if (reconstructedTrades.length >= trades.length) {
+              trades = reconstructedTrades;
+              res.trades = reconstructedTrades;
+            }
           }
           console.log(`[매매내역] 슬롯 #${i} 거래 데이터 수:`, trades.length);
           

@@ -1393,6 +1393,10 @@ body.light-mode .order-slot-container.has-border-left {
   border-left-color: rgba(0, 0, 0, 0.12) !important;
 }
 
+body.light-mode #combinedOrderSlot {
+  border-right-color: rgba(0, 0, 0, 0.12) !important;
+}
+
 body.light-mode .tier-footer {
   border-top-color: rgba(0, 0, 0, 0.12) !important;
 }

@@ -146,9 +146,8 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
 
     const lastIdx = activeSlotIndexes[activeSlotIndexes.length - 1];
     slotProfits[lastIdx] = sortedPeriods.map((p, pIdx) => {
-      let hasData = false;
-      activeSlotIndexes.forEach(si => { if (slotMaps[si][p]) hasData = true; });
-      if (!hasData) return 0;
+      const lastSlotHasData = !!slotMaps[lastIdx][p];
+      if (!lastSlotHasData) return 0;
 
       if (!combinedMap[p]) return slotProfits[lastIdx][pIdx]; // 합산 데이터가 아직 없으면 오차 보정 생략
       const rawTotal = combinedMap[p].profit;
@@ -256,6 +255,15 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
   const containerWidth = wrapper.parentElement.clientWidth;
   const neededWidth = labels.length * minBarWidth;
   wrapper.style.minWidth = neededWidth > containerWidth ? neededWidth + 'px' : '100%';
+  const dailyTotals = isDaily ? sortedPeriods.map((_, pIdx) => {
+    let total = 0;
+    activeSlotIndexes.forEach(si => { total += Number(slotProfits[si][pIdx] || 0); });
+    return total;
+  }) : [];
+  const minDailyTotal = dailyTotals.length > 0 ? Math.min(...dailyTotals) : 0;
+  const ySuggestedMin = (isDaily && minDailyTotal < 0)
+    ? Math.floor((minDailyTotal * 1.5) / (isKRW ? 1000 : 5000)) * (isKRW ? 1000 : 5000)
+    : undefined;
 
   const chartInstance = new Chart(ctx, {
     type: 'bar',
@@ -271,6 +279,12 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
         tooltip: {
           backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 10,
           titleFont: { family: 'Outfit', size: appFontSize + 1.5, weight: 'bold' }, bodyFont: { family: 'Inter', size: appFontSize + 0.5 }, cornerRadius: 8,
+          filter: function (c) {
+            if (c.dataset.yAxisID === 'yRate') return true;
+            const slotNum = activeSlotIndexes[c.datasetIndex];
+            const period = sortedPeriods[c.dataIndex];
+            return !!(slotMaps[slotNum] && slotMaps[slotNum][period]);
+          },
           callbacks: {
             label: function (c) {
               const v = c.parsed.y;
@@ -288,6 +302,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
         },
         y: {
           stacked: true, position: 'left', grid: { color: 'rgba(255, 255, 255, 0.05)', tickLength: 0, drawTicks: false, drawBorder: false },
+          ...(ySuggestedMin !== undefined ? { suggestedMin: ySuggestedMin } : {}),
           ticks: { font: { family: 'Inter', size: appFontSize - 0.5 }, color: '#94a3b8', callback: function (v) { return isCurrencyKRW ? v.toLocaleString() + '만' : '$' + v.toLocaleString(); } }
         },
         yMirror: {
