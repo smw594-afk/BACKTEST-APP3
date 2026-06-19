@@ -410,6 +410,13 @@ function restoreFromPerfLayout() {
   const tableC = document.getElementById('periodTableContainer');
   const perfMonthlyChartCard = document.getElementById('panelMonthlyChart');
   const perfDailyChartCard = document.getElementById('panelDailyChart');
+  const priceInfoCard = document.getElementById('panelPriceInfo');
+
+  if (priceInfoCard) priceInfoCard.style.display = 'none';
+  const grid = document.getElementById('mainGrid');
+  if (grid) grid.classList.remove('price-info-expanded');
+  const btnPrice = document.getElementById('btnPriceInfo');
+  if (btnPrice) btnPrice.classList.remove('active');
 
   const perfYearlyC = document.getElementById('perfYearlyChartContainer');
   const perfYearlyTableC = document.getElementById('perfYearlyTableContainer');
@@ -599,11 +606,15 @@ function showOrderView() {
   isOrderView = true;
   const grid = document.getElementById('mainGrid');
   if (grid) {
-    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout');
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'price-info-expanded');
     if (isViewingHistory) {
       grid.classList.add('backtest-view-layout');
     }
   }
+  const priceInfoCard = document.getElementById('panelPriceInfo');
+  if (priceInfoCard) priceInfoCard.style.display = 'none';
+  const btnPrice = document.getElementById('btnPriceInfo');
+  if (btnPrice) btnPrice.classList.remove('active');
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) {
     statsTitle.innerHTML = isViewingHistory ? '📄 성과 지표' : (statsDisplayMode === 'chart' ? '💼 자산현황' : '📡 실시간 운영현황');
@@ -686,6 +697,17 @@ function showStatsView() {
 
 function showPerfView() {
   resetOrderExpansion();
+  
+  // 주가 정보 확장 해제 및 카드 숨김
+  const priceInfoCard = document.getElementById('panelPriceInfo');
+  if (priceInfoCard) priceInfoCard.style.display = 'none';
+  const btnPrice = document.getElementById('btnPriceInfo');
+  if (btnPrice) btnPrice.classList.remove('active');
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.remove('price-info-expanded');
+  }
+
   // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode) {
     restoreLocalCache();
@@ -700,10 +722,9 @@ function showPerfView() {
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) statsTitle.innerHTML = perfStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
 
-  const grid = document.getElementById('mainGrid');
   if (grid) {
     grid.classList.add('perf-tab-layout');
-    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout');
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'price-info-expanded');
   }
 
   // 성과 탭 전용 DOM 이동 레이아웃 준비
@@ -4536,3 +4557,334 @@ window.updateStatsPieChart = function() {
     }
   });
 };
+
+// 📈 주가 정보 조회 뷰 기능 (대시보드 패널 연동)
+function showPriceInfoView() {
+  restoreFromPerfLayout();
+  
+  if (isManualBacktestMode) {
+    restoreLocalCache();
+    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
+  }
+
+  isStatsMode = false;
+  isOrderView = false; // 주문표가 아님
+  
+  // 탑바 아이콘들의 활성화 탭 갱신
+  const btnStats = document.getElementById('btnStatsShow');
+  if (btnStats) btnStats.classList.remove('active');
+  const btnPerf = document.getElementById('btnPerfShow');
+  if (btnPerf) btnPerf.classList.remove('active');
+  const btnInstant = document.getElementById('btnInstant');
+  if (btnInstant) btnInstant.classList.remove('active');
+  const btnPrice = document.getElementById('btnPriceInfo');
+  if (btnPrice) btnPrice.classList.add('active');
+
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    // 기존 뷰 상태(레이아웃 및 확장상태) 모두 해제
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded');
+    // 주가 정보 확장 상태 클래스 추가 (화면에 주가 정보 패널만 가득 채움)
+    grid.classList.add('price-info-expanded');
+  }
+
+  const priceInfoCard = document.getElementById('panelPriceInfo');
+  if (priceInfoCard) {
+    priceInfoCard.style.display = 'flex';
+  }
+
+  loadPriceInfoViewData();
+}
+
+// JSON으로 저장된 캐시 객체의 날짜 문자열들을 Date 객체로 복원하는 헬퍼 함수
+function restoreCacheDates(cacheObj) {
+  if (!cacheObj) return;
+  if (cacheObj.latest && cacheObj.latest.date) cacheObj.latest.date = new Date(cacheObj.latest.date);
+  if (cacheObj.day && cacheObj.day.date) cacheObj.day.date = new Date(cacheObj.day.date);
+  if (cacheObj.week && cacheObj.week.date) cacheObj.week.date = new Date(cacheObj.week.date);
+  if (cacheObj.month && cacheObj.month.date) cacheObj.month.date = new Date(cacheObj.month.date);
+  if (cacheObj.year && cacheObj.year.date) cacheObj.year.date = new Date(cacheObj.year.date);
+  if (cacheObj.lastYearEnd) cacheObj.lastYearEnd = new Date(cacheObj.lastYearEnd);
+  if (cacheObj.rawDates && Array.isArray(cacheObj.rawDates)) {
+    cacheObj.rawDates = cacheObj.rawDates.map(d => new Date(d));
+  }
+}
+
+async function loadPriceInfoViewData() {
+  const contentEl = document.getElementById('priceInfoViewContent');
+  if (!contentEl) return;
+
+  const now = new Date();
+  const oneYearAgo = new Date(now.getTime() - 450 * 24 * 60 * 60 * 1000);
+  const p1 = Math.floor(oneYearAgo.getTime() / 1000);
+  const p2 = Math.floor(now.getTime() / 1000);
+
+  // 1) 전역 메모리 캐시가 존재하면 대기 없이 즉시 화면 렌더링
+  if (window.cachedSoxlPriceData) {
+    renderPriceInfoView(window.cachedSoxlPriceData);
+  } else {
+    // 2) 메모리 캐시가 없으면 localStorage 캐시를 로드하여 즉시 화면 렌더링 (Stale)
+    try {
+      const localCacheStr = localStorage.getItem('cachedSoxlPriceData');
+      if (localCacheStr) {
+        const localCache = JSON.parse(localCacheStr);
+        restoreCacheDates(localCache);
+        window.cachedSoxlPriceData = localCache;
+        renderPriceInfoView(window.cachedSoxlPriceData);
+      } else {
+        contentEl.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">주가 데이터를 불러오는 중...</div>';
+      }
+    } catch (e) {
+      console.error("로컬 주가 캐시 복원 중 오류 발생:", e);
+      contentEl.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">주가 데이터를 불러오는 중...</div>';
+    }
+  }
+
+  try {
+    const data = await fetchYahooData('SOXL', p1, p2, true, false);
+    if (!data || !data.close || data.close.length === 0) {
+      if (!window.cachedSoxlPriceData) {
+        contentEl.innerHTML = '<div style="text-align:center; padding:20px; color:#ef4444;">데이터가 없습니다.</div>';
+      }
+      return;
+    }
+
+    const len = data.close.length;
+    const latestPrice = data.close[len - 1];
+    const latestDate = data.dates[len - 1];
+
+    const findClosestPrice = (targetDate) => {
+      const targetTime = targetDate.getTime();
+      let closestIdx = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < len; i++) {
+        const diff = Math.abs(data.dates[i].getTime() - targetTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
+        }
+      }
+      return {
+        price: data.close[closestIdx],
+        date: data.dates[closestIdx]
+      };
+    };
+
+    const oneDayAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const day = now.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
+    const lastWeekFriday = new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() - 3);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
+
+    const dayAgo = findClosestPrice(oneDayAgo);
+    const weekAgo = findClosestPrice(lastWeekFriday);
+    const monthAgo = findClosestPrice(lastMonthEnd);
+    const yearAgo = findClosestPrice(lastYearEnd);
+
+    const calcRate = (past, current) => {
+      if (past === 0) return 0;
+      return ((current - past) / past) * 100;
+    };
+
+    const dayRate = calcRate(dayAgo.price, latestPrice);
+    const weekRate = calcRate(weekAgo.price, latestPrice);
+    const monthRate = calcRate(monthAgo.price, latestPrice);
+    const yearRate = calcRate(yearAgo.price, latestPrice);
+
+    const viewData = {
+      latest: { price: latestPrice, date: latestDate },
+      day: { price: dayAgo.price, date: dayAgo.date, rate: dayRate },
+      week: { price: weekAgo.price, date: weekAgo.date, rate: weekRate },
+      month: { price: monthAgo.price, date: monthAgo.date, rate: monthRate },
+      year: { price: yearAgo.price, date: yearAgo.date, rate: yearRate },
+      rawDates: data.dates,
+      rawClose: data.close,
+      lastYearEnd: lastYearEnd
+    };
+
+    // 3) 전역 변수 메모리 및 로컬스토리지 영구 캐시 업데이트
+    window.cachedSoxlPriceData = viewData;
+    localStorage.setItem('cachedSoxlPriceData', JSON.stringify(viewData));
+
+    // 4) 최신 정보로 렌더링 업데이트 (Revalidate)
+    renderPriceInfoView(viewData);
+
+  } catch (error) {
+    console.error(error);
+    if (!window.cachedSoxlPriceData && contentEl) {
+      contentEl.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">오류 발생: ${error.message}</div>`;
+    }
+  }
+}
+
+function renderPriceInfoView(data) {
+  const contentEl = document.getElementById('priceInfoViewContent');
+  if (!contentEl) return;
+
+  const { latest, day, week, month, year, rawDates, rawClose, lastYearEnd } = data;
+
+  const getRateHtml = (rate) => {
+    const isPositive = rate >= 0;
+    const prefix = isPositive ? '+' : '';
+    const color = isPositive ? '#3b82f6' : '#ef4444';
+    return `<span style="color: ${color} !important; font-weight: 700;">${prefix}${rate.toFixed(2)}%</span>`;
+  };
+
+  const latestDateStr = formatDateNY(latest.date);
+  const dayDateStr = formatDateNY(day.date);
+  const weekDateStr = formatDateNY(week.date);
+  const monthDateStr = formatDateNY(month.date);
+  const yearDateStr = formatDateNY(year.date);
+
+  contentEl.innerHTML = `
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; text-align:center;">
+      <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">최근 종가 (${latestDateStr})</div>
+      <div style="font-size:24px; font-weight:700; color:#ef4444;">$${latest.price.toFixed(2)}</div>
+    </div>
+    
+    <table class="data-table" style="width:100%; border-collapse:collapse; margin-top:8px; table-layout:fixed;">
+      <thead>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-weight:700;">
+          <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">기간</th>
+          <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">과거 주가</th>
+          <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">현재 상승률</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+            1일 전<br><span style="font-size:9px; color:#64748b;">${dayDateStr}</span>
+          </td>
+          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${day.price.toFixed(2)}</td>
+          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(day.rate)}</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+            1주<br><span style="font-size:9px; color:#64748b;">${weekDateStr}</span>
+          </td>
+          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${week.price.toFixed(2)}</td>
+          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(week.rate)}</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+            한달<br><span style="font-size:9px; color:#64748b;">${monthDateStr}</span>
+          </td>
+          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${month.price.toFixed(2)}</td>
+          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(month.rate)}</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+            1년<br><span style="font-size:9px; color:#64748b;">${yearDateStr}</span>
+          </td>
+          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${year.price.toFixed(2)}</td>
+          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(year.rate)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 주가 그래프 영역 -->
+    <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; flex:1; display:flex; flex-direction:column;">
+      <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-bottom:8px; text-align:left;">📈 당해년도 주가</div>
+      <div style="flex:1; min-height:180px; position:relative; width:100%;">
+        <canvas id="soxlPriceChart"></canvas>
+      </div>
+    </div>
+  `;
+
+  // 차트 렌더링
+  setTimeout(() => {
+    const ctx = document.getElementById('soxlPriceChart');
+    if (!ctx) return;
+    
+    const chartDates = [];
+    const chartPrices = [];
+    
+    for (let i = 0; i < rawDates.length; i++) {
+      const itemDate = new Date(rawDates[i]);
+      if (itemDate >= lastYearEnd) {
+        const dStr = formatDateNY(itemDate);
+        chartDates.push(dStr.substring(5)); // 'MM-DD'
+        chartPrices.push(rawClose[i]);
+      }
+    }
+    
+    if (window.soxlPriceChartInstance) {
+      window.soxlPriceChartInstance.destroy();
+    }
+    
+    if (typeof Chart === 'undefined') {
+      console.warn("Chart.js is not loaded yet.");
+      return;
+    }
+    
+    window.soxlPriceChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartDates,
+        datasets: [{
+          label: 'SOXL',
+          data: chartPrices,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.05)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          fill: true,
+          tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: { top: 4, bottom: 4, left: 4, right: 4 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: function(context) {
+                return `$${Number(context.raw).toFixed(2)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            afterBuildTicks: function(scale) {
+              const ticks = scale.ticks;
+              if (!ticks || ticks.length === 0) return;
+              const total = ticks.length;
+              if (total <= 5) return;
+              const step = Math.floor((total - 1) / 4);
+              const targetIndices = [0, step, step * 2, step * 3, total - 1];
+              scale.ticks = ticks.filter((t, idx) => targetIndices.includes(idx));
+            },
+            ticks: {
+              color: '#64748b',
+              font: { size: 9 }
+            }
+          },
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+            ticks: {
+              maxTicksLimit: 4,
+              color: '#64748b',
+              font: { size: 9 },
+              callback: function(value) {
+                return `$${value}`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }, 100);
+}
+
+window.showPriceInfoView = showPriceInfoView;

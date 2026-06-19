@@ -31,7 +31,7 @@ body {
   background-attachment: fixed;
   color: var(--text);
   margin: 0;
-  padding: 12px;
+  padding: 0 12px 0 12px;
   font-size: 12px;
   box-sizing: border-box;
   height: 100vh;
@@ -84,9 +84,9 @@ body {
   grid-template-columns: 1fr;
   grid-template-rows: 1.5fr 1fr 1.5fr;
   grid-template-areas: "order" "monthly" "chart";
-  gap: 8px;
+  gap: 2px;
   width: 100%;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 40px);
   animation: fadeIn 0.6s ease-out;
 }
 
@@ -203,6 +203,31 @@ body {
   display: none !important;
 }
 
+.dashboard-grid.price-info-expanded {
+  grid-template-areas: "priceinfo" !important;
+  grid-template-rows: 1fr !important;
+}
+
+.dashboard-grid.force-3-col.price-info-expanded {
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "priceinfo" !important;
+  grid-template-rows: 1fr !important;
+}
+
+.dashboard-grid.price-info-expanded .panel-order,
+.dashboard-grid.price-info-expanded .panel-monthly,
+.dashboard-grid.price-info-expanded .panel-chart,
+.dashboard-grid.price-info-expanded .panel-settings,
+.dashboard-grid.price-info-expanded .panel-stats,
+.dashboard-grid.price-info-expanded .panel-history {
+  display: none !important;
+}
+
+.dashboard-grid.price-info-expanded .panel-price-info {
+  display: flex !important;
+  grid-area: priceinfo;
+}
+
 .dashboard-grid.monthly-expanded {
   grid-template-areas: "order" "monthly" "chart";
 }
@@ -217,7 +242,8 @@ body {
   border-top: 1px solid var(--card-border);
   padding: 0 16px;
   margin-top: 4px;
-  border-radius: 12px;
+  border-radius: 12px 12px 0 0;
+  flex-shrink: 0;
 }
 
 .top-left {
@@ -1033,6 +1059,11 @@ h2:hover {
 
   .dashboard-grid.order-expanded {
     grid-template-areas: "order" !important;
+    grid-template-rows: 1fr !important;
+  }
+
+  .dashboard-grid.price-info-expanded {
+    grid-template-areas: "priceinfo" !important;
     grid-template-rows: 1fr !important;
   }
 

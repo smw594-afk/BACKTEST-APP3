@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html id="docHtml">
 
 <head>
@@ -199,6 +199,18 @@
 
   <div class="dashboard-grid hidden" id="mainGrid">
 
+    <div class="card panel-price-info hidden" id="panelPriceInfo" style="display: none; flex-direction: column;">
+      <div class="section-header">
+        <div style="display:flex; align-items:center;">
+          <h2 id="priceInfoTitle" style="margin:0; color:var(--primary);">📈 SOXL 주가 정보</h2>
+        </div>
+      </div>
+      <div id="priceInfoViewContent" class="slim-scroll"
+        style="display:flex; flex-direction:column; gap:12px; flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:10px;">
+        <div style="text-align:center; padding:20px; color:#64748b;">주가 데이터를 불러오는 중...</div>
+      </div>
+    </div>
+
     <div class="card panel-order" id="panelOrder">
       <div class="section-header swipe-handler" id="orderHeader">
         <div style="display:flex; align-items:center;">
@@ -385,6 +397,7 @@
           id="icoPerfShow">📊</span></button>
       <button id="btnStatsShow" class="top-icon-btn" title="내역 모드 (길게 누르면 강제갱신)"><span
           id="icoStatsShow">📄</span></button>
+      <button id="btnPriceInfo" class="top-icon-btn" onclick="showPriceInfoView()" title="주가 정보">📈</button>
       <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️</button>
     </div>
   </div>
