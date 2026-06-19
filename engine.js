@@ -448,7 +448,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
           if (res.error) throw new Error(res.error);
           if (!res.chart || !res.chart.result || !res.chart.result[0]) throw new Error("Invalid Yahoo Data Format");
           const tsCheck = res.chart.result[0].timestamp;
-          if (t.toUpperCase() === 'SOXL' && (!tsCheck || tsCheck.length === 0)) throw new Error("SOXL Data Empty");
+          if (['SOXL', 'QQQ', 'SOXX', 'TQQQ'].includes(t.toUpperCase()) && (!tsCheck || tsCheck.length === 0)) throw new Error(`${t} Data Empty`);
         } catch (err) {
           console.warn(`[야후 주가 수집 에러] ${t} - Vercel 실패, Cloudflare 백업 호출 시도: ` + err.message);
           yUrl = `${CF_WORKER_URL}/api/yahoo?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;

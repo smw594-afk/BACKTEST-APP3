@@ -31,7 +31,7 @@ body {
   background-attachment: fixed;
   color: var(--text);
   margin: 0;
-  padding: 0 12px 0 12px;
+  padding: 4px;
   font-size: 12px;
   box-sizing: border-box;
   height: 100vh;
@@ -86,7 +86,7 @@ body {
   grid-template-areas: "order" "monthly" "chart";
   gap: 2px;
   width: 100%;
-  height: calc(100vh - 40px);
+  height: calc(100vh - 48px);
   animation: fadeIn 0.6s ease-out;
 }
 
@@ -242,7 +242,7 @@ body {
   border-top: 1px solid var(--card-border);
   padding: 0 16px;
   margin-top: 4px;
-  border-radius: 12px 12px 0 0;
+  border-radius: 12px;
   flex-shrink: 0;
 }
 

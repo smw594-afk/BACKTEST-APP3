@@ -4610,41 +4610,68 @@ function restoreCacheDates(cacheObj) {
   }
 }
 
+// 전역 주가 정보 티커 상태 (기본값 SOXL)
+window.priceInfoTicker = window.priceInfoTicker || 'SOXL';
+
+function changePriceInfoTicker(ticker) {
+  window.priceInfoTicker = ticker;
+  loadPriceInfoViewData();
+}
+window.changePriceInfoTicker = changePriceInfoTicker;
+
 async function loadPriceInfoViewData() {
   const contentEl = document.getElementById('priceInfoViewContent');
   if (!contentEl) return;
+
+  const ticker = window.priceInfoTicker || 'SOXL';
+  
+  // 타이틀 텍스트 동적 갱신
+  const titleEl = document.getElementById('priceInfoTitle');
+  if (titleEl) {
+    titleEl.innerHTML = `📈 ${ticker} 주가 정보`;
+  }
+
+  // 우측 상단 셀렉터 동기화
+  const selectorEl = document.getElementById('priceInfoTickerSelector');
+  if (selectorEl) {
+    selectorEl.value = ticker;
+  }
 
   const now = new Date();
   const oneYearAgo = new Date(now.getTime() - 450 * 24 * 60 * 60 * 1000);
   const p1 = Math.floor(oneYearAgo.getTime() / 1000);
   const p2 = Math.floor(now.getTime() / 1000);
 
+  // 티커별 캐시 키 지정
+  const cacheKey = `cachedPriceData_${ticker}`;
+
   // 1) 전역 메모리 캐시가 존재하면 대기 없이 즉시 화면 렌더링
-  if (window.cachedSoxlPriceData) {
-    renderPriceInfoView(window.cachedSoxlPriceData);
+  window.cachedPriceMap = window.cachedPriceMap || {};
+  if (window.cachedPriceMap[ticker]) {
+    renderPriceInfoView(window.cachedPriceMap[ticker]);
   } else {
     // 2) 메모리 캐시가 없으면 localStorage 캐시를 로드하여 즉시 화면 렌더링 (Stale)
     try {
-      const localCacheStr = localStorage.getItem('cachedSoxlPriceData');
+      const localCacheStr = localStorage.getItem(cacheKey);
       if (localCacheStr) {
         const localCache = JSON.parse(localCacheStr);
         restoreCacheDates(localCache);
-        window.cachedSoxlPriceData = localCache;
-        renderPriceInfoView(window.cachedSoxlPriceData);
+        window.cachedPriceMap[ticker] = localCache;
+        renderPriceInfoView(localCache);
       } else {
-        contentEl.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">주가 데이터를 불러오는 중...</div>';
+        contentEl.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b;">${ticker} 주가 데이터를 불러오는 중...</div>`;
       }
     } catch (e) {
-      console.error("로컬 주가 캐시 복원 중 오류 발생:", e);
-      contentEl.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">주가 데이터를 불러오는 중...</div>';
+      console.error(`${ticker} 로컬 캐시 복원 중 오류 발생:`, e);
+      contentEl.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b;">${ticker} 주가 데이터를 불러오는 중...</div>`;
     }
   }
 
   try {
-    const data = await fetchYahooData('SOXL', p1, p2, true, false);
+    const data = await fetchYahooData(ticker, p1, p2, true, false);
     if (!data || !data.close || data.close.length === 0) {
-      if (!window.cachedSoxlPriceData) {
-        contentEl.innerHTML = '<div style="text-align:center; padding:20px; color:#ef4444;">데이터가 없습니다.</div>';
+      if (!window.cachedPriceMap[ticker]) {
+        contentEl.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">${ticker} 데이터가 없습니다.</div>`;
       }
       return;
     }
@@ -4694,6 +4721,7 @@ async function loadPriceInfoViewData() {
     const yearRate = calcRate(yearAgo.price, latestPrice);
 
     const viewData = {
+      ticker: ticker,
       latest: { price: latestPrice, date: latestDate },
       day: { price: dayAgo.price, date: dayAgo.date, rate: dayRate },
       week: { price: weekAgo.price, date: weekAgo.date, rate: weekRate },
@@ -4705,15 +4733,15 @@ async function loadPriceInfoViewData() {
     };
 
     // 3) 전역 변수 메모리 및 로컬스토리지 영구 캐시 업데이트
-    window.cachedSoxlPriceData = viewData;
-    localStorage.setItem('cachedSoxlPriceData', JSON.stringify(viewData));
+    window.cachedPriceMap[ticker] = viewData;
+    localStorage.setItem(cacheKey, JSON.stringify(viewData));
 
     // 4) 최신 정보로 렌더링 업데이트 (Revalidate)
     renderPriceInfoView(viewData);
 
   } catch (error) {
     console.error(error);
-    if (!window.cachedSoxlPriceData && contentEl) {
+    if (!window.cachedPriceMap[ticker] && contentEl) {
       contentEl.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">오류 발생: ${error.message}</div>`;
     }
   }
@@ -4724,6 +4752,7 @@ function renderPriceInfoView(data) {
   if (!contentEl) return;
 
   const { latest, day, week, month, year, rawDates, rawClose, lastYearEnd } = data;
+  const ticker = data.ticker || 'SOXL';
 
   const getRateHtml = (rate) => {
     const isPositive = rate >= 0;
@@ -4819,15 +4848,19 @@ function renderPriceInfoView(data) {
       return;
     }
     
+    const isNasdaq = (ticker === 'QQQ' || ticker === 'TQQQ');
+    const chartColor = isNasdaq ? '#6366f1' : '#ef4444';
+    const chartBgColor = isNasdaq ? 'rgba(99, 102, 241, 0.05)' : 'rgba(239, 68, 68, 0.05)';
+    
     window.soxlPriceChartInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: chartDates,
         datasets: [{
-          label: 'SOXL',
+          label: ticker,
           data: chartPrices,
-          borderColor: '#ef4444',
-          backgroundColor: 'rgba(239, 68, 68, 0.05)',
+          borderColor: chartColor,
+          backgroundColor: chartBgColor,
           borderWidth: 1.5,
           pointRadius: 0,
           pointHoverRadius: 4,
