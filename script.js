@@ -1,4 +1,4 @@
-// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.37";
 const MAX_SLOTS = 6;
@@ -24,6 +24,7 @@ let chartViewMode = 0;
 let showIndividualHoldings = false;
 let statsDisplayMode = "chart";
 let perfStatsMode = "performance";
+let backtestStatsMode = "performance";
 let statsPieChartInstance = null;
 
 function getStatsDisplayModeKey() {
@@ -460,6 +461,39 @@ function restoreFromPerfLayout() {
     if (tableC) tableC.style.display = 'block';
     if (ico) ico.innerHTML = '📊';
   }
+}
+
+function ensureBacktestChartPanelsVisible() {
+  const monthlyPanel = document.getElementById('panelMonthly');
+  const chartPanel = document.getElementById('panelChart');
+  const chartC = document.getElementById('periodChartContainer');
+  const tableC = document.getElementById('periodTableContainer');
+  const perfMonthlyChartCard = document.getElementById('panelMonthlyChart');
+  const perfDailyChartCard = document.getElementById('panelDailyChart');
+
+  if (monthlyPanel) {
+    monthlyPanel.classList.remove('hidden');
+    monthlyPanel.style.display = '';
+  }
+  if (chartPanel) {
+    chartPanel.classList.remove('hidden');
+    chartPanel.style.display = '';
+  }
+  if (perfMonthlyChartCard) perfMonthlyChartCard.classList.add('hidden');
+  if (perfDailyChartCard) perfDailyChartCard.classList.add('hidden');
+
+  if (periodDisplayMode === 'chart') {
+    if (chartC) chartC.style.display = 'flex';
+    if (tableC) tableC.style.display = 'none';
+  } else {
+    if (chartC) chartC.style.display = 'none';
+    if (tableC) tableC.style.display = 'block';
+  }
+}
+
+function resetBacktestChartRenderCache() {
+  window.currentChartSignature = "";
+  if (window.barChartSignatures) window.barChartSignatures.periodBarChart = "";
 }
 
 function renderPerfTabCharts() {
@@ -1401,6 +1435,11 @@ function handleQuickBatchParse(val) {
 }
 
 function applyQuickConfig() {
+  if (window.isServerSyncing || window.isBacktestRunning) {
+    alert(window.isServerSyncing ? "데이터 로딩 중입니다. 로딩 완료 후 백테스트를 실행해주세요." : "백테스트 계산 중입니다. 완료 후 다시 실행해주세요.");
+    return;
+  }
+
   const t = document.getElementById('qTicker').value;
   const s = document.getElementById('qStartDate').value;
   const e = document.getElementById('qEndDate').value;
@@ -1424,6 +1463,16 @@ function applyQuickConfig() {
 
   isManualBacktestMode = true;
   isViewingHistory = true;
+  lastBTResults = Array(MAX_SLOTS + 1).fill(null);
+  globalMonthlyDataArr = Array(MAX_SLOTS + 1).fill(null);
+  globalYearlyDataArr = Array(MAX_SLOTS + 1).fill(null);
+  globalDailyDataArr = Array(MAX_SLOTS + 1).fill(null);
+  globalCombinedMonthlyData = null;
+  globalCombinedYearlyData = null;
+  globalCombinedDailyData = null;
+  window.cachedCombinedStats = null;
+  window.currentChartSignature = '';
+  if (window.barChartSignatures) window.barChartSignatures = {};
 
   strategies.forEach((st, idx) => {
     const slotNum = idx + 1;
@@ -1447,7 +1496,15 @@ function applyQuickConfig() {
 
   document.getElementById('quickConfigOverlay').style.display = 'none';
   showToast("수동 백테스트 모드로 다중 슬롯을 실행합니다. (원본 설정 유지됨)", "🚀");
-  runEngine();
+  window.isBacktestRunning = true;
+  Promise.resolve(runEngine())
+    .catch(err => {
+      console.error("백테스트 실행 오류:", err);
+      alert("백테스트 실행 중 오류가 발생했습니다.");
+    })
+    .finally(() => {
+      window.isBacktestRunning = false;
+    });
 }
 
 // 5. 서버 동기화 및 백테스트 실행
@@ -1556,7 +1613,7 @@ async function checkAndSyncWithServer(isInitial) {
         localStorage.removeItem(`vtotal_sheet_last_date_${slotNum}_${myUserId}`);
         localStorage.removeItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`);
         lastBTResults[slotNum] = null;
-        globalMonthlyDataArr[slotNum] = null;
+          globalMonthlyDataArr[slotNum] = null;
         globalYearlyDataArr[slotNum] = null;
         globalDailyDataArr[slotNum] = null;
         return;
@@ -2496,6 +2553,7 @@ async function runEngine() {
   }
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) statsTitle.innerHTML = '📄 성과 지표';
+  backtestStatsMode = "performance";
 
   isStatsMode = false;
   isOrderView = true;
@@ -3233,6 +3291,7 @@ function getBestResult(currentRes, slotNum) {
   return currentRes;
 }
 
+
 function calculateCombinedSummary() {
   const activeRes = [];
   for (let i = 1; i <= MAX_SLOTS; i++) {
@@ -3302,12 +3361,31 @@ function refreshStatsTable() {
       renderOriginalStatsTable(table);
     }
   } else if (grid && grid.classList.contains('backtest-view-layout')) {
-    // 백테스트 뷰: 성과 지표 표시
-    if (tableContainer) tableContainer.style.display = 'block';
-    if (chartContainer) chartContainer.style.display = 'none';
-    if (selector) selector.style.display = 'none';
-    if (actionArea) actionArea.style.display = 'flex';
-    renderOriginalStatsTable(table);
+    // 백테스트 뷰: 제목 클릭으로 성과 지표, 실시간 운영현황, 자산현황을 전환
+    const statsTitle = document.getElementById('statsTitle');
+    if (backtestStatsMode === 'asset') {
+      statsDisplayMode = 'chart';
+      if (statsTitle) statsTitle.innerHTML = '💼 자산현황';
+      if (tableContainer) tableContainer.style.display = 'none';
+      if (chartContainer) chartContainer.style.display = 'flex';
+      if (selector) selector.style.display = 'block';
+      if (actionArea) actionArea.style.display = 'none';
+      setTimeout(() => {
+        updateStatsPieChart();
+      }, 60);
+    } else {
+      statsDisplayMode = 'table';
+      if (statsTitle) statsTitle.innerHTML = backtestStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
+      if (tableContainer) tableContainer.style.display = 'block';
+      if (chartContainer) chartContainer.style.display = 'none';
+      if (selector) selector.style.display = 'none';
+      if (actionArea) actionArea.style.display = 'flex';
+      if (backtestStatsMode === 'realtime') {
+        renderRealtimeStatusTable(table);
+      } else {
+        renderOriginalStatsTable(table);
+      }
+    }
   } else {
     // 실시간 운영현황 뷰: statsDisplayMode 상태를 따름
     if (statsDisplayMode === 'chart') {
@@ -3328,12 +3406,15 @@ function refreshStatsTable() {
 function renderOriginalStatsTable(table) {
   const rows = [];
   let activeCount = 0;
+  const grid = document.getElementById('mainGrid');
+  const isBacktestStatsView = !!(grid && grid.classList.contains('backtest-view-layout'));
 
   for (let i = 1; i <= MAX_SLOTS; i++) {
     if (isSlotActive(i)) {
       activeCount++;
       rows.push({
         res: getBestResult(lastBTResults[i], i),
+        slotNum: i,
         name: getSlotConfig(i)?.basics?.strategy || `V-QUANT 2-${i}`,
         color: SLOT_COLORS[(i - 1) % SLOT_COLORS.length]
       });
@@ -3433,7 +3514,7 @@ function renderOriginalStatsTable(table) {
  
   rows.forEach((r) => {
     const isCombo = (r.name === '합산');
-    const displaySummary = r.res ? r.res.summary : null;
+    const displaySummary = r.res ? ((isCombo || isBacktestStatsView) ? r.res.summary : getDisplayStatusData(r.res, r.slotNum)) : null;
     html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:2px 3px 2px 0px; box-sizing:border-box; line-height:1; min-height:18px; width:100%;">`;
     html += `<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; line-height:1; width:56px; min-width:56px; max-width:56px; flex-shrink:0; color:${r.color}; display:flex; align-items:center; justify-content:flex-start; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</div>`;
     metricsList.forEach(m => {
@@ -4232,6 +4313,8 @@ function toggleStatsDisplayMode() {
     return;
   }
   if (grid && grid.classList.contains('backtest-view-layout')) {
+    backtestStatsMode = backtestStatsMode === 'performance' ? 'realtime' : (backtestStatsMode === 'realtime' ? 'asset' : 'performance');
+    refreshStatsTable();
     return;
   }
   statsDisplayMode = statsDisplayMode === 'table' ? 'chart' : 'table';
