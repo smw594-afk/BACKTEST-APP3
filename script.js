@@ -1,4 +1,4 @@
-﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.37";
 const MAX_SLOTS = 6;
@@ -2736,6 +2736,16 @@ function refreshOrderViewUI() {
     } else {
       grid.classList.add('holdings-view-active');
       grid.classList.remove('order-view-active');
+    }
+  }
+
+  // 확대 아이콘 제어: 통합 보유현황(!isOrderView && !showIndividualHoldings)일 때는 숨기고, 통합주문표 등에서는 노출
+  const btnExpand = document.getElementById('btnExpandOrder');
+  if (btnExpand) {
+    if (!isOrderView && !showIndividualHoldings) {
+      btnExpand.style.display = 'none';
+    } else {
+      btnExpand.style.display = '';
     }
   }
 
