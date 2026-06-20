@@ -1,6 +1,6 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.37";
+const APP_VERSION = "3.38";
 const MAX_SLOTS = 6;
 
 // 글로벌 상태 변수
@@ -1176,7 +1176,9 @@ function enterAppDirectly() {
   document.getElementById('mainGrid').classList.remove('hidden');
   detectLayout();
 
-  updateCurrentFXRate(() => { if (isCurrencyKRW) refreshAllUI(); });
+  preloadCorePriceTickers()
+    .catch(e => console.warn("주가 선로딩 실패:", e))
+    .finally(() => updateCurrentFXRate(() => { if (isCurrencyKRW) refreshAllUI(); }));
 
   const userHeader = document.getElementById('userDisplayHeader');
   if (userHeader) userHeader.innerText = myUserId + ' (로딩중...)';
@@ -1551,6 +1553,45 @@ async function checkAndSyncWithServer(isInitial) {
       return str;
     };
 
+    const getSheetPerfCacheKey = () => `vtotal_sheet_perf_cache_${myUserId}`;
+
+    const getCachedSheetPerf = () => {
+      try { return JSON.parse(localStorage.getItem(getSheetPerfCacheKey()) || "null"); } catch (e) { return null; }
+    };
+
+    const getLatestPerfDate = (slotPerf) => {
+      const logs = slotPerf && Array.isArray(slotPerf.logs) ? slotPerf.logs : [];
+      let latest = "";
+      logs.forEach(row => {
+        const dt = parseDateStr(row && row[0]);
+        if (dt && dt > latest) latest = dt;
+      });
+      return latest;
+    };
+
+    const mergeSheetPerf = (basePerf, incomingPerf) => {
+      if (!basePerf || !incomingPerf) return incomingPerf || basePerf;
+      const merged = { ...basePerf, ...incomingPerf };
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const key = `strat${i}`;
+        const baseSlot = basePerf[key] || { logs: [] };
+        const incomingSlot = incomingPerf[key] || { logs: [] };
+        const byDate = new Map();
+        (baseSlot.logs || []).forEach(row => { const dt = parseDateStr(row && row[0]); if (dt) byDate.set(dt, row); });
+        (incomingSlot.logs || []).forEach(row => { const dt = parseDateStr(row && row[0]); if (dt) byDate.set(dt, row); });
+        const logs = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(entry => entry[1]);
+        const hasIncomingMeta = incomingSlot.meta && Object.keys(incomingSlot.meta).length > 0;
+        merged[key] = {
+          ...baseSlot,
+          ...incomingSlot,
+          logs: logs,
+          json: incomingSlot.json || baseSlot.json || "{}",
+          meta: hasIncomingMeta ? incomingSlot.meta : (baseSlot.meta || {})
+        };
+      }
+      return merged;
+    };
+
     const runFastEngine = async (cfg, isActive, slotNum) => {
       if (!isActive) return null;
       const res = await runBacktestMemory(cfg, false, slotNum);
@@ -1562,19 +1603,56 @@ async function checkAndSyncWithServer(isInitial) {
     };
 
     const loadSheetData = async () => {
-      const resInit = await fetch(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
-      const dataInit = await resInit.json();
-
-      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        const pName = i === 1 ? 'config' : `config${i}`;
-        const sName = dataInit[pName]?.basics?.strategy || slotConfigs[i]?.basics?.strategy || "";
-        perfUrl += `&strat${i}=${encodeURIComponent(sName)}`;
+      try {
+        const cachedPerf = getCachedSheetPerf();
+        const sinceParams = [];
+        if (cachedPerf) {
+          for (let i = 1; i <= MAX_SLOTS; i++) {
+            const latest = getLatestPerfDate(cachedPerf[`strat${i}`]);
+            if (latest) sinceParams.push(`since${i}=${encodeURIComponent(latest)}`);
+          }
+        }
+        const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}${sinceParams.length ? `&${sinceParams.join('&')}` : ''}`;
+        const res = await fetch(allUrl);
+        const data = await res.json();
+        
+        if (data && data.perf) {
+          const dataInit = {
+            config: data.config,
+            config2: data.config2,
+            config3: data.config3,
+            config4: data.config4,
+            config5: data.config5,
+            config6: data.config6,
+            hasSheet: data.hasSheet
+          };
+          const dataPerf = cachedPerf ? mergeSheetPerf(cachedPerf, data.perf) : data.perf;
+          try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
+          return { dataInit, dataPerf };
+        }
+      } catch (e) {
+        console.warn("GET_ALL_INIT 실패, 기존 폴백 방식으로 데이터 로드 시도:", e);
       }
 
-      const resPerf = await fetch(perfUrl);
-      const dataPerf = await resPerf.json();
+      // [폴백] 새 Code.gs 매크로가 반영되지 않았을 때를 위한 하위 호환용 병렬 처리
+      const initUrl = `${GAS_URL}?action=GET_INIT&id=${myUserId}`;
+      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        perfUrl += `&strat${i}=1`;
+      }
+
+      const [resInit, resPerf] = await Promise.all([
+        fetch(initUrl),
+        fetch(perfUrl)
+      ]);
+
+      const [dataInit, dataPerf] = await Promise.all([
+        resInit.json(),
+        resPerf.json()
+      ]);
+
       dataInit.hasSheet = true;
+      try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
       return { dataInit, dataPerf };
     };
 
@@ -3273,6 +3351,7 @@ function updateFontSize(val) {
     showToast(`기본 폰트 크기가 ${val}로 변경되었습니다.`);
     if (typeof renderChartAll === 'function') renderChartAll();
     if (typeof renderPeriodBarChart === 'function') renderPeriodBarChart();
+    if (typeof updateStatsPieChart === 'function') updateStatsPieChart();
   }
 }
 
@@ -3360,6 +3439,22 @@ function refreshStatsTable() {
   const tableContainer = document.getElementById('statsTableContainer');
   const chartContainer = document.getElementById('statsChartContainer');
   const selector = document.getElementById('statsMetricSelector');
+
+  if (grid && grid.classList.contains('backtest-view-layout')) {
+    const rankBtn = document.createElement('button');
+    rankBtn.className = 'top-icon-btn';
+    rankBtn.style.background = 'linear-gradient(135deg, #fbbf24, #d97706)';
+    rankBtn.style.borderRadius = '6px';
+    rankBtn.style.padding = '4px 10px';
+    rankBtn.style.color = 'white';
+    rankBtn.style.fontSize = '11px';
+    rankBtn.style.fontWeight = 'bold';
+    rankBtn.style.cursor = 'pointer';
+    rankBtn.style.marginLeft = '4px';
+    rankBtn.innerHTML = '🏆 랭킹';
+    rankBtn.onclick = showRankingModal;
+    actionArea.appendChild(rankBtn);
+  }
 
   if (grid && grid.classList.contains('perf-metrics-layout')) {
     // 내역 뷰: 마지막으로 본 자산현황/실시간 운영현황 표시 상태를 유지
@@ -3452,6 +3547,23 @@ function renderOriginalStatsTable(table) {
     }
   }
 
+  // ⭐️ 백테스트 성과 지표 및 실시간 운영현황 표에서 개별 투자법들을 수익률 내림차순으로 정렬 (안전 장치 추가)
+  const getYieldVal = (r) => {
+    try {
+      const displaySummary = r.res ? (isBacktestStatsView ? r.res.summary : getDisplayStatusData(r.res, r.slotNum)) : null;
+      if (!displaySummary) return -Infinity;
+      const tAssets = displaySummary.totalAssets !== undefined ? displaySummary.totalAssets : (displaySummary.total_assets || 0);
+      const rPrincipal = displaySummary.realPrincipal !== undefined ? displaySummary.realPrincipal : (displaySummary.base || displaySummary.base_principal || 0);
+      const yVal = rPrincipal > 0 ? (tAssets - rPrincipal) / rPrincipal : 0;
+      return (typeof yVal === 'number' && !isNaN(yVal) && isFinite(yVal)) ? yVal : -Infinity;
+    } catch (e) {
+      console.warn("getYieldVal 정렬 연산 중 예외 무시 (초기 동기화 중일 수 있음):", e);
+      return -Infinity;
+    }
+  };
+
+  rows.sort((a, b) => getYieldVal(b) - getYieldVal(a));
+
   if (activeCount >= 2) {
     const comb = calculateCombinedSummary();
     rows.push({ res: { summary: comb, isSynced: true }, name: '합산', color: 'var(--secondary)' });
@@ -3529,7 +3641,6 @@ function renderOriginalStatsTable(table) {
     { key: 'cagr', label: 'CAGR', type: 'color', pct: true },
     { key: 'calmar', label: '칼마비율', type: 'raw' },
     { key: 'cash', label: '예수금', type: 'fmt' },
-    { key: 'currPrice', label: '현재가', type: 'price' },
     { key: 'base', label: '갱신금', type: 'fmt' },
     { key: 'avgPrice', label: '평균단가', type: 'price' }
   ];
@@ -3551,7 +3662,9 @@ function renderOriginalStatsTable(table) {
     metricsList.forEach(m => {
       let cellVal = fmtValue(displaySummary, m, isCombo);
       const minWidth = (m.key === 'totalAssets') ? '72px' : '50px';
-      html += `<div style="flex:1; min-width:${minWidth}; font-size:var(--app-font-size, 10.5px); font-weight:400; display:flex; align-items:center; justify-content:center; text-align:center; line-height:1; white-space:nowrap;">${cellVal}</div>`;
+      const isPrincipal = (m.key === 'realPrincipal');
+      const cellClass = isPrincipal ? 'class="stats-asset-principal-val"' : '';
+      html += `<div ${cellClass} style="flex:1; min-width:${minWidth}; font-size:var(--app-font-size, 10.5px); font-weight:${isPrincipal ? '700' : '400'}; display:flex; align-items:center; justify-content:center; text-align:center; line-height:1; white-space:nowrap;">${cellVal}</div>`;
     });
     html += '</div>';
   });
@@ -3594,6 +3707,21 @@ function getDisplayStatusData(res, slotNum) {
   let displayAvgPrice = s.avgPrice !== undefined ? s.avgPrice : 0;
   let displayCagr = s.cagr !== undefined ? s.cagr : 0;
   let displayCalmar = s.calmar !== undefined ? s.calmar : 0;
+  const applyHoldingsFallback = (jsonData) => {
+    const holdings = Array.isArray(jsonData?.holdings) ? jsonData.holdings : [];
+    if (holdings.length === 0) return;
+    let hQty = 0;
+    let hCost = 0;
+    holdings.forEach(h => {
+      const q = parseFloat(h.qty || 0) || 0;
+      const cost = parseFloat(h.cost || 0) || ((parseFloat(h.buy_price || h.buyPrice || 0) || 0) * q);
+      hQty += q;
+      hCost += cost;
+    });
+    if (hQty > 0 && (!displayQty || displayQty <= 0)) displayQty = hQty;
+    if (hQty > 0 && (!displayAvgPrice || displayAvgPrice <= 0)) displayAvgPrice = hCost > 0 ? hCost / hQty : displayAvgPrice;
+  };
+
   
   if (slotNum !== 'Combined') {
     if (res.isSynced) {
@@ -3612,6 +3740,7 @@ function getDisplayStatusData(res, slotNum) {
         displayEvalReturn = lastJson.evalReturn !== undefined ? lastJson.evalReturn : displayEvalReturn;
         displayDepletion = lastJson.depletion !== undefined ? lastJson.depletion : displayDepletion;
         displayAvgPrice = lastJson.avgPrice !== undefined ? lastJson.avgPrice : displayAvgPrice;
+        applyHoldingsFallback(lastJson);
         
         const assets = res.dailyStates.map(d => d.asset);
         const peak = assets.length > 0 ? Math.max(...assets) : 0;
@@ -3625,17 +3754,26 @@ function getDisplayStatusData(res, slotNum) {
   }
   
   const calcEvalProfit = (targetRes) => {
-    const currPrice = parseFloat(targetRes?.summary?.currPrice || targetRes?.currPrice || 0);
-    if (!targetRes?.inv || currPrice <= 0) return null;
-    return targetRes.inv.reduce((sum, h) => {
-      const buyPrice = parseFloat(h.buy_price || h.buyPrice || 0);
-      const qty = parseFloat(h.qty || 0);
-      return sum + ((currPrice - buyPrice) * qty);
-    }, 0);
+    const summary = targetRes?.summary || targetRes || {};
+    const sEval = parseFloat(summary.evalVal || 0) || 0;
+    const sQty = parseFloat(summary.qty || 0) || 0;
+    const sAvg = parseFloat(summary.avgPrice || 0) || 0;
+    const currPrice = parseFloat(summary.currPrice || targetRes?.currPrice || 0) || 0;
+
+    if (targetRes?.inv && currPrice > 0) {
+      return targetRes.inv.reduce((sum, h) => {
+        const buyPrice = parseFloat(h.buy_price || h.buyPrice || 0) || 0;
+        const qty = parseFloat(h.qty || 0) || 0;
+        return sum + ((currPrice - buyPrice) * qty);
+      }, 0);
+    }
+
+    if (sEval > 0 && sQty > 0 && sAvg > 0) return sEval - (sQty * sAvg);
+    return null;
   };
 
   let displayTotalProfit = displayTotal - displayPrincipal;
-  let displayEvalProfit = calcEvalProfit(res);
+  let displayEvalProfit = (displayEval > 0 && displayQty > 0 && displayAvgPrice > 0) ? (displayEval - (displayQty * displayAvgPrice)) : calcEvalProfit(res);
   if (slotNum === 'Combined') {
     displayEvalProfit = 0;
     let hasHoldingsProfit = false;
@@ -3649,7 +3787,7 @@ function getDisplayStatusData(res, slotNum) {
     }
     if (!hasHoldingsProfit) displayEvalProfit = null;
   }
-  if (displayEvalProfit === null) displayEvalProfit = displayEval * displayEvalReturn;
+  if (displayEvalProfit === null) displayEvalProfit = 0;
   
   return {
     date: sheetDate,
@@ -3794,7 +3932,7 @@ function renderRealtimeStatusTable(table) {
     { key: 'dayProfit', label: '일 수익', type: 'period', kind: 'day' },
     { key: 'evalProfit', label: '평가수익', type: 'profitWithRate', rateKey: 'evalReturn' },
     { key: 'qty', label: '주식수', type: 'raw', suffix: '주' },
-    { key: 'evalVal', label: '평가금<span class="stats-label-note">(진행도)</span>', type: 'fmt' },
+    { key: 'evalVal', label: '평가금<span class="stats-label-note">(진행)</span>', type: 'fmt' },
     { key: 'avgPrice', label: '평균단가', type: 'price' },
     { key: 'currentMdd', label: '현재 MDD', type: 'color', pct: true },
     { key: 'mdd', label: '전체 MDD', type: 'color', pct: true },
@@ -3933,6 +4071,71 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   setupSwipe('panelStats', () => showOrderView());
+  
+  // 📈 주가 정보 화면 전용 다이렉트 touch/mouse 스와이프 리스너 (내부 스크롤 충돌 우회)
+  const setupPriceInfoSwipeDirect = () => {
+    const panel = document.getElementById('panelPriceInfo');
+    if (!panel) return;
+
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
+
+    panel.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    panel.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 0) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      handleSwipe(startX, startY, endX, endY);
+    }, { passive: true });
+
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    });
+
+    panel.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      const endX = e.clientX;
+      const endY = e.clientY;
+      handleSwipe(startX, startY, endX, endY);
+    });
+
+    panel.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+
+    function handleSwipe(sX, sY, eX, eY) {
+      const diffX = eX - sX;
+      const diffY = eY - sY;
+      
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
+        const tickers = ['SOXL', 'TQQQ', 'QQQ', 'SOXX'];
+        const currentTicker = window.priceInfoTicker || 'SOXL';
+        let currentIndex = tickers.indexOf(currentTicker);
+        if (currentIndex === -1) currentIndex = 0;
+
+        if (diffX > 0) {
+          let nextIndex = currentIndex - 1;
+          if (nextIndex < 0) nextIndex = tickers.length - 1;
+          changePriceInfoTicker(tickers[nextIndex]);
+        } else {
+          let nextIndex = currentIndex + 1;
+          if (nextIndex >= tickers.length) nextIndex = 0;
+          changePriceInfoTicker(tickers[nextIndex]);
+        }
+      }
+    }
+  };
+
+  setupPriceInfoSwipeDirect();
 });
 
 function setBtnLoading(btnId, loadingText) {
@@ -4373,6 +4576,238 @@ function toggleStatsDisplayMode() {
 }
 window.toggleStatsDisplayMode = toggleStatsDisplayMode;
 
+// 🏆 전역 헬퍼 함수: 특정 슬롯의 가장 최신 주기별 성과 데이터 추출
+function getSlotLatestPeriodRow(slotNum, kind) {
+  const rows = kind === 'year' ? globalYearlyDataArr[slotNum] : (kind === 'month' ? globalMonthlyDataArr[slotNum] : globalDailyDataArr[slotNum]);
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return [...rows].filter(row => row && row.period).sort((a, b) => String(b.period).localeCompare(String(a.period)))[0] || null;
+}
+
+// 🏆 백테스트 투자법별 총수익률/년수익률/월수익률 랭킹 모달 생성 및 노출 함수
+function showRankingModal() {
+  try {
+    const overlay = document.getElementById('rankingOverlay');
+    const contentEl = document.getElementById('rankingModalContent');
+    if (!overlay || !contentEl) return;
+
+    const list = [];
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (isSlotActive(i)) {
+        const res = getBestResult(lastBTResults[i], i);
+        const displaySummary = res ? getDisplayStatusData(res, i) : null;
+        if (!displaySummary) continue;
+
+        const strategyName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
+        const slotColor = SLOT_COLORS[(i - 1) % SLOT_COLORS.length];
+
+        // 1) 총수익률 계산
+        const tAssets = displaySummary.totalAssets !== undefined ? displaySummary.totalAssets : (displaySummary.total_assets || 0);
+        const rPrincipal = displaySummary.realPrincipal !== undefined ? displaySummary.realPrincipal : (displaySummary.base || displaySummary.base_principal || 0);
+        const totalYield = rPrincipal > 0 ? (tAssets - rPrincipal) / rPrincipal : 0;
+
+        // 2) 년수익률 계산
+        const yRow = getSlotLatestPeriodRow(i, 'year');
+        const yearlyRate = yRow ? Number(yRow.rate || 0) : null;
+
+        // 3) 월수익률 계산
+        const mRow = getSlotLatestPeriodRow(i, 'month');
+        const monthlyRate = mRow ? Number(mRow.rate || 0) : null;
+
+        // 4) MDD 데이터 수집 (총 MDD, 최근 년 MDD, 최근 월 MDD)
+        const totalMdd = displaySummary.mdd !== undefined ? displaySummary.mdd : 0;
+        const yearlyMdd = yRow ? Number(yRow.mdd || 0) : null;
+        const monthlyMdd = mRow ? Number(mRow.mdd || 0) : null;
+
+        // 5) 칼마비율 데이터 수집 (총 칼마, 년 칼마, 월 칼마)
+        const totalCalmar = displaySummary.calmar !== undefined ? displaySummary.calmar : 0;
+        const yearlyCalmar = (yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(Number(yRow.rate || 0) / Number(yRow.mdd)) : null;
+        const monthlyCalmar = (mRow && mRow.mdd && mRow.mdd !== 0) ? Math.abs(Number(mRow.rate || 0) / Number(mRow.mdd)) : null;
+
+        list.push({
+          slotNum: i,
+          name: strategyName,
+          color: slotColor,
+          totalYield: totalYield,
+          yearlyRate: yearlyRate,
+          monthlyRate: monthlyRate,
+          totalMdd: totalMdd,
+          yearlyMdd: yearlyMdd,
+          monthlyMdd: monthlyMdd,
+          totalCalmar: totalCalmar,
+          yearlyCalmar: yearlyCalmar,
+          monthlyCalmar: monthlyCalmar
+        });
+      }
+    }
+
+    if (list.length === 0) {
+      contentEl.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">백테스트가 실행된 활성 투자법이 없습니다.</div>`;
+      overlay.style.display = 'flex';
+      return;
+    }
+
+    // [정렬] 수익률 기준 내림차순 정렬
+    const totalRank = [...list].sort((a, b) => b.totalYield - a.totalYield);
+    const yearlyRank = [...list].sort((a, b) => {
+      const rA = a.yearlyRate !== null ? a.yearlyRate : -Infinity;
+      const rB = b.yearlyRate !== null ? b.yearlyRate : -Infinity;
+      return rB - rA;
+    });
+    const monthlyRank = [...list].sort((a, b) => {
+      const rA = a.monthlyRate !== null ? a.monthlyRate : -Infinity;
+      const rB = b.monthlyRate !== null ? b.monthlyRate : -Infinity;
+      return rB - rA;
+    });
+
+    // [정렬] MDD 기준 내림차순 정렬 (0%에 가까운, 즉 낙폭이 가장 작고 하락방어가 우수한 순서)
+    const totalMddRank = [...list].sort((a, b) => {
+      const vA = a.totalMdd !== null ? a.totalMdd : -Infinity;
+      const vB = b.totalMdd !== null ? b.totalMdd : -Infinity;
+      return vB - vA;
+    });
+    const yearlyMddRank = [...list].sort((a, b) => {
+      const vA = a.yearlyMdd !== null ? a.yearlyMdd : -Infinity;
+      const vB = b.yearlyMdd !== null ? b.yearlyMdd : -Infinity;
+      return vB - vA;
+    });
+    const monthlyMddRank = [...list].sort((a, b) => {
+      const vA = a.monthlyMdd !== null ? a.monthlyMdd : -Infinity;
+      const vB = b.monthlyMdd !== null ? b.monthlyMdd : -Infinity;
+      return vB - vA;
+    });
+
+    // [정렬] 칼마비율 기준 내림차순 정렬 (칼마비율이 높을수록 효율적인 투자법)
+    const totalCalmarRank = [...list].sort((a, b) => {
+      const vA = a.totalCalmar !== null ? a.totalCalmar : -Infinity;
+      const vB = b.totalCalmar !== null ? b.totalCalmar : -Infinity;
+      return vB - vA;
+    });
+    const yearlyCalmarRank = [...list].sort((a, b) => {
+      const vA = a.yearlyCalmar !== null ? a.yearlyCalmar : -Infinity;
+      const vB = b.yearlyCalmar !== null ? b.yearlyCalmar : -Infinity;
+      return vB - vA;
+    });
+    const monthlyCalmarRank = [...list].sort((a, b) => {
+      const vA = a.monthlyCalmar !== null ? a.monthlyCalmar : -Infinity;
+      const vB = b.monthlyCalmar !== null ? b.monthlyCalmar : -Infinity;
+      return vB - vA;
+    });
+
+    const getRankEmoji = (idx) => {
+      if (idx === 0) return '🥇';
+      if (idx === 1) return '🥈';
+      if (idx === 2) return '🥉';
+      return `<span style="opacity: 0.6; font-size: calc(var(--app-font-size, 10.5px) - 1.5px) !important;">${idx + 1}위</span>`;
+    };
+
+    const getRateText = (val, isBold = false) => {
+      if (val === null || val === undefined || val === -Infinity) return `<span style="color:var(--text-muted);">-</span>`;
+      const num = val * 100;
+      const cls = num > 0 ? 'val-plus' : (num < 0 ? 'val-minus' : '');
+      const prefix = num > 0 ? '+' : '';
+      return `<span class="${cls}" style="font-weight: ${isBold ? '700' : '400'}; font-size: var(--app-font-size, 10.5px) !important;">${prefix}${num.toFixed(1)}%</span>`;
+    };
+
+    const getMddText = (val, isBold = false) => {
+      if (val === null || val === undefined || val === -Infinity) return `<span style="color:var(--text-muted);">-</span>`;
+      const num = val * 100;
+      const cls = num < 0 ? 'val-minus' : '';
+      return `<span class="${cls}" style="font-weight: ${isBold ? '700' : '400'}; font-size: var(--app-font-size, 10.5px) !important;">${num.toFixed(1)}%</span>`;
+    };
+
+    const getCalmarText = (val, isBold = false) => {
+      if (val === null || val === undefined || val === -Infinity || isNaN(val)) return `<span style="color:var(--text-muted);">-</span>`;
+      const cls = val > 1 ? 'val-plus' : (val < 0.5 ? 'val-minus' : '');
+      return `<span class="${cls}" style="font-weight: ${isBold ? '700' : '400'}; font-size: var(--app-font-size, 10.5px) !important;">${val.toFixed(2)}</span>`;
+    };
+
+    const renderRankTable = (title, sortedList, key, showRank = false, valType = 'rate') => {
+      const isLight = document.body.classList.contains('light-mode');
+      const titleColor = isLight ? '#0f172a' : '#f8fafc';
+
+      const flexStyle = showRank ? 'flex: 1.15 1 34%; min-width: 105px;' : 'flex: 0.92 1 28%; min-width: 90px;';
+      const cardPadding = showRank ? '6px 6px 4.8px 6px' : '6px';
+      const namePaddingRight = showRank ? '8px' : '4px';
+
+      const defaultTextColor = isLight ? '#0f172a' : '#f8fafc';
+
+      let rowsHtml = sortedList.map((item, idx) => {
+        const val = item[key];
+        const isBold = idx < 3;
+        const fontWeightStyle = isBold ? '700' : '400';
+        const nameColor = isBold ? item.color : defaultTextColor;
+
+        const rankCol = showRank ? `
+          <td style="padding: 4px 2px; text-align: center; font-weight: ${fontWeightStyle}; width: 22px; vertical-align: middle; font-size: var(--app-font-size, 10.5px) !important;">
+            ${getRankEmoji(idx)}
+          </td>
+        ` : '';
+
+        const displayValText = valType === 'calmar' ? getCalmarText(val, isBold) : (valType === 'mdd' ? getMddText(val, isBold) : getRateText(val, isBold));
+
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); height: 26px;">
+            ${rankCol}
+            <td style="padding: 4px ${namePaddingRight} 4px 4px; text-align: left; font-weight: ${fontWeightStyle}; color: ${nameColor}; font-size: var(--app-font-size, 10.5px) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="${item.name}">
+              ${item.name}
+            </td>
+            <td style="padding: 4px 2px; text-align: right; font-size: var(--app-font-size, 10.5px) !important; font-weight: ${fontWeightStyle}; width: 55px; vertical-align: middle;">
+              ${displayValText}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: ${cardPadding}; box-sizing: border-box; ${flexStyle} max-width: 100%;">
+          <h4 style="margin: 0 0 6px 0; font-size: calc(var(--app-font-size, 10.5px) + 0.5px) !important; font-weight: 700; color: ${titleColor}; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${title}</h4>
+          <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+    };
+
+    let html = '';
+    
+    // 1행: 수익률 랭킹 영역
+    html += '<div style="display:flex; flex-direction:row; flex-wrap:wrap; gap:4px; width:100%; justify-content:space-between; margin-bottom:3px;">';
+    html += renderRankTable('📈 총수익률', totalRank, 'totalYield', true, 'rate');
+    html += renderRankTable('📅 년수익률', yearlyRank, 'yearlyRate', false, 'rate');
+    html += renderRankTable('🌙 월수익률', monthlyRank, 'monthlyRate', false, 'rate');
+    html += '</div>';
+
+    // 가로 구분선
+    html += '<div style="width:100%; height:1px; background:rgba(255,255,255,0.08); margin:5px 0 5px 0; box-sizing:border-box;"></div>';
+
+    // 2행: MDD 랭킹 영역
+    html += '<div style="display:flex; flex-direction:row; flex-wrap:wrap; gap:4px; width:100%; justify-content:space-between; margin-bottom:3px;">';
+    html += renderRankTable('📉 총 MDD', totalMddRank, 'totalMdd', true, 'mdd');
+    html += renderRankTable('📅 년 MDD', yearlyMddRank, 'yearlyMdd', false, 'mdd');
+    html += renderRankTable('🌙 월 MDD', monthlyMddRank, 'monthlyMdd', false, 'mdd');
+    html += '</div>';
+
+    // 가로 구분선
+    html += '<div style="width:100%; height:1px; background:rgba(255,255,255,0.08); margin:5px 0 5px 0; box-sizing:border-box;"></div>';
+
+    // 3행: 칼마비율 랭킹 영역
+    html += '<div style="display:flex; flex-direction:row; flex-wrap:wrap; gap:4px; width:100%; justify-content:space-between;">';
+    html += renderRankTable('⚖️ 총 칼마', totalCalmarRank, 'totalCalmar', true, 'calmar');
+    html += renderRankTable('📅 년 칼마', yearlyCalmarRank, 'yearlyCalmar', false, 'calmar');
+    html += renderRankTable('🌙 월 칼마', monthlyCalmarRank, 'monthlyCalmar', false, 'calmar');
+    html += '</div>';
+
+    contentEl.innerHTML = html;
+    overlay.style.display = 'flex';
+  } catch (e) {
+    console.error("showRankingModal 실행 중 에러 발생:", e);
+    showToast("랭킹 화면을 생성하는 중 에러가 발생했습니다.", "⚠️");
+  }
+}
+window.showRankingModal = showRankingModal;
+
 // 도넛 차트 업데이트 로직
 window.updateStatsPieChart = function() {
   if (statsDisplayMode !== 'chart') return;
@@ -4406,12 +4841,44 @@ window.updateStatsPieChart = function() {
   if (!statusData) return;
 
   const totalAssets = Math.max(0, Number(statusData.totalAssets || statusData.total_assets || 0));
-  const base = Math.max(0, Number(statusData.base || statusData.base_principal || 0));
   const realPrincipal = Math.max(0, Number(statusData.realPrincipal || statusData.real_principal || statusData.realPrincipalUSD || 0));
+  const totalProfit = Number(statusData.totalProfit !== undefined ? statusData.totalProfit : (totalAssets - realPrincipal));
   const cash = Math.max(0, Number(statusData.cash || 0));
   const evalVal = Math.max(0, Number(statusData.evalVal || Math.max(0, totalAssets - cash)));
-  const totalProfit = Number(statusData.totalProfit !== undefined ? statusData.totalProfit : (totalAssets - realPrincipal));
-  const chartTotal = Math.max(0.0001, cash + evalVal);
+
+  // 도넛 차트 구성 데이터를 동적으로 빌드 (통합 시 투자법별 총수익 분할 적용)
+  let chartLabels = [];
+  let chartData = [];
+  let chartColors = [];
+
+  if (targetValue === 'combined') {
+    chartLabels.push('원금');
+    chartData.push(realPrincipal);
+    chartColors.push('#7c3aed'); // 합산 원금 색상
+
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (isSlotActive(i)) {
+        const strategyName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
+        const slotRes = getBestResult(lastBTResults[i], i);
+        const slotData = getDisplayStatusData(slotRes, i);
+        
+        let slotProfit = 0;
+        if (slotData) {
+          slotProfit = Number(slotData.totalProfit !== undefined ? slotData.totalProfit : (slotData.totalAssets - slotData.realPrincipal));
+        }
+        
+        chartLabels.push(`${strategyName} 수익`);
+        chartData.push(Math.max(0, slotProfit));
+        chartColors.push(SLOT_COLORS[(i - 1) % SLOT_COLORS.length]);
+      }
+    }
+  } else {
+    chartLabels = ['원금', '총수익'];
+    chartData = [realPrincipal, Math.max(0, totalProfit)];
+    chartColors = ['#7c3aed', '#2563eb'];
+  }
+
+  const chartTotal = Math.max(0.0001, chartData.reduce((a, b) => a + b, 0));
 
   const formatChartMoney = (value, compact = false) => {
     const num = Number(value || 0);
@@ -4443,6 +4910,12 @@ window.updateStatsPieChart = function() {
     return [...rows].filter(row => row && row.period).sort((a, b) => String(b.period).localeCompare(String(a.period)))[0] || null;
   };
 
+  const getSlotLatestPeriodRow = (slotNum, kind) => {
+    const rows = kind === 'year' ? globalYearlyDataArr[slotNum] : (kind === 'month' ? globalMonthlyDataArr[slotNum] : globalDailyDataArr[slotNum]);
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return [...rows].filter(row => row && row.period).sort((a, b) => String(b.period).localeCompare(String(a.period)))[0] || null;
+  };
+
   const formatPeriodValue = (row) => {
     if (!row) return '-';
     return `${formatChartMoney(row.profit, true)}(${(Number(row.rate || 0) * 100).toFixed(1)}%)`;
@@ -4460,36 +4933,64 @@ window.updateStatsPieChart = function() {
     return colorizeProfitValue(formatPeriodValue(row), Number(row.profit || 0));
   };
 
+  const latestYearRow = getLatestPeriodRow('year');
+  const latestMonthRow = getLatestPeriodRow('month');
+  const latestDayRow = getLatestPeriodRow('day');
+
+  const hexToRgba = (hex, alpha) => {
+    let c = hex.substring(1);
+    if (c.length === 3) {
+      c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+    }
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
   let legendRows = [
-    { label: '총 수익', value: totalProfit, pctBase: realPrincipal, pctDigits: 1, tone: 'profit' },
-    { label: '년 수익', customValue: formatPeriodValue(getLatestPeriodRow('year')), tone: 'profit' },
-    { label: '월 수익', customValue: formatPeriodValue(getLatestPeriodRow('month')), tone: 'profit' },
-    { label: '일 수익', customValue: formatPeriodValue(getLatestPeriodRow('day')), tone: 'profit' },
-    { label: '평가금', value: evalVal, color: '#2563eb', pctBase: chartTotal, tone: 'eval' },
-    { label: '예수금', value: cash, color: '#7c3aed', pctBase: chartTotal, tone: 'cash' },
     { label: '원금', value: realPrincipal, tone: 'principal' },
-    { label: '총자산', value: totalAssets, tone: 'total' }
+    { 
+      label: '총 수익', 
+      customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}(${formatPct(totalProfit, realPrincipal, 1)})`, totalProfit), 
+      tone: 'profit' 
+    },
+    { label: '년 수익', customValue: formatPeriodLegendValue(latestYearRow), tone: 'profit' },
+    { label: '월 수익', customValue: formatPeriodLegendValue(latestMonthRow), tone: 'profit' },
+    { label: '일 수익', customValue: formatPeriodLegendValue(latestDayRow), tone: 'profit' },
+    { label: '평가금', value: evalVal, tone: 'eval' },
+    { label: '예수금', value: cash, tone: 'cash' }
   ];
-  legendRows = [
-    { ...legendRows[0], customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}(${formatPct(totalProfit, realPrincipal, 1)})`, totalProfit), value: undefined, pctBase: undefined },
-    { ...legendRows[1], customValue: formatPeriodLegendValue(getLatestPeriodRow('year')) },
-    { ...legendRows[2], customValue: formatPeriodLegendValue(getLatestPeriodRow('month')) },
-    { ...legendRows[3], customValue: formatPeriodLegendValue(getLatestPeriodRow('day')) },
-    legendRows.find(row => row.tone === 'eval') || legendRows[4],
-    legendRows.find(row => row.tone === 'cash') || legendRows[5],
-    legendRows.find(row => row.tone === 'principal') || legendRows[6],
-    legendRows.find(row => row.tone === 'total') || legendRows[7]
-  ].filter(Boolean);
 
   const legendContainer = document.getElementById('statsChartLegend');
   if (legendContainer) {
-    legendContainer.innerHTML = legendRows.map(row => `
-      <div class="stats-asset-legend-row ${row.tone ? `stats-asset-${row.tone}` : ''}">
-        ${row.color ? `<span class="stats-asset-dot" style="background:${row.color};"></span>` : '<span class="stats-asset-dot-spacer"></span>'}
-        <span class="stats-asset-label">${row.label}</span>
-        <b>${row.customValue || `${formatChartMoney(row.value, true)}${row.pctBase ? `(${formatPct(row.value, row.pctBase, row.pctDigits || 0)})` : ''}`}</b>
-      </div>
-    `).join('');
+    legendContainer.innerHTML = legendRows.map(row => {
+      if (row.isHeader) {
+        return `
+          <div class="stats-asset-legend-row stats-asset-header" style="display: flex; justify-content: space-between; align-items: center; width: 200px; min-width: 200px; padding: 2px 6px; box-sizing: border-box; border-bottom: 1px solid rgba(255,255,255,0.15); height: auto; margin-bottom: 4px; background: transparent; border-top: none; border-left: none; border-right: none; border-radius: 0;">
+            <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: left; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${row.label}</span>
+            <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: center; width: 110px; flex-shrink: 0; letter-spacing: -0.3px;">${row.customValue}</span>
+          </div>
+        `;
+      }
+      return `
+        <div class="stats-asset-legend-row stats-asset-${row.tone || 'plain'}" style="display: flex; justify-content: space-between; align-items: center; width: 200px; min-width: 200px; padding: 2px 6px; box-sizing: border-box; height: auto; margin-bottom: 2px;">
+          <div style="display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1;">
+            ${row.color ? `<span class="stats-asset-dot" style="background:${row.color}; flex-shrink: 0;"></span>` : '<span class="stats-asset-dot-spacer" style="flex-shrink: 0; width: 0; height: 0; display: none;"></span>'}
+            <span class="stats-asset-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: var(--app-font-size, 10.5px); font-weight: 700; flex: 1; text-align: left;">${row.label}</span>
+          </div>
+          <b style="color: var(--text); font-size: var(--app-font-size, 10.5px); font-weight: 700; white-space: nowrap; margin-left: 4px; width: 110px; flex-shrink: 0; text-align: center; letter-spacing: -0.3px;">
+            ${row.customValue || `${formatChartMoney(row.value, true)}${row.pctBase ? `(${formatPct(row.value, row.pctBase, row.pctDigits || 0)})` : ''}`}
+          </b>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const subProfitEl = document.getElementById('statsSubStrategyProfitability');
+  if (subProfitEl) {
+    subProfitEl.innerHTML = '';
+    subProfitEl.className = 'stats-sub-strat-profit-container hidden';
   }
 
   const canvas = document.getElementById('statsPieChart');
@@ -4511,12 +5012,17 @@ window.updateStatsPieChart = function() {
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      
+      // 총자산 금액 (centerY - 4)
       ctx.font = `700 ${Math.max(10, appFontPx + 2)}px Outfit, Inter, sans-serif`;
       ctx.fillStyle = isDark ? '#ffffff' : '#000000';
       ctx.fillText(formatChartMoney(totalAssets, true), centerX, centerY - 4);
+      
+      // 총자산 라벨 (centerY + 13)
       ctx.font = `600 ${Math.max(9, appFontPx)}px Outfit, Inter, sans-serif`;
       ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.82)' : 'rgba(100, 116, 139, 0.85)';
       ctx.fillText('총자산', centerX, centerY + 13);
+      
       ctx.restore();
     }
   };
@@ -4524,10 +5030,10 @@ window.updateStatsPieChart = function() {
   statsPieChartInstance = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: ['예수금', '평가금'],
+      labels: chartLabels,
       datasets: [{
-        data: [cash, evalVal],
-        backgroundColor: ['#7c3aed', '#2563eb'],
+        data: chartData,
+        backgroundColor: chartColors,
         borderWidth: 0,
         borderColor: 'transparent',
         borderRadius: 0,
@@ -4548,7 +5054,8 @@ window.updateStatsPieChart = function() {
           callbacks: {
             label: function(context) {
               const val = Number(context.raw || 0);
-              const pct = chartTotal > 0 ? (val / chartTotal * 100).toFixed(1) : '0.0';
+              const totalVal = chartData.reduce((a, b) => a + b, 0);
+              const pct = totalVal > 0 ? (val / totalVal * 100).toFixed(1) : '0.0';
               return `${context.label}: ${formatChartMoney(val, true)} (${pct}%)`;
             }
           }
@@ -4608,6 +5115,42 @@ function restoreCacheDates(cacheObj) {
   if (cacheObj.rawDates && Array.isArray(cacheObj.rawDates)) {
     cacheObj.rawDates = cacheObj.rawDates.map(d => new Date(d));
   }
+}
+
+
+const CORE_PRICE_TICKERS = ['SOXL', 'QQQ', 'TQQQ', 'SOXX', 'KRW=X'];
+
+async function preloadCorePriceTickers() {
+  const now = new Date();
+  const fullStart = new Date(now.getTime() - 450 * 24 * 60 * 60 * 1000);
+  let earliestMissingTs = Infinity;
+  let latestCachedTs = 0;
+
+  for (const ticker of CORE_PRICE_TICKERS) {
+    const cached = normalizePriceSeries(await getDB(ticker), ticker);
+    if (!cached.dates.length) {
+      earliestMissingTs = Math.min(earliestMissingTs, fullStart.getTime());
+      continue;
+    }
+    const firstTs = cached.dates[0].getTime();
+    const lastTs = cached.dates[cached.dates.length - 1].getTime();
+    latestCachedTs = Math.max(latestCachedTs, lastTs);
+    if (firstTs > fullStart.getTime() + 43200000) {
+      earliestMissingTs = Math.min(earliestMissingTs, fullStart.getTime());
+    }
+  }
+
+  let startTs;
+  if (earliestMissingTs !== Infinity) {
+    startTs = Math.floor(earliestMissingTs / 1000);
+  } else if (latestCachedTs > 0) {
+    startTs = Math.floor((latestCachedTs - 86400000 * 5) / 1000);
+  } else {
+    startTs = Math.floor(fullStart.getTime() / 1000);
+  }
+
+  const p2 = Math.floor(now.getTime() / 1000);
+  await fetchBatchPriceData(CORE_PRICE_TICKERS, startTs, p2, true, false);
 }
 
 // 전역 주가 정보 티커 상태 (기본값 SOXL)
@@ -4705,7 +5248,10 @@ async function loadPriceInfoViewData() {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
     const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
 
-    const dayAgo = findClosestPrice(oneDayAgo);
+    const dayAgo = (len >= 2) ? {
+      price: data.close[len - 2],
+      date: data.dates[len - 2]
+    } : findClosestPrice(oneDayAgo);
     const weekAgo = findClosestPrice(lastWeekFriday);
     const monthAgo = findClosestPrice(lastMonthEnd);
     const yearAgo = findClosestPrice(lastYearEnd);
@@ -4767,81 +5313,125 @@ function renderPriceInfoView(data) {
   const monthDateStr = formatDateNY(month.date);
   const yearDateStr = formatDateNY(year.date);
 
-  contentEl.innerHTML = `
-    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; text-align:center;">
-      <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">최근 종가 (${latestDateStr})</div>
-      <div style="font-size:24px; font-weight:700; color:#ef4444;">$${latest.price.toFixed(2)}</div>
-    </div>
-    
-    <table class="data-table" style="width:100%; border-collapse:collapse; margin-top:8px; table-layout:fixed;">
-      <thead>
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-weight:700;">
-          <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">기간</th>
-          <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">과거 주가</th>
-          <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">현재 상승률</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
-            1일 전<br><span style="font-size:9px; color:#64748b;">${dayDateStr}</span>
-          </td>
-          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${day.price.toFixed(2)}</td>
-          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(day.rate)}</td>
-        </tr>
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
-            1주<br><span style="font-size:9px; color:#64748b;">${weekDateStr}</span>
-          </td>
-          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${week.price.toFixed(2)}</td>
-          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(week.rate)}</td>
-        </tr>
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
-            한달<br><span style="font-size:9px; color:#64748b;">${monthDateStr}</span>
-          </td>
-          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${month.price.toFixed(2)}</td>
-          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(month.rate)}</td>
-        </tr>
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-          <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
-            1년<br><span style="font-size:9px; color:#64748b;">${yearDateStr}</span>
-          </td>
-          <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${year.price.toFixed(2)}</td>
-          <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(year.rate)}</td>
-        </tr>
-      </tbody>
-    </table>
+  const chartDates = [];
+  const chartPrices = [];
+  let maxPrice = -Infinity;
+  let minPrice = Infinity;
 
-    <!-- 주가 그래프 영역 -->
-    <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; flex:1; display:flex; flex-direction:column;">
-      <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-bottom:8px; text-align:left;">📈 당해년도 주가</div>
-      <div style="flex:1; min-height:180px; position:relative; width:100%;">
-        <canvas id="soxlPriceChart"></canvas>
-      </div>
-    </div>
+  for (let i = 0; i < rawDates.length; i++) {
+    const itemDate = new Date(rawDates[i]);
+    if (itemDate >= lastYearEnd) {
+      const dStr = formatDateNY(itemDate);
+      chartDates.push(dStr.substring(5)); // 'MM-DD'
+      const priceVal = rawClose[i];
+      chartPrices.push(priceVal);
+      if (priceVal > maxPrice) maxPrice = priceVal;
+      if (priceVal < minPrice) minPrice = priceVal;
+    }
+  }
+
+
+  if (chartDates.length === 0 && rawDates.length > 0) {
+    const fallbackStart = Math.max(0, rawDates.length - 260);
+    for (let i = fallbackStart; i < rawDates.length; i++) {
+      const itemDate = new Date(rawDates[i]);
+      const dStr = formatDateNY(itemDate);
+      const priceVal = rawClose[i];
+      if (!dStr || priceVal === null || priceVal === undefined || isNaN(priceVal)) continue;
+      chartDates.push(dStr.substring(5));
+      chartPrices.push(priceVal);
+      if (priceVal > maxPrice) maxPrice = priceVal;
+      if (priceVal < minPrice) minPrice = priceVal;
+    }
+  }
+  const getTableRowsHtml = () => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+      <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+        1일 전<br><span style="font-size:9px; color:#64748b;">${dayDateStr}</span>
+      </td>
+      <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${day.price.toFixed(2)}</td>
+      <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(day.rate)}</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+      <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+        1주<br><span style="font-size:9px; color:#64748b;">${weekDateStr}</span>
+      </td>
+      <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${week.price.toFixed(2)}</td>
+      <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(week.rate)}</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+      <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+        한달<br><span style="font-size:9px; color:#64748b;">${monthDateStr}</span>
+      </td>
+      <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${month.price.toFixed(2)}</td>
+      <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(month.rate)}</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+      <td style="padding:6px 4px; text-align:center; font-size:11px; vertical-align:middle;">
+        1년<br><span style="font-size:9px; color:#64748b;">${yearDateStr}</span>
+      </td>
+      <td style="padding:6px 4px; text-align:center; font-weight:600; color:#3b82f6; vertical-align:middle;">$${year.price.toFixed(2)}</td>
+      <td style="padding:6px 4px; text-align:center; font-weight:700; vertical-align:middle;">${getRateHtml(year.rate)}</td>
+    </tr>
   `;
 
-  // 차트 렌더링
-  setTimeout(() => {
-    const ctx = document.getElementById('soxlPriceChart');
-    if (!ctx) return;
-    
-    const chartDates = [];
-    const chartPrices = [];
-    
-    for (let i = 0; i < rawDates.length; i++) {
-      const itemDate = new Date(rawDates[i]);
-      if (itemDate >= lastYearEnd) {
-        const dStr = formatDateNY(itemDate);
-        chartDates.push(dStr.substring(5)); // 'MM-DD'
-        chartPrices.push(rawClose[i]);
+  const existingCanvas = document.getElementById('soxlPriceChart');
+  const existingHeader = contentEl.querySelector('.price-info-header-block');
+
+  if (existingCanvas && existingHeader) {
+    const latestDateEl = contentEl.querySelector('.price-info-latest-date');
+    const latestPriceEl = contentEl.querySelector('.price-info-latest-price');
+    const tableBodyEl = contentEl.querySelector('.price-info-table-body');
+    const chartTitleEl = contentEl.querySelector('.price-info-chart-title');
+
+    if (latestDateEl) latestDateEl.textContent = `최근 종가 (${latestDateStr})`;
+    if (latestPriceEl) latestPriceEl.textContent = `$${latest.price.toFixed(2)}`;
+    if (tableBodyEl) tableBodyEl.innerHTML = getTableRowsHtml();
+    if (chartTitleEl) {
+      if (maxPrice !== -Infinity && minPrice !== Infinity) {
+        chartTitleEl.innerHTML = `📈 당해년도 주가 <span style="font-weight: normal; font-size: 10px; color: #94a3b8; margin-left: 6px;">(최고: $${maxPrice.toFixed(2)} / 최저: $${minPrice.toFixed(2)})</span>`;
+      } else {
+        chartTitleEl.innerHTML = `📈 당해년도 주가`;
       }
     }
-    
-    if (window.soxlPriceChartInstance) {
-      window.soxlPriceChartInstance.destroy();
+  } else {
+    let chartTitleHtml = `📈 당해년도 주가`;
+    if (maxPrice !== -Infinity && minPrice !== Infinity) {
+      chartTitleHtml = `📈 당해년도 주가 <span style="font-weight: normal; font-size: 10px; color: #94a3b8; margin-left: 6px;">(최고: $${maxPrice.toFixed(2)} / 최저: $${minPrice.toFixed(2)})</span>`;
     }
+
+    contentEl.innerHTML = `
+      <div class="price-info-header-block" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; text-align:center;">
+        <div class="price-info-latest-date" style="font-size:11px; color:#94a3b8; margin-bottom:4px;">최근 종가 (${latestDateStr})</div>
+        <div class="price-info-latest-price" style="font-size:24px; font-weight:700; color:#ef4444;">$${latest.price.toFixed(2)}</div>
+      </div>
+      
+      <table class="data-table" style="width:100%; border-collapse:collapse; margin-top:8px; table-layout:fixed;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-weight:700;">
+            <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">기간</th>
+            <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">과거 주가</th>
+            <th style="padding:6px 4px; text-align:center; font-size:11px; width:33.33%;">현재 상승률</th>
+          </tr>
+        </thead>
+        <tbody class="price-info-table-body">
+          ${getTableRowsHtml()}
+        </tbody>
+      </table>
+  
+      <!-- 주가 그래프 영역 -->
+      <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; flex:1; display:flex; flex-direction:column;">
+        <div class="price-info-chart-title" style="font-size:11px; color:#94a3b8; font-weight:600; margin-bottom:8px; text-align:left;">${chartTitleHtml}</div>
+        <div style="flex:1; min-height:180px; position:relative; width:100%;">
+          <canvas id="soxlPriceChart"></canvas>
+        </div>
+      </div>
+    `;
+  }
+
+  const runChartDraw = () => {
+    const ctx = document.getElementById('soxlPriceChart');
+    if (!ctx) return;
     
     if (typeof Chart === 'undefined') {
       console.warn("Chart.js is not loaded yet.");
@@ -4852,72 +5442,169 @@ function renderPriceInfoView(data) {
     const chartColor = isNasdaq ? '#6366f1' : '#ef4444';
     const chartBgColor = isNasdaq ? 'rgba(99, 102, 241, 0.05)' : 'rgba(239, 68, 68, 0.05)';
     
-    window.soxlPriceChartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartDates,
-        datasets: [{
-          label: ticker,
-          data: chartPrices,
-          borderColor: chartColor,
-          backgroundColor: chartBgColor,
-          borderWidth: 1.5,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          fill: true,
-          tension: 0.1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        layout: {
-          padding: { top: 4, bottom: 4, left: 4, right: 4 }
+    const maxMinPlugin = {
+      id: 'maxMinPlugin',
+      afterDatasetsDraw(chart) {
+        const { ctx, scales: { x, y } } = chart;
+        const dataset = chart.data.datasets[0];
+        if (!dataset || !dataset.data || dataset.data.length === 0) return;
+
+        const data = dataset.data;
+        let maxVal = -Infinity;
+        let minVal = Infinity;
+        let maxIdx = -1;
+        let minIdx = -1;
+
+        for (let i = 0; i < data.length; i++) {
+          const val = data[i];
+          if (val > maxVal) {
+            maxVal = val;
+            maxIdx = i;
+          }
+          if (val < minVal) {
+            minVal = val;
+            minIdx = i;
+          }
+        }
+
+        if (maxIdx === -1 || minIdx === -1) return;
+
+        ctx.save();
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textBaseline = 'middle';
+
+        const meta = chart.getDatasetMeta(0);
+        if (meta && meta.data && meta.data[maxIdx]) {
+          const maxX = meta.data[maxIdx].x;
+          const maxY = meta.data[maxIdx].y;
+          
+          ctx.beginPath();
+          ctx.arc(maxX, maxY, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = '#ef4444';
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.textAlign = 'center';
+          ctx.fillText(`▲ $${maxVal.toFixed(2)}`, maxX, maxY - 10);
+        }
+
+        if (meta && meta.data && meta.data[minIdx]) {
+          const minX = meta.data[minIdx].x;
+          const minY = meta.data[minIdx].y;
+
+          ctx.beginPath();
+          ctx.arc(minX, minY, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = '#3b82f6';
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+
+          ctx.fillStyle = '#3b82f6';
+          ctx.textAlign = 'center';
+          ctx.fillText(`▼ $${minVal.toFixed(2)}`, minX, minY + 10);
+        }
+
+        ctx.restore();
+      }
+    };
+
+    if (window.soxlPriceChartInstance && window.soxlPriceChartInstance.canvas === ctx) {
+      const chartInstance = window.soxlPriceChartInstance;
+      chartInstance.data.labels = chartDates;
+      chartInstance.data.datasets[0].label = ticker;
+      chartInstance.data.datasets[0].data = chartPrices;
+      chartInstance.data.datasets[0].borderColor = chartColor;
+      chartInstance.data.datasets[0].backgroundColor = chartBgColor;
+      
+      const plugins = chartInstance.config.plugins || [];
+      if (!plugins.some(p => p.id === 'maxMinPlugin')) {
+        plugins.push(maxMinPlugin);
+        chartInstance.config.plugins = plugins;
+      }
+      
+      chartInstance.update();
+    } else {
+      if (window.soxlPriceChartInstance) {
+        try { window.soxlPriceChartInstance.destroy(); } catch (e) {}
+      }
+      window.soxlPriceChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: chartDates,
+          datasets: [{
+            label: ticker,
+            data: chartPrices,
+            borderColor: chartColor,
+            backgroundColor: chartBgColor,
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: true,
+            tension: 0.1
+          }]
         },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            callbacks: {
-              label: function(context) {
-                return `$${Number(context.raw).toFixed(2)}`;
+        plugins: [maxMinPlugin],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: {
+            padding: { top: 15, bottom: 15, left: 8, right: 8 }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: function(context) {
+                  return `$${Number(context.raw).toFixed(2)}`;
+                }
               }
             }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            afterBuildTicks: function(scale) {
-              const ticks = scale.ticks;
-              if (!ticks || ticks.length === 0) return;
-              const total = ticks.length;
-              if (total <= 5) return;
-              const step = Math.floor((total - 1) / 4);
-              const targetIndices = [0, step, step * 2, step * 3, total - 1];
-              scale.ticks = ticks.filter((t, idx) => targetIndices.includes(idx));
-            },
-            ticks: {
-              color: '#64748b',
-              font: { size: 9 }
-            }
           },
-          y: {
-            grid: { color: 'rgba(255, 255, 255, 0.04)' },
-            ticks: {
-              maxTicksLimit: 4,
-              color: '#64748b',
-              font: { size: 9 },
-              callback: function(value) {
-                return `$${value}`;
+          scales: {
+            x: {
+              grid: { display: false },
+              afterBuildTicks: function(scale) {
+                const ticks = scale.ticks;
+                if (!ticks || ticks.length === 0) return;
+                const total = ticks.length;
+                if (total <= 5) return;
+                const step = Math.floor((total - 1) / 4);
+                const targetIndices = [0, step, step * 2, step * 3, total - 1];
+                scale.ticks = ticks.filter((t, idx) => targetIndices.includes(idx));
+              },
+              ticks: {
+                color: '#64748b',
+                font: { size: 9 }
+              }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.04)' },
+              ticks: {
+                maxTicksLimit: 4,
+                color: '#64748b',
+                font: { size: 9 },
+                callback: function(value) {
+                  return `$${value}`;
+                }
               }
             }
           }
         }
-      }
-    });
-  }, 100);
+      });
+    }
+  };
+
+  if (existingCanvas && existingHeader) {
+    runChartDraw();
+  } else {
+    setTimeout(runChartDraw, 100);
+  }
 }
 
 window.showPriceInfoView = showPriceInfoView;

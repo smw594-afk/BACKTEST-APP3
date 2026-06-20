@@ -1,4 +1,4 @@
-// strategy.js에서 병합됨
+﻿// strategy.js에서 병합됨
 const MASTER_STRATEGIES = {
   "1M": {
     config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
@@ -266,16 +266,80 @@ const yahooCache = {}; const pendingFetches = {};
 let isCurrencyKRW = false;
 let currentFXRate = 1450;
 
+function parsePriceChartPayload(ticker, payload, rnd = true) {
+  if (!payload || payload.error) throw new Error(payload?.error || `${ticker} 데이터가 없습니다.`);
+  if (!payload.chart || !payload.chart.result || !payload.chart.result[0]) throw new Error("Invalid Data Format");
+  const r = payload.chart.result[0];
+  const ts = r.timestamp || [];
+  const quote = r.indicators && r.indicators.quote && r.indicators.quote[0] ? r.indicators.quote[0] : {};
+  const cls = quote.close || [];
+  const ops = quote.open || [];
+  const dates = [];
+  const close = [];
+  const open = [];
+  let lastDay = "";
+  for (let i = 0; i < ts.length; i++) {
+    if (cls[i] === null || cls[i] === undefined || isNaN(cls[i])) continue;
+    const dateObj = new Date(ts[i] * 1000);
+    const dayStr = normalizeDateKey(dateObj);
+    const cVal = rnd ? pyRound2(cls[i]) : cls[i];
+    const oVal = rnd ? pyRound2(ops[i] ?? cls[i]) : (ops[i] ?? cls[i]);
+    if (dayStr !== lastDay) {
+      dates.push(dateFromKey(dayStr));
+      close.push(cVal);
+      open.push(oVal);
+      lastDay = dayStr;
+    } else {
+      close[close.length - 1] = cVal;
+      open[open.length - 1] = oVal;
+    }
+  }
+  return { ticker, dates, close, open };
+}
+
+async function applyPricePayloadToCache(ticker, payload, rnd = true) {
+  const incoming = parsePriceChartPayload(ticker, payload, rnd);
+  let cached = await getDB(ticker);
+  if (!cached) cached = { ticker, dates: [], close: [], open: [] };
+  cached = mergePriceSeries(cached, incoming, ticker);
+  await setDB(cached);
+  _sessionFetched[ticker] = true;
+  localStorage.setItem(`vtotal_last_fetch_${ticker}`, Date.now().toString());
+  localStorage.setItem(`vtotal_price_cache_repair_v2_${ticker}`, "1");
+  return cached;
+}
+
 async function updateCurrentFXRate(callback = null) {
+  // 먼저 localStorage에 저장된 마지막 환율값이 있으면 기본값 대신 적용
+  try {
+    const savedRate = parseFloat(localStorage.getItem('vtotal_last_fx_rate'));
+    if (savedRate && !isNaN(savedRate) && savedRate > 0) currentFXRate = savedRate;
+  } catch(e) {}
+
+  try {
+    const cachedFx = await getDB("KRW=X");
+    const normalizedFx = normalizePriceSeries(cachedFx, "KRW=X");
+    if (normalizedFx.close.length > 0) {
+      const latestRate = normalizedFx.close[normalizedFx.close.length - 1];
+      if (latestRate && !isNaN(latestRate)) {
+        currentFXRate = latestRate;
+        localStorage.setItem("vtotal_last_fx_rate", currentFXRate.toString());
+        if (callback) callback(currentFXRate);
+        return;
+      }
+    }
+  } catch(e) {}
+
   try {
     const nowTs = Math.floor(Date.now() / 1000);
-    const pastTs = nowTs - (86400 * 5);
-    const yUrl = `${CF_WORKER_URL}/api/yahoo?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
+    const pastTs = nowTs - (86400 * 30);
+    const yUrl = `${CF_WORKER_URL}/api/prices?t=KRW=X&p1=${pastTs}&p2=${nowTs}`;
     const response = await fetch(yUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const res = await response.json();
     if (!res.error && res.chart && res.chart.result[0]) {
       const cls = res.chart.result[0].indicators.quote[0].close;
-      let latestRate = 1450;
+      let latestRate = currentFXRate;
       for (let i = cls.length - 1; i >= 0; i--) {
         if (cls[i] !== null && !isNaN(cls[i])) {
           latestRate = cls[i];
@@ -283,11 +347,12 @@ async function updateCurrentFXRate(callback = null) {
         }
       }
       currentFXRate = latestRate;
+      localStorage.setItem('vtotal_last_fx_rate', currentFXRate.toString());
       console.log(`[환율 동기화 완료] 현재 적용 환율: ${currentFXRate.toFixed(2)}원`);
       if (callback) callback(currentFXRate);
     }
   } catch (e) {
-    console.warn("환율 동기화 실패. 기본값(1450원)을 유지합니다.", e);
+    console.warn(`환율 동기화 실패. 캐시된 환율(${currentFXRate.toFixed(0)}원)을 유지합니다.`, e.message);
   }
 }
 
@@ -416,12 +481,50 @@ function isUSMarketHoliday(dateStr) {
   const hols = [getObs(y, 1, 1), getNth(y, 1, 1, 3), getNth(y, 2, 1, 3), getGF(y), getNth(y, 5, 1, -1), getObs(y, 6, 19), getObs(y, 7, 4), getNth(y, 9, 1, 1), getNth(y, 11, 4, 4), getObs(y, 12, 25)];
   return hols.includes(dateStr);
 }
+// 🌐 데이터 수집 (Cloudflare Worker DB)
+// 세션 내 티커별 CF 워커 호출을 1회로 제한하여 중복 네트워크 요청을 원천 차단합니다.
+const _sessionFetched = {};
+const _tickerPending = {};
 
-// 🌐 데이터 수집 (Yahoo Finance)
+async function fetchBatchPriceData(tickers, p1, p2, rnd = true, force = false) {
+  const uniqueTickers = Array.from(new Set((tickers || []).map(t => String(t || "").trim()).filter(Boolean)));
+  if (uniqueTickers.length === 0) return {};
+  const fetchP2 = p2 + (86400 * 3);
+  const url = `${CF_WORKER_URL}/api/prices?symbols=${encodeURIComponent(uniqueTickers.join(","))}&p1=${p1}&p2=${fetchP2}${force ? "&force=true" : ""}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  const resultMap = payload.result || {};
+  const cachedMap = {};
+  await Promise.all(uniqueTickers.map(async (ticker) => {
+    const item = resultMap[ticker];
+    if (!item || item.error) {
+      console.warn(`[CF DB 배치 누락] ${ticker}: ${item?.error || "데이터 없음"}`);
+      return;
+    }
+    cachedMap[ticker] = await applyPricePayloadToCache(ticker, item, rnd);
+  }));
+  const krwSeries = cachedMap["KRW=X"];
+  if (krwSeries && krwSeries.close && krwSeries.close.length > 0) {
+    const latestRate = krwSeries.close[krwSeries.close.length - 1];
+    if (latestRate && !isNaN(latestRate)) {
+      currentFXRate = latestRate;
+      localStorage.setItem("vtotal_last_fx_rate", currentFXRate.toString());
+    }
+  }
+  return cachedMap;
+}
+
 async function fetchYahooData(t, p1, p2, rnd, force = false) {
   if (!t) throw new Error("티커가 비어있습니다.");
   const memKey = `${t}_${p1}_${p2}`;
   if (!force && yahooCache[memKey]) return yahooCache[memKey];
+
+  // 동일 티커에 대한 네트워크 요청이 이미 진행 중이면 그 결과를 기다린 뒤 IndexedDB에서 필터링
+  if (_tickerPending[t]) {
+    await _tickerPending[t];
+    return _buildResultFromDB(t, p1, p2, rnd);
+  }
   if (pendingFetches[memKey]) return await pendingFetches[memKey];
 
   const fetchPromise = (async () => {
@@ -437,34 +540,39 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
     const cacheRepairKey = 'vtotal_price_cache_repair_v2_' + t;
     const needsCacheRepair = localStorage.getItem(cacheRepairKey) !== '1';
 
-    if (force || needsCacheRepair || !enoughOld || (requestedEnd - lastCachedTs > 86400000)) {
-      fetchP1 = p1; fetchP2 = p2; isDelta = false;
-      fetchP2 = fetchP2 + (86400 * 3);
-      let yUrl = `${CF_WORKER_URL}/api/yahoo?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
+    // 이번 세션에서 이미 이 티커를 CF DB로부터 받아왔으면 IndexedDB 캐시만 사용 (네트워크 요청 생략)
+    const alreadyFetchedThisSession = !!_sessionFetched[t];
+    const cacheCloseEnough = lastCachedTs > 0 && (requestedEnd - lastCachedTs <= 86400000 * 5);
+    const needsNetworkFetch = cached.dates.length === 0 || ((!alreadyFetchedThisSession || !cacheCloseEnough) && (force || needsCacheRepair || !enoughOld || !cacheCloseEnough));
+
+    if (needsNetworkFetch) {
+      if (!force && !needsCacheRepair && enoughOld && lastCachedTs > 0) {
+        fetchP1 = Math.floor(lastCachedTs / 1000) + 86400;
+        isDelta = true;
+      } else {
+        fetchP1 = p1;
+        isDelta = false;
+      }
+      fetchP2 = p2 + (86400 * 3);
+      const yUrl = `${CF_WORKER_URL}/api/prices?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
+
+      // 이 티커에 대한 네트워크 호출 진행 플래그를 세워 동일 티커의 후속 호출이 대기하도록 합니다.
+      let resolveTickerPending;
+      _tickerPending[t] = new Promise(r => { resolveTickerPending = r; });
+
       try {
-        let res;
-        try {
-          const response = await fetch(yUrl); res = await response.json(); 
-          if (res.error) throw new Error(res.error);
-          if (!res.chart || !res.chart.result || !res.chart.result[0]) throw new Error("Invalid Yahoo Data Format");
-          const tsCheck = res.chart.result[0].timestamp;
-          if (['SOXL', 'QQQ', 'SOXX', 'TQQQ'].includes(t.toUpperCase()) && (!tsCheck || tsCheck.length === 0)) throw new Error(`${t} Data Empty`);
-        } catch (err) {
-          console.warn(`[야후 주가 수집 에러] ${t} - Vercel 실패, Cloudflare 백업 호출 시도: ` + err.message);
-          yUrl = `${CF_WORKER_URL}/api/yahoo?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
-          const response = await fetch(yUrl); res = await response.json();
-          if (res.error) throw new Error(res.error);
-        }
-        const r = res.chart.result[0], ts = r.timestamp, cls = r.indicators.quote[0].close, ops = r.indicators.quote[0].open;
-        let newDates = [], newClose = [], newOpen = [], lastDay = "";
-        for (let i = 0; i < ts.length; i++) {
-          if (cls[i] !== null) {
-            let dateObj = new Date(ts[i] * 1000); let dayStr = normalizeDateKey(dateObj); let cVal = rnd ? pyRound2(cls[i]) : cls[i]; let oVal = rnd ? pyRound2(ops[i]) : ops[i];
-            if (dayStr !== lastDay) { newDates.push(dateFromKey(dayStr)); newClose.push(cVal); newOpen.push(oVal); lastDay = dayStr; } else { newClose[newClose.length - 1] = cVal; newOpen[newOpen.length - 1] = oVal; }
-          }
-        }
+        const response = await fetch(yUrl);
+        const res = await response.json();
+        if (res.error) throw new Error(res.error);
+        if (!res.chart || !res.chart.result || !res.chart.result[0]) throw new Error("Invalid Data Format");
+        const tsCheck = res.chart.result[0].timestamp;
+        if (['SOXL', 'QQQ', 'SOXX', 'TQQQ'].includes(t.toUpperCase()) && (!tsCheck || tsCheck.length === 0)) throw new Error(`${t} Data Empty`);
+
+        const incoming = parsePriceChartPayload(t, res, rnd);
+        const newDates = incoming.dates;
+        const newClose = incoming.close;
+        const newOpen = incoming.open;
         const previousCached = cached;
-        const incoming = { ticker: t, dates: newDates, close: newClose, open: newOpen };
         if (isDelta) {
           const lastStr = formatDateNY(new Date(lastCachedTs));
           const freshIdx = newDates.findIndex(d => formatDateNY(d) > lastStr);
@@ -478,13 +586,42 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
         const todayNYStr = normalizeDateKey(new Date()); const nowNY = new Date(); const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));
         if (cached.dates.length > 0) { const lastDayNY = normalizeDateKey(cached.dates[cached.dates.length - 1]); if (lastDayNY === todayNYStr) { if (nyHour < 17) { cached.dates.pop(); cached.close.pop(); cached.open.pop(); } } }
         await setDB(cached); localStorage.setItem('vtotal_last_fetch_' + t, now.toString()); localStorage.setItem(cacheRepairKey, '1');
-      } catch (e) { throw new Error("데이터 수집 실패: " + e.message); }
+        _sessionFetched[t] = true;
+        console.log(`[CF DB 동기화 완료] ${t}: ${cached.dates.length}건 (네트워크 1회)`);
+      } catch (e) {
+        // CF 워커 실패 시 IndexedDB 캐시에 데이터가 있으면 그대로 사용 (오프라인 방어)
+        if (cached.dates.length > 0) {
+          console.warn(`[CF DB 수집 실패] ${t} - IndexedDB 캐시 사용: ` + e.message);
+          _sessionFetched[t] = true;
+        } else {
+          resolveTickerPending(); delete _tickerPending[t];
+          throw new Error("데이터 수집 실패: " + e.message);
+        }
+      } finally {
+        resolveTickerPending(); delete _tickerPending[t];
+      }
     }
     const finalResult = { dates: [], close: [], open: [] }; const reqS = requestedStart, reqE = requestedEnd;
     for (let i = 0, len = cached.dates.length; i < len; i++) { const key = normalizeDateKey(cached.dates[i]); const ts = dateFromKey(key).getTime(); if (ts >= reqS && ts <= reqE + (86400 * 1000 * 5)) { finalResult.dates.push(dateFromKey(key)); finalResult.close.push(cached.close[i]); finalResult.open.push(cached.open[i]); } }
     yahooCache[memKey] = finalResult; return finalResult;
   })();
   pendingFetches[memKey] = fetchPromise; const result = await fetchPromise; delete pendingFetches[memKey]; return result;
+}
+
+// IndexedDB에서 데이터를 읽어 요청 범위로 필터링하는 헬퍼 (세션 내 중복 네트워크 호출 방지용)
+async function _buildResultFromDB(t, p1, p2, rnd) {
+  let cached = await getDB(t);
+  if (!cached) { cached = { ticker: t, dates: [], close: [], open: [] }; }
+  cached = normalizePriceSeries(cached, t);
+  const reqS = p1 * 1000, reqE = p2 * 1000;
+  const finalResult = { dates: [], close: [], open: [] };
+  for (let i = 0, len = cached.dates.length; i < len; i++) {
+    const key = normalizeDateKey(cached.dates[i]); const ts = dateFromKey(key).getTime();
+    if (ts >= reqS && ts <= reqE + (86400 * 1000 * 5)) { finalResult.dates.push(dateFromKey(key)); finalResult.close.push(cached.close[i]); finalResult.open.push(cached.open[i]); }
+  }
+  const memKey = `${t}_${p1}_${p2}`;
+  yahooCache[memKey] = finalResult;
+  return finalResult;
 }
 
 // 📈 핵심 투자 로직 함수들
@@ -1199,7 +1336,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   let restoredInv = []; let restoredBase = 0; let realizedProfit = fixFloat(meta.realizedProfit) || 0; let cash = fixFloat(meta.currentCash) || 0; let serverQty = fixFloat(meta.qty) || 0; let serverAvg = fixFloat(meta.avgPrice) || 0;
   let restoredRealPrincipal = 0; 
   if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) { restoredInv = parsed.holdings.map(h => ({ ...h, buy_price: fixFloat(h.buy_price), cost: fixFloat(h.cost) })); } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
-  let qty = 0, totalCost = 0; restoredInv.forEach(item => { qty += item.qty; totalCost += item.cost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
+  let qty = 0, totalCost = 0; restoredInv.forEach(item => { const itemQty = fixFloat(item.qty) || 0; const itemCost = fixFloat(item.cost) || (fixFloat(item.buy_price) * itemQty); qty += itemQty; totalCost += itemCost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;
     let str = String(ds).trim();
@@ -1257,7 +1394,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
   const totalProfit = fixFloat(lastAsset - calculatedPrincipal);
   const simpleYield = calculatedPrincipal > 0 ? totalProfit / calculatedPrincipal : 0;
-  const evalVal = fixFloat(lastAsset - cash); const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0; const investPrincipal = fixFloat(qty * avgPrice); const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0; const currPrice = parseFloat(meta.tickerPrice) || (qty > 0 ? evalVal / qty : 0);
+  const evalVal = fixFloat(lastAsset - cash); const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0; const investPrincipal = fixFloat(qty * avgPrice); const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0; const currPrice = parseFloat(meta.tickerPrice) || 0;
 
   let cagr = 0;
   const effectivePrincipal = (calculatedPrincipal > 0) ? calculatedPrincipal : (restoredBase > 0 ? restoredBase : 0);
@@ -1324,8 +1461,8 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     calmar: minMdd !== 0 ? Math.abs(cagr / minMdd) : 0,
     totalProfit: finalProfit,
     realizedProfit: realizedProfit,
-    qty: serverQty,
-    avgPrice: serverAvg,
+    qty: serverQty > 0 ? serverQty : qty,
+    avgPrice: serverAvg > 0 ? serverAvg : avgPrice,
     evalReturn: evalReturn,
     evalVal: evalVal,
     cash: cash, 
