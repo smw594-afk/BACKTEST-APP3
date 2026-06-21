@@ -1,4 +1,4 @@
-﻿* {
+* {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
@@ -553,6 +553,11 @@ select {
   box-sizing: border-box;
 }
 
+select option {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+}
+
 input:focus {
   border-color: var(--primary);
   background: rgba(15, 23, 42, 0.8);
@@ -823,8 +828,10 @@ h2:hover {
   font-weight: 400;
 }
 
-#statsTable .stats-profit-rate {
-  font-size: calc(var(--app-font-size, 10.5px) - 2px);
+.stats-profit-rate {
+  font-size: calc(100% - 2px) !important;
+  font-weight: inherit !important;
+  opacity: 0.8 !important;
   line-height: 1;
 }
 
@@ -835,6 +842,10 @@ h2:hover {
 
 .buy-price {
   color: #ef4444 !important;
+}
+
+#combinedHoldingsBody .buy-price {
+  color: #7c3aed !important;
 }
 
 .sell {
@@ -1653,8 +1664,10 @@ body.light-mode [id^="holdingsView"] .data-table th {
   font-size: calc(var(--app-font-size, 10.5px) - 1px) !important;
 }
 
-#statsTable .stats-profit-rate {
-  font-size: calc(var(--app-font-size, 10.5px) - 2px) !important;
+.stats-profit-rate {
+  font-size: calc(100% - 2px) !important;
+  font-weight: inherit !important;
+  opacity: 0.8 !important;
   line-height: 1;
 }
 

@@ -1,4 +1,4 @@
-﻿// core.js (차트 및 엑셀 로직 모음)
+// core.js (차트 및 엑셀 로직 모음)
 
 // ---------------------------------------------------------
 // [1] 차트 관련 공통 변수
@@ -413,6 +413,16 @@ function renderChartAll() {
 
 function renderChart(resultsArray) {
   const validRes = (Array.isArray(resultsArray) ? resultsArray : Array.from(arguments)).filter(r => r && r.chartDates && r.chartBalances);
+
+  // ⭐️ 안전 보정: 만약 개별 투자법 뷰 모드인데 해당 슬롯이 비활성화되어 있다면 합산(0)으로 자동 리셋
+  if (chartViewMode >= 2 && chartViewMode <= MAX_SLOTS + 1) {
+    const slotIdx = chartViewMode - 1;
+    if (typeof isSlotActive === 'function' && !isSlotActive(slotIdx)) {
+      chartViewMode = 0;
+      try { localStorage.setItem(`vtotal_chart_view_mode_${myUserId}`, chartViewMode); } catch (e) { }
+    }
+  }
+
   if (validRes.length === 0) {
     if (myChart) { myChart.destroy(); myChart = null; }
     window.currentChartSignature = "";
@@ -422,17 +432,21 @@ function renderChart(resultsArray) {
   const sigs = validRes.map(r => r.summary ? `${r.currentStrat}_${r.summary.totalAssets}_${r.chartDates.length}` : "null");
   const newSig = sigs.join('|') + "|" + chartViewMode + "|" + isCurrencyKRW;
 
-  let namesStr = validRes.map(r => r.currentStrat);
-  let titleSuffix = namesStr.length > 0 ? (namesStr.length > 1 ? '(종합)' : `(${namesStr[0]})`) : '';
-
-  if (chartViewMode > 0 && chartViewMode <= MAX_SLOTS) {
-    const cfg = getSlotConfig(chartViewMode);
-    titleSuffix = `(${cfg?.basics?.strategy || `투자법 ${chartViewMode}`})`;
+  let titleSuffix = '';
+  if (chartViewMode === 0) {
+    titleSuffix = '합산';
+  } else if (chartViewMode === 1) {
+    titleSuffix = '종합';
+  } else if (chartViewMode >= 2 && chartViewMode <= MAX_SLOTS + 1) {
+    const slotIdx = chartViewMode - 1;
+    const cfg = getSlotConfig(slotIdx);
+    titleSuffix = `${cfg?.basics?.strategy || `투자법 ${slotIdx}`}`;
   }
 
   const cTitle = document.getElementById('chartTitle');
   const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
-  if (cTitle) cTitle.innerHTML = `📈 성과추이 <span ${smallStyle}>${titleSuffix}</span>`;
+  const displaySuffix = (typeof formatStrategyNameWithSmallParentheses === 'function') ? formatStrategyNameWithSmallParentheses(titleSuffix) : titleSuffix;
+  if (cTitle) cTitle.innerHTML = `📈 성과추이 <span ${smallStyle}>(${displaySuffix})</span>`;
 
   if (window.currentChartSignature === newSig) return;
   window.currentChartSignature = newSig;
@@ -473,25 +487,88 @@ function renderChart(resultsArray) {
   let datasets = [];
   let allMddValues = [];
 
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && lastBTResults[i]) {
-      if (chartViewMode === 0 || chartViewMode === i) {
+  if (chartViewMode === 0) {
+    const numDates = universalDates.length;
+    const combinedBalances = new Array(numDates).fill(0);
+    
+    const slotMaps = [];
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (isSlotActive(i) && lastBTResults[i]) {
         const res = lastBTResults[i];
-        const sName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
-        const alignedBA = alignData(res.chartDates, res.chartBalances, false);
-        const mdd = res.chartMdd.map(v => v * 100);
-        const alignedMDD = alignData(res.chartDates, mdd, true);
+        const map = {};
+        res.chartDates.forEach((d, idx) => { map[d] = res.chartBalances[idx]; });
+        slotMaps.push({
+          map: map,
+          lastVal: 0,
+          started: false
+        });
+      }
+    }
 
-        const color = SLOT_COLORS[(i - 1) % SLOT_COLORS.length];
-        const grad = ctx.createLinearGradient(0, 0, 0, 400);
-        grad.addColorStop(0, color + '4D'); // 30% alpha
-        grad.addColorStop(1, color + '00'); // 0% alpha
+    for (let j = numDates - 1; j >= 0; j--) {
+      const d = universalDates[j];
+      let dailySum = 0;
+      slotMaps.forEach(slot => {
+        if (slot.map[d] !== undefined) {
+          slot.lastVal = slot.map[d];
+          slot.started = true;
+        }
+        if (slot.started) {
+          dailySum += slot.lastVal;
+        }
+      });
+      combinedBalances[j] = dailySum;
+    }
 
-        datasets.push(
-          { label: sName + ' 자산', data: alignedBA, borderColor: color, yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: grad, tension: 0.2 },
-          { label: sName + ' MDD', data: alignedMDD, borderColor: color, borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
-        );
-        allMddValues = allMddValues.concat(mdd);
+    const combinedMdd = new Array(numDates).fill(0);
+    let peak = -Infinity;
+    for (let j = numDates - 1; j >= 0; j--) {
+      const bal = combinedBalances[j];
+      if (bal > peak) {
+        peak = bal;
+      }
+      if (peak > 0) {
+        combinedMdd[j] = ((bal - peak) / peak) * 100;
+      } else {
+        combinedMdd[j] = 0;
+      }
+    }
+
+    const alignedCombinedBA = combinedBalances.map(val => {
+      return isKRW ? Math.round(val * fx / 10000) : Math.round(val);
+    });
+
+    const color = '#3b82f6';
+    const grad = ctx.createLinearGradient(0, 0, 0, 400);
+    grad.addColorStop(0, color + '4D');
+    grad.addColorStop(1, color + '00');
+
+    datasets.push(
+      { label: '합산 자산', data: alignedCombinedBA, borderColor: color, yAxisID: 'y', borderWidth: 2.5, pointRadius: 0, fill: true, backgroundColor: grad, tension: 0.2 },
+      { label: '합산 MDD', data: combinedMdd, borderColor: '#ef4444', borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.2 }
+    );
+    allMddValues = combinedMdd;
+  } else {
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (isSlotActive(i) && lastBTResults[i]) {
+        if (chartViewMode === 1 || (chartViewMode - 1) === i) {
+          const res = lastBTResults[i];
+          const sName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
+          const alignedBA = alignData(res.chartDates, res.chartBalances, false);
+          const mdd = res.chartMdd.map(v => v * 100);
+          const alignedMDD = alignData(res.chartDates, mdd, true);
+
+          const color = SLOT_COLORS[(i - 1) % SLOT_COLORS.length];
+          const grad = ctx.createLinearGradient(0, 0, 0, 400);
+          grad.addColorStop(0, color + '4D'); // 30% alpha
+          grad.addColorStop(1, color + '00'); // 0% alpha
+
+          datasets.push(
+            { label: sName + ' 자산', data: alignedBA, borderColor: color, yAxisID: 'y', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: grad, tension: 0.2 },
+            { label: sName + ' MDD', data: alignedMDD, borderColor: color, borderDash: [4, 4], yAxisID: 'y1', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+          );
+          allMddValues = allMddValues.concat(mdd);
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-﻿// strategy.js에서 병합됨
+// strategy.js에서 병합됨
 const MASTER_STRATEGIES = {
   "1M": {
     config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
@@ -844,7 +844,9 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
 
     if (snapToUse) {
       let snap = snapToUse;
-      if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
+      const requestedStartStr = params.basics.startDate ? params.basics.startDate.trim() : "";
+      const snapStartStr = (snap.chartDates && snap.chartDates.length > 0) ? snap.chartDates[0] : "";
+      if (snap.currentStrat === curStrat && snapStartStr && requestedStartStr && snapStartStr === requestedStartStr && snap.chartDates && snap.chartDates.length > 0) {
         res.S = snap.chartDates.slice();
         res.BA = snap.chartBalances.slice();
         res.BF = snap.chartMdd.slice();
@@ -1335,7 +1337,15 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const logs = d.logs; const meta = d.meta;
   let restoredInv = []; let restoredBase = 0; let realizedProfit = fixFloat(meta.realizedProfit) || 0; let cash = fixFloat(meta.currentCash) || 0; let serverQty = fixFloat(meta.qty) || 0; let serverAvg = fixFloat(meta.avgPrice) || 0;
   let restoredRealPrincipal = 0; 
-  if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json); if (parsed.holdings) { restoredInv = parsed.holdings.map(h => ({ ...h, buy_price: fixFloat(h.buy_price), cost: fixFloat(h.cost) })); } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
+  if (d.json && d.json.trim() !== "") { try { const parsed = JSON.parse(d.json);         if (parsed.holdings) {
+          restoredInv = parsed.holdings.map(h => {
+            const rawBp = h.buy_price !== undefined ? h.buy_price : (h.buyPrice || 0);
+            const cleanBp = typeof rawBp === 'number' ? rawBp : parseFloat(String(rawBp).replace(/[^0-9.-]/g, "")) || 0;
+            const rawCost = h.cost !== undefined ? h.cost : 0;
+            const cleanCost = typeof rawCost === 'number' ? rawCost : parseFloat(String(rawCost).replace(/[^0-9.-]/g, "")) || 0;
+            return { ...h, buy_price: fixFloat(cleanBp), cost: fixFloat(cleanCost) };
+          });
+        } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
   let qty = 0, totalCost = 0; restoredInv.forEach(item => { const itemQty = fixFloat(item.qty) || 0; const itemCost = fixFloat(item.cost) || (fixFloat(item.buy_price) * itemQty); qty += itemQty; totalCost += itemCost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html id="docHtml">
 
 <head>
@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="/logo.png?v=3">
-  <link rel="icon" href="/logo.png?v=3">
+  <link rel="apple-touch-icon" href="logo.png?v=3">
+  <link rel="icon" href="logo.png?v=3">
   <title>V-QUANT(VC)</title>
 
   <script>
@@ -49,7 +49,7 @@
 
   <div id="loginScreen" class="login-container hidden">
     <div class="login-inner">
-      <div class="login-title">📄 V-QUANT(VC) <span id="loginVersion"
+      <div class="login-title">📄 V-QUANT<span style="font-size: calc(100% - 2px); font-weight: inherit; opacity: 0.8; margin-left: 2px;">(VC)</span> <span id="loginVersion"
           style="font-size:12px; opacity:0.5; font-weight:400;"></span></div>
       <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
       <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
@@ -538,9 +538,35 @@
     </div>
   </div>
 
-  <script src="engine.js?v=cf_v3520" defer></script>
-  <script src="core.js?v=cf_v3520" defer></script>
-  <script src="script.js?v=cf_v3520" defer></script>
+  <!-- 🔄 투자법 변경 안내 팝업 -->
+  <div id="strategyChangeOverlay" class="settings-overlay" style="display:none; z-index:1200;">
+    <div class="settings-modal" style="max-width:400px; width:95%; padding:20px; border-radius:12px; background:var(--card-bg, #1e293b); color:var(--text, #f8fafc); border:1px solid rgba(255,255,255,0.1); font-size:var(--app-font-size, 10.5px) !important;">
+      <h3 style="margin:0 0 15px 0; font-size:calc(var(--app-font-size, 10.5px) + 2px) !important; color:var(--primary, #8b5cf6); font-weight:700; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">🔄 투자법 변경 안내</h3>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px; line-height:1.4;">
+        <div>
+          <span>기존 투자법: </span><strong style="color:var(--text-muted);"><span id="popPrevStrategy">-</span></strong>
+        </div>
+        <div>
+          <span>변경 투자법: </span><strong style="color:var(--primary);"><span id="popNextStrategy">-</span></strong>
+        </div>
+        <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
+        <div style="font-weight:700; color:var(--primary);">💡 투자법 변경을 위한 권장 설정</div>
+        <div style="padding-left:5px; display:flex; flex-direction:column; gap:6px;">
+          <div><strong>1. 시작일 변경</strong><br/>실시간 운영현황 날짜(<span id="popStatDateText">-</span>) + 1일 이상인 <strong style="color:#f59e0b;"><span id="popNextDateText">-</span></strong>(으)로 변경</div>
+          <div><strong>2. 초기자산 변경</strong><br/>하단 실시간 운용현황의 총자산인 <strong style="color:#f59e0b;"><span id="popStatTotalText">-</span></strong>(으)로 변경</div>
+          <div><strong>3. 갱신금 변경</strong><br/>실시간 운용현황의 갱신금인 <strong style="color:#f59e0b;"><span id="popStatRenewText">-</span></strong>(으)로 변경</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <button id="btnApplyStrategyChange" class="btn-action" style="background:linear-gradient(135deg, #10b981, #059669); height:36px; font-size:11px; font-weight:700;">자동 적용</button>
+        <button id="btnConfirmStrategyChange" class="btn-action" style="background:#475569; height:36px; font-size:11px; font-weight:700;">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="engine.js" defer></script>
+  <script src="core.js" defer></script>
+  <script src="script.js" defer></script>
 
 </body>
 
