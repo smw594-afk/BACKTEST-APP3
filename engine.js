@@ -543,7 +543,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
     // 이번 세션에서 이미 이 티커를 CF DB로부터 받아왔으면 IndexedDB 캐시만 사용 (네트워크 요청 생략)
     const alreadyFetchedThisSession = !!_sessionFetched[t];
     const cacheCloseEnough = lastCachedTs > 0 && (requestedEnd - lastCachedTs <= 86400000 * 5);
-    const needsNetworkFetch = cached.dates.length === 0 || ((!alreadyFetchedThisSession || !cacheCloseEnough) && (force || needsCacheRepair || !enoughOld || !cacheCloseEnough));
+    const needsNetworkFetch = cached.dates.length === 0 || !enoughOld || ((!alreadyFetchedThisSession || !cacheCloseEnough) && (force || needsCacheRepair || !cacheCloseEnough));
 
     if (needsNetworkFetch) {
       if (!force && !needsCacheRepair && enoughOld && lastCachedTs > 0) {
