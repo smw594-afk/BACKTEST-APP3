@@ -1,4 +1,4 @@
-* {
+﻿* {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
@@ -118,6 +118,7 @@ body {
 .dashboard-grid.perf-metrics-layout .panel-chart {
   display: none !important;
 }
+
 
 .dashboard-grid.backtest-view-layout {
   grid-template-areas: "stats" "monthly" "chart";
@@ -1128,6 +1129,42 @@ h2:hover {
   height: auto !important;
 }
 
+/* 내역 화면은 폭 감지(force-2/3-col)와 무관하게 3.37처럼 세로 3단을 유지 */
+.dashboard-grid.perf-metrics-layout.force-3-col,
+.dashboard-grid.perf-metrics-layout.force-2-col {
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "stats" "order" "history" !important;
+  grid-template-rows: 1.4fr 1.4fr 1.2fr !important;
+  height: calc(100vh - 48px) !important;
+}
+
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-stats,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-stats {
+  display: flex !important;
+  grid-area: stats !important;
+}
+
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-order,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-order {
+  display: flex !important;
+  grid-area: order !important;
+}
+
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-history,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-history {
+  display: flex !important;
+  grid-area: history !important;
+}
+
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-monthly,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-monthly,
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-chart,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-chart,
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-settings,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-settings {
+  display: none !important;
+}
+
 @media (max-width: 1200px) {
   .panel-monthly.dual-active .hide-on-narrow {
     display: none;
@@ -1682,7 +1719,7 @@ body.light-mode [id^="holdingsView"] .data-table th {
 }
 
 /* 보유현황 보기 상태일 때 전체 보유현황 판이 한 번에 좌우 스크롤되도록 유지 */
-.holdings-view-active #dualOrderContainer {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active #dualOrderContainer {
   overflow-x: auto !important;
   overflow-y: hidden !important;
   min-width: 0 !important;
@@ -1690,33 +1727,33 @@ body.light-mode [id^="holdingsView"] .data-table th {
   cursor: grab;
 }
 
-.holdings-view-active #dualOrderContainer:active {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active #dualOrderContainer:active {
   cursor: grabbing;
 }
 
-.holdings-view-active .order-scroll-area {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active .order-scroll-area {
   overflow-x: visible !important;
   overflow-y: visible !important;
   touch-action: inherit !important;
 }
 
-.holdings-view-active .order-slot-container {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active .order-slot-container {
   flex: 0 0 330px !important;
   min-width: 330px !important;
 }
 
-.holdings-view-active #combinedOrderSlot {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active #combinedOrderSlot {
   flex: 1 1 100% !important;
   min-width: 100% !important;
   width: 100% !important;
   max-width: none !important;
 }
 
-.holdings-view-active #combinedHoldingsView {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active #combinedHoldingsView {
   width: 100% !important;
 }
 
-.holdings-view-active #combinedHoldingsView .data-table {
+.dashboard-grid:not(.perf-metrics-layout).holdings-view-active #combinedHoldingsView .data-table {
   width: 100% !important;
 }
 

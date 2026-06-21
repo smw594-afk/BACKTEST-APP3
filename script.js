@@ -683,6 +683,7 @@ function showStatsView() {
   const grid = document.getElementById('mainGrid');
   if (grid) {
     grid.classList.add('perf-metrics-layout');
+    grid.classList.remove('force-3-col', 'force-2-col', 'order-expanded', 'monthly-expanded', 'price-info-expanded');
     grid.classList.remove('backtest-view-layout', 'perf-tab-layout');
   }
   const btnStats = document.getElementById('btnStatsShow');
@@ -1871,6 +1872,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
             summary: isEngineNewer ? { ...pureEngineRes.summary, realPrincipal: realData.summary.realPrincipal } : realData.summary,
             inv: isEngineNewer ? pureEngineRes.inv : realData.inv,
             trades: sheetTrades,
+            tradesFromSheet: true,
             orders: isEngineNewer ? pureEngineRes.orders : finalSyncedOrders,
             rawOrders: isEngineNewer ? pureEngineRes.rawOrders : combinedForTung,
             nextOrderInfo: syncedNextInfo,
@@ -1942,7 +1944,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
               } catch (e) { return state; }
             });
             const stateTrades = reconstructRealTrades(buildTradeLogsFromDailyStates(mergedSnap.dailyStates), slotNum);
-            if (stateTrades.length >= (mergedSnap.trades || []).length) {
+            if (!mergedSnap.tradesFromSheet && stateTrades.length >= (mergedSnap.trades || []).length) {
               mergedSnap.trades = stateTrades;
             }
           }
@@ -2740,7 +2742,7 @@ function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
   // ⭐️ [매매 내역 복원 오염 차단] 
   // 실제 서버와 동기화된 실전 슬롯인 경우에 한하여, 엔진 구동 후 생성된 가상 trades 데이터를 
   // 실제 자산 holdings 로그(dailyStates)의 변동 기록을 역추적한 정확한 실전 매매 내역으로 덮어씁니다.
-  if (finalRes.isSynced && finalRes.dailyStates && finalRes.dailyStates.length > 0) {
+  if (finalRes.isSynced && !finalRes.tradesFromSheet && finalRes.dailyStates && finalRes.dailyStates.length > 0) {
     const logsFormat = finalRes.dailyStates.map(state => [
       state.date,
       state.asset,
@@ -4478,7 +4480,7 @@ function renderDBTradeHistory() {
         const res = lastBTResults[i];
         if (res) {
           let trades = Array.isArray(res.trades) ? res.trades : [];
-          if (res.isSynced && res.dailyStates && res.dailyStates.length > 0) {
+          if (res.isSynced && !res.tradesFromSheet && res.dailyStates && res.dailyStates.length > 0) {
             const reconstructedTrades = reconstructRealTrades(buildTradeLogsFromDailyStates(res.dailyStates), i);
             if (reconstructedTrades.length >= trades.length) {
               trades = reconstructedTrades;
