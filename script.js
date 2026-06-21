@@ -1586,7 +1586,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
   try {
     const parseDateStr = (ds) => {
       if (!ds) return formatDateNY(new Date());
-      let str = String(ds).trim().replace(/\([가-힣a-zA-Z]\)/g, "").trim();
+      let str = String(ds).trim().replace(/\([^)]+\)/g, "").trim();
       str = str.replace(/[년월.\/]/g, '-').replace(/일/g, '').replace(/\s+/g, '');
       if (str.endsWith('-')) str = str.slice(0, -1);
       if (str.includes('T')) str = str.split('T')[0];
@@ -1659,8 +1659,22 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
           }
         }
         const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}${sinceParams.length ? `&${sinceParams.join('&')}` : ''}`;
-        const res = await fetch(allUrl);
-        const data = await res.json();
+        const dbSyncUrl = `${CF_WORKER_URL}/api/sync?id=${myUserId}`;
+
+        const [resGas, resDb] = await Promise.all([
+          fetch(allUrl).catch(e => { console.warn("GAS GET_ALL_INIT 호출 실패:", e); return null; }),
+          fetch(dbSyncUrl).catch(e => { console.warn("CF Worker /api/sync 호출 실패:", e); return null; })
+        ]);
+
+        let data = null;
+        if (resGas && resGas.ok) {
+          data = await resGas.json().catch(() => null);
+        }
+
+        let dbData = null;
+        if (resDb && resDb.ok) {
+          dbData = await resDb.json().catch(() => null);
+        }
         
         if (data && data.perf) {
           const dataInit = {
@@ -1672,6 +1686,45 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
             config6: data.config6,
             hasSheet: data.hasSheet
           };
+
+          // D1 에지 DB 백업 데이터 스마트 병합
+          if (dbData && dbData.status === "success" && dbData.states) {
+            console.log(`[D1 DB 데이터 복구] ${dbData.states.length}건의 일별 자산 데이터 연동 완료.`);
+            for (let i = 1; i <= MAX_SLOTS; i++) {
+              const key = `strat${i}`;
+              if (!data.perf[key]) {
+                data.perf[key] = { logs: [], meta: {}, json: "{}" };
+              }
+              
+              const sheetLogs = data.perf[key].logs || [];
+              const d1StatesForSlot = (dbData.states || []).filter(s => s.slot_num === i);
+
+              const byDate = new Map();
+              sheetLogs.forEach(row => {
+                const dt = parseDateStr(row && row[0]);
+                if (dt) byDate.set(dt, row);
+              });
+              d1StatesForSlot.forEach(s => {
+                const dt = parseDateStr(s.date);
+                if (dt && !byDate.has(dt)) {
+                  byDate.set(dt, [s.date, s.asset, s.inout, s.state_json]);
+                }
+              });
+
+              data.perf[key].logs = Array.from(byDate.entries())
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(entry => entry[1]);
+
+              if ((!data.perf[key].json || data.perf[key].json.trim() === "{}") && d1StatesForSlot.length > 0) {
+                const sortedD1States = d1StatesForSlot.slice().sort((a, b) => a.date.localeCompare(b.date));
+                const latestState = sortedD1States[sortedD1States.length - 1];
+                if (latestState && latestState.state_json) {
+                  data.perf[key].json = latestState.state_json;
+                }
+              }
+            }
+          }
+
           const dataPerf = cachedPerf ? mergeSheetPerf(cachedPerf, data.perf) : data.perf;
           try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
           return { dataInit, dataPerf };

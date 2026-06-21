@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 🌐 V-TOTAL MASTER3.0 V3.20 Cloudflare Worker Backend
  * 
  * [바인딩 요구사항]:
@@ -489,7 +489,6 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
   if (cachedData) {
     resultJSON = JSON.parse(cachedData);
   } else {
-    // 야후 API 실시간 호출 로직 완전 삭제 -> DB 스케줄러 백업 데이터만 안전하게 조회
     try {
       const padStr = (n) => String(n).padStart(2, '0');
       const getYYYYMMDD = (tsSec) => {
@@ -517,30 +516,30 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
         const lastClose = close.length > 0 ? close[close.length - 1] : 0;
         const prevClose = close.length > 1 ? close[close.length - 2] : lastClose;
 
-      resultJSON = {
-        chart: {
-          result: [
-            {
-              meta: { 
-                ticker: ticker,
-                symbol: ticker, // 심볼 규격 추가
-                regularMarketPrice: lastClose,  // ⭐️ 누락되었던 핵심 데이터 (금일 청산가)
-                chartPreviousClose: prevClose
-              },
-              timestamp: timestamp,
-              indicators: {
-                quote: [
-                  {
-                    open: open,
-                    close: close
-                  }
-                ]
+        resultJSON = {
+          chart: {
+            result: [
+              {
+                meta: { 
+                  ticker: ticker,
+                  symbol: ticker,
+                  regularMarketPrice: lastClose,
+                  chartPreviousClose: prevClose
+                },
+                timestamp: timestamp,
+                indicators: {
+                  quote: [
+                    {
+                      open: open,
+                      close: close
+                    }
+                  ]
+                }
               }
-            }
-          ],
-          error: null
-        }
-      };
+            ],
+            error: null
+          }
+        };
 
         if (env.VTOTAL_KV) {
           ctx.waitUntil(env.VTOTAL_KV.put(cacheKey, JSON.stringify(resultJSON), { expirationTtl: 1800 }));
