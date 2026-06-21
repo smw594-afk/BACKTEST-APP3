@@ -1,4 +1,4 @@
-// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.38";
 const MAX_SLOTS = 6;
@@ -1576,7 +1576,7 @@ function applyQuickConfig() {
 // 5. 서버 동기화 및 백테스트 실행
 async function checkAndSyncWithServer(isInitial, forceSync = false) {
   if (forceSync) {
-    try { localStorage.removeItem(`vtotal_sheet_perf_cache_${myUserId}`); } catch (e) {}
+    try { localStorage.removeItem(`vtotal_sheet_perf_cache_${myUserId}`); localStorage.removeItem(`vtotal_sheet_perf_cache_v2_${myUserId}`); } catch (e) {}
   }
   window.isServerSyncing = true;
   setLED('loading');
@@ -1599,7 +1599,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
       return str;
     };
 
-    const getSheetPerfCacheKey = () => `vtotal_sheet_perf_cache_${myUserId}`;
+    const getSheetPerfCacheKey = () => `vtotal_sheet_perf_cache_v2_${myUserId}`;
 
     const getCachedSheetPerf = () => {
       try { return JSON.parse(localStorage.getItem(getSheetPerfCacheKey()) || "null"); } catch (e) { return null; }
@@ -1659,22 +1659,13 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
           }
         }
         const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}${sinceParams.length ? `&${sinceParams.join('&')}` : ''}`;
-        const dbSyncUrl = `${CF_WORKER_URL}/api/sync?id=${myUserId}`;
-
-        const [resGas, resDb] = await Promise.all([
-          fetch(allUrl).catch(e => { console.warn("GAS GET_ALL_INIT 호출 실패:", e); return null; }),
-          fetch(dbSyncUrl).catch(e => { console.warn("CF Worker /api/sync 호출 실패:", e); return null; })
-        ]);
+        const resGas = await fetch(allUrl).catch(e => { console.warn("GAS GET_ALL_INIT 호출 실패:", e); return null; });
 
         let data = null;
         if (resGas && resGas.ok) {
           data = await resGas.json().catch(() => null);
         }
 
-        let dbData = null;
-        if (resDb && resDb.ok) {
-          dbData = await resDb.json().catch(() => null);
-        }
         
         if (data && data.perf) {
           const dataInit = {
@@ -1687,43 +1678,6 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
             hasSheet: data.hasSheet
           };
 
-          // D1 에지 DB 백업 데이터 스마트 병합
-          if (dbData && dbData.status === "success" && dbData.states) {
-            console.log(`[D1 DB 데이터 복구] ${dbData.states.length}건의 일별 자산 데이터 연동 완료.`);
-            for (let i = 1; i <= MAX_SLOTS; i++) {
-              const key = `strat${i}`;
-              if (!data.perf[key]) {
-                data.perf[key] = { logs: [], meta: {}, json: "{}" };
-              }
-              
-              const sheetLogs = data.perf[key].logs || [];
-              const d1StatesForSlot = (dbData.states || []).filter(s => s.slot_num === i);
-
-              const byDate = new Map();
-              sheetLogs.forEach(row => {
-                const dt = parseDateStr(row && row[0]);
-                if (dt) byDate.set(dt, row);
-              });
-              d1StatesForSlot.forEach(s => {
-                const dt = parseDateStr(s.date);
-                if (dt && !byDate.has(dt)) {
-                  byDate.set(dt, [s.date, s.asset, s.inout, s.state_json]);
-                }
-              });
-
-              data.perf[key].logs = Array.from(byDate.entries())
-                .sort((a, b) => a[0].localeCompare(b[0]))
-                .map(entry => entry[1]);
-
-              if ((!data.perf[key].json || data.perf[key].json.trim() === "{}") && d1StatesForSlot.length > 0) {
-                const sortedD1States = d1StatesForSlot.slice().sort((a, b) => a.date.localeCompare(b.date));
-                const latestState = sortedD1States[sortedD1States.length - 1];
-                if (latestState && latestState.state_json) {
-                  data.perf[key].json = latestState.state_json;
-                }
-              }
-            }
-          }
 
           const dataPerf = cachedPerf ? mergeSheetPerf(cachedPerf, data.perf) : data.perf;
           try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
