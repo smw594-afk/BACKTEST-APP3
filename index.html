@@ -180,9 +180,7 @@
         <button class="btn-action btn-settings-grid" onclick="handleDeposit()"
           style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 증액하기</button>
         <button id="btnSyncSheet" class="btn-action btn-settings-grid" onclick="restoreRealAccountMode()"
-          style="background: #475569;">📥 DB에서 불러오기</button>
-        <button id="btnAdminDb" class="btn-action btn-settings-grid" onclick="showAdminDbModal()"
-          style="background: linear-gradient(135deg, #111827, #334155);">DB 관리자</button>
+          style="background: #475569;">📥 시트에서 불러오기</button>
       </div>
 
       <div
@@ -528,54 +526,6 @@
   </div>
 
   <!-- 🏆 백테스트 투자법 랭킹 오버레이 -->
-  <div id="adminDbOverlay" class="settings-overlay" style="display:none; z-index:1180;">
-    <div class="settings-modal admin-db-modal">
-      <div class="admin-db-header">
-        <h3>DB 관리자</h3>
-        <span onclick="hideAdminDbModal()" class="admin-db-close">×</span>
-      </div>
-      <div id="adminDbAuth" class="admin-db-auth">
-        <div class="admin-db-auth-box">
-          <div class="admin-db-auth-title">관리자 비밀번호</div>
-          <input id="adminDbPassword" type="password" inputmode="numeric" placeholder="0000" onkeydown="if(event.key==='Enter') unlockAdminDb()">
-          <button class="admin-db-btn" onclick="unlockAdminDb()">접속</button>
-          <div id="adminDbAuthMsg" class="admin-db-auth-msg"></div>
-        </div>
-      </div>
-      <div id="adminDbPanel" class="admin-db-panel" style="display:none;">
-      <div class="admin-db-controls">
-        <div class="input-group admin-db-field admin-db-field-wide"><label>테이블</label><select id="adminDbTable" onchange="adminDbResetAndLoad()">
-          <option value="user_configs">설정값</option>
-          <option value="daily_states">데일리 상태</option>
-          <option value="trade_history">실전 매도내역</option>
-          <option value="stock_prices">주식정보</option>
-        </select></div>
-        <div class="input-group admin-db-field"><label>아이디</label><select id="adminDbUser" onchange="adminDbResetAndLoad()"><option value="ALL">ALL</option></select></div>
-        <div class="input-group admin-db-field"><label>티커</label><select id="adminDbTicker" onchange="adminDbResetAndLoad()"><option value="ALL">ALL</option></select></div>
-        <div class="input-group admin-db-field"><label>투자법</label><select id="adminDbSlot" onchange="adminDbResetAndLoad()">
-          <option value="ALL">ALL</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-          <option value="6">6</option>
-        </select></div>
-        <div class="input-group admin-db-field admin-db-field-small"><label>정렬</label><select id="adminDbOrder" onchange="adminDbResetAndLoad()"><option value="desc">내림차순</option><option value="asc">오름차순</option></select></div>
-        <div class="input-group admin-db-field admin-db-field-small"><label>개수</label><select id="adminDbLimit" onchange="adminDbResetAndLoad()"><option>100</option><option selected>200</option><option>500</option><option>1000</option></select></div>
-        <button class="admin-db-btn admin-db-search-btn" onclick="adminDbResetAndLoad()">조회</button>
-      </div>
-      <div id="adminDbSummary" class="admin-db-summary">대기 중</div>
-      <div id="adminDbContent" class="admin-db-content slim-scroll">관리자 DB 조회 버튼을 누르세요.</div>
-      <div class="admin-db-footer">
-        <button class="admin-db-btn" onclick="adminDbPrevPage()">이전</button>
-        <span id="adminDbPageInfo">0 / 0</span>
-        <button class="admin-db-btn" onclick="adminDbNextPage()">다음</button>
-      </div>
-      </div>
-    </div>
-  </div>
-
   <div id="rankingOverlay" class="settings-overlay" style="display:none; z-index:1150;"
     onclick="if(event.target === this) this.style.display='none'">
     <div class="settings-modal" style="max-width:760px; width:98%; max-height:94vh; padding:10px; border-radius:12px; background:var(--card-bg, #1e293b); color:var(--text, #f8fafc); border:1px solid rgba(255,255,255,0.1); font-size:var(--app-font-size, 10.5px) !important;">
