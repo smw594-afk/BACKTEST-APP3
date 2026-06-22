@@ -1,4 +1,4 @@
-﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.38";
 const MAX_SLOTS = 6;
@@ -250,10 +250,35 @@ function generateDynamicDOM() {
 // 2. 초기 로드 및 편의 함수
 window.addEventListener('DOMContentLoaded', generateDynamicDOM);
 
-function forceUpdateApp() {
-  if (confirm(`현재 버전: ${APP_VERSION}\n앱 데이터를 강제로 초기화할까요?`)) {
-    try { indexedDB.deleteDatabase(DB_NAME); localStorage.clear(); } catch (e) { }
-    window.location.reload();
+async function forceUpdateApp() {
+  if (confirm(`현재 버전: ${APP_VERSION}\n앱 데이터를 강제로 공장초기화(Hard Reset)할까요?\n\n이 작업은 로컬 스토리지, IndexedDB, 그리고 서비스 워커 캐시를 완전히 삭제하여 앱을 최초 상태로 복원합니다.`)) {
+    try {
+      // 1. IndexedDB 삭제
+      indexedDB.deleteDatabase(DB_NAME);
+      
+      // 2. 스토리지 비우기
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // 3. 서비스 워커 캐시 스토리지 전체 제거
+      if ('caches' in window && window.location.protocol !== 'file:') {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(key => caches.delete(key)));
+      }
+
+      // 4. 등록된 서비스 워커 모두 해제
+      if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+      
+      alert("✅ 공장초기화가 완료되었습니다. 앱을 재부팅합니다.");
+    } catch (e) {
+      alert("초기화 중 일부 오류가 발생했습니다: " + e.message);
+    }
+    window.location.reload(true);
   }
 }
 
@@ -1651,23 +1676,97 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
 
     const loadSheetData = async () => {
       try {
-        const cachedPerf = getCachedSheetPerf();
-        const sinceParams = [];
-        if (cachedPerf) {
-          for (let i = 1; i <= MAX_SLOTS; i++) {
-            const latest = getLatestPerfDate(cachedPerf[`strat${i}`]);
-            if (latest) sinceParams.push(`since${i}=${encodeURIComponent(latest)}`);
-          }
-        }
-        const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}${sinceParams.length ? `&${sinceParams.join('&')}` : ''}`;
-        const resGas = await fetch(allUrl).catch(e => { console.warn("GAS GET_ALL_INIT 호출 실패:", e); return null; });
-
-        let data = null;
-        if (resGas && resGas.ok) {
-          data = await resGas.json().catch(() => null);
-        }
-
+        const syncUrl = `${CF_WORKER_URL}/api/sync?id=${myUserId}`;
+        const res = await fetch(syncUrl).catch(e => { console.warn("D1 Sync API 호출 실패:", e); return null; });
+        if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'unknown'}`);
         
+        const data = await res.json().catch(() => null);
+        if (!data || data.status !== 'success') throw new Error("유효하지 않은 D1 동기화 응답");
+        
+        // ⭐️ [스마트 마이그레이션 판정] D1 DB에 설정값(configs)이 없는 최초 마이그레이션 유저라면 시트에서 불러오도록 에러 발생
+        if (!data.configs || data.configs.length === 0) {
+          throw new Error("D1 데이터가 없습니다. 구글 시트에서 데이터를 복구합니다.");
+        }
+        
+        const configsMap = {};
+        data.configs.forEach(cfg => {
+          try { configsMap[cfg.slot_num] = JSON.parse(cfg.config_json); } catch(e) {}
+        });
+        
+        const dataInit = {
+          config: configsMap[1] || null,
+          config2: configsMap[2] || null,
+          config3: configsMap[3] || null,
+          config4: configsMap[4] || null,
+          config5: configsMap[5] || null,
+          config6: configsMap[6] || null,
+          hasSheet: true
+        };
+
+        const dataPerf = { status: "success" };
+        for (let slot = 1; slot <= MAX_SLOTS; slot++) {
+          const slotStates = (data.states || [])
+            .filter(s => s.slot_num === slot)
+            .sort((a, b) => a.date.localeCompare(b.date));
+          
+          if (slotStates.length === 0) {
+            dataPerf[`strat${slot}`] = null;
+            continue;
+          }
+          
+          const logsData = slotStates.map(s => [
+            s.date,
+            s.asset,
+            s.inout,
+            s.state_json
+          ]);
+          
+          const lastState = slotStates[slotStates.length - 1];
+          const lastJson = lastState.state_json;
+          let meta = { currentCash: 0, totalPrincipal: 0, realizedProfit: 0, qty: 0, avgPrice: 0, ticker: "" };
+          
+          try {
+            const parsed = JSON.parse(lastJson || '{}');
+            meta.currentCash = parsed.cash || 0;
+            meta.totalPrincipal = parsed.base_principal || 0;
+            meta.realizedProfit = parsed.realizedProfit || 0;
+            
+            let qty = 0, totalCost = 0;
+            if (parsed.holdings) {
+              parsed.holdings.forEach(h => {
+                const hQty = Number(h.qty) || 0;
+                const hCost = Number(h.cost) || ((Number(h.buy_price) || 0) * hQty);
+                qty += hQty;
+                totalCost += hCost;
+              });
+            }
+            meta.qty = qty;
+            meta.avgPrice = qty > 0 ? totalCost / qty : 0;
+            
+            const slotCfg = configsMap[slot];
+            if (slotCfg && slotCfg.basics) {
+              meta.ticker = slotCfg.basics.ticker || "";
+            }
+          } catch(e) {}
+          
+          dataPerf[`strat${slot}`] = {
+            meta: meta,
+            logs: logsData,
+            json: lastJson
+          };
+        }
+
+        try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
+        return { dataInit, dataPerf };
+      } catch (e) {
+        console.warn("D1 로드 실패 또는 데이터 없음, 기존 구글 시트 폴백 방식으로 로드:", e);
+      }
+
+      // [폴백 및 자동 복제] 에지 DB 연결 실패 또는 데이터가 비어있을 때 구글 시트에서 직접 데이터 로드 후 복제
+      try {
+        const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}`;
+        const resGas = await fetch(allUrl);
+        const data = await resGas.json();
         if (data && data.perf) {
           const dataInit = {
             config: data.config,
@@ -1678,36 +1777,49 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
             config6: data.config6,
             hasSheet: data.hasSheet
           };
+          try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(data.perf)); } catch (e) {}
+          
+          // ⭐️ [스마트 마이그레이션] 구글 시트에서 읽어온 원본 데이터를 D1 에지 DB로 복제 전송 (최초 1회 자동 동기화)
+          (async () => {
+            try {
+              console.log("스마트 마이그레이션: 구글 시트 데이터를 D1 에지 DB로 최초 1회 복제 전송합니다...");
+              for (let slot = 1; slot <= MAX_SLOTS; slot++) {
+                const cfgProp = slot === 1 ? 'config' : `config${slot}`;
+                const config = dataInit[cfgProp];
+                const perfData = data.perf[`strat${slot}`];
+                if (config && perfData && perfData.logs) {
+                  const states = perfData.logs.map(log => ({
+                    date: log[0],
+                    asset: log[1],
+                    inout: log[2],
+                    json: log[3]
+                  }));
+                  
+                  await fetch(`${CF_WORKER_URL}/api/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: myUserId,
+                      slot: slot,
+                      config: config,
+                      states: states,
+                      trades: [] // trades는 추후 수동/자동 저장 시 D1에 누적 동기화됨
+                    })
+                  }).catch(() => null);
+                }
+              }
+              console.log("스마트 마이그레이션 완료!");
+            } catch(err) {
+              console.warn("스마트 마이그레이션 처리 중 오류:", err);
+            }
+          })();
 
-
-          const dataPerf = cachedPerf ? mergeSheetPerf(cachedPerf, data.perf) : data.perf;
-          try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
-          return { dataInit, dataPerf };
+          return { dataInit, dataPerf: data.perf };
         }
-      } catch (e) {
-        console.warn("GET_ALL_INIT 실패, 기존 폴백 방식으로 데이터 로드 시도:", e);
+      } catch(err) {
+        console.error("구글 시트 폴백 로드 최종 실패:", err);
       }
-
-      // [폴백] 새 Code.gs 매크로가 반영되지 않았을 때를 위한 하위 호환용 병렬 처리
-      const initUrl = `${GAS_URL}?action=GET_INIT&id=${myUserId}`;
-      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        perfUrl += `&strat${i}=1`;
-      }
-
-      const [resInit, resPerf] = await Promise.all([
-        fetch(initUrl),
-        fetch(perfUrl)
-      ]);
-
-      const [dataInit, dataPerf] = await Promise.all([
-        resInit.json(),
-        resPerf.json()
-      ]);
-
-      dataInit.hasSheet = true;
-      try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
-      return { dataInit, dataPerf };
+      return { dataInit: { hasSheet: false }, dataPerf: { status: "error" } };
     };
 
     window.skipChartRendering = true;
