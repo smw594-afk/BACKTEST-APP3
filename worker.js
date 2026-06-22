@@ -913,6 +913,7 @@ async function runAutoMatchingForUserSlot(userId, slotNum, configJson, env, ctx)
 
       let d_cf = 0.0, d_pl = 0.0, nextHoldings = [];
       let evalVal = t2(currentHoldings.reduce((s, p) => s + p.qty, 0) * close);
+      const dayTrades = [];
 
       for (let p_idx = 0; p_idx < currentHoldings.length; p_idx++) {
         let p_inv = currentHoldings[p_idx];
@@ -931,15 +932,14 @@ async function runAutoMatchingForUserSlot(userId, slotNum, configJson, env, ctx)
           d_cf += net;
           d_pl += trade_pl;
 
-          const tradeId = `${userId}_${slotNum}_${p_inv.buyDate}_${dtStr}_${p_inv.qty}`;
-          statements.push(
-            env.DB.prepare(
-              "INSERT OR REPLACE INTO trade_history (id, user_id, slot_num, buy_date, sell_date, mode, tier, buy_price, sell_price, qty, profit, total_balance, renew_cash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            ).bind(
-              tradeId, userId, slotNum, p_inv.buyDate, dtStr, p_inv.mode, p_inv.tier,
-              fixFloat(p_inv.buy_price), fixFloat(close), fixFloat(p_inv.qty), fixFloat(trade_pl), fixFloat(currentCash + d_cf + evalVal), fixFloat(currentBase)
-            )
-          );
+          dayTrades.push({
+            buyDate: p_inv.buyDate,
+            mode: p_inv.mode,
+            tier: p_inv.tier,
+            buy_price: p_inv.buy_price,
+            qty: p_inv.qty,
+            profit: trade_pl
+          });
         } else {
           nextHoldings.push(p_inv);
         }
@@ -975,6 +975,21 @@ async function runAutoMatchingForUserSlot(userId, slotNum, configJson, env, ctx)
 
       evalVal = t2(currentHoldings.reduce((s, p) => s + p.qty, 0) * close);
       let totalBalance = t2(currentCash + evalVal);
+
+      if (dayTrades.length > 0) {
+        dayTrades.forEach(t => {
+          const tradeId = `${userId}_${slotNum}_${t.buyDate}_${dtStr}_${t.qty}`;
+          statements.push(
+            env.DB.prepare(
+              "INSERT OR REPLACE INTO trade_history (id, user_id, slot_num, buy_date, sell_date, mode, tier, buy_price, sell_price, qty, profit, total_balance, renew_cash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).bind(
+              tradeId, userId, slotNum, t.buyDate, dtStr, t.mode, t.tier,
+              fixFloat(t.buy_price), fixFloat(close), fixFloat(t.qty), fixFloat(t.profit),
+              fixFloat(totalBalance), fixFloat(currentBase)
+            )
+          );
+        });
+      }
 
       const stateJson = JSON.stringify({
         cash: fixFloat(currentCash),
@@ -1040,6 +1055,76 @@ export default {
     }
 
     try {
+      // Admin DB viewer API (GET /api/admin/db-view)
+      if (url.pathname === "/api/admin/db-view" && request.method === "GET") {
+        if (url.searchParams.get("adminPw") !== "0000") {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+        const allowedTables = {
+          user_configs: { order: "updated_at", userCol: "user_id" },
+          daily_states: { order: "date", userCol: "user_id" },
+          trade_history: { order: "sell_date", userCol: "user_id" },
+          stock_prices: { order: "date", userCol: null }
+        };
+        const table = (url.searchParams.get("table") || "user_configs").trim();
+        const meta = allowedTables[table];
+        if (!meta) {
+          return new Response(JSON.stringify({ error: "Unsupported table" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+        const order = (url.searchParams.get("order") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "200", 10) || 200, 1), 1000);
+        const offset = Math.max(parseInt(url.searchParams.get("offset") || "0", 10) || 0, 0);
+        const userId = (url.searchParams.get("id") || "").trim();
+        const ticker = (url.searchParams.get("ticker") || "").trim().toUpperCase();
+        const slot = (url.searchParams.get("slot") || "").trim();
+
+        const usersPromise = env.DB.prepare(
+          "SELECT user_id, COUNT(*) AS rows FROM (" +
+          " SELECT user_id FROM user_configs" +
+          " UNION ALL SELECT user_id FROM daily_states" +
+          " UNION ALL SELECT user_id FROM trade_history" +
+          ") GROUP BY user_id ORDER BY user_id ASC"
+        ).all();
+
+        let where = [];
+        let binds = [];
+        if (meta.userCol && userId && userId !== "ALL") { where.push("user_id = ?"); binds.push(userId); }
+        if (table === "stock_prices" && ticker && ticker !== "ALL") { where.push("UPPER(ticker) = ?"); binds.push(ticker); }
+        if (table !== "stock_prices" && slot && slot !== "ALL") {
+          const parsedSlot = parseInt(slot, 10);
+          if (!isNaN(parsedSlot)) {
+            where.push("(slot_num = ? OR slot_num = ?)");
+            binds.push(parsedSlot);
+            binds.push(slot);
+          }
+        }
+        const whereSql = where.length ? " WHERE " + where.join(" AND ") : "";
+        const orderCol = meta.order;
+
+        const dataSql = `SELECT * FROM ${table}${whereSql} ORDER BY ${orderCol} ${order} LIMIT ? OFFSET ?`;
+        const countSql = `SELECT COUNT(*) AS count FROM ${table}${whereSql}`;
+        const tickerSql = "SELECT ticker, COUNT(*) AS rows, MIN(date) AS first_date, MAX(date) AS last_date FROM stock_prices GROUP BY ticker ORDER BY ticker ASC";
+
+        const [rows, countRow, users, tickers] = await Promise.all([
+          env.DB.prepare(dataSql).bind(...binds, limit, offset).all(),
+          env.DB.prepare(countSql).bind(...binds).first(),
+          usersPromise,
+          env.DB.prepare(tickerSql).all()
+        ]);
+
+        return new Response(JSON.stringify({
+          status: "success",
+          table,
+          order: order.toLowerCase(),
+          limit,
+          offset,
+          total: countRow?.count || 0,
+          users: users.results || [],
+          tickers: tickers.results || [],
+          rows: rows.results || []
+        }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+      }
+
       // 📈 1-0. 신규: 실시간 주문표 계산 API (POST /api/calculate-order)
       if (url.pathname === "/api/calculate-order" && request.method === "POST") {
         const body = await request.json();
@@ -1321,6 +1406,60 @@ export default {
         });
       }
 
+      async function hashPassword(password) {
+        const msgUint8 = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+      }
+
+      // 🔐 로그인 및 회원가입 API (POST /api/login-or-register)
+      if (url.pathname === "/api/login-or-register" && request.method === "POST") {
+        const body = await request.json();
+        const userId = (body.id || "").trim();
+        const userPw = (body.pw || "").trim();
+        if (!userId || !userPw) {
+          return new Response(JSON.stringify({ result: "fail", msg: "ID와 비밀번호를 입력해주세요." }), {
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        const hashedPassword = await hashPassword(userPw);
+        
+        const userRow = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
+        if (userRow) {
+          if (userRow.pw === hashedPassword) {
+            return new Response(JSON.stringify({ result: "success", msg: "로그인 성공" }), {
+              headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
+          } else if (userRow.pw === userPw) {
+            // ⭐️ 기존 평문 패스워드 계정 로그인 성공 시 해시값으로 자동 갱신 마이그레이션 처리
+            await env.DB.prepare("UPDATE users SET pw = ? WHERE id = ?").bind(hashedPassword, userId).run();
+            return new Response(JSON.stringify({ result: "success", msg: "로그인 성공" }), {
+              headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
+          } else {
+            return new Response(JSON.stringify({ result: "fail", msg: "비밀번호가 틀렸습니다." }), {
+              headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
+          }
+        } else {
+          // 신규 가입 정원 제한 (20명)
+          const countRow = await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first();
+          if (countRow && countRow.count >= 20) {
+            return new Response(JSON.stringify({ result: "fail", msg: "가입 정원을 초과했습니다." }), {
+              headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
+          }
+          
+          await env.DB.prepare("INSERT INTO users (id, pw, name) VALUES (?, ?, ?)").bind(userId, hashedPassword, "").run();
+          return new Response(JSON.stringify({ result: "success", msg: "계정 생성됨" }), {
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+      }
+
       // 💾 3. 에지 데이터 저장 및 비동기 시트 백업 API (ctx.waitUntil 기술의 꽃)
       if (url.pathname === "/api/save" && request.method === "POST") {
         const body = await request.json();
@@ -1446,6 +1585,14 @@ export default {
       if (errMsg.includes("no such table") && env.DB) {
         try {
           console.log("[Auto-Migration] 'no such table' detected. Creating D1 Tables...");
+          
+          await env.DB.prepare(`
+            CREATE TABLE IF NOT EXISTS users (
+              id TEXT PRIMARY KEY,
+              pw TEXT NOT NULL,
+              name TEXT DEFAULT ''
+            )
+          `).run();
           
           await env.DB.prepare(`
             CREATE TABLE IF NOT EXISTS user_configs (

@@ -1,4 +1,4 @@
-﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.38";
 const MAX_SLOTS = 6;
@@ -274,14 +274,14 @@ function setLED(status) {
 }
 
 async function restoreRealAccountMode() {
-  if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 구글 시트 데이터로 교체됩니다.")) return;
+  if (!confirm("🔄 실전 데이터 모드로 복원하시겠습니까?\n\n현재 화면의 백테스트 결과가 사라지고 DB 데이터로 교체됩니다.")) return;
   isViewingHistory = false;
   isManualBacktestMode = false;
   updateHeaderDisplay();
   setLED('loading');
   await checkAndSyncWithServer(true, true);
   setLED('on');
-  showToast("✅ 실전 데이터로 복원되었습니다.");
+  showToast("✅ DB 데이터로 복원되었습니다.");
 }
 
 // 🔄 수동 백테스트 해제 및 기존 로컬 캐시 복원 함수
@@ -1173,19 +1173,24 @@ async function handleLogin() {
   if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요"); btn.innerText = "서버 통신 중..."; btn.disabled = true;
   try {
     const [loginResp, initResp] = await Promise.all([
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "LOGIN_OR_REGISTER", id: id, pw: pw }) }),
-      fetch(`${GAS_URL}?action=GET_INIT&id=${id}`).catch(() => null)
+      fetch(`${CF_WORKER_URL}/api/login-or-register`, { method: 'POST', body: JSON.stringify({ id: id, pw: pw }) }),
+      fetch(`${CF_WORKER_URL}/api/sync?id=${id}`).catch(() => null)
     ]);
     const res = await loginResp.json();
     if (res.result === "success") {
       localStorage.setItem('vtotal_auth', 'true'); localStorage.setItem('vtotal_id', id); myUserId = id;
       if (initResp) {
         try {
-          const initData = await initResp.json();
-          for (let i = 1; i <= MAX_SLOTS; i++) {
-            const prop = i === 1 ? 'config' : `config${i}`;
-            if (initData[prop] && !isSlotLocallyDisabled(i, id)) {
-              localStorage.setItem(`vtotal_conf${i}_${id}`, JSON.stringify(initData[prop]));
+          const syncData = await initResp.json();
+          if (syncData && syncData.status === "success") {
+            const configsMap = {};
+            (syncData.configs || []).forEach(cfg => {
+              try { configsMap[cfg.slot_num] = JSON.parse(cfg.config_json); } catch(e) {}
+            });
+            for (let i = 1; i <= MAX_SLOTS; i++) {
+              if (configsMap[i] && !isSlotLocallyDisabled(i, id)) {
+                localStorage.setItem(`vtotal_conf${i}_${id}`, JSON.stringify(configsMap[i]));
+              }
             }
           }
         } catch (e) { }
@@ -1340,6 +1345,7 @@ function enterAppDirectly() {
   initInstantButtonEvents();
   initStatsButtonEvents();
   initBacktestLongPress();
+  initSaveButtonLongPress();
 
   // 초기 active 탭 동기화
   const btnInstant = document.getElementById('btnInstant');
@@ -1419,6 +1425,74 @@ function initBacktestLongPress() {
   const btn = document.getElementById('runBtnSettings');
   if (!btn) return;
   btn.onclick = () => openQuickConfig();
+}
+
+function initSaveButtonLongPress() {
+  const btn = document.getElementById('btnSaveTop');
+  if (!btn) return;
+
+  let pressTimer = null;
+  let countdownInterval = null;
+  let secondsLeft = 10;
+  let isLongPressed = false;
+  const originalText = btn.innerHTML;
+
+  // onclick 재정의
+  btn.onclick = function(e) {
+    if (isLongPressed) {
+      isLongPressed = false;
+      return;
+    }
+    handleSave(false);
+  };
+
+  function startPress(e) {
+    if (e.type === 'mousedown' && e.button !== 0) return;
+
+    isLongPressed = false;
+    secondsLeft = 10;
+    btn.innerHTML = `강제 전송 대기 (${secondsLeft}초)`;
+
+    countdownInterval = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft > 0) {
+        btn.innerHTML = `강제 전송 대기 (${secondsLeft}초)`;
+      } else {
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
+
+    pressTimer = setTimeout(() => {
+      isLongPressed = true;
+      clearInterval(countdownInterval);
+      btn.innerHTML = originalText;
+      showToast("🚀 10초 롱프레스로 인해 강제 전송(검증 우회)을 시작합니다.", "⚠️");
+      handleSave(true);
+    }, 10000);
+  }
+
+  function cancelPress(e) {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+
+    if (!isLongPressed) {
+      btn.innerHTML = originalText;
+    }
+  }
+
+  btn.addEventListener('mousedown', startPress);
+  btn.addEventListener('touchstart', startPress, { passive: true });
+
+  btn.addEventListener('mouseup', cancelPress);
+  btn.addEventListener('touchend', cancelPress);
+  btn.addEventListener('mouseleave', cancelPress);
+  btn.addEventListener('touchcancel', cancelPress);
 }
 
 function openQuickConfig() {
@@ -1651,23 +1725,97 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
 
     const loadSheetData = async () => {
       try {
-        const cachedPerf = getCachedSheetPerf();
-        const sinceParams = [];
-        if (cachedPerf) {
-          for (let i = 1; i <= MAX_SLOTS; i++) {
-            const latest = getLatestPerfDate(cachedPerf[`strat${i}`]);
-            if (latest) sinceParams.push(`since${i}=${encodeURIComponent(latest)}`);
-          }
-        }
-        const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}${sinceParams.length ? `&${sinceParams.join('&')}` : ''}`;
-        const resGas = await fetch(allUrl).catch(e => { console.warn("GAS GET_ALL_INIT 호출 실패:", e); return null; });
-
-        let data = null;
-        if (resGas && resGas.ok) {
-          data = await resGas.json().catch(() => null);
-        }
-
+        const syncUrl = `${CF_WORKER_URL}/api/sync?id=${myUserId}`;
+        const res = await fetch(syncUrl).catch(e => { console.warn("D1 Sync API 호출 실패:", e); return null; });
+        if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'unknown'}`);
         
+        const data = await res.json().catch(() => null);
+        if (!data || data.status !== 'success') throw new Error("유효하지 않은 D1 동기화 응답");
+        
+        // ⭐️ [스마트 마이그레이션 판정] D1 DB에 설정값(configs)이 없는 최초 마이그레이션 유저라면 시트에서 불러오도록 에러 발생
+        if (!data.configs || data.configs.length === 0) {
+          throw new Error("D1 데이터가 없습니다. 구글 시트에서 데이터를 복구합니다.");
+        }
+        
+        const configsMap = {};
+        data.configs.forEach(cfg => {
+          try { configsMap[cfg.slot_num] = JSON.parse(cfg.config_json); } catch(e) {}
+        });
+        
+        const dataInit = {
+          config: configsMap[1] || null,
+          config2: configsMap[2] || null,
+          config3: configsMap[3] || null,
+          config4: configsMap[4] || null,
+          config5: configsMap[5] || null,
+          config6: configsMap[6] || null,
+          hasSheet: true
+        };
+
+        const dataPerf = { status: "success" };
+        for (let slot = 1; slot <= MAX_SLOTS; slot++) {
+          const slotStates = (data.states || [])
+            .filter(s => s.slot_num === slot)
+            .sort((a, b) => a.date.localeCompare(b.date));
+          
+          if (slotStates.length === 0) {
+            dataPerf[`strat${slot}`] = null;
+            continue;
+          }
+          
+          const logsData = slotStates.map(s => [
+            s.date,
+            s.asset,
+            s.inout,
+            s.state_json
+          ]);
+          
+          const lastState = slotStates[slotStates.length - 1];
+          const lastJson = lastState.state_json;
+          let meta = { currentCash: 0, totalPrincipal: 0, realizedProfit: 0, qty: 0, avgPrice: 0, ticker: "" };
+          
+          try {
+            const parsed = JSON.parse(lastJson || '{}');
+            meta.currentCash = parsed.cash || 0;
+            meta.totalPrincipal = parsed.base_principal || 0;
+            meta.realizedProfit = parsed.realizedProfit || 0;
+            
+            let qty = 0, totalCost = 0;
+            if (parsed.holdings) {
+              parsed.holdings.forEach(h => {
+                const hQty = Number(h.qty) || 0;
+                const hCost = Number(h.cost) || ((Number(h.buy_price) || 0) * hQty);
+                qty += hQty;
+                totalCost += hCost;
+              });
+            }
+            meta.qty = qty;
+            meta.avgPrice = qty > 0 ? totalCost / qty : 0;
+            
+            const slotCfg = configsMap[slot];
+            if (slotCfg && slotCfg.basics) {
+              meta.ticker = slotCfg.basics.ticker || "";
+            }
+          } catch(e) {}
+          
+          dataPerf[`strat${slot}`] = {
+            meta: meta,
+            logs: logsData,
+            json: lastJson
+          };
+        }
+
+        try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
+        return { dataInit, dataPerf };
+      } catch (e) {
+        console.warn("D1 로드 실패 또는 데이터 없음, 기존 구글 시트 폴백 방식으로 로드:", e);
+      }
+
+      // [폴백 및 자동 복제] 에지 DB 연결 실패 또는 데이터가 비어있을 때 구글 시트에서 직접 데이터 로드 후 복제
+      try {
+        const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}`;
+        const resGas = await fetch(allUrl);
+        const data = await resGas.json();
         if (data && data.perf) {
           const dataInit = {
             config: data.config,
@@ -1678,36 +1826,49 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
             config6: data.config6,
             hasSheet: data.hasSheet
           };
+          try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(data.perf)); } catch (e) {}
+          
+          // ⭐️ [스마트 마이그레이션] 구글 시트에서 읽어온 원본 데이터를 D1 에지 DB로 복제 전송 (최초 1회 자동 동기화)
+          (async () => {
+            try {
+              console.log("스마트 마이그레이션: 구글 시트 데이터를 D1 에지 DB로 최초 1회 복제 전송합니다...");
+              for (let slot = 1; slot <= MAX_SLOTS; slot++) {
+                const cfgProp = slot === 1 ? 'config' : `config${slot}`;
+                const config = dataInit[cfgProp];
+                const perfData = data.perf[`strat${slot}`];
+                if (config && perfData && perfData.logs) {
+                  const states = perfData.logs.map(log => ({
+                    date: log[0],
+                    asset: log[1],
+                    inout: log[2],
+                    json: log[3]
+                  }));
+                  
+                  await fetch(`${CF_WORKER_URL}/api/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: myUserId,
+                      slot: slot,
+                      config: config,
+                      states: states,
+                      trades: [] // trades는 추후 수동/자동 저장 시 D1에 누적 동기화됨
+                    })
+                  }).catch(() => null);
+                }
+              }
+              console.log("스마트 마이그레이션 완료!");
+            } catch(err) {
+              console.warn("스마트 마이그레이션 처리 중 오류:", err);
+            }
+          })();
 
-
-          const dataPerf = cachedPerf ? mergeSheetPerf(cachedPerf, data.perf) : data.perf;
-          try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
-          return { dataInit, dataPerf };
+          return { dataInit, dataPerf: data.perf };
         }
-      } catch (e) {
-        console.warn("GET_ALL_INIT 실패, 기존 폴백 방식으로 데이터 로드 시도:", e);
+      } catch(err) {
+        console.error("구글 시트 폴백 로드 최종 실패:", err);
       }
-
-      // [폴백] 새 Code.gs 매크로가 반영되지 않았을 때를 위한 하위 호환용 병렬 처리
-      const initUrl = `${GAS_URL}?action=GET_INIT&id=${myUserId}`;
-      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        perfUrl += `&strat${i}=1`;
-      }
-
-      const [resInit, resPerf] = await Promise.all([
-        fetch(initUrl),
-        fetch(perfUrl)
-      ]);
-
-      const [dataInit, dataPerf] = await Promise.all([
-        resInit.json(),
-        resPerf.json()
-      ]);
-
-      dataInit.hasSheet = true;
-      try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
-      return { dataInit, dataPerf };
+      return { dataInit: { hasSheet: false }, dataPerf: { status: "error" } };
     };
 
     window.skipChartRendering = true;
@@ -2195,11 +2356,11 @@ function triggerOptimisticSave() {
   updateSlotsVisibility();
 }
 
-async function handleSave() {
+async function handleSave(force = false) {
   const targetSlot = activeSettingsTab;
   const btn = document.getElementById('btnSaveTop');
   const orgText = btn ? btn.innerHTML : "";
-  if (btn) btn.innerText = '준비 중...';
+  if (btn) btn.innerText = force ? '강제 저장 중...' : '준비 중...';
 
   try {
     saveCurrentFormToSlot(targetSlot);
@@ -2242,12 +2403,12 @@ async function handleSave() {
 
     const configChangedFromSheet = !isFirstSheetSetup && hasSheetConfigChanged(targetSlot, slotConfigs[targetSlot]);
 
-    if (!validateSheetAppendWindow(targetSlot, slotConfigs[targetSlot], sheetLastDate, { alert: true, enforceStartDate: configChangedFromSheet })) {
+    if (!force && !validateSheetAppendWindow(targetSlot, slotConfigs[targetSlot], sheetLastDate, { alert: true, enforceStartDate: configChangedFromSheet })) {
       if (btn) btn.innerHTML = orgText;
       return;
     }
 
-    if (configChangedFromSheet) {
+    if (!force && configChangedFromSheet) {
       const ok = confirm("시트에 기록이 있는 상태에서 설정값이 변경되었습니다.\n\n다시 한번 확인해주세요.\n\n확인을 누르면 변경된 설정값을 시트에 반영합니다.");
       if (!ok) {
         if (btn) btn.innerHTML = orgText;
@@ -2302,11 +2463,15 @@ async function handleSave() {
 
     if (newLogs.length === 0) {
       if (isFirstSheetSetup) {
-        if (!confirm("시트에 데이터가 없습니다.\n\n확인을 누르시면 설정값만 시트에 전송하여 첫 설정을 마치겠습니다.\n\n매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.")) {
+        if (!force && !confirm("시트에 데이터가 없습니다.\n\n확인을 누르시면 설정값만 시트에 전송하여 첫 설정을 마치겠습니다.\n\n매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.")) {
           if (btn) btn.innerHTML = orgText;
           return;
         }
         newLogs = [];
+      } else if (force) {
+        newLogs = sortSheetStates(targetRes.dailyStates || []);
+        localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
+        localStorage.removeItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`);
       } else if (confirm("시트에 새로 반영할 기록이 없습니다.\n\n시트의 설정값은 그대로 두고, 앱의 동기화 날짜 정보만 초기화하여 계산된 기록을 다시 전송하시겠습니까?")) {
         newLogs = sortSheetStates(targetRes.dailyStates || []);
         localStorage.setItem(`vtotal_sheet_last_date_${targetSlot}_${myUserId}`, "1900-01-01");
@@ -2315,12 +2480,12 @@ async function handleSave() {
         if (btn) btn.innerHTML = orgText;
         return;
       }
-    } else if (isFirstSheetSetup && !confirm("시트에 데이터가 없습니다.\n\n확인을 누르시면 설정값만 시트에 전송하여 첫 설정을 마치겠습니다.\n\n매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.")) {
+    } else if (isFirstSheetSetup && !force && !confirm("시트에 데이터가 없습니다.\n\n확인을 누르시면 설정값만 시트에 전송하여 첫 설정을 마치겠습니다.\n\n매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.")) {
       if (btn) btn.innerHTML = orgText;
       return;
     }
 
-    if (btn) btn.innerText = '저장 중...';
+    if (btn) btn.innerText = force ? '강제 저장 중...' : '저장 중...';
 
     if (navigator.onLine) {
       await saveSlotToSheet(targetSlot, slotConfigs[targetSlot], newLogs);
@@ -2341,7 +2506,11 @@ async function handleSave() {
         localStorage.setItem(`vtotal_sheet_existing_dates_${targetSlot}_${myUserId}`, Array.from(existingDatesSet).join(","));
       }
 
-      showToast(newLogs.length > 0 ? `${newLogs.length}일치의 기록이 시트에 반영되었습니다.` : "설정값이 시트에 반영되었습니다. 매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.", "✅");
+      if (force) {
+        showToast("🚀 강제 전송이 완료되었습니다. (검증 우회)", "✅");
+      } else {
+        showToast(newLogs.length > 0 ? `${newLogs.length}일치의 기록이 시트에 반영되었습니다.` : "설정값이 시트에 반영되었습니다. 매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.", "✅");
+      }
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
@@ -5918,3 +6087,282 @@ function renderPriceInfoView(data) {
 }
 
 window.showPriceInfoView = showPriceInfoView;
+
+// Admin DB Viewer (V3.39)
+const ADMIN_DB_STATE = { offset: 0, total: 0, limit: 200, lastMeta: null, unlocked: false };
+const ADMIN_DB_PASSWORD = '0000';
+
+function adminDbEscape(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function adminDbShortValue(value) {
+  if (value === null || value === undefined) return '';
+  let text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  if (text.length > 160) text = text.slice(0, 157) + '...';
+  return adminDbEscape(text);
+}
+
+function showAdminDbModal() {
+  const overlay = document.getElementById('adminDbOverlay');
+  const auth = document.getElementById('adminDbAuth');
+  const panel = document.getElementById('adminDbPanel');
+  const input = document.getElementById('adminDbPassword');
+  const msg = document.getElementById('adminDbAuthMsg');
+  if (overlay) overlay.style.display = 'flex';
+  if (!ADMIN_DB_STATE.unlocked) {
+    if (auth) auth.style.display = 'flex';
+    if (panel) panel.style.display = 'none';
+    if (msg) msg.textContent = '';
+    setTimeout(() => input && input.focus(), 50);
+    return;
+  }
+  if (auth) auth.style.display = 'none';
+  if (panel) panel.style.display = 'flex';
+  ADMIN_DB_STATE.offset = 0;
+  loadAdminDbData();
+}
+
+function unlockAdminDb() {
+  const input = document.getElementById('adminDbPassword');
+  const msg = document.getElementById('adminDbAuthMsg');
+  const auth = document.getElementById('adminDbAuth');
+  const panel = document.getElementById('adminDbPanel');
+  const value = input ? input.value.trim() : '';
+  if (value !== ADMIN_DB_PASSWORD) {
+    if (msg) msg.textContent = '비밀번호가 틀렸습니다.';
+    if (input) input.select();
+    return;
+  }
+  ADMIN_DB_STATE.unlocked = true;
+  if (auth) auth.style.display = 'none';
+  if (panel) panel.style.display = 'flex';
+  ADMIN_DB_STATE.offset = 0;
+  loadAdminDbData();
+}
+
+function hideAdminDbModal() {
+  const overlay = document.getElementById('adminDbOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function adminDbResetAndLoad() {
+  ADMIN_DB_STATE.offset = 0;
+  loadAdminDbData();
+}
+
+function adminDbPrevPage() {
+  const limit = Number(document.getElementById('adminDbLimit')?.value || ADMIN_DB_STATE.limit || 200);
+  ADMIN_DB_STATE.offset = Math.max(0, ADMIN_DB_STATE.offset - limit);
+  loadAdminDbData();
+}
+
+function adminDbNextPage() {
+  const limit = Number(document.getElementById('adminDbLimit')?.value || ADMIN_DB_STATE.limit || 200);
+  if (ADMIN_DB_STATE.offset + limit < ADMIN_DB_STATE.total) {
+    ADMIN_DB_STATE.offset += limit;
+    loadAdminDbData();
+  }
+}
+
+function updateAdminDbSelectors(meta) {
+  const userSel = document.getElementById('adminDbUser');
+  const tickerSel = document.getElementById('adminDbTicker');
+  const slotSel = document.getElementById('adminDbSlot');
+  const table = document.getElementById('adminDbTable')?.value || 'user_configs';
+  if (userSel && Array.isArray(meta.users)) {
+    const cur = userSel.value || 'ALL';
+    userSel.innerHTML = '<option value="ALL">ALL</option>' + meta.users.map(u => `<option value="${adminDbEscape(u.user_id)}">${adminDbEscape(u.user_id)} (${u.rows})</option>`).join('');
+    userSel.value = Array.from(userSel.options).some(o => o.value === cur) ? cur : 'ALL';
+    userSel.disabled = table === 'stock_prices';
+  }
+  if (tickerSel && Array.isArray(meta.tickers)) {
+    const cur = tickerSel.value || 'ALL';
+    tickerSel.innerHTML = '<option value="ALL">ALL</option>' + meta.tickers.map(t => `<option value="${adminDbEscape(t.ticker)}">${adminDbEscape(t.ticker)} (${t.rows})</option>`).join('');
+    tickerSel.value = Array.from(tickerSel.options).some(o => o.value === cur) ? cur : 'ALL';
+    tickerSel.disabled = table !== 'stock_prices';
+  }
+  if (slotSel) {
+    slotSel.disabled = table === 'stock_prices';
+  }
+}
+
+async function loadAdminDbData() {
+  const content = document.getElementById('adminDbContent');
+  const summary = document.getElementById('adminDbSummary');
+  const pageInfo = document.getElementById('adminDbPageInfo');
+  if (!content) return;
+  if (!ADMIN_DB_STATE.unlocked) return;
+  const table = document.getElementById('adminDbTable')?.value || 'user_configs';
+  const user = document.getElementById('adminDbUser')?.value || 'ALL';
+  const ticker = document.getElementById('adminDbTicker')?.value || 'ALL';
+  const slot = document.getElementById('adminDbSlot')?.value || 'ALL';
+  const order = document.getElementById('adminDbOrder')?.value || 'desc';
+  const limit = Number(document.getElementById('adminDbLimit')?.value || 200);
+  ADMIN_DB_STATE.limit = limit;
+  content.innerHTML = '<div class="admin-db-loading">DB 데이터를 불러오는 중...</div>';
+  if (summary) summary.textContent = '조회 중...';
+  try {
+    const params = new URLSearchParams({ table, order, limit: String(limit), offset: String(ADMIN_DB_STATE.offset) });
+    params.set('adminPw', ADMIN_DB_PASSWORD);
+    if (user && user !== 'ALL') params.set('id', user);
+    if (ticker && ticker !== 'ALL') params.set('ticker', ticker);
+    if (slot && slot !== 'ALL') params.set('slot', slot);
+    const res = await fetch(`${CF_WORKER_URL}/api/admin/db-view?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    ADMIN_DB_STATE.total = Number(data.total || 0);
+    ADMIN_DB_STATE.lastMeta = data;
+    updateAdminDbSelectors(data);
+    renderAdminDbRows(data.rows || [], data.table);
+    const from = ADMIN_DB_STATE.total === 0 ? 0 : ADMIN_DB_STATE.offset + 1;
+    const to = Math.min(ADMIN_DB_STATE.offset + limit, ADMIN_DB_STATE.total);
+    if (summary) summary.textContent = `${data.table} | ${from}-${to} / 총 ${ADMIN_DB_STATE.total}건 | ${data.order === 'asc' ? '오름차순' : '내림차순'}`;
+    if (pageInfo) pageInfo.textContent = `${Math.floor(ADMIN_DB_STATE.offset / limit) + 1} / ${Math.max(1, Math.ceil(ADMIN_DB_STATE.total / limit))}`;
+  } catch (err) {
+    content.innerHTML = `<div class="admin-db-error">조회 실패: ${adminDbEscape(err.message)}</div>`;
+    if (summary) summary.textContent = '오류';
+  }
+}
+
+function renderAdminDbRows(rows, table) {
+  const content = document.getElementById('adminDbContent');
+  if (!content) return;
+  if (!rows || rows.length === 0) {
+    content.innerHTML = '<div class="admin-db-empty">데이터가 없습니다.</div>';
+    return;
+  }
+  
+  if (table === 'daily_states') {
+    rows = rows.map(r => {
+      const newRow = { ...r };
+      try {
+        const parsed = JSON.parse(r.state_json || '{}');
+        newRow.cash = parsed.cash !== undefined ? parsed.cash : '-';
+        newRow.base_principal = parsed.base_principal !== undefined ? parsed.base_principal : '-';
+        newRow.realPrincipal = parsed.realPrincipal !== undefined ? parsed.realPrincipal : '-';
+        
+        const holdings = parsed.holdings || [];
+        if (holdings.length > 0) {
+          newRow.buy_price = holdings.map(h => h.buy_price !== undefined ? h.buy_price : '-').join('\n');
+          newRow.qty = holdings.map(h => h.qty !== undefined ? h.qty : '-').join('\n');
+          newRow.cost = holdings.map(h => {
+            if (h.cost === undefined || h.cost === null || h.cost === '-') return '-';
+            const val = Number(h.cost);
+            return isNaN(val) ? h.cost : val.toFixed(2);
+          }).join('\n');
+          newRow.mode = holdings.map(h => h.mode !== undefined ? h.mode : '-').join('\n');
+          newRow.tier = holdings.map(h => h.tier !== undefined ? h.tier : '-').join('\n');
+          newRow.days = holdings.map(h => h.days !== undefined ? h.days : '-').join('\n');
+          newRow.buyDate = holdings.map(h => h.buyDate !== undefined ? h.buyDate : '-').join('\n');
+        } else {
+          newRow.buy_price = '-';
+          newRow.qty = '-';
+          newRow.cost = '-';
+          newRow.mode = '-';
+          newRow.tier = '-';
+          newRow.days = '-';
+          newRow.buyDate = '-';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      return newRow;
+    });
+  }
+
+  if (table === 'user_configs') {
+    rows = rows.map(r => {
+      const newRow = { ...r };
+      try {
+        const parsed = JSON.parse(r.config_json || '{}');
+        const basics = parsed.basics || {};
+        newRow.startDate = basics.startDate !== undefined ? basics.startDate : '-';
+        newRow.endDate = basics.endDate !== undefined ? basics.endDate : '-';
+        newRow.initialCash = basics.initialCash !== undefined ? basics.initialCash : '-';
+        newRow.renewCash = basics.renewCash !== undefined ? basics.renewCash : '-';
+        newRow.fBase = basics.fBase !== undefined ? basics.fBase : '-';
+        newRow.fSec = basics.fSec !== undefined ? basics.fSec : '-';
+      } catch (e) {
+        console.error(e);
+      }
+      return newRow;
+    });
+  }
+
+  const columnsByTable = {
+    user_configs: [
+      'user_id', 'slot_num', 'ticker', 'strategy', 'updated_at', 
+      'startDate', 'endDate', 'initialCash', 'renewCash', 'fBase', 'fSec'
+    ],
+    daily_states: [
+      'user_id', 'slot_num', 'date', 'asset', 'inout', 'updated_at', 
+      'cash', 'base_principal', 'realPrincipal', 
+      'buy_price', 'qty', 'cost', 'mode', 'tier', 'days', 'buyDate'
+    ],
+    trade_history: ['user_id', 'slot_num', 'buy_date', 'sell_date', 'mode', 'tier', 'buy_price', 'sell_price', 'qty', 'profit', 'total_balance', 'renew_cash'],
+    stock_prices: ['ticker', 'date', 'open', 'close', 'updated_at']
+  };
+
+  const colDisplayNameMap = {
+    user_id: '아이디',
+    slot_num: '슬롯',
+    date: '날짜',
+    asset: '자산',
+    inout: '입출금',
+    updated_at: '수정일',
+    cash: '예수금',
+    base_principal: '갱신금',
+    realPrincipal: '원금',
+    buy_price: '매수가',
+    qty: '수량',
+    cost: '매수 금액',
+    mode: '모드',
+    tier: '티어',
+    days: '보유일',
+    buyDate: '매수일',
+    ticker: '티커',
+    strategy: '투자법',
+    config_json: '설정JSON',
+    buy_date: '매수일',
+    sell_date: '매도일',
+    sell_price: '매도가',
+    profit: '수익금',
+    total_balance: '총잔고',
+    renew_cash: '갱신예수금',
+    open: '시가',
+    close: '종가',
+    startDate: '시작일',
+    endDate: '종료일',
+    initialCash: '초기자본',
+    renewCash: '갱신금액',
+    fBase: '수수료',
+    fSec: 'sec+fee'
+  };
+
+  const cols = columnsByTable[table] || Object.keys(rows[0]);
+  const head = cols.map(c => {
+    const displayName = colDisplayNameMap[c] || c;
+    const escapedName = adminDbEscape(displayName);
+    const formattedName = formatStrategyNameWithSmallParentheses(escapedName);
+    return `<th>${formattedName}</th>`;
+  }).join('');
+
+  const body = rows.map(row => `<tr>${cols.map(c => {
+    const raw = row[c];
+    const isJson = String(c).includes('json');
+    const cls = isJson ? ' class="admin-db-json-cell"' : '';
+    let val = isJson ? adminDbEscape(raw) : adminDbShortValue(raw);
+    if (typeof val === 'string') {
+      val = val.replace(/\n/g, '<br>');
+    }
+    return `<td${cls} title="${adminDbEscape(raw)}">${val}</td>`;
+  }).join('')}</tr>`).join('');
+
+  content.innerHTML = `<table class="admin-db-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
