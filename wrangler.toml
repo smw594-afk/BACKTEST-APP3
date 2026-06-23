@@ -2,6 +2,9 @@ name = "autumn-limit-001e-3"
 main = "worker3.js"
 compatibility_date = "2024-04-01"
 
+# ⏰ 백그라운드 자동 연산 스케줄러 설정 (비활성화)
+# [triggers]
+# crons = ["10 21 * * 2-6", "10 22 * * 2-6"] 
 
 
 # 🗄️ D1 에지 데이터베이스 바인딩 설정

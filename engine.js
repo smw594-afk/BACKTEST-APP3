@@ -1,4 +1,4 @@
-﻿// strategy.js?먯꽌 蹂묓빀??
+// strategy.js?먯꽌 蹂묓빀??
 const MASTER_STRATEGIES = {
   "1M": {
     config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: false, useMid2: false, useMid3: false },
@@ -256,7 +256,7 @@ const MASTER_STRATEGIES = {
 // engine.js (肄붿뼱 諛깊뀒?ㅽ듃 ?붿쭊 諛??곸튂湲??좏떥由ы떚)
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz5oD4M9ninAUdnr4jexbjKvoQsvX6OCDJZgE5eUAi3zTC14tqhfYYAIGgf1CSFZmToMA/exec";
-const CF_WORKER_URL = "https://autumn-limit-001e.smw594.workers.dev";
+const CF_WORKER_URL = "https://autumn-limit-001e-3.smw594.workers.dev";
 
 // ?썳截?IndexedDB (罹먯떛 諛??곗씠??愿由?
 const DB_NAME = "VTotalDB_Cache"; const DB_VERSION = 2; const STORE_NAME = "YahooDataStore";
@@ -1394,7 +1394,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
 
   const principalFromState = restoredRealPrincipal > 0 ? restoredRealPrincipal : (restoredBase > 0 ? restoredBase : calculatedPrincipal);
-  const finalPrincipal = principalFromState;
+  const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
   const totalProfit = fixFloat(lastAsset - principalFromState);
   const simpleYield = principalFromState > 0 ? totalProfit / principalFromState : 0;
   const evalVal = fixFloat(lastAsset - cash); const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0; const investPrincipal = fixFloat(qty * avgPrice); const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0; const currPrice = parseFloat(meta.tickerPrice) || 0;
