@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 🌐 V-TOTAL MASTER3.0 V3.20 Cloudflare Worker Backend
  * 
  * [바인딩 요구사항]:
@@ -482,7 +482,8 @@ function fixFloat(value) {
 // === [2. 여기서부터 아래의 calculateOrderInternal 직전까지 통째로 교체합니다] ===
 async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
   await normalizeStoredStockPrices(env);
-  const cacheKey = `yahoo_v2_${ticker}_${p1}_${p2}`;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const cacheKey = `yahoo_v2_${ticker}_${p1}_${todayStr}`;
   let cachedData = (!force && env.VTOTAL_KV) ? await env.VTOTAL_KV.get(cacheKey) : null;
   
   let resultJSON = null;
@@ -542,7 +543,7 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
         };
 
         if (env.VTOTAL_KV) {
-          ctx.waitUntil(env.VTOTAL_KV.put(cacheKey, JSON.stringify(resultJSON), { expirationTtl: 1800 }));
+          ctx.waitUntil(env.VTOTAL_KV.put(cacheKey, JSON.stringify(resultJSON), { expirationTtl: 43200 }));
         }
       }
     } catch (dbFallbackErr) {

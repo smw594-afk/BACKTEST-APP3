@@ -158,7 +158,7 @@
         </div>
         <div id="statHoldingsArea"
           style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.08);">
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:2px; font-weight:600;">📦 보유 주식 (시트 꾸러미)</div>
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:2px; font-weight:600;">📦 보유 주식<span style="font-size: 9px; font-weight: normal; opacity: 0.85;">(시트 꾸러미)</span></div>
           <div id="statHoldings" style="font-size:11px; color:#e2e8f0;">-</div>
         </div>
       </div>
@@ -183,6 +183,10 @@
           style="background: #475569;">📥 시트에서 불러오기</button>
       </div>
 
+      <!-- 덮어쓰기 복원 버튼 추가 -->
+      <button id="btnForceRestoreSheet" class="btn-action" onclick="forceRestoreFromGoogleSheets()"
+        style="width: 100%; height: 40px; margin-top: 8px; font-size: 12.5px; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white;">🔄 시트 데이터로 DB 덮어쓰기</button>
+
       <div
         style="margin-top:15px; display:flex; justify-content:space-between; align-items:center; opacity:0.5; font-size:10px;">
         <span>v<span id="settingsVersion"></span> (Dynamic)</span>
@@ -191,7 +195,7 @@
             복구</a>
           <button onclick="forceUpdateApp()"
             style="background:none; border:1px solid var(--text-muted); color:var(--text); border-radius:4px; padding:2px 4px; cursor:pointer;">공장
-            초기화 (캐시 삭제)</button>
+            초기화 <span style="font-size: calc(100% - 2px); opacity: 0.85;">(캐시 삭제)</span></button>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.38";
 const MAX_SLOTS = 6;
@@ -279,6 +279,74 @@ async function forceUpdateApp() {
       alert("초기화 중 일부 오류가 발생했습니다: " + e.message);
     }
     window.location.reload(true);
+  }
+}
+
+// 🔄 구글 시트 데이터를 긁어와 Cloudflare D1 에지 DB를 강제로 덮어쓰는 동기화 복구 기능
+async function forceRestoreFromGoogleSheets() {
+  if (!confirm("⚠️ 주의: 구글 시트의 최신 데이터를 로드하여 Cloudflare D1 에지 DB를 강제로 덮어씁니다.\n\n시트에서 수동 수정한 갱신금 값이 실시간 운영현황(DB)에 즉각 반영됩니다. 계속하시겠습니까?")) {
+    return;
+  }
+
+  setLED('loading');
+  const header = document.getElementById('userDisplayHeader');
+  if (header) header.innerText = myUserId + ' (DB 강제 복원 중...)';
+
+  try {
+    // 1. 강제로 구글 시트의 최신 정보와 퉁치기 연산을 수행하여 로컬 스냅샷을 갱신합니다.
+    await checkAndSyncWithServer(true, true);
+
+    const workerUrl = typeof CF_WORKER_URL !== 'undefined' ? CF_WORKER_URL : "https://autumn-limit-001e-3.smw594.workers.dev";
+
+    // 2. 각 슬롯의 최신 정합성 보장 스냅샷을 D1 DB에 저장합니다.
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      const snapKey = `vtotal_snap${i}_${myUserId}`;
+      const configKey = `vtotal_conf${i}_${myUserId}`;
+      
+      const snapStr = localStorage.getItem(snapKey);
+      const confStr = localStorage.getItem(configKey);
+
+      if (!snapStr || !confStr) {
+        console.warn(`슬롯 ${i}의 로컬 스냅샷 또는 설정이 없어 DB 복원을 건너뜀`);
+        continue;
+      }
+
+      const snapData = JSON.parse(snapStr);
+      const confData = JSON.parse(confStr);
+
+      const payload = {
+        id: myUserId,
+        slot: i,
+        config: confData,
+        states: snapData.dailyStates || [],
+        trades: snapData.trades || [],
+        gasUrl: "" // 시트 백업 루프 방지를 위해 빈 값 처리
+      };
+
+      const res = await fetch(`${workerUrl}/api/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(`슬롯 ${i} D1 DB 저장 실패 (HTTP ${res.status})`);
+      }
+      console.log(`슬롯 ${i} D1 DB 강제 복원 완료`);
+    }
+
+    alert("✅ 구글 시트 데이터 기반으로 Cloudflare D1 DB 강제 복원이 완료되었습니다.\n실시간 운영현황 및 주문표가 시트 정보와 동기화됩니다.");
+    window.location.reload(true);
+
+  } catch (e) {
+    console.error("DB 강제 복원 오류:", e);
+    alert("❌ DB 복원 중 오류가 발생했습니다: " + e.message);
+    setLED('error');
+  } finally {
+    setLED('on');
+    if (header) header.innerText = myUserId;
   }
 }
 
