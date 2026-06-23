@@ -1,7 +1,7 @@
-// strategy.js에서 병합됨
+﻿// strategy.js?먯꽌 蹂묓빀??
 const MASTER_STRATEGIES = {
   "1M": {
-    config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: false, useMid2: false, useMid3: false },
+    config: { compR: 0.824, lossR: 0.329, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: false, useMid2: false, useMid3: false },
     modes: {
       SF: {
         buy: [0.034, 0.034, 0.034, 0.034, 0.034, 0.034],
@@ -36,7 +36,7 @@ const MASTER_STRATEGIES = {
     }
   },
   "2M3D2(2.1)": {
-    config: { compR: 0.939, lossR: 0.699, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    config: { compR: 0.939, lossR: 0.699, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: {
         buy: [0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051, 0.051],
@@ -71,7 +71,7 @@ const MASTER_STRATEGIES = {
     }
   },
   "2M3D1-1P": {
-    config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: true, useMid3: true },
+    config: { compR: 0.818, lossR: 0.282, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: true, useMid2: true, useMid3: true },
     modes: {
       SF: {
         buy: [0.046, 0.046, 0.046, 0.046, 0.046, 0.046],
@@ -106,7 +106,7 @@ const MASTER_STRATEGIES = {
     }
   },
   "2M3D2(2.0)": {
-    config: { compR: 0.814, lossR: 0.286, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    config: { compR: 0.814, lossR: 0.286, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: {
         buy: [0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036],
@@ -141,7 +141,7 @@ const MASTER_STRATEGIES = {
     }
   },
   "2M3D2(1.2)": {
-    config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: {
         buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035],
@@ -176,7 +176,7 @@ const MASTER_STRATEGIES = {
     }
   },
   "2M3D2(1.0)": {
-    config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    config: { compR: 0.814, lossR: 0.293, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: {
         buy: [0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035],
@@ -211,7 +211,7 @@ const MASTER_STRATEGIES = {
     }
   },
   "3M3D1-R": {
-    config: { compR: 0.9, lossR: 0.304, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '보유', useMid1: true, useMid2: false, useMid3: true },
+    config: { compR: 0.9, lossR: 0.304, dLimit: -0.048, cDn3: 0.0, cDn2: 0.008, cDn1: 0.0, tierMethod: '蹂댁쑀', useMid1: true, useMid2: false, useMid3: true },
     modes: {
       SF: {
         buy: [0.033, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028],
@@ -253,21 +253,21 @@ const MASTER_STRATEGIES = {
   }
 };
 
-// engine.js (코어 백테스트 엔진 및 퉁치기 유틸리티)
+// engine.js (肄붿뼱 諛깊뀒?ㅽ듃 ?붿쭊 諛??곸튂湲??좏떥由ы떚)
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz5oD4M9ninAUdnr4jexbjKvoQsvX6OCDJZgE5eUAi3zTC14tqhfYYAIGgf1CSFZmToMA/exec";
 const CF_WORKER_URL = "https://autumn-limit-001e.smw594.workers.dev";
 
-// 🛡️ IndexedDB (캐싱 및 데이터 관리)
+// ?썳截?IndexedDB (罹먯떛 諛??곗씠??愿由?
 const DB_NAME = "VTotalDB_Cache"; const DB_VERSION = 2; const STORE_NAME = "YahooDataStore";
 const yahooCache = {}; const pendingFetches = {};
 
-// 🛡️ 글로벌 상태 및 환율 관리
+// ?썳截?湲濡쒕쾶 ?곹깭 諛??섏쑉 愿由?
 let isCurrencyKRW = false;
 let currentFXRate = 1450;
 
 function parsePriceChartPayload(ticker, payload, rnd = true) {
-  if (!payload || payload.error) throw new Error(payload?.error || `${ticker} 데이터가 없습니다.`);
+  if (!payload || payload.error) throw new Error(payload?.error || `${ticker} ?곗씠?곌? ?놁뒿?덈떎.`);
   if (!payload.chart || !payload.chart.result || !payload.chart.result[0]) throw new Error("Invalid Data Format");
   const r = payload.chart.result[0];
   const ts = r.timestamp || [];
@@ -310,7 +310,7 @@ async function applyPricePayloadToCache(ticker, payload, rnd = true) {
 }
 
 async function updateCurrentFXRate(callback = null) {
-  // 먼저 localStorage에 저장된 마지막 환율값이 있으면 기본값 대신 적용
+  // 癒쇱? localStorage????λ맂 留덉?留??섏쑉媛믪씠 ?덉쑝硫?湲곕낯媛?????곸슜
   try {
     const savedRate = parseFloat(localStorage.getItem('vtotal_last_fx_rate'));
     if (savedRate && !isNaN(savedRate) && savedRate > 0) currentFXRate = savedRate;
@@ -348,11 +348,11 @@ async function updateCurrentFXRate(callback = null) {
       }
       currentFXRate = latestRate;
       localStorage.setItem('vtotal_last_fx_rate', currentFXRate.toString());
-      console.log(`[환율 동기화 완료] 현재 적용 환율: ${currentFXRate.toFixed(2)}원`);
+      console.log(`[FX] updated: ${currentFXRate.toFixed(2)}`);
       if (callback) callback(currentFXRate);
     }
   } catch (e) {
-    console.warn(`환율 동기화 실패. 캐시된 환율(${currentFXRate.toFixed(0)}원)을 유지합니다.`, e.message);
+    console.warn(`[FX] fetch failed: ${currentFXRate.toFixed(0)}`, e.message);
   }
 }
 
@@ -360,7 +360,7 @@ async function openDB() { return new Promise((resolve, reject) => { const req = 
 async function getDB(tk) { try { const db = await openDB(); return new Promise((resolve, reject) => { const tx = db.transaction(STORE_NAME, "readonly"); const req = tx.objectStore(STORE_NAME).get(tk); req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null); }); } catch (e) { return null; } }
 async function setDB(data) { try { const db = await openDB(); const tx = db.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).put(data); } catch (e) { } }
 
-// 🛡️ 금융 계산 및 유틸리티 함수 모음
+// ?썳截?湲덉쑖 怨꾩궛 諛??좏떥由ы떚 ?⑥닔 紐⑥쓬
 function fixFloat(value) {
   if (value === null || value === undefined || isNaN(value)) return 0;
   return Math.round(value * 100) / 100;
@@ -481,8 +481,8 @@ function isUSMarketHoliday(dateStr) {
   const hols = [getObs(y, 1, 1), getNth(y, 1, 1, 3), getNth(y, 2, 1, 3), getGF(y), getNth(y, 5, 1, -1), getObs(y, 6, 19), getObs(y, 7, 4), getNth(y, 9, 1, 1), getNth(y, 11, 4, 4), getObs(y, 12, 25)];
   return hols.includes(dateStr);
 }
-// 🌐 데이터 수집 (Cloudflare Worker DB)
-// 세션 내 티커별 CF 워커 호출을 1회로 제한하여 중복 네트워크 요청을 원천 차단합니다.
+// ?뙋 ?곗씠???섏쭛 (Cloudflare Worker DB)
+// ?몄뀡 ???곗빱蹂?CF ?뚯빱 ?몄텧??1?뚮줈 ?쒗븳?섏뿬 以묐났 ?ㅽ듃?뚰겕 ?붿껌???먯쿇 李⑤떒?⑸땲??
 const _sessionFetched = {};
 const _tickerPending = {};
 
@@ -499,7 +499,7 @@ async function fetchBatchPriceData(tickers, p1, p2, rnd = true, force = false) {
   await Promise.all(uniqueTickers.map(async (ticker) => {
     const item = resultMap[ticker];
     if (!item || item.error) {
-      console.warn(`[CF DB 배치 누락] ${ticker}: ${item?.error || "데이터 없음"}`);
+      console.warn(`[CF DB 諛곗튂 ?꾨씫] ${ticker}: ${item?.error || "?곗씠???놁쓬"}`);
       return;
     }
     cachedMap[ticker] = await applyPricePayloadToCache(ticker, item, rnd);
@@ -516,11 +516,11 @@ async function fetchBatchPriceData(tickers, p1, p2, rnd = true, force = false) {
 }
 
 async function fetchYahooData(t, p1, p2, rnd, force = false) {
-  if (!t) throw new Error("티커가 비어있습니다.");
+  if (!t) throw new Error("?곗빱媛 鍮꾩뼱?덉뒿?덈떎.");
   const memKey = `${t}_${p1}_${p2}`;
   if (!force && yahooCache[memKey]) return yahooCache[memKey];
 
-  // 동일 티커에 대한 네트워크 요청이 이미 진행 중이면 그 결과를 기다린 뒤 IndexedDB에서 필터링
+  // ?숈씪 ?곗빱??????ㅽ듃?뚰겕 ?붿껌???대? 吏꾪뻾 以묒씠硫?洹?寃곌낵瑜?湲곕떎由???IndexedDB?먯꽌 ?꾪꽣留?
   if (_tickerPending[t]) {
     await _tickerPending[t];
     return _buildResultFromDB(t, p1, p2, rnd);
@@ -540,7 +540,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
     const cacheRepairKey = 'vtotal_price_cache_repair_v2_' + t;
     const needsCacheRepair = localStorage.getItem(cacheRepairKey) !== '1';
 
-    // 이번 세션에서 이미 이 티커를 CF DB로부터 받아왔으면 IndexedDB 캐시만 사용 (네트워크 요청 생략)
+    // ?대쾲 ?몄뀡?먯꽌 ?대? ???곗빱瑜?CF DB濡쒕???諛쏆븘?붿쑝硫?IndexedDB 罹먯떆留??ъ슜 (?ㅽ듃?뚰겕 ?붿껌 ?앸왂)
     const alreadyFetchedThisSession = !!_sessionFetched[t];
     const cacheCloseEnough = lastCachedTs > 0 && (requestedEnd - lastCachedTs <= 86400000 * 5);
     const needsNetworkFetch = cached.dates.length === 0 || !enoughOld || ((!alreadyFetchedThisSession || !cacheCloseEnough) && (force || needsCacheRepair || !cacheCloseEnough));
@@ -556,7 +556,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
       fetchP2 = p2 + (86400 * 3);
       const yUrl = `${CF_WORKER_URL}/api/prices?t=${t}&p1=${fetchP1}&p2=${fetchP2}`;
 
-      // 이 티커에 대한 네트워크 호출 진행 플래그를 세워 동일 티커의 후속 호출이 대기하도록 합니다.
+      // ???곗빱??????ㅽ듃?뚰겕 ?몄텧 吏꾪뻾 ?뚮옒洹몃? ?몄썙 ?숈씪 ?곗빱???꾩냽 ?몄텧???湲고븯?꾨줉 ?⑸땲??
       let resolveTickerPending;
       _tickerPending[t] = new Promise(r => { resolveTickerPending = r; });
 
@@ -580,22 +580,22 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
         } else {
           let existingLastStr = cached.dates.length > 0 ? formatDateNY(new Date(cached.dates[cached.dates.length - 1])) : "1900-01-01";
           let newLastStr = newDates.length > 0 ? formatDateNY(newDates[newDates.length - 1]) : "1900-01-01";
-          if (existingLastStr > newLastStr) { console.warn(`데이터 누락 감지! 기존 캐시 보호.`); } else { cached.dates = newDates; cached.close = newClose; cached.open = newOpen; }
+          if (existingLastStr > newLastStr) { console.warn(`?곗씠???꾨씫 媛먯?! 湲곗〈 罹먯떆 蹂댄샇.`); } else { cached.dates = newDates; cached.close = newClose; cached.open = newOpen; }
         }
         cached = mergePriceSeries(previousCached, incoming, t);
         const todayNYStr = normalizeDateKey(new Date()); const nowNY = new Date(); const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));
         if (cached.dates.length > 0) { const lastDayNY = normalizeDateKey(cached.dates[cached.dates.length - 1]); if (lastDayNY === todayNYStr) { if (nyHour < 17) { cached.dates.pop(); cached.close.pop(); cached.open.pop(); } } }
         await setDB(cached); localStorage.setItem('vtotal_last_fetch_' + t, now.toString()); localStorage.setItem(cacheRepairKey, '1');
         _sessionFetched[t] = true;
-        console.log(`[CF DB 동기화 완료] ${t}: ${cached.dates.length}건 (네트워크 1회)`);
+        console.log(`[CF DB ?숆린???꾨즺] ${t}: ${cached.dates.length}嫄?(?ㅽ듃?뚰겕 1??`);
       } catch (e) {
-        // CF 워커 실패 시 IndexedDB 캐시에 데이터가 있으면 그대로 사용 (오프라인 방어)
+        // CF ?뚯빱 ?ㅽ뙣 ??IndexedDB 罹먯떆???곗씠?곌? ?덉쑝硫?洹몃?濡??ъ슜 (?ㅽ봽?쇱씤 諛⑹뼱)
         if (cached.dates.length > 0) {
-          console.warn(`[CF DB 수집 실패] ${t} - IndexedDB 캐시 사용: ` + e.message);
+          console.warn(`[CF DB ?섏쭛 ?ㅽ뙣] ${t} - IndexedDB 罹먯떆 ?ъ슜: ` + e.message);
           _sessionFetched[t] = true;
         } else {
           resolveTickerPending(); delete _tickerPending[t];
-          throw new Error("데이터 수집 실패: " + e.message);
+          throw new Error("?곗씠???섏쭛 ?ㅽ뙣: " + e.message);
         }
       } finally {
         resolveTickerPending(); delete _tickerPending[t];
@@ -608,7 +608,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
   pendingFetches[memKey] = fetchPromise; const result = await fetchPromise; delete pendingFetches[memKey]; return result;
 }
 
-// IndexedDB에서 데이터를 읽어 요청 범위로 필터링하는 헬퍼 (세션 내 중복 네트워크 호출 방지용)
+// IndexedDB?먯꽌 ?곗씠?곕? ?쎌뼱 ?붿껌 踰붿쐞濡??꾪꽣留곹븯???ы띁 (?몄뀡 ??以묐났 ?ㅽ듃?뚰겕 ?몄텧 諛⑹???
 async function _buildResultFromDB(t, p1, p2, rnd) {
   let cached = await getDB(t);
   if (!cached) { cached = { ticker: t, dates: [], close: [], open: [] }; }
@@ -624,7 +624,7 @@ async function _buildResultFromDB(t, p1, p2, rnd) {
   return finalResult;
 }
 
-// 📈 핵심 투자 로직 함수들
+// ?뱢 ?듭떖 ?ъ옄 濡쒖쭅 ?⑥닔??
 function calculateWRSI_WFRI(qData) {
   let dD = qData.dates, qC = qData.close, weeklyData = {}, wP = [], wD = [];
   for (let i = 0; i < dD.length; i++) weeklyData[getFridayEnd(dD[i])] = { close: qC[i], date: dD[i] };
@@ -646,7 +646,7 @@ function calculateWRSI_WFRI(qData) {
   return wRMap;
 }
 
-// 🧮 퉁치기 (Order Matcher) - 파이썬 원본 로직 100% 이식 및 MOC 버그 수정
+// ?㎜ ?곸튂湲?(Order Matcher) - ?뚯씠???먮낯 濡쒖쭅 100% ?댁떇 諛?MOC 踰꾧렇 ?섏젙
 function run_tungchigi_master(paramsArr) {
   if (!paramsArr || paramsArr.length === 0) return [];
   const MAX_ORDERS = 500;
@@ -670,7 +670,7 @@ function run_tungchigi_master(paramsArr) {
     }
   }
 
-  // [오류 수정] 파이썬의 np.concatenate 재현
+  // [?ㅻ쪟 ?섏젙] ?뚯씠?ъ쓽 np.concatenate ?ы쁽
   let u_g = Array.from(new Set(Array.from(g).filter(v => v > 0)));
   let adj_sell = Array.from(i_p).map((val, i) => k[i] ? 0.01 : val);
   let u_i = Array.from(new Set(adj_sell.filter(v => v > 0)));
@@ -684,7 +684,7 @@ function run_tungchigi_master(paramsArr) {
     if (isNaN(m_col[idx])) continue;
     let mv = m_col[idx];
     
-    // COUNTIF 완벽 재현
+    // COUNTIF ?꾨꼍 ?ы쁽
     let count_m = m_col.slice(0, idx + 1).filter(v => v === mv).length;
     
     if (count_m > 1) {
@@ -695,7 +695,7 @@ function run_tungchigi_master(paramsArr) {
       n_col[idx] = sum_h;
     }
 
-    // O열 매도 로직 및 MOC 합산
+    // O??매도 濡쒖쭅 諛?MOC ?⑹궛
     if (n_col[idx] > 0) {
       o_col[idx] = 0;
     } else if (mv === 0.01) {
@@ -750,7 +750,7 @@ function run_tungchigi_master(paramsArr) {
     let side = s > 0 ? "매수" : "매도", price = s > 0 ? y_final[idx] : z_final[idx];
     if (isNaN(price) || price <= 0) continue;
     
-    // 부동소수점 오차로 인해 MOC가 LOC로 판별되는 버그 원천 차단
+    // 遺?숈냼?섏젏 ?ㅼ감濡??명빐 MOC媛 LOC濡??먮퀎?섎뒗 踰꾧렇 ?먯쿇 李⑤떒
     let method = (Math.abs(price - 0.01) < 0.0001 && side === "매도") ? "MOC" : "LOC";
     let key = side + "|" + method + "|" + price.toFixed(4);
     
@@ -762,7 +762,7 @@ function run_tungchigi_master(paramsArr) {
   const mult = sortOrder === "desc" ? -1 : 1;
   return Object.values(grouped).sort((a, b) => (a.price - b.price) * mult).map(r => {
     if (r.method === "MOC") {
-      // 🎯 MOC 출력 시 가격을 빈칸("")으로 변경하여 구글 시트 에러 원천 차단
+      // ?렞 MOC 異쒕젰 ??媛寃⑹쓣 鍮덉뭏("")?쇰줈 蹂寃쏀븯??援ш? ?쒗듃 ?먮윭 ?먯쿇 李⑤떒
       return ["매도", "MOC", "", r.qty]; 
     } else {
       return [r.side, r.method, r.price, r.qty];
@@ -770,7 +770,7 @@ function run_tungchigi_master(paramsArr) {
   });
 }
 
-// 🧠 백테스트 엔진 메인 프로세스
+// ?쭬 諛깊뀒?ㅽ듃 ?붿쭊 硫붿씤 ?꾨줈?몄뒪
 async function runBacktestMemory(params, force = false, slotNum = null, overrideSnap = null) {
   try {
     let ticker = params.basics.ticker.toString().trim(), startDate = new Date(params.basics.startDate);
@@ -781,14 +781,8 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
     function n(val, def) { return (val === "" || isNaN(val)) ? def : parseFloat(val); }
     function p(val) { const num = parseFloat(val); return isNaN(num) ? 0.0 : (num / 100.0); }
 
-    const useDomValues = !isManualBacktestMode && (activeSettingsTab === slotNum);
-    const pInput = useDomValues ? document.getElementById('initialCash') : null;
-    const realTimePrincipal = pInput ? parseFloat(unformatComma(pInput.value)) : n(params.basics.initialCash, 10000);
-    const rInput = useDomValues ? document.getElementById('renewCash') : null;
-    const realTimeRenew = rInput ? parseFloat(unformatComma(rInput.value)) : n(params.basics.renewCash, realTimePrincipal);
-
-    params.basics.initialCash = realTimePrincipal;
-    params.basics.renewCash = realTimeRenew;
+    const realTimePrincipal = n(params.basics.initialCash, 10000);
+    const realTimeRenew = n(params.basics.renewCash, realTimePrincipal);
 
     let initialCash = fixFloat(realTimePrincipal);
     let basePrincipal = fixFloat(realTimeRenew);
@@ -844,9 +838,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
 
     if (snapToUse) {
       let snap = snapToUse;
-      const requestedStartStr = params.basics.startDate ? params.basics.startDate.trim() : "";
-      const snapStartStr = (snap.chartDates && snap.chartDates.length > 0) ? snap.chartDates[0] : "";
-      if (snap.currentStrat === curStrat && snapStartStr && requestedStartStr && snapStartStr === requestedStartStr && snap.chartDates && snap.chartDates.length > 0) {
+      if (snap.currentStrat === curStrat && snap.chartDates && snap.chartDates.length > 0) {
         res.S = snap.chartDates.slice();
         res.BA = snap.chartBalances.slice();
         res.BF = snap.chartMdd.slice();
@@ -938,7 +930,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
       let curr_m = applied_m || rsi_m;
 
       let t = inv.length + 1;
-      if (tierAssign === '최소(빈자리)' || tierAssign === '최소') {
+      if (tierAssign === '理쒖냼(鍮덉옄由?' || tierAssign === '理쒖냼') {
         let used = inv.map(p => p.tier); t = 1; while (used.indexOf(t) !== -1) t++;
       }
 
@@ -1102,7 +1094,7 @@ async function runBacktestMemory(params, force = false, slotNum = null, override
         if (applied_m_t) today_m = applied_m_t;
       }
 
-      let tTier = inv.length + 1; if (tierAssign === '최소(빈자리)' || tierAssign === '최소') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
+      let tTier = inv.length + 1; if (tierAssign === '理쒖냼(鍮덉옄由?' || tierAssign === '理쒖냼') { let used = inv.map(p_i => p_i.tier); tTier = 1; while (used.indexOf(tTier) !== -1) tTier++; }
       let currentW = MODES[today_m].weight[tTier - 1] || 0;
 
       let tSeed = t2(Math.min(base * currentW, cash));
@@ -1331,7 +1323,7 @@ function calculateDailyData(dates, balances, mdds, inouts) {
 }
 
 
-// 🌐 실전 데이터 처리 (Real Log Data)
+// ?뙋 ?ㅼ쟾 ?곗씠??泥섎━ (Real Log Data)
 function processRealLogData(d, currentStrat, userInitialCash) {
   if (!d || !d.logs || d.logs.length === 0) return null;
   const logs = d.logs; const meta = d.meta;
@@ -1345,7 +1337,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
             const cleanCost = typeof rawCost === 'number' ? rawCost : parseFloat(String(rawCost).replace(/[^0-9.-]/g, "")) || 0;
             return { ...h, buy_price: fixFloat(cleanBp), cost: fixFloat(cleanCost) };
           });
-        } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 실패", e); } }
+        } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON ?뚯떛 ?ㅽ뙣", e); } }
   let qty = 0, totalCost = 0; restoredInv.forEach(item => { const itemQty = fixFloat(item.qty) || 0; const itemCost = fixFloat(item.cost) || (fixFloat(item.buy_price) * itemQty); qty += itemQty; totalCost += itemCost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;
   const parseAndFormatYYMMDD = (ds) => {
     if (!ds) return null;
@@ -1358,7 +1350,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     else if (p.length === 2) { let y = p[0]; if (y.length === 2) y = "20" + y; let m = p[1].padStart(2, '0'); return `${y}-${m}-01`; }
     return str;
   };
-  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0; /* ⭐️ r[3]을 r[2]로 변경 */ rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
+  let rawLogs = []; for (let i = 0; i < logs.length; i++) { let r = logs[i]; let dateStr = r[0]; let asset = fixFloat(String(r[1]).replace(/[^0-9.-]+/g, "")) || 0; if (dateStr && asset > 0) { let exactDate = parseAndFormatYYMMDD(dateStr); let inoutValue = fixFloat(String(r[2]).replace(/[^0-9.-]+/g, "")) || 0; /* 狩먲툘 r[3]??r[2]濡?蹂寃?*/ rawLogs.push({ date: exactDate, asset: asset, inout: inoutValue, raw: r }); } }
 
   if (rawLogs.length === 0) {
     const calculatedPrincipal = fixFloat(userInitialCash);
@@ -1401,13 +1393,14 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   const lastAsset = chartBalances[chartBalances.length - 1] || 0;
   const minMdd = chartMdd.length > 0 ? Math.min(...chartMdd) : 0;
 
-  const finalPrincipal = restoredBase > 0 ? restoredBase : calculatedPrincipal;
-  const totalProfit = fixFloat(lastAsset - calculatedPrincipal);
-  const simpleYield = calculatedPrincipal > 0 ? totalProfit / calculatedPrincipal : 0;
+  const principalFromState = restoredRealPrincipal > 0 ? restoredRealPrincipal : (restoredBase > 0 ? restoredBase : calculatedPrincipal);
+  const finalPrincipal = principalFromState;
+  const totalProfit = fixFloat(lastAsset - principalFromState);
+  const simpleYield = principalFromState > 0 ? totalProfit / principalFromState : 0;
   const evalVal = fixFloat(lastAsset - cash); const depletion = lastAsset > 0 ? (evalVal / lastAsset) : 0; const investPrincipal = fixFloat(qty * avgPrice); const evalReturn = investPrincipal > 0 ? (evalVal - investPrincipal) / investPrincipal : 0; const currPrice = parseFloat(meta.tickerPrice) || 0;
 
   let cagr = 0;
-  const effectivePrincipal = (calculatedPrincipal > 0) ? calculatedPrincipal : (restoredBase > 0 ? restoredBase : 0);
+  const effectivePrincipal = principalFromState;
 
   if (chartDates.length > 0 && effectivePrincipal > 0 && lastAsset > 0) {
     const toDateObj = (str) => {
@@ -1459,7 +1452,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     } return result.reverse();
   };
 
-  let finalEffPrincipal = (calculatedPrincipal > 0) ? calculatedPrincipal : (restoredBase > 0 ? restoredBase : 0);
+  let finalEffPrincipal = principalFromState;
   let finalProfit = fixFloat(lastAsset - finalEffPrincipal);
   let finalYield = finalEffPrincipal > 0 ? finalProfit / finalEffPrincipal : 0;
 
@@ -1481,7 +1474,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
     currentMdd: chartMdd[chartMdd.length - 1],
     base: finalPrincipal, 
     inout: totalInoutSum,
-    realPrincipal: calculatedPrincipal, 
+    realPrincipal: principalFromState, 
     trueStartDate: trueStartDateStr
   };
 
@@ -1498,12 +1491,12 @@ function processRealLogData(d, currentStrat, userInitialCash) {
       let sellRate = modeData.sell[p_i.tier - 1] || modeData.sell[0] || 0; 
       let s_tgt = c2_T(p_i.buy_price * (1 + sellRate)); 
 
-      // 🎯 시트에서 불러온 데이터도 보유 한계일 검사 적용 (덮어쓰기 방지)
+      // ?렞 ?쒗듃?먯꽌 遺덈윭???곗씠?곕룄 蹂댁쑀 ?쒓퀎??寃???곸슜 (??뼱?곌린 諛⑹?)
       let hIdx = Math.min(p_i.tier - 1, modeData.hold.length - 1);
       let h_limit = modeData.hold[hIdx] || 1;
 
       if (p_i.days !== undefined && p_i.days >= h_limit - 1) {
-          // 🎯 시트 표기를 위해 MOC의 가격을 빈칸("")으로 변경하여 구글시트 연동 에러 원천 차단
+          // ?렞 ?쒗듃 ?쒓린瑜??꾪빐 MOC??媛寃⑹쓣 鍮덉뭏("")?쇰줈 蹂寃쏀븯??援ш??쒗듃 ?곕룞 ?먮윭 ?먯쿇 李⑤떒
           rawOrderOutput.push(["매도", "MOC", "", p_i.qty]);
       } else {
           rawOrderOutput.push(["매도", "LOC", s_tgt, p_i.qty]); 
@@ -1513,7 +1506,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   
   const sortOrder = localStorage.getItem(`vtotal_sort_order_${window.myUserId || ""}`) || "asc";
   const mult = sortOrder === "desc" ? -1 : 1;
-  // 정렬 시 가격이 ""(빈칸)인 경우 0으로 취급하여 에러 방지
+  // ?뺣젹 ??媛寃⑹씠 ""(鍮덉뭏)??寃쎌슦 0?쇰줈 痍④툒?섏뿬 ?먮윭 諛⑹?
   const finalOrders = rawOrderOutput.sort((a, b) => ((a[2] === "" ? 0 : a[2]) - (b[2] === "" ? 0 : b[2])) * mult);
 
   return {
@@ -1540,7 +1533,7 @@ function processRealLogData(d, currentStrat, userInitialCash) {
   };
 }
 
-// 🧠 [engine.js] 다중 슬롯 종합 계산 로직
+// ?쭬 [engine.js] ?ㅼ쨷 ?щ’ 醫낇빀 怨꾩궛 濡쒖쭅
 function calculateCombinedSummaryEngine(activeResults) {
   if (!activeResults || activeResults.length === 0) return null;
   if (activeResults.length === 1) return activeResults[0].summary;
@@ -1709,3 +1702,7 @@ function generateCombinedPeriodDataEngine(activeResults) {
     daily: calculateDailyData(sortedDates, combinedBalances, combinedMdds, combinedInouts).reverse()
   };
 }
+
+
+
+

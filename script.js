@@ -1,4 +1,4 @@
-// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
+﻿// script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
 const APP_VERSION = "3.38";
 const MAX_SLOTS = 6;
@@ -1675,153 +1675,27 @@ async function checkAndSyncWithServer(isInitial, forceSync = false) {
     };
 
     const loadSheetData = async () => {
-      try {
-        const syncUrl = `${CF_WORKER_URL}/api/sync?id=${myUserId}`;
-        const res = await fetch(syncUrl).catch(e => { console.warn("D1 Sync API 호출 실패:", e); return null; });
-        if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'unknown'}`);
-        
-        const data = await res.json().catch(() => null);
-        if (!data || data.status !== 'success') throw new Error("유효하지 않은 D1 동기화 응답");
-        
-        // ⭐️ [스마트 마이그레이션 판정] D1 DB에 설정값(configs)이 없는 최초 마이그레이션 유저라면 시트에서 불러오도록 에러 발생
-        if (!data.configs || data.configs.length === 0) {
-          throw new Error("D1 데이터가 없습니다. 구글 시트에서 데이터를 복구합니다.");
-        }
-        
-        const configsMap = {};
-        data.configs.forEach(cfg => {
-          try { configsMap[cfg.slot_num] = JSON.parse(cfg.config_json); } catch(e) {}
-        });
-        
-        const dataInit = {
-          config: configsMap[1] || null,
-          config2: configsMap[2] || null,
-          config3: configsMap[3] || null,
-          config4: configsMap[4] || null,
-          config5: configsMap[5] || null,
-          config6: configsMap[6] || null,
-          hasSheet: true
-        };
+      const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        return fetch(url, { ...options, signal: controller.signal })
+          .finally(() => clearTimeout(timer));
+      };
 
-        const dataPerf = { status: "success" };
-        for (let slot = 1; slot <= MAX_SLOTS; slot++) {
-          const slotStates = (data.states || [])
-            .filter(s => s.slot_num === slot)
-            .sort((a, b) => a.date.localeCompare(b.date));
-          
-          if (slotStates.length === 0) {
-            dataPerf[`strat${slot}`] = null;
-            continue;
-          }
-          
-          const logsData = slotStates.map(s => [
-            s.date,
-            s.asset,
-            s.inout,
-            s.state_json
-          ]);
-          
-          const lastState = slotStates[slotStates.length - 1];
-          const lastJson = lastState.state_json;
-          let meta = { currentCash: 0, totalPrincipal: 0, realizedProfit: 0, qty: 0, avgPrice: 0, ticker: "" };
-          
-          try {
-            const parsed = JSON.parse(lastJson || '{}');
-            meta.currentCash = parsed.cash || 0;
-            meta.totalPrincipal = parsed.base_principal || 0;
-            meta.realizedProfit = parsed.realizedProfit || 0;
-            
-            let qty = 0, totalCost = 0;
-            if (parsed.holdings) {
-              parsed.holdings.forEach(h => {
-                const hQty = Number(h.qty) || 0;
-                const hCost = Number(h.cost) || ((Number(h.buy_price) || 0) * hQty);
-                qty += hQty;
-                totalCost += hCost;
-              });
-            }
-            meta.qty = qty;
-            meta.avgPrice = qty > 0 ? totalCost / qty : 0;
-            
-            const slotCfg = configsMap[slot];
-            if (slotCfg && slotCfg.basics) {
-              meta.ticker = slotCfg.basics.ticker || "";
-            }
-          } catch(e) {}
-          
-          dataPerf[`strat${slot}`] = {
-            meta: meta,
-            logs: logsData,
-            json: lastJson
-          };
-        }
+      const resInit = await fetchWithTimeout(`${GAS_URL}?action=GET_INIT&id=${myUserId}`);
+      const dataInit = await resInit.json();
 
-        try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(dataPerf)); } catch (e) {}
-        return { dataInit, dataPerf };
-      } catch (e) {
-        console.warn("D1 로드 실패 또는 데이터 없음, 기존 구글 시트 폴백 방식으로 로드:", e);
+      let perfUrl = `${GAS_URL}?action=GET_MY_PERF&id=${myUserId}`;
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const pName = i === 1 ? 'config' : `config${i}`;
+        const sName = dataInit[pName]?.basics?.strategy || slotConfigs[i]?.basics?.strategy || "";
+        perfUrl += `&strat${i}=${encodeURIComponent(sName)}`;
       }
 
-      // [폴백 및 자동 복제] 에지 DB 연결 실패 또는 데이터가 비어있을 때 구글 시트에서 직접 데이터 로드 후 복제
-      try {
-        const allUrl = `${GAS_URL}?action=GET_ALL_INIT&id=${myUserId}`;
-        const resGas = await fetch(allUrl);
-        const data = await resGas.json();
-        if (data && data.perf) {
-          const dataInit = {
-            config: data.config,
-            config2: data.config2,
-            config3: data.config3,
-            config4: data.config4,
-            config5: data.config5,
-            config6: data.config6,
-            hasSheet: data.hasSheet
-          };
-          try { localStorage.setItem(getSheetPerfCacheKey(), JSON.stringify(data.perf)); } catch (e) {}
-          
-          // ⭐️ [스마트 마이그레이션] 구글 시트에서 읽어온 원본 데이터를 D1 에지 DB로 복제 전송 (최초 1회 자동 동기화)
-          (async () => {
-            try {
-              console.log("스마트 마이그레이션: 구글 시트 데이터를 D1 에지 DB로 최초 1회 복제 전송합니다...");
-              for (let slot = 1; slot <= MAX_SLOTS; slot++) {
-                const cfgProp = slot === 1 ? 'config' : `config${slot}`;
-                const config = dataInit[cfgProp];
-                const perfData = data.perf[`strat${slot}`];
-                if (config && perfData && perfData.logs) {
-                  const states = perfData.logs.map(log => ({
-                    date: log[0],
-                    asset: log[1],
-                    inout: log[2],
-                    json: log[3]
-                  }));
-                  
-                  await fetch(`${CF_WORKER_URL}/api/save`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      id: myUserId,
-                      slot: slot,
-                      config: config,
-                      states: states,
-                      trades: [] // trades는 추후 수동/자동 저장 시 D1에 누적 동기화됨
-                    })
-                  }).catch(() => null);
-                }
-              }
-              console.log("스마트 마이그레이션 완료!");
-            } catch(err) {
-              console.warn("스마트 마이그레이션 처리 중 오류:", err);
-            }
-          })();
-
-          return { dataInit, dataPerf: data.perf };
-        }
-      } catch(err) {
-        console.error("구글 시트 폴백 로드 최종 실패:", err);
-      }
-      return { dataInit: { hasSheet: false }, dataPerf: { status: "error" } };
+      const resPerf = await fetch(perfUrl);
+      const dataPerf = await resPerf.json();
+      return { dataInit, dataPerf };
     };
-
     window.skipChartRendering = true;
     for (let i = 1; i <= MAX_SLOTS; i++) {
       await runFastEngine(slotConfigs[i], isSlotActive(i), i);
@@ -2150,17 +2024,12 @@ function buildSheetSavePayload(slot, config, states) {
   }
 
   const sortedStates = sortSheetStates(states);
-  let previousCumulativeInout = sortedStates.length > 0 ? (Number(sortedStates[0].inout) || 0) : 0;
 
-  payload.logs = sortedStates.map((state, index) => {
-    const currentCumulativeInout = Number(state.inout) || 0;
-    const dailyInout = index === 0 ? 0 : currentCumulativeInout - previousCumulativeInout;
-    previousCumulativeInout = currentCumulativeInout;
-
+  payload.logs = sortedStates.map((state) => {
     const row = { date: normalizeSheetStateDate(state.date) };
     row[`s${slot}`] = {
       asset: state.asset,
-      inout: dailyInout,
+      inout: 0,
       json: state.json
     };
     return row;
@@ -2237,48 +2106,64 @@ function validateSheetAppendWindow(slot, config, sheetLastDate, options = {}) {
 }
 
 function checkAndRunAutoSave() {
-  for (let i = 1; i <= MAX_SLOTS; i++) {
-    const res = lastBTResults[i];
-    if (!res || !res.dailyStates) continue;
-    
-    const sheetLastDate = normalizeSheetStateDate(localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`)) || "1900-01-01";
-    if (!validateSheetAppendWindow(i, slotConfigs[i], sheetLastDate, { silent: true })) continue;
+  const combinedMap = {};
 
-    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`) || "";
-    const existingDatesSet = new Set(existingDatesStr ? existingDatesStr.split(",") : []);
-    let newLogs = res.dailyStates.filter(s => !existingDatesSet.has(normalizeSheetStateDate(s.date)));
-    if (sheetLastDate !== "1900-01-01") {
-      newLogs = newLogs.filter(s => normalizeSheetStateDate(s.date) > sheetLastDate);
-    }
-    newLogs = sortSheetStates(newLogs);
-    if (newLogs.length === 0) continue;
-    
-    setLED('loading');
-    
-    saveSlotToSheet(i, slotConfigs[i], newLogs)
-    .then(data => {
-      if (data.status === "success") {
-        const maxDate = newLogs.reduce((max, s) => {
-          const date = normalizeSheetStateDate(s.date);
-          return date > max ? date : max;
-        }, "1900-01-01");
-        localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, maxDate);
-        
-        newLogs.forEach(s => existingDatesSet.add(normalizeSheetStateDate(s.date)));
-        localStorage.setItem(`vtotal_sheet_existing_dates_${i}_${myUserId}`, Array.from(existingDatesSet).join(","));
-        
-        setLED('on');
-        const header = document.getElementById('userDisplayHeader');
-        if (header) {
-          header.innerText = myUserId + " (시트 자동 누계 완료!)";
-          setTimeout(() => { if (header.innerText.includes("자동 누계")) header.innerText = myUserId; }, 3000);
+  const addStates = (res, slotKey, lastDate) => {
+    if (!res || !res.dailyStates) return;
+    const normalizedLastDate = normalizeSheetStateDate(lastDate) || "1900-01-01";
+    res.dailyStates.forEach(state => {
+      const date = normalizeSheetStateDate(state.date);
+      if (!date || date <= normalizedLastDate) return;
+      if (!combinedMap[date]) {
+        const baseObj = { date };
+        for (let i = 1; i <= MAX_SLOTS; i++) baseObj[`s${i}`] = null;
+        combinedMap[date] = baseObj;
+      }
+      combinedMap[date][slotKey] = {
+        asset: state.asset,
+        inout: state.inout,
+        json: state.json
+      };
+    });
+  };
+
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`) || "1900-01-01";
+    addStates(lastBTResults[i], `s${i}`, sheetLastDate);
+  }
+
+  const batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
+  if (batchLogs.length === 0) return;
+
+  setLED('loading');
+  const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { ...options, signal: controller.signal })
+      .finally(() => clearTimeout(timer));
+  };
+  fetchWithTimeout(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify({ action: "AUTO_DAILY_SAVE", id: myUserId, logs: batchLogs })
+  })
+    .then(() => {
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const slotLogs = batchLogs.filter(row => row[`s${i}`]);
+        if (slotLogs.length > 0) {
+          const slotLastDate = slotLogs[slotLogs.length - 1].date;
+          localStorage.setItem(`vtotal_sheet_last_date_${i}_${myUserId}`, slotLastDate);
         }
+      }
+      setLED('on');
+      const header = document.getElementById('userDisplayHeader');
+      if (header) {
+        header.innerText = myUserId + " (누락 데이터 자동 백업 완료!)";
+        setTimeout(() => { if (header.innerText.includes("자동 백업 완료")) header.innerText = myUserId; }, 3000);
       }
     })
     .catch(() => { setLED('off'); });
-  }
 }
-
 function triggerOptimisticSave() {
   const currentParams = gatherParams();
   saveCurrentFormToSlot(activeSettingsTab);
