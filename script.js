@@ -5537,6 +5537,63 @@ function changePriceInfoTicker(ticker) {
 }
 window.changePriceInfoTicker = changePriceInfoTicker;
 
+async function triggerPriceManualFetch() {
+  const btn = document.getElementById("btnPriceInfoManualFetch");
+  const origText = btn ? btn.innerHTML : "🔄 수동 갱신";
+  if (btn) {
+    btn.innerHTML = "⏳ 일괄 갱신 중...";
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+  }
+
+  // 갱신 대상 핵심 티커 목록
+  const targetTickers = ['SOXL', 'QQQ', 'TQQQ', 'SOXX'];
+  const currentViewTicker = window.priceInfoTicker || 'SOXL';
+  
+  const now = new Date();
+  const oneYearAgo = new Date(now.getTime() - 450 * 24 * 60 * 60 * 1000);
+  const p1 = Math.floor(oneYearAgo.getTime() / 1000);
+  const p2 = Math.floor(now.getTime() / 1000);
+
+  try {
+    showToast(`핵심 4대 주가(SOXL, QQQ, TQQQ, SOXX) 서버 일괄 수집 요청 중...`, "⏳");
+    
+    // 4개 티커에 대해 백엔드에 강제 수동 수집 요청을 동시에 보냅니다. (병렬 실행)
+    const promises = targetTickers.map(async (ticker) => {
+      const forceUrl = `${CF_WORKER_URL}/api/prices?t=${ticker}&p1=${p1}&p2=${p2 + (86400 * 3)}&force=true`;
+      const response = await fetch(forceUrl);
+      const res = await response.json();
+      if (res.error) throw new Error(`${ticker}: ${res.error}`);
+      
+      // 로컬 스토리지 캐시 키 제거
+      localStorage.removeItem(`cachedPriceData_${ticker}`);
+      localStorage.removeItem(`vtotal_last_fetch_${ticker}`);
+      localStorage.removeItem(`vtotal_price_cache_repair_v2_${ticker}`);
+      
+      // 메모리 캐시 초기화
+      if (window.cachedPriceMap) {
+        delete window.cachedPriceMap[ticker];
+      }
+    });
+
+    await Promise.all(promises);
+    
+    showToast(`모든 핵심 주가 일괄 수동 갱신이 완료되었습니다!`, "✅");
+    await loadPriceInfoViewData();
+    
+  } catch (err) {
+    console.error("일괄 주가 수동 갱신 실패:", err);
+    alert(`❌ 주가 강제 갱신 중 오류가 발생했습니다: ${err.message}\n(백엔드 서버 IP 차단 혹은 네트워크 장애 상태일 수 있습니다.)`);
+  } finally {
+    if (btn) {
+      btn.innerHTML = origText;
+      btn.disabled = false;
+      btn.style.opacity = "1";
+    }
+  }
+}
+window.triggerPriceManualFetch = triggerPriceManualFetch;
+
 async function loadPriceInfoViewData() {
   const contentEl = document.getElementById('priceInfoViewContent');
   if (!contentEl) return;

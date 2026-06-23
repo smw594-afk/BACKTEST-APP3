@@ -499,8 +499,73 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
       const sDateStr = getYYYYMMDD(p1);
       const eDateStr = getYYYYMMDD(Number(p2) + (86400 * 3));
 
-      // ⭐️ 오전 6시 스케줄러가 적재해둔 DB(stock_prices)에서만 안전하게 조회합니다.
-      const dbResult = await queryStockPrices(env, ticker, sDateStr, eDateStr);
+      // 1. 먼저 DB 조회 시도
+      let dbResult = await queryStockPrices(env, ticker, sDateStr, eDateStr);
+      let needsLiveFetch = false;
+
+      // 뉴욕 시간 계산 (장중 및 마감 직후 임시 실시간 체결가가 섞이는 것 방지)
+      const todayNY = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
+      const nyHour = todayNY.getHours();
+      const nyMin = todayNY.getMinutes();
+      const nyDay = todayNY.getDay();
+      
+      // 뉴욕 시간 기준 정규장 시간은 09:30 ~ 16:00 입니다.
+      // 당일 장이 마감되고 데이터 정리가 확실해지는 뉴욕 시간 16:10(오후 4시 10분) 이후부터 당일 종가 수집을 시작하도록 설정합니다.
+      // (한국 시간 기준 서머타임 시 오전 5시 10분, 해제 시 오전 6시 10분 이후)
+      const isNYMarketTradingOrProcessing = (nyDay !== 0 && nyDay !== 6) && (
+        (nyHour > 9 || (nyHour === 9 && nyMin >= 30)) && 
+        (nyHour < 16 || (nyHour === 16 && nyMin < 10))
+      );
+
+      if (!dbResult.results || dbResult.results.length === 0) {
+        needsLiveFetch = true;
+      } else {
+        // DB에 데이터가 있더라도 마지막 데이터가 현재 날짜 대비 너무 오래되었는지(휴일 감안하여 평일 기준 3일 이상 차이 날 경우) 체크하여 자동 업데이트
+        const lastDbDateStr = dbResult.results[dbResult.results.length - 1].date;
+        const lastDbDate = new Date(lastDbDateStr + "T12:00:00Z");
+        
+        // 현재 뉴욕 시간 기준 주말/휴일을 고려한 판단
+        const diffDays = (todayNY.getTime() - lastDbDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays >= 2.0 && todayNY.getDay() !== 0 && todayNY.getDay() !== 6 && !isUSMarketHoliday(getYYYYMMDD(Math.floor(todayNY.getTime() / 1000)))) {
+          needsLiveFetch = true;
+        }
+      }
+
+      // 2. 누락되었거나 force일 때 야후 파이낸스 직접 API 호출하여 D1 DB 갱신
+      // 단, 뉴욕 시간 기준 장 거래 중(09:30 ~ 16:05)에는 임시 실시간 체결가가 들어오는 것을 방지하기 위해 라이브 수집을 차단합니다.
+      if ((needsLiveFetch || force) && !isNYMarketTradingOrProcessing) {
+        console.log(`[자가 치유] DB에 ${ticker}의 최신 데이터가 없거나 유효하지 않아 야후 파이낸스에서 직접 가져옵니다. (${sDateStr} ~ ${eDateStr})`);
+        // 구글 앱스 스크립트 웹앱 주소 활용 (query2.finance.yahoo.com으로 직접 요청 시 클라우드플레어 IP 차단 방어)
+        const gasUrl = `https://script.google.com/macros/s/AKfycbz5oD4M9ninAUdnr4jexbjKvoQsvX6OCDJZgE5eUAi3zTC14tqhfYYAIGgf1CSFZmToMA/exec?action=GET_YAHOO&t=${ticker}&p1=${p1}&p2=${Number(p2) + (86400 * 3)}`;
+        const res = await fetch(gasUrl).then(r => r.json());
+        
+        if (res && res.chart && res.chart.result && res.chart.result[0]) {
+          const resultObj = res.chart.result[0];
+          const ts = resultObj.timestamp || [];
+          const quote = resultObj.indicators.quote[0] || {};
+          const opens = quote.open || [];
+          const closes = quote.close || [];
+
+          if (ts.length > 0) {
+            const statements = [];
+            for (let i = 0; i < ts.length; i++) {
+              if (closes[i] !== null && opens[i] !== null && !isNaN(closes[i]) && !isNaN(opens[i])) {
+                const dateStr = getYYYYMMDD(ts[i]);
+                statements.push(
+                  env.DB.prepare("INSERT OR REPLACE INTO stock_prices (ticker, date, open, close) VALUES (?, ?, ?, ?)")
+                    .bind(ticker, dateStr, Math.round(Number(opens[i]) * 100) / 100, Math.round(Number(closes[i]) * 100) / 100)
+                );
+              }
+            }
+            if (statements.length > 0) {
+              await env.DB.batch(statements);
+              console.log(`[자가 치유 완료] ${ticker} 데이터 ${statements.length}건 DB 적재 완료`);
+              // DB 다시 재쿼리하여 결과 가져옴
+              dbResult = await queryStockPrices(env, ticker, sDateStr, eDateStr);
+            }
+          }
+        }
+      }
 
       if (dbResult.results && dbResult.results.length > 0) {
         const timestamp = [];

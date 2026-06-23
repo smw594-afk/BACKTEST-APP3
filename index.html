@@ -208,7 +208,9 @@
         <div style="display:flex; align-items:center;">
           <h2 id="priceInfoTitle" style="margin:0; color:var(--primary);">📈 SOXL 주가 정보</h2>
         </div>
-        <div style="margin-left:auto; display:flex; align-items:center;">
+        <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+          <button id="btnPriceInfoManualFetch" onclick="triggerPriceManualFetch()" 
+                  style="background:linear-gradient(135deg, #fbbf24, #d97706); color:white; border:none; border-radius:6px; font-size:11px; font-weight:700; padding:4px 8px; cursor:pointer; height:28px; display:inline-flex; align-items:center; justify-content:center;">🔄 수동 갱신</button>
           <select id="priceInfoTickerSelector" onchange="changePriceInfoTicker(this.value)" 
                   style="background:rgba(255,255,255,0.08); color:var(--text); border:1px solid rgba(255,255,255,0.15); border-radius:6px; font-size:11px; font-weight:600; padding:4px 8px; outline:none; cursor:pointer; height:28px;">
             <option value="SOXL" selected>SOXL</option>
