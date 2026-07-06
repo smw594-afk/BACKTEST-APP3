@@ -352,6 +352,14 @@ async function queryAllStockPrices(env, ticker) {
   return env.DB.prepare(sql).bind(...aliases).all();
 }
 
+async function getLatestStockPriceDate(env, ticker) {
+  const aliases = getStockTickerAliases(ticker);
+  const placeholders = aliases.map(() => "?").join(", ");
+  const sql = "SELECT MAX(date) AS date FROM stock_prices WHERE UPPER(ticker) IN (" + placeholders + ")";
+  const result = await env.DB.prepare(sql).bind(...aliases).first();
+  return result && result.date ? normalizeStockDate(result.date) : "";
+}
+
 let stockPriceDateNormalizationPromise = null;
 
 async function normalizeStoredStockPrices(env) {
@@ -482,8 +490,9 @@ function fixFloat(value) {
 // === [2. 여기서부터 아래의 calculateOrderInternal 직전까지 통째로 교체합니다] ===
 async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
   await normalizeStoredStockPrices(env);
+  const latestDbDate = await getLatestStockPriceDate(env, ticker);
   const todayStr = new Date().toISOString().split('T')[0];
-  const cacheKey = `yahoo_v2_${ticker}_${p1}_${todayStr}`;
+  const cacheKey = `yahoo_v3_${ticker}_${p1}_${p2}_${latestDbDate || todayStr}`;
   let cachedData = (!force && env.VTOTAL_KV) ? await env.VTOTAL_KV.get(cacheKey) : null;
   
   let resultJSON = null;
@@ -1317,9 +1326,11 @@ export default {
         if (env.VTOTAL_KV) {
           for (const ticker of tickersToClear) {
             try {
-              const list = await env.VTOTAL_KV.list({ prefix: `yahoo_${ticker}` });
+              const list = await env.VTOTAL_KV.list({ prefix: `yahoo_` });
               for (const key of list.keys) {
-                await env.VTOTAL_KV.delete(key.name);
+                if (key.name.includes(`_${ticker}_`) || key.name.startsWith(`yahoo_${ticker}`) || key.name.startsWith(`yahoo_v3_${ticker}`)) {
+                  await env.VTOTAL_KV.delete(key.name);
+                }
               }
               console.log(`[KV 캐시 무효화 완료] ${ticker} 관련 캐시 ${list.keys.length}건 삭제`);
             } catch (kvErr) {

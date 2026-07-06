@@ -1,15 +1,12 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.392";
+const APP_VERSION = "3.393";
 const MAX_SLOTS = 6;
 const APP_RUNTIME_VERSION_KEY = "vtotal_runtime_version";
 const TRANSIENT_CACHE_PREFIXES = [
   "vtotal_snap",
   "vtotal_sheet_last_date_",
   "vtotal_sheet_existing_dates_",
-  "cachedPriceData_",
-  "vtotal_last_fetch_",
-  "vtotal_price_cache_repair_v2_",
   "vtotal_snap_combined_"
 ];
 
@@ -36,13 +33,6 @@ function clearTransientAppCaches() {
     }
   } catch (e) { }
 
-  try {
-    if (typeof indexedDB !== "undefined") {
-      indexedDB.deleteDatabase("VTotalDB_Cache");
-    }
-  } catch (e) {
-    console.warn("IndexedDB 캐시 삭제 중 오류:", e);
-  }
 }
 
 function syncRuntimeVersion() {
