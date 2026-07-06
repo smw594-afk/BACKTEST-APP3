@@ -1,7 +1,63 @@
 // script.js (UI 컨트롤, 데이터 통신 및 차트 렌더링 - 6슬롯 무한 확장 버전)
 
-const APP_VERSION = "3.391";
+const APP_VERSION = "3.392";
 const MAX_SLOTS = 6;
+const APP_RUNTIME_VERSION_KEY = "vtotal_runtime_version";
+const TRANSIENT_CACHE_PREFIXES = [
+  "vtotal_snap",
+  "vtotal_sheet_last_date_",
+  "vtotal_sheet_existing_dates_",
+  "cachedPriceData_",
+  "vtotal_last_fetch_",
+  "vtotal_price_cache_repair_v2_",
+  "vtotal_snap_combined_"
+];
+
+function clearTransientAppCaches() {
+  const removableKeys = [];
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (TRANSIENT_CACHE_PREFIXES.some(prefix => key.startsWith(prefix))) {
+        removableKeys.push(key);
+      }
+    }
+
+    removableKeys.forEach((key) => localStorage.removeItem(key));
+  } catch (e) {
+    console.warn("임시 캐시 정리 중 오류:", e);
+  }
+
+  try {
+    if (window.cachedPriceMap && typeof window.cachedPriceMap === "object") {
+      window.cachedPriceMap = {};
+    }
+  } catch (e) { }
+
+  try {
+    if (typeof indexedDB !== "undefined") {
+      indexedDB.deleteDatabase("VTotalDB_Cache");
+    }
+  } catch (e) {
+    console.warn("IndexedDB 캐시 삭제 중 오류:", e);
+  }
+}
+
+function syncRuntimeVersion() {
+  try {
+    const savedVersion = localStorage.getItem(APP_RUNTIME_VERSION_KEY);
+    if (savedVersion !== APP_VERSION) {
+      clearTransientAppCaches();
+      localStorage.setItem(APP_RUNTIME_VERSION_KEY, APP_VERSION);
+    }
+  } catch (e) {
+    console.warn("런타임 버전 동기화 실패:", e);
+  }
+}
+
+syncRuntimeVersion();
 
 function formatStrategyNameWithSmallParentheses(name) {
   if (!name) return '';
@@ -278,7 +334,10 @@ async function forceUpdateApp() {
     } catch (e) {
       alert("초기화 중 일부 오류가 발생했습니다: " + e.message);
     }
-    window.location.reload(true);
+    const reloadUrl = new URL(window.location.href);
+    reloadUrl.searchParams.set('v', APP_VERSION);
+    reloadUrl.searchParams.set('reset', Date.now().toString());
+    window.location.replace(reloadUrl.toString());
   }
 }
 
@@ -338,7 +397,10 @@ async function forceRestoreFromGoogleSheets() {
     }
 
     alert("✅ 구글 시트 데이터 기반으로 Cloudflare D1 DB 강제 복원이 완료되었습니다.\n실시간 운영현황 및 주문표가 시트 정보와 동기화됩니다.");
-    window.location.reload(true);
+    const reloadUrl = new URL(window.location.href);
+    reloadUrl.searchParams.set('v', APP_VERSION);
+    reloadUrl.searchParams.set('restore', Date.now().toString());
+    window.location.replace(reloadUrl.toString());
 
   } catch (e) {
     console.error("DB 강제 복원 오류:", e);
@@ -5602,7 +5664,10 @@ async function triggerPriceManualFetch() {
     
     showToast(`모든 핵심 주가 일괄 수동 갱신이 완료되었습니다!\n데이터 동기화를 위해 화면을 새로고침합니다.`, "✅");
     setTimeout(() => {
-      window.location.reload(true);
+      const reloadUrl = new URL(window.location.href);
+      reloadUrl.searchParams.set('v', APP_VERSION);
+      reloadUrl.searchParams.set('refresh', Date.now().toString());
+      window.location.replace(reloadUrl.toString());
     }, 1200);
     
   } catch (err) {
