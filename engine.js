@@ -359,6 +359,8 @@ async function updateCurrentFXRate(callback = null) {
 async function openDB() { return new Promise((resolve, reject) => { const req = indexedDB.open(DB_NAME, DB_VERSION); req.onupgradeneeded = e => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: "ticker" }); }; req.onsuccess = e => resolve(e.target.result); req.onerror = e => reject(e.target.error); }); }
 async function getDB(tk) { try { const db = await openDB(); return new Promise((resolve, reject) => { const tx = db.transaction(STORE_NAME, "readonly"); const req = tx.objectStore(STORE_NAME).get(tk); req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null); }); } catch (e) { return null; } }
 async function setDB(data) { try { const db = await openDB(); const tx = db.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).put(data); } catch (e) { } }
+async function deleteDB(tk) { try { const db = await openDB(); const tx = db.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).delete(tk); } catch (e) { } }
+window.deleteDB = deleteDB;
 
 // ?썳截?湲덉쑖 怨꾩궛 諛??좏떥由ы떚 ?⑥닔 紐⑥쓬
 function fixFloat(value) {
@@ -580,7 +582,7 @@ async function fetchYahooData(t, p1, p2, rnd, force = false) {
         } else {
           let existingLastStr = cached.dates.length > 0 ? formatDateNY(new Date(cached.dates[cached.dates.length - 1])) : "1900-01-01";
           let newLastStr = newDates.length > 0 ? formatDateNY(newDates[newDates.length - 1]) : "1900-01-01";
-          if (existingLastStr > newLastStr) { console.warn(`?곗씠???꾨씫 媛먯?! 湲곗〈 罹먯떆 蹂댄샇.`); } else { cached.dates = newDates; cached.close = newClose; cached.open = newOpen; }
+          if (!force && existingLastStr > newLastStr) { console.warn(`데이터 누락 감지! 기존 캐시 보호.`); } else { cached.dates = newDates; cached.close = newClose; cached.open = newOpen; }
         }
         cached = mergePriceSeries(previousCached, incoming, t);
         const todayNYStr = normalizeDateKey(new Date()); const nowNY = new Date(); const nyHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(nowNY));

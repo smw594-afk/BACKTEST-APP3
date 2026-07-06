@@ -2176,12 +2176,23 @@ function validateSheetAppendWindow(slot, config, sheetLastDate, options = {}) {
 function checkAndRunAutoSave() {
   const combinedMap = {};
 
-  const addStates = (res, slotKey, lastDate) => {
+  const addStates = (res, slotKey, lastDate, slotNum) => {
     if (!res || !res.dailyStates) return;
     const normalizedLastDate = normalizeSheetStateDate(lastDate) || "1900-01-01";
+    
+    // 시트에 이미 존재하는 날짜 목록 가져오기
+    const existingDatesStr = localStorage.getItem(`vtotal_sheet_existing_dates_${slotNum}_${myUserId}`) || "";
+    const existingDatesSet = new Set(existingDatesStr.split(",").map(d => normalizeSheetStateDate(d)).filter(Boolean));
+
     res.dailyStates.forEach(state => {
       const date = normalizeSheetStateDate(state.date);
-      if (!date || date <= normalizedLastDate) return;
+      if (!date) return;
+      
+      const isMissing = !existingDatesSet.has(date);
+      const isFuture = date > normalizedLastDate;
+      
+      if (!isFuture && !isMissing) return;
+
       if (!combinedMap[date]) {
         const baseObj = { date };
         for (let i = 1; i <= MAX_SLOTS; i++) baseObj[`s${i}`] = null;
@@ -2197,7 +2208,7 @@ function checkAndRunAutoSave() {
 
   for (let i = 1; i <= MAX_SLOTS; i++) {
     const sheetLastDate = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`) || "1900-01-01";
-    addStates(lastBTResults[i], `s${i}`, sheetLastDate);
+    addStates(lastBTResults[i], `s${i}`, sheetLastDate, i);
   }
 
   const batchLogs = Object.values(combinedMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -5570,6 +5581,11 @@ async function triggerPriceManualFetch() {
       localStorage.removeItem(`vtotal_last_fetch_${ticker}`);
       localStorage.removeItem(`vtotal_price_cache_repair_v2_${ticker}`);
       
+      // IndexedDB 캐시 제거
+      if (window.deleteDB) {
+        await window.deleteDB(ticker);
+      }
+      
       // 메모리 캐시 초기화
       if (window.cachedPriceMap) {
         delete window.cachedPriceMap[ticker];
@@ -5578,8 +5594,16 @@ async function triggerPriceManualFetch() {
 
     await Promise.all(promises);
     
-    showToast(`모든 핵심 주가 일괄 수동 갱신이 완료되었습니다!`, "✅");
-    await loadPriceInfoViewData();
+    // ⭐️ [중요] 누락된 과거 날짜(7/2 등)를 처음부터 안전하게 다시 그릴 수 있도록 슬롯별 스냅샷 캐시를 일시 초기화합니다.
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      localStorage.removeItem(`vtotal_snap${i}_${myUserId}`);
+      localStorage.removeItem(`vtotal_sheet_last_date_${i}_${myUserId}`);
+    }
+    
+    showToast(`모든 핵심 주가 일괄 수동 갱신이 완료되었습니다!\n데이터 동기화를 위해 화면을 새로고침합니다.`, "✅");
+    setTimeout(() => {
+      window.location.reload(true);
+    }, 1200);
     
   } catch (err) {
     console.error("일괄 주가 수동 갱신 실패:", err);

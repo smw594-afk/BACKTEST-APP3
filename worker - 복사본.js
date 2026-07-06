@@ -260,6 +260,187 @@ const MASTER_STRATEGIES = {
   }
 };
 
+const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
+const GOOGLE_SA_SECRET_NAME = "GOOGLE_SERVICE_ACCOUNT_JSON";
+const GOOGLE_CLIENT_EMAIL_SECRET_NAME = "GOOGLE_CLIENT_EMAIL";
+const GOOGLE_PRIVATE_KEY_SECRET_NAME = "GOOGLE_PRIVATE_KEY";
+const GOOGLE_SPREADSHEET_ID_SECRET_NAME = "GOOGLE_SPREADSHEET_ID";
+
+function base64UrlEncodeBytes(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlEncodeString(str) {
+  return base64UrlEncodeBytes(new TextEncoder().encode(str));
+}
+
+function pemToDer(pem) {
+  const normalizedPem = String(pem || "")
+    .trim()
+    .replace(/^"(.*)"$/s, "$1")
+    .replace(/\\n/g, "\n");
+  const bodyMatch = normalizedPem.match(/-----BEGIN [^-]+-----(.*)-----END [^-]+-----/s);
+  const bodySource = bodyMatch ? bodyMatch[1] : normalizedPem;
+  const b64 = bodySource.replace(/\r/g, "").replace(/[^A-Za-z0-9+/=]/g, "");
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function getGoogleSecretValue(raw, fieldName = null) {
+  if (!raw) return "";
+  let text = String(raw).trim();
+  for (let i = 0; i < 2; i++) {
+    if (text.startsWith('"') && text.endsWith('"')) {
+      try {
+        text = JSON.parse(text);
+      } catch (err) {
+        text = text.slice(1, -1);
+      }
+    }
+  }
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (fieldName && parsed && parsed[fieldName]) return String(parsed[fieldName]);
+      if (parsed && parsed.private_key) return String(parsed.private_key);
+      if (parsed && parsed.client_email) return String(parsed.client_email);
+      if (parsed && parsed.spreadsheet_id) return String(parsed.spreadsheet_id);
+    } catch (err) {}
+  }
+  return text.replace(/^"(.*)"$/s, "$1");
+}
+
+async function getGoogleSheetsAccessToken(env) {
+  const raw = env?.[GOOGLE_SA_SECRET_NAME];
+  if (raw) {
+    const sa = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const clientEmail = sa.client_email || sa.clientEmail;
+    const privateKey = sa.private_key || sa.privateKey;
+    if (!clientEmail || !privateKey) throw new Error("Invalid Google service account JSON");
+
+    const now = Math.floor(Date.now() / 1000);
+    const header = { alg: "RS256", typ: "JWT" };
+    const payload = {
+      iss: clientEmail,
+      scope: GOOGLE_SHEETS_SCOPE,
+      aud: "https://oauth2.googleapis.com/token",
+      exp: now + 3600,
+      iat: now
+    };
+    const unsigned = `${base64UrlEncodeString(JSON.stringify(header))}.${base64UrlEncodeString(JSON.stringify(payload))}`;
+    const key = await crypto.subtle.importKey(
+      "pkcs8",
+      pemToDer(privateKey),
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
+    const assertion = `${unsigned}.${base64UrlEncodeBytes(new Uint8Array(signature))}`;
+
+    const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion
+      })
+    });
+    if (!tokenResp.ok) {
+      throw new Error(`Google token error HTTP ${tokenResp.status}`);
+    }
+    const tokenJson = await tokenResp.json();
+    if (!tokenJson.access_token) throw new Error("Google access token missing");
+    return tokenJson.access_token;
+  }
+
+  const clientEmail = getGoogleSecretValue(env?.[GOOGLE_CLIENT_EMAIL_SECRET_NAME], "client_email");
+  const privateKey = getGoogleSecretValue(env?.[GOOGLE_PRIVATE_KEY_SECRET_NAME], "private_key");
+  if (!clientEmail || !privateKey) {
+    throw new Error(`Missing secret: ${GOOGLE_SA_SECRET_NAME} or ${GOOGLE_CLIENT_EMAIL_SECRET_NAME}/${GOOGLE_PRIVATE_KEY_SECRET_NAME}`);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const payload = {
+    iss: clientEmail,
+    scope: GOOGLE_SHEETS_SCOPE,
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now
+  };
+  const unsigned = `${base64UrlEncodeString(JSON.stringify(header))}.${base64UrlEncodeString(JSON.stringify(payload))}`;
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToDer(privateKey),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
+  const assertion = `${unsigned}.${base64UrlEncodeBytes(new Uint8Array(signature))}`;
+
+  const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion
+    })
+  });
+  if (!tokenResp.ok) {
+    throw new Error(`Google token error HTTP ${tokenResp.status}`);
+  }
+  const tokenJson = await tokenResp.json();
+  if (!tokenJson.access_token) throw new Error("Google access token missing");
+  return tokenJson.access_token;
+}
+
+async function readGoogleSheetRange(env, spreadsheetId, range) {
+  const fallbackSpreadsheetId = getGoogleSecretValue(env?.[GOOGLE_SPREADSHEET_ID_SECRET_NAME], "spreadsheet_id");
+  const resolvedSpreadsheetId = String(spreadsheetId || fallbackSpreadsheetId || "").trim();
+  if (!resolvedSpreadsheetId) throw new Error("spreadsheetId is missing");
+  const accessToken = await getGoogleSheetsAccessToken(env);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(resolvedSpreadsheetId)}/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Sheets API HTTP ${res.status}${text ? `: ${text}` : ""}`);
+  }
+  return await res.json();
+}
+
+async function readGoogleSheetRanges(env, spreadsheetId, ranges) {
+  const fallbackSpreadsheetId = getGoogleSecretValue(env?.[GOOGLE_SPREADSHEET_ID_SECRET_NAME], "spreadsheet_id");
+  const resolvedSpreadsheetId = String(spreadsheetId || fallbackSpreadsheetId || "").trim();
+  if (!resolvedSpreadsheetId) throw new Error("spreadsheetId is missing");
+  const normalizedRanges = Array.isArray(ranges) ? ranges.map((range) => String(range || "").trim()).filter(Boolean) : [];
+  if (normalizedRanges.length === 0) throw new Error("ranges is missing");
+  const accessToken = await getGoogleSheetsAccessToken(env);
+  const params = new URLSearchParams();
+  normalizedRanges.forEach((range) => params.append("ranges", range));
+  params.set("valueRenderOption", "FORMATTED_VALUE");
+  params.set("dateTimeRenderOption", "FORMATTED_STRING");
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(resolvedSpreadsheetId)}/values:batchGet?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Sheets API HTTP ${res.status}${text ? `: ${text}` : ""}`);
+  }
+  return await res.json();
+}
+
 function pyRound2(num) {
   let factor = 100, temp = num * factor, rounded = Math.round(temp);
   if (Math.abs(temp % 1) === 0.5) rounded = (Math.floor(temp) % 2 === 0) ? Math.floor(temp) : Math.ceil(temp);
@@ -319,6 +500,15 @@ function normalizeStockDate(dateValue) {
   return asFormatted || raw;
 }
 
+const STOCK_PRICE_MIN_DATE = "2010-01-01";
+const STOCK_PRICE_MIN_TS = Math.floor(new Date(`${STOCK_PRICE_MIN_DATE}T00:00:00Z`).getTime() / 1000);
+
+function clampStockPriceDate(dateValue) {
+  const normalized = normalizeStockDate(dateValue);
+  if (!normalized) return STOCK_PRICE_MIN_DATE;
+  return normalized < STOCK_PRICE_MIN_DATE ? STOCK_PRICE_MIN_DATE : normalized;
+}
+
 
 function getStockTickerAliases(ticker) {
   const normalized = String(ticker || "").trim().toUpperCase();
@@ -331,13 +521,15 @@ function getStockTickerAliases(ticker) {
 async function queryStockPrices(env, ticker, startDate, endDate) {
   const aliases = getStockTickerAliases(ticker);
   const placeholders = aliases.map(() => "?").join(", ");
-  const start = normalizeStockDate(startDate);
+  const start = clampStockPriceDate(startDate);
   const end = normalizeStockDate(endDate);
-  const sql = "SELECT date, open, close FROM stock_prices WHERE UPPER(ticker) IN (" + placeholders + ") AND date >= ? AND date <= ? ORDER BY date ASC";
+  if (!end || end < STOCK_PRICE_MIN_DATE) return { results: [] };
+  if (start > end) return { results: [] };
+  const sql = "SELECT date, open, close FROM stock_prices WHERE ticker IN (" + placeholders + ") AND date >= ? AND date <= ? ORDER BY date ASC";
   const ranged = await env.DB.prepare(sql).bind(...aliases, start, end).all();
   if (ranged.results && ranged.results.length > 0) return ranged;
 
-  const fallbackSql = "SELECT date, open, close FROM stock_prices WHERE UPPER(ticker) IN (" + placeholders + ") AND date <= ? ORDER BY date DESC LIMIT 1";
+  const fallbackSql = "SELECT date, open, close FROM stock_prices WHERE ticker IN (" + placeholders + ") AND date <= ? ORDER BY date DESC LIMIT 1";
   const fallback = await env.DB.prepare(fallbackSql).bind(...aliases, end).all();
   if (fallback.results && fallback.results.length > 0) {
     fallback.results = fallback.results.slice().reverse();
@@ -348,7 +540,7 @@ async function queryStockPrices(env, ticker, startDate, endDate) {
 async function queryAllStockPrices(env, ticker) {
   const aliases = getStockTickerAliases(ticker);
   const placeholders = aliases.map(() => "?").join(", ");
-  const sql = "SELECT date, open, close FROM stock_prices WHERE UPPER(ticker) IN (" + placeholders + ") ORDER BY date ASC";
+  const sql = "SELECT date, open, close FROM stock_prices WHERE ticker IN (" + placeholders + ") ORDER BY date ASC";
   return env.DB.prepare(sql).bind(...aliases).all();
 }
 
@@ -359,8 +551,8 @@ async function normalizeStoredStockPrices(env) {
 
   stockPriceDateNormalizationPromise = (async () => {
     const rows = await env.DB.prepare(
-      "SELECT ticker, date, open, close FROM stock_prices"
-    ).all();
+      "SELECT ticker, date, open, close FROM stock_prices WHERE date >= ?"
+    ).bind(STOCK_PRICE_MIN_DATE).all();
 
     if (!rows.results || rows.results.length === 0) return;
 
@@ -482,8 +674,7 @@ function fixFloat(value) {
 // === [2. 여기서부터 아래의 calculateOrderInternal 직전까지 통째로 교체합니다] ===
 async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
   await normalizeStoredStockPrices(env);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const cacheKey = `yahoo_v2_${ticker}_${p1}_${todayStr}`;
+  const cacheKey = `yahoo_v2_${ticker}_${p1}_${p2}`;
   let cachedData = (!force && env.VTOTAL_KV) ? await env.VTOTAL_KV.get(cacheKey) : null;
   
   let resultJSON = null;
@@ -496,76 +687,13 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
         const d = new Date(tsSec * 1000);
         return `${d.getUTCFullYear()}-${padStr(d.getUTCMonth() + 1)}-${padStr(d.getUTCDate())}`;
       };
-      const sDateStr = getYYYYMMDD(p1);
-      const eDateStr = getYYYYMMDD(Number(p2) + (86400 * 3));
+      const safeP1 = Math.max(Number(p1) || 0, STOCK_PRICE_MIN_TS);
+      const safeP2 = Math.max(Number(p2) || safeP1, safeP1);
+      const sDateStr = getYYYYMMDD(safeP1);
+      const eDateStr = getYYYYMMDD(safeP2 + (86400 * 3));
 
-      // 1. 먼저 DB 조회 시도
-      let dbResult = await queryStockPrices(env, ticker, sDateStr, eDateStr);
-      let needsLiveFetch = false;
-
-      // 뉴욕 시간 계산 (장중 및 마감 직후 임시 실시간 체결가가 섞이는 것 방지)
-      const todayNY = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
-      const nyHour = todayNY.getHours();
-      const nyMin = todayNY.getMinutes();
-      const nyDay = todayNY.getDay();
-      
-      // 뉴욕 시간 기준 정규장 시간은 09:30 ~ 16:00 입니다.
-      // 당일 장이 마감되고 데이터 정리가 확실해지는 뉴욕 시간 16:10(오후 4시 10분) 이후부터 당일 종가 수집을 시작하도록 설정합니다.
-      // (한국 시간 기준 서머타임 시 오전 5시 10분, 해제 시 오전 6시 10분 이후)
-      const isNYMarketTradingOrProcessing = (nyDay !== 0 && nyDay !== 6) && (
-        (nyHour > 9 || (nyHour === 9 && nyMin >= 30)) && 
-        (nyHour < 16 || (nyHour === 16 && nyMin < 10))
-      );
-
-      if (!dbResult.results || dbResult.results.length === 0) {
-        needsLiveFetch = true;
-      } else {
-        // DB에 데이터가 있더라도 마지막 데이터가 현재 날짜 대비 너무 오래되었는지(휴일 감안하여 평일 기준 3일 이상 차이 날 경우) 체크하여 자동 업데이트
-        const lastDbDateStr = dbResult.results[dbResult.results.length - 1].date;
-        const lastDbDate = new Date(lastDbDateStr + "T12:00:00Z");
-        
-        // 현재 뉴욕 시간 기준 주말/휴일을 고려한 판단
-        const diffDays = (todayNY.getTime() - lastDbDate.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays >= 2.0 && todayNY.getDay() !== 0 && todayNY.getDay() !== 6 && !isUSMarketHoliday(getYYYYMMDD(Math.floor(todayNY.getTime() / 1000)))) {
-          needsLiveFetch = true;
-        }
-      }
-
-      // 2. 누락되었거나 force일 때 야후 파이낸스 직접 API 호출하여 D1 DB 갱신
-      // 단, 뉴욕 시간 기준 장 거래 중(09:30 ~ 16:05)에는 임시 실시간 체결가가 들어오는 것을 방지하기 위해 라이브 수집을 차단합니다.
-      if ((needsLiveFetch || force) && !isNYMarketTradingOrProcessing) {
-        console.log(`[자가 치유] DB에 ${ticker}의 최신 데이터가 없거나 유효하지 않아 야후 파이낸스에서 직접 가져옵니다. (${sDateStr} ~ ${eDateStr})`);
-        // 구글 앱스 스크립트 웹앱 주소 활용 (query2.finance.yahoo.com으로 직접 요청 시 클라우드플레어 IP 차단 방어)
-        const gasUrl = `https://script.google.com/macros/s/AKfycbz5oD4M9ninAUdnr4jexbjKvoQsvX6OCDJZgE5eUAi3zTC14tqhfYYAIGgf1CSFZmToMA/exec?action=GET_YAHOO&t=${ticker}&p1=${p1}&p2=${Number(p2) + (86400 * 3)}`;
-        const res = await fetch(gasUrl).then(r => r.json());
-        
-        if (res && res.chart && res.chart.result && res.chart.result[0]) {
-          const resultObj = res.chart.result[0];
-          const ts = resultObj.timestamp || [];
-          const quote = resultObj.indicators.quote[0] || {};
-          const opens = quote.open || [];
-          const closes = quote.close || [];
-
-          if (ts.length > 0) {
-            const statements = [];
-            for (let i = 0; i < ts.length; i++) {
-              if (closes[i] !== null && opens[i] !== null && !isNaN(closes[i]) && !isNaN(opens[i])) {
-                const dateStr = getYYYYMMDD(ts[i]);
-                statements.push(
-                  env.DB.prepare("INSERT OR REPLACE INTO stock_prices (ticker, date, open, close) VALUES (?, ?, ?, ?)")
-                    .bind(ticker, dateStr, Math.round(Number(opens[i]) * 100) / 100, Math.round(Number(closes[i]) * 100) / 100)
-                );
-              }
-            }
-            if (statements.length > 0) {
-              await env.DB.batch(statements);
-              console.log(`[자가 치유 완료] ${ticker} 데이터 ${statements.length}건 DB 적재 완료`);
-              // DB 다시 재쿼리하여 결과 가져옴
-              dbResult = await queryStockPrices(env, ticker, sDateStr, eDateStr);
-            }
-          }
-        }
-      }
+      // ⭐️ 오전 6시 스케줄러가 적재해둔 DB(stock_prices)에서만 안전하게 조회합니다.
+      const dbResult = await queryStockPrices(env, ticker, sDateStr, eDateStr);
 
       if (dbResult.results && dbResult.results.length > 0) {
         const timestamp = [];
@@ -608,44 +736,11 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
         };
 
         if (env.VTOTAL_KV) {
-          ctx.waitUntil(env.VTOTAL_KV.put(cacheKey, JSON.stringify(resultJSON), { expirationTtl: 43200 }));
+          ctx.waitUntil(env.VTOTAL_KV.put(cacheKey, JSON.stringify(resultJSON), { expirationTtl: 1800 }));
         }
       }
     } catch (dbFallbackErr) {
       console.error("D1 DB 조회 오류:", dbFallbackErr);
-    }
-  }
-
-  // ⭐️ [최종 방어 코드] 특정 범위(sDateStr ~ eDateStr) 조회 시 0건이 반환되거나 자가 치유가 실패한 경우, D1 DB에 저장되어 있는 전체 주가 데이터를 로드하여 구동을 보장합니다.
-  if (!resultJSON || !resultJSON.chart || !resultJSON.chart.result || !resultJSON.chart.result[0] || !resultJSON.chart.result[0].timestamp || resultJSON.chart.result[0].timestamp.length === 0) {
-    try {
-      console.log(`[최종 방어 폴백 기동] ${ticker} 전체 주가 데이터를 로드합니다.`);
-      const allRows = await queryAllStockPrices(env, ticker);
-      if (allRows.results && allRows.results.length > 0) {
-        const timestamp = [];
-        const open = [];
-        const close = [];
-        allRows.results.forEach(row => {
-          const ts = Math.floor(new Date(row.date + "T12:00:00Z").getTime() / 1000);
-          timestamp.push(ts);
-          open.push(Math.round(Number(row.open) * 100) / 100);
-          close.push(Math.round(Number(row.close) * 100) / 100);
-        });
-        const lastClose = close[close.length - 1];
-        const prevClose = close.length > 1 ? close[close.length - 2] : lastClose;
-        resultJSON = {
-          chart: {
-            result: [{
-              meta: { ticker, symbol: ticker, regularMarketPrice: lastClose, chartPreviousClose: prevClose },
-              timestamp,
-              indicators: { quote: [{ open, close }] }
-            }],
-            error: null
-          }
-        };
-      }
-    } catch (err) {
-      console.error("[최종 폴백 실패]", err);
     }
   }
 
@@ -880,12 +975,12 @@ async function runAutoMatchingForUserSlot(userId, slotNum, configJson, env, ctx)
       const dtStr = newTradingDates[dayIdx];
 
       const mainPrices = await env.DB.prepare(
-        "SELECT date, open, close FROM stock_prices WHERE ticker = ? AND date <= ? ORDER BY date DESC LIMIT 260"
-      ).bind(ticker, normalizeStockDate(dtStr)).all();
+        "SELECT date, open, close FROM stock_prices WHERE ticker = ? AND date >= ? AND date <= ? ORDER BY date DESC LIMIT 260"
+      ).bind(ticker, STOCK_PRICE_MIN_DATE, normalizeStockDate(dtStr)).all();
 
       const qqqPrices = await env.DB.prepare(
-        "SELECT date, open, close FROM stock_prices WHERE ticker = 'QQQ' AND date <= ? ORDER BY date DESC LIMIT 260"
-      ).bind(normalizeStockDate(dtStr)).all();
+        "SELECT date, open, close FROM stock_prices WHERE ticker = 'QQQ' AND date >= ? AND date <= ? ORDER BY date DESC LIMIT 260"
+      ).bind(STOCK_PRICE_MIN_DATE, normalizeStockDate(dtStr)).all();
 
       if (!mainPrices.results || mainPrices.results.length < 5 || !qqqPrices.results || qqqPrices.results.length < 15) {
         continue;
@@ -1271,7 +1366,7 @@ export default {
           return new Response(JSON.stringify(mockResult), {
             headers: { "Content-Type": "application/json", "X-Cache": "HIT-DB-DIRECT", ...corsHeaders }
           });
-        } catch (err) {
+      } catch (err) {
           const status = String(err.message || "").includes("DB 데이터 없음") ? 404 : 502;
           return new Response(JSON.stringify({ error: err.message }), {
             status: status,
@@ -1279,6 +1374,55 @@ export default {
           });
         }
       }
+
+      if (url.pathname === "/api/sheets-range" && request.method === "GET") {
+        const spreadsheetId = url.searchParams.get("spreadsheetId");
+        const range = url.searchParams.get("range");
+        if (!spreadsheetId || !range) {
+          return new Response(JSON.stringify({ error: "spreadsheetId or range is missing" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        try {
+          const data = await readGoogleSheetRange(env, spreadsheetId, range);
+          return new Response(JSON.stringify({ status: "success", data }), {
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        } catch (err) {
+          console.error("[Sheets Range Error]", err);
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+      }
+
+      if (url.pathname === "/api/sheets-ranges" && request.method === "GET") {
+        const spreadsheetId = url.searchParams.get("spreadsheetId");
+        const ranges = url.searchParams.getAll("range");
+        if (!spreadsheetId || ranges.length === 0) {
+          return new Response(JSON.stringify({ error: "spreadsheetId or range is missing" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        try {
+          const data = await readGoogleSheetRanges(env, spreadsheetId, ranges);
+          return new Response(JSON.stringify({ status: "success", data }), {
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        } catch (err) {
+          console.error("[Sheets Ranges Error]", err);
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+      }
+
       // 📈 1-1. 주가 수동 업데이트 API (단일/대량 복수 등록 대응 및 KV 캐시 즉시 리셋)
       if (url.pathname === "/api/update-price" && request.method === "POST") {
         const body = await request.json();
@@ -1649,24 +1793,21 @@ async function backupToGoogleSheets(gasUrl, id, slot, config, states) {
   try {
     console.log(`[시트 백업 스케줄러 실행] User: ${id}, Slot: ${slot}`);
     
-    // 시트 구조 규격에 맞게 포맷팅 (구글 앱스 스크립트 { date, s1: { asset, inout, json } } 구조로 정렬)
-    const slotKey = `s${slot}`;
+    // 시트 구조 규격에 맞게 포맷팅
+    // 기존 시트는 C열에 자산, D열에 입출금(증액/감액) 기록, E열에 상태 백업 JSON을 저장함
     const sheetLogs = (states || []).map(s => {
       const stateObj = typeof s.json === 'string' ? JSON.parse(s.json) : s;
-      const stateJson = JSON.stringify({
-        cash: stateObj.cash,
-        base_principal: stateObj.base_principal || stateObj.base,
-        realPrincipal: stateObj.realPrincipal,
-        holdings: stateObj.holdings || []
-      });
-      return {
-        date: s.date,
-        [slotKey]: {
-          asset: s.asset,
-          inout: Math.round((Number(s.inout) || 0) * 100) / 100,
-          json: stateJson
-        }
-      };
+      return [
+        s.date,
+        s.asset,
+        s.inout || 0.0,
+        JSON.stringify({
+          cash: stateObj.cash,
+          base_principal: stateObj.base_principal || stateObj.base,
+          realPrincipal: stateObj.realPrincipal,
+          holdings: stateObj.holdings || []
+        })
+      ];
     });
 
     const payload = {

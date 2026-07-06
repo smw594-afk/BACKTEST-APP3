@@ -1,5 +1,5 @@
 name = "autumn-limit-001e-3"
-main = "worker3.js"
+main = "worker.js"
 compatibility_date = "2024-04-01"
 
 # ⏰ 백그라운드 자동 연산 스케줄러 설정 (비활성화)
@@ -16,4 +16,4 @@ database_id = "c8422418-0114-4c3a-9bd5-c4ee71d4da07"
 # ⚡ KV 네임스페이스 바인딩 설정
 [[kv_namespaces]]
 binding = "VTOTAL_KV"
-id = "65636562b33a42c38bb16284c3b3d6cc"
+id = "4ac928b3d1174625a857c7148cd2636f"
