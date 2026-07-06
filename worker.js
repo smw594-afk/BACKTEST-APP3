@@ -502,8 +502,7 @@ async function getTickerDataInternal(ticker, p1, p2, force, env, ctx) {
     try {
       const padStr = (n) => String(n).padStart(2, '0');
       const getYYYYMMDD = (tsSec) => {
-        const d = new Date(tsSec * 1000);
-        return `${d.getUTCFullYear()}-${padStr(d.getUTCMonth() + 1)}-${padStr(d.getUTCDate())}`;
+        return formatDateNY(new Date(tsSec * 1000));
       };
       const sDateStr = getYYYYMMDD(p1);
       const eDateStr = getYYYYMMDD(Number(p2) + (86400 * 3));
