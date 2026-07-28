@@ -1,0 +1,161 @@
+/* =========================================
+   CORE STYLES: 기본 리셋 & 전역 변수
+   ========================================= */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: #020617;
+  overscroll-behavior: none;
+}
+
+:root {
+  --primary: #6366f1;
+  --primary-glow: rgba(99, 102, 241, 0.4);
+  --secondary: #a855f7;
+  --bg: #020617;
+  --card: rgba(30, 41, 59, 0.7);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --success: #10b981;
+  --danger: #ef4444;
+  --app-font-size: 10.5px;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@400;600;700&display=swap');
+
+body {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  background: radial-gradient(circle at top right, #1e1b4b, #020617 60%);
+  background-attachment: fixed;
+  color: var(--text);
+  margin: 0;
+  padding: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes icon-rotate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.4) rotate(15deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+/* 스크롤바 공통 스타일 */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  border: 5px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 모바일 터치 친화적 가로 스크롤바 */
+::-webkit-scrollbar:horizontal {
+  height: 30px !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  background-color: rgba(148, 163, 184, 0.5);
+  border-radius: 15px;
+  border-top: 12px solid transparent !important;
+  border-bottom: 12px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover {
+  background-color: rgba(148, 163, 184, 0.8);
+}
+
+::-webkit-scrollbar-track:horizontal {
+  background: transparent !important;
+}
+
+.slim-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* 주가 비교 표 - 폭에 따른 열 숨김 */
+@media (max-width: 600px) {
+  .price-compare-col-closing {
+    display: none !important;
+  }
+}
+
+@media (max-width: 500px) {
+  .price-compare-col-closing,
+  .price-compare-col-low {
+    display: none !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .price-compare-col-closing,
+  .price-compare-col-low,
+  .price-compare-col-high {
+    display: none !important;
+  }
+}

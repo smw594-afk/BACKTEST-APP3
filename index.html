@@ -2,6 +2,14 @@
 <html id="docHtml">
 
 <head>
+  <script>
+    // App3 브로커 연동 전역 (broker-service.js가 읽음)
+    window.WORKER3_URL = "https://autumn-limit-001e-3.smw594.workers.dev";
+    window.BROKER_APP_KEY = "app3_key_083530e9ad0c0f2080e09515a87852768dab4c3c";
+    // GCP 프록시 (자동주문 저장용) - Worker3를 거치지 않고 직접 연결
+    window.BROKER_API_BASE = "https://autumn-limit-001e-3.smw594.workers.dev";
+    // 로컬 프록시 베이스는 broker-service.js가 location.hostname으로 자동 판단 (8788)
+  </script>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,54 +19,148 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="apple-touch-icon" href="logo.png?v=3">
-  <link rel="icon" href="logo.png?v=3">
-  <title>V-QUANT(VC)</title>
+  <link rel="apple-touch-icon" href="images/logo.png?v=3">
+  <link rel="icon" href="images/logo.png?v=3">
+  <title>V-QUANT(ST)</title>
 
   <script>
-    function detectLayout() {
-      const g = document.getElementById('mainGrid');
-      // ⭐️ [커버 모드 완전 제거] 더 이상 특정 해상도에서 레이아웃을 강제로 압축하지 않습니다.
-      if (document.documentElement.classList.contains('is-cover')) {
-        document.documentElement.classList.remove('is-cover');
-        updateMobileButtonText(false);
+    // ⚡⚡ 초초경량 프리페치: HTML head 파싱 시점에 즉시 fetch 시작
+    // (fetch()/localStorage는 다른 스크립트나 DOM 준비를 필요로 하지 않는 순수 브라우저 API라
+    //  services/prefetch-service.js(defer, HTML 전체 파싱 후 실행)를 기다릴 이유가 없다.
+    //  아래에서 만든 Promise는 prefetch-service.js가 로드되면 그대로 재사용된다 — 중복 요청 없음.)
+    (function ultraEarlyPrefetch() {
+      try {
+        const isAuth = localStorage.getItem('vtotal3_auth');
+        const savedId = localStorage.getItem('vtotal3_id');
+        if (isAuth !== 'true' || !savedId) return;
+
+        const WORKER3_URL_ULTRA = "https://autumn-limit-001e-3.smw594.workers.dev";
+        const BACKTEST_LOG_SPREADSHEET_ID_ULTRA = "1SrDC8Gkm8ztodtvt_oAOSEQMHE2U-CphetIMz7qWqQY";
+        const GAS_URL_ULTRA = "https://script.google.com/macros/s/AKfycbxUSDds-kN5QQL9cvuNeSJuw6YAImIp-N8XK699Ov2cmIP1tfizXUuT87ECVgvVlU8V/exec";
+
+        // 초초경량 프리페치용 타임아웃 래퍼 (기본 15초)
+        const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+          return fetch(url, { ...options, signal: controller.signal })
+            .finally(() => clearTimeout(timer));
+        };
+
+        let gasUrl = GAS_URL_ULTRA + "?action=GET_ALL_INIT&id=" + encodeURIComponent(savedId);
+        for (let i = 1; i <= 6; i++) {
+          let strat = "";
+          try {
+            const raw = localStorage.getItem("vtotal3_conf" + i + "_" + savedId);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              strat = (parsed && parsed.basics && parsed.basics.strategy) || "";
+            }
+          } catch (e) { }
+          gasUrl += "&strat" + i + "=" + encodeURIComponent(strat);
+        }
+        const fetchFromGas = () => fetchWithTimeout(gasUrl).then(r => r.json()).catch(e => {
+          console.warn('[초초경량 프리페치] GET_ALL_INIT 실패(GAS):', e);
+          return null;
+        });
+
+        // 읽기는 Worker3(GCP Sheets API 통로)를 우선 시도, 실패/빈응답이면 GAS로 폴백
+        const workerInitUrl = WORKER3_URL_ULTRA + "/api/backtest-log-init?id=" + encodeURIComponent(savedId) + "&spreadsheetId=" + encodeURIComponent(BACKTEST_LOG_SPREADSHEET_ID_ULTRA);
+        const initPromise = fetchWithTimeout(workerInitUrl)
+          .then(r => { if (!r.ok) throw new Error('worker http ' + r.status); return r.json(); })
+          .then(data => {
+            if (!data || data.error || data.hasSheet === false) {
+              throw new Error((data && (data.error || (data.perf && data.perf.message))) || 'worker init empty/hasSheet=false');
+            }
+            return data;
+          })
+          .catch(e => {
+            const msg = String(e && e.message || e);
+            if (msg.includes('hasSheet=false') || msg.includes('sheet_not_found')) {
+              console.log('[초초경량 프리페치] 🆕 신규/미개설 계정 조율 (GAS 폴백)');
+            } else {
+              console.warn('[초초경량 프리페치] Worker(GCP) 읽기 완료, GAS 연동:', e);
+            }
+            return fetchFromGas();
+          });
+
+        const now = Date.now();
+        const p1 = Math.floor((now - 450 * 24 * 60 * 60 * 1000) / 1000);
+        const p2 = Math.floor(now / 1000);
+        const symbols = "SOXL,SOXX,TQQQ,QQQ,KRW=X";
+        const priceUrl = WORKER3_URL_ULTRA + "/api/prices?symbols=" + encodeURIComponent(symbols) + "&p1=" + p1 + "&p2=" + p2;
+        const pricePromise = fetchWithTimeout(priceUrl).then(r => r.json()).catch(e => {
+          if (e && (e.name === 'AbortError' || e === 'timeout')) {
+            console.log('[초초경량 프리페치] 주가 응답 지연으로 타임아웃 처리됨 (정상 수동/동기화 갱신 진행)');
+          } else {
+            console.warn('[초초경량 프리페치] 주가 프리페치 실패:', e);
+          }
+          return null;
+        });
+
+        window.__ultraEarlyFetch = { initPromise, pricePromise };
+        console.log('[초초경량 프리페치] ⚡⚡ head 파싱 즉시 요청 시작');
+      } catch (e) {
+        console.warn('[초초경량 프리페치] 설정 실패:', e);
       }
-      if (g) g.classList.remove('force-3-col', 'force-2-col');
-    }
-    function updateMobileButtonText(isMobile) {
-      const btnInstant = document.getElementById('btnInstant');
-      const btnRun = document.getElementById('runBtn');
-      const btnSettings = document.getElementById('btnSettings');
-      const btnPerf = document.getElementById('btnPerfShow');
-      const btnStats = document.getElementById('btnStatsShow');
+    })();
 
-      if (btnInstant) btnInstant.innerHTML = '<span id="icoInstant">🏠</span>';
-      if (btnRun) btnRun.innerHTML = isMobile ? '<span id="icoRun">🚀</span>' : '<span id="icoRun">🚀</span><span class="btn-text">백테스트</span>';
-      if (btnSettings) btnSettings.innerHTML = '⚙️';
-      if (btnPerf) btnPerf.innerHTML = '<span id="icoPerfShow">📊</span>';
-      if (btnStats) btnStats.innerHTML = '<span id="icoStatsShow">📄</span>';
-    }
+    // ⚡ services/prefetch-service.js가 로드될 때까지 대기, 그 다음 시작
+    // (위 초초경량 프리페치가 이미 요청을 쏴놨다면 startEarlyPrefetch()는 그 Promise를 그대로 재사용한다)
+    (function earlyPrefetch() {
+      const checkAndStart = setInterval(() => {
+        if (window.prefetchService) {
+          clearInterval(checkAndStart);
+          window.prefetchService.startEarlyPrefetch();
+        }
+      }, 10);
+      // 최대 1초 대기
+      setTimeout(() => clearInterval(checkAndStart), 1000);
+    })();
 
-    window.addEventListener('resize', () => { detectLayout(); if (window.myChart) window.myChart.resize(); });
-    window.addEventListener('load', detectLayout);
+    // detectLayout과 updateMobileButtonText는 ui/layout-detector.js로 이동됨
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js?v=cf_v9000" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" defer></script>
-  <link rel="stylesheet" href="style.css?v=cf_v3522">
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v9000" defer></script>
+  <link rel="stylesheet" href="ui/styles/core.css?v=cf_v9000">
+  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v9000">
+  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v9000">
+  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v9000">
+  <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
+  <script src="utils/formatters.js?v=cf_v9000" defer></script>
+  <script src="utils/date-helpers.js?v=cf_v9000" defer></script>
+  <script src="utils/period-calculator.js?v=cf_v9000" defer></script>
+  <script src="utils/summary-calculator.js?v=cf_v9000" defer></script>
+  <!-- Phase 2: Services (currency, export, prefetch) -->
+  <script src="services/currency-service.js?v=cf_v9000" defer></script>
+  <script src="services/export-service.js?v=cf_v9000" defer></script>
+  <script src="services/prefetch-service.js?v=cf_v9000" defer></script>
+  <!-- Phase 3: UI Layer (layout, state, events) -->
+  <script src="ui/layout-detector.js?v=cf_v9000" defer></script>
+  <script src="ui/state-manager.js?v=cf_v9000" defer></script>
+  <script src="ui/event-handlers.js?v=cf_v9000" defer></script>
+  <!-- Phase 4, 5, 6: Business Logic Services (config, sync, stats) -->
+  <script src="services/broker-service.js?v=cf_v9003" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v9000" defer></script>
+  <script src="services/config-manager.js?v=cf_v9000" defer></script>
+  <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
+  <script src="services/stats-config.js?v=cf_v9000" defer></script>
+  <!-- UI Helpers (Performance icons, analysis) -->
+  <script src="ui/helpers/performance-icons.js?v=cf_v9000" defer></script>
+  <script src="ui/render-performance-analysis.js?v=cf_v9000" defer></script>
 </head>
 
 <body>
 
   <div id="loginScreen" class="login-container hidden">
     <div class="login-inner">
-      <div class="login-title">📄 V-QUANT<span style="font-size: calc(100% - 2px); font-weight: inherit; opacity: 0.8; margin-left: 2px;">(VC)</span> <span id="loginVersion"
+      <div class="login-title">📄 V-QUANT<span style="font-size: calc(100% - 2px); font-weight: inherit; opacity: 0.8; margin-left: 2px;">(ST)</span> <span id="loginVersion"
           style="font-size:12px; opacity:0.5; font-weight:400;"></span></div>
       <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
       <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
       <input type="password" id="loginPw" class="login-input" placeholder="비밀번호 입력"
-        onkeypress="if(event.key==='Enter') handleLogin()">
-      <button id="loginBtn" onclick="handleLogin()" class="login-btn">로그인</button>
+        onkeypress="if(event.key==='Enter') window.UI.misc.handleLogin()">
+      <button id="loginBtn" onclick="window.UI.misc.handleLogin()" class="login-btn">로그인</button>
     </div>
   </div>
 
@@ -68,25 +170,32 @@
   <div class="settings-overlay" id="settingsScreen" onclick="if(event.target === this) toggleSettings()">
     <div class="settings-modal">
       <h3>⚙️ 투자 설정</h3>
-      <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px;" id="settingsTabContainer">
-        <button id="tabSlot1" onclick="switchSettingsTab(1)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:linear-gradient(135deg, #6366f1, #4f46e5);">투자법 1</button>
-        <button id="tabSlot2" onclick="switchSettingsTab(2)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 2</button>
-        <button id="tabSlot3" onclick="switchSettingsTab(3)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 3</button>
-        <button id="tabSlot4" onclick="switchSettingsTab(4)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 4</button>
-        <button id="tabSlot5" onclick="switchSettingsTab(5)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 5</button>
-        <button id="tabSlot6" onclick="switchSettingsTab(6)" class="btn-action"
-          style="flex:1 1 30%; height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 6</button>
+      <!-- 슬롯 1~3 = 키움, 4~6 = LS증권 (broker-service.js의 isSlotForBroker와 동일 규칙) -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;" id="settingsTabContainer">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="font-size:10px; font-weight:800; color:#10b981; text-align:center; padding:2px 0; border-bottom:1px solid rgba(16,185,129,0.3);">🟢 키움</div>
+          <button id="tabSlot1" onclick="switchSettingsTab(1)" class="btn-action"
+            style="height:32px; font-size:11px; background:linear-gradient(135deg, #6366f1, #4f46e5);">투자법 1</button>
+          <button id="tabSlot2" onclick="switchSettingsTab(2)" class="btn-action"
+            style="height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 2</button>
+          <button id="tabSlot3" onclick="switchSettingsTab(3)" class="btn-action"
+            style="height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 3</button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="font-size:10px; font-weight:800; color:#a855f7; text-align:center; padding:2px 0; border-bottom:1px solid rgba(168,85,247,0.3);">🟣 LS증권</div>
+          <button id="tabSlot4" onclick="switchSettingsTab(4)" class="btn-action"
+            style="height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 4</button>
+          <button id="tabSlot5" onclick="switchSettingsTab(5)" class="btn-action"
+            style="height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 5</button>
+          <button id="tabSlot6" onclick="switchSettingsTab(6)" class="btn-action"
+            style="height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 6</button>
+        </div>
       </div>
       <div id="alwaysVisibleInputs">
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">티커</label><select id="ticker" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"><option value="SOXL">SOXL</option><option value="TQQQ">TQQQ</option></select></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">티커</label><select id="ticker" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"><option value="SOXL">SOXL</option><option value="TQQQ">TQQQ</option></select></div>
           <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">투자법</label>
-            <select id="strategySelect" style="width: 100%; min-width: 0;" onchange="handleStrategyChange(this.value)">
+            <select id="strategySelect" style="width: 100%; min-width: 0;" onchange="window.UI.misc.handleStrategyChange(this.value)">
               <option value="">-- 선택 안 함 --</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
@@ -100,18 +209,18 @@
           </div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">시작일</label><input type="date" id="startDate" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">종료일</label><input type="date" id="endDate" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">시작일</label><input type="date" id="startDate" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">종료일</label><input type="date" id="endDate" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">초기자산</label><input type="text" id="initialCash" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">초기자산</label><input type="text" id="initialCash" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
           <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">수수료(%)</label><input type="number" id="fBase" step="any" style="width: 100%; min-width: 0;"
-              onchange="triggerOptimisticSave()"></div>
+              onchange="window.UI.misc.triggerOptimisticSave()"></div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">갱신금</label><input type="text" id="renewCash" style="width: 100%; min-width: 0;" onchange="triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">갱신금</label><input type="text" id="renewCash" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
           <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">SEC(%)</label><input type="number" id="fSec" step="any" style="width: 100%; min-width: 0;"
-              onchange="triggerOptimisticSave()"></div>
+              onchange="window.UI.misc.triggerOptimisticSave()"></div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
           <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">통화</label>
@@ -144,6 +253,12 @@
               <option value="11px">폰트 11.0px</option>
               <option value="11.5px">폰트 11.5px</option>
               <option value="12px">폰트 12.0px</option>
+              <option value="12.5px">폰트 12.5px</option>
+              <option value="13px">폰트 13.0px</option>
+              <option value="13.5px">폰트 13.5px</option>
+              <option value="14px">폰트 14.0px</option>
+              <option value="14.5px">폰트 14.5px</option>
+              <option value="15px">폰트 15.0px</option>
             </select>
           </div>
         </div>
@@ -178,17 +293,19 @@
         </style>
         <button id="btnSaveTop" class="btn-action btn-save btn-settings-grid" onclick="handleSave()"
           style="background: linear-gradient(135deg, #10b981, #059669);">✅ 시트에 반영</button>
-        <button id="runBtnSettings" class="btn-action btn-settings-grid" onclick="runEngine()"
+        <button id="runBtnSettings" class="btn-action btn-settings-grid" onclick="loadQuickConfigFromLocal(); document.getElementById('quickConfigOverlay').style.display='flex'"
           style="background: linear-gradient(135deg, #f59e0b, #d97706);">🚀 백테스트</button>
         <button class="btn-action btn-settings-grid" onclick="handleDeposit()"
           style="background: linear-gradient(135deg, #3b82f6, #2563eb);">💰 증액하기</button>
         <button id="btnSyncSheet" class="btn-action btn-settings-grid" onclick="restoreRealAccountMode()"
           style="background: #475569;">📥 시트에서 불러오기</button>
+        <button id="btnBrokerKey" class="btn-action btn-settings-grid" onclick="window.BrokerService && window.BrokerService.openBrokerKeySelect(window.BrokerService.activeBroker)"
+          style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">🔐 브로커 API 키</button>
+        <button id="btnBrokerAccount" class="btn-action btn-settings-grid" onclick="window.BrokerReconcile && window.BrokerReconcile.openAccountInfoModal()"
+          style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">📡 계좌 정보</button>
+        <button type="button" class="btn-action btn-settings-grid" onclick="openStrategyParameterViewer()"
+          style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">🧩 파라메타</button>
       </div>
-
-      <!-- 덮어쓰기 복원 버튼 추가 -->
-      <button id="btnForceRestoreSheet" class="btn-action" onclick="forceRestoreFromGoogleSheets()"
-        style="width: 100%; height: 40px; margin-top: 8px; font-size: 12.5px; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white;">🔄 시트 데이터로 DB 덮어쓰기</button>
 
       <div
         style="margin-top:15px; display:flex; justify-content:space-between; align-items:center; opacity:0.5; font-size:10px;">
@@ -209,22 +326,23 @@
     <div class="card panel-price-info hidden" id="panelPriceInfo" style="display: none; flex-direction: column;">
       <div class="section-header">
         <div style="display:flex; align-items:center;">
-          <h2 id="priceInfoTitle" style="margin:0; color:var(--primary);">📈 SOXL 주가 정보</h2>
+          <h2 id="priceInfoTitle" style="margin:0; color:var(--primary); cursor:pointer;" title="클릭하여 창 닫기">📊 종합 주가 정보</h2>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
-          <button id="btnPriceInfoManualFetch" onclick="triggerPriceManualFetch()" 
-                  style="background:linear-gradient(135deg, #fbbf24, #d97706); color:white; border:none; border-radius:6px; font-size:11px; font-weight:700; padding:4px 8px; cursor:pointer; height:28px; display:inline-flex; align-items:center; justify-content:center;">🔄 수동 갱신</button>
-          <select id="priceInfoTickerSelector" onchange="changePriceInfoTicker(this.value)" 
+          <select id="priceInfoTickerSelector" onchange="changePriceInfoTicker(this.value)"
                   style="background:rgba(255,255,255,0.08); color:var(--text); border:1px solid rgba(255,255,255,0.15); border-radius:6px; font-size:11px; font-weight:600; padding:4px 8px; outline:none; cursor:pointer; height:28px;">
-            <option value="SOXL" selected>SOXL</option>
+            <option value="total" selected>종합</option>
+            <option value="SOXL">SOXL</option>
+            <option value="SOXX">SOXX</option>
             <option value="TQQQ">TQQQ</option>
             <option value="QQQ">QQQ</option>
-            <option value="SOXX">SOXX</option>
           </select>
+          <button class="btn-icon-sub" onclick="toggleSettings()" title="설정"
+            style="font-size:18px; width:28px; height:24px; flex-shrink:0;">⚙️</button>
         </div>
       </div>
       <div id="priceInfoViewContent" class="slim-scroll"
-        style="display:flex; flex-direction:column; gap:12px; flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:10px;">
+        style="display:flex; flex-direction:column; gap:12px; flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:10px 2px;">
         <div style="text-align:center; padding:20px; color:#64748b;">주가 데이터를 불러오는 중...</div>
       </div>
     </div>
@@ -232,16 +350,24 @@
     <div class="card panel-order" id="panelOrder">
       <div class="section-header swipe-handler" id="orderHeader">
         <div style="display:flex; align-items:center;">
-          <h2 id="orderTitle" style="margin:0; color:var(--primary); cursor:pointer;" onclick="toggleOrderView()"
-            title="클릭하여 주문표/통합주문표/보유계좌 전환">⚡ 주문표</h2>
+          <h2 id="orderTitle" style="margin:0; color:var(--primary); cursor:pointer;" onclick="window.UI.toggles.toggleOrderView()"
+            title="클릭하여 주문표/보유현황/내역 전환">⚡ 주문표</h2>
         </div>
-        <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
-          <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub" title="주문표 세로 확장">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+        <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+          <span id="orderStatusText" style="font-size:11px; color:var(--text-muted); font-weight:600; min-width:60px; text-align:right;"></span>
+          <div id="combinedHoldingsSummary" style="display:none; gap:6px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text);"></div>
+          <button id="btnOrderRankingLive" onclick="showLiveRankingModal()" title="실전 투자법 랭킹" style="background:linear-gradient(135deg, #0ea5e9, #0369a1); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">📡 실전랭킹</button>
+          <button id="btnOrderRankingBacktest" onclick="showBacktestRankingModal()" title="BT랭킹" style="background:linear-gradient(135deg, #fbbf24, #d97706); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">🏆 BT랭킹</button>
+          <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub btn-order-expand" title="주문표 세로 확장" style="display: none !important;">
+            <svg width="20" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 4v16" />
+              <path d="M5 8l7-4 7 4" />
+              <path d="M5 16l7 4 7-4" />
             </svg>
           </button>
+          <button id="btnSettings" class="btn-icon-sub" onclick="toggleSettings()" title="설정"
+            style="font-size:18px; width:28px; height:24px; flex-shrink:0;">⚙️</button>
         </div>
       </div>
       <div id="dualOrderContainer" class="slim-scroll"
@@ -252,7 +378,13 @@
     <!-- 성과 탭 중단1: 년별 성과 -->
     <div class="card panel-monthly" id="panelMonthly">
       <div class="section-header swipe-handler" id="monthlyHeader">
-        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 년별 성과 그래프</h2>
+        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 년별 수익 그래프</h2>
+        <div id="performanceSummary" style="display:grid; grid-template-columns:1fr 1fr; row-gap:2px; column-gap:0; font-size:11px; color:var(--text); justify-content:start; align-self:flex-start; margin-right:0; padding:0; line-height:1;">
+          <div id="perfSummaryHoldingsQty" style="line-height:1;"></div>
+          <div id="perfSummaryHoldingsTotal" style="line-height:1;"></div>
+          <div id="perfSummaryTradesQty" style="line-height:1;"></div>
+          <div id="perfSummaryTradesProfit" style="line-height:1;"></div>
+        </div>
         <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환"
           style="font-size:20px; display:flex; align-items:center; justify-content:center;">
           <span id="icoPeriodMode">🔢</span>
@@ -288,7 +420,7 @@
     <!-- 성과 탭 중단2: 월별 성과 -->
     <div class="card panel-monthly-chart hidden" id="panelMonthlyChart">
       <div class="section-header swipe-handler" id="monthlyChartHeader">
-        <h2 id="periodChartTitle" class="period-toggle" onclick="togglePeriodView()" title="월별 성과">📅 월별 성과 그래프</h2>
+        <h2 id="periodChartTitle" class="period-toggle" onclick="togglePeriodView()" title="월별 수익">📅 월별 수익 그래프</h2>
         <!-- 성과 탭 전용 일괄 차트/테이블 토글 버튼 -->
         <button id="btnPeriodModeYearly" onclick="togglePeriodDisplayModeYearly()" class="btn-icon-sub" title="차트/테이블 전환"
           style="font-size:20px; display:none; align-items:center; justify-content:center; margin-left:auto;">
@@ -313,7 +445,7 @@
     <!-- 성과 탭 하단: 일별 성과 -->
     <div class="card panel-daily-chart hidden" id="panelDailyChart">
       <div class="section-header swipe-handler" id="dailyChartHeader">
-        <h2 id="periodDailyTitle" class="period-toggle" title="일별 성과">📅 일별 성과 그래프</h2>
+        <h2 id="periodDailyTitle" class="period-toggle" title="일별 수익">📅 일별 수익 그래프</h2>
         <button id="btnCurrencyToggleDaily" class="btn-currency-toggle" onclick="toggleCurrencyMode()" title="통화 전환"
           style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; margin-left:auto; display:none; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
           KRW
@@ -336,12 +468,14 @@
 
     <div class="card panel-stats hidden" id="panelStats">
       <div class="section-header">
-        <h2 id="statsTitle" style="cursor:pointer;" onclick="toggleStatsDisplayMode()" title="클릭하여 표/그래프 전환">💼 자산현황</h2>
+        <h2 id="statsTitle" style="cursor:pointer;" onclick="window.onStatsTitleClick()" title="클릭하여 표/그래프 전환">💼 자산현황</h2>
         <!-- 차트용 투자법 선택기 (기본 숨김) -->
         <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; margin-left:auto; width:75px; max-width:75px; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 2px; outline:none; cursor:pointer;">
           <option value="combined">통합</option>
         </select>
         <div id="statsActionArea" style="margin-left:8px; display:flex; gap:8px;"></div>
+        <button class="btn-icon-sub" onclick="toggleSettings()" title="설정"
+          style="font-size:18px; width:28px; height:24px; flex-shrink:0;">⚙️</button>
       </div>
       <!-- 표 컨테이너 -->
       <div id="statsTableContainer" class="slim-scroll" style="flex:1; overflow:auto; min-height:0; padding:4px 0; -webkit-overflow-scrolling:touch;">
@@ -364,8 +498,9 @@
       <div class="section-header">
         <h2 id="chartTitle" onclick="toggleChartView()" title="클릭하여 그래프 전환 (전체/개별순환)" style="cursor:pointer;">📈 성과추이
         </h2>
+        <div id="chartRatesDisplay" style="margin-left:auto; margin-right:8px; font-size:11px; color:var(--text); display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center;"></div>
         <button id="btnCurrencyToggleChart" class="btn-currency-toggle" onclick="toggleCurrencyMode()" title="통화 전환"
-          style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; margin-left:auto; display:flex; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
+          style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
           KRW
         </button>
       </div>
@@ -374,7 +509,9 @@
 
     <div class="card panel-history hidden" id="panelHistory">
       <div class="section-header">
-        <h2 id="historyTitle">📜 실전 매도 내역</h2>
+        <h2 id="historyTitle" onclick="window.toggleView()" style="cursor:pointer;" title="클릭하여 실전매도 내역 / 키움 매수매도 내역 전환" style="cursor:pointer;" onclick="window.toggleHistoryView && window.toggleHistoryView()"
+          title="클릭하여 전환: 실전 매도 내역 → 키움 매수·매도 내역 → LS증권 매수·매도 내역">📜 실전 매도 내역</h2>
+        <div id="historySummary" style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center; font-size:11px; color:var(--text); text-align:right;"></div>
         <div id="historyActionArea" style="margin-left:auto; display:flex; gap:8px;">
           <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()"
             style="background: none; color: var(--text); border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-right: 0px; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: none;">
@@ -387,20 +524,64 @@
         <table id="historyTable" style="width:100%; border-collapse:collapse; font-size:10.5px; color:var(--text-white); min-width:100%;">
           <thead>
             <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-weight:700;">
-              <th style="width:12%; padding:2px 1px; text-align:center;">투자법</th>
-              <th style="width:14%; padding:2px 1px; text-align:center;">진입일</th>
-              <th style="width:14%; padding:2px 1px; text-align:center;">청산일</th>
-              <th style="width:12%; padding:2px 1px; text-align:center;">모드/T</th>
-              <th style="width:12%; padding:2px 1px; text-align:center;">진입가</th>
-              <th style="width:12%; padding:2px 1px; text-align:center;">청산가</th>
-              <th style="width:12%; padding:2px 1px; text-align:center;">수량</th>
-              <th style="width:12%; padding:2px 1px; text-align:center;">수익금</th>
+              <th style="width:10%; padding:2px 1px; text-align:center;">일치</th>
+              <th style="width:11%; padding:2px 1px; text-align:center;">투자법</th>
+              <th style="width:13%; padding:2px 1px; text-align:center;">진입일</th>
+              <th style="width:13%; padding:2px 1px; text-align:center;">청산일</th>
+              <th style="width:11%; padding:2px 1px; text-align:center;">모드/T</th>
+              <th style="width:11%; padding:2px 1px; text-align:center;">진입가</th>
+              <th style="width:11%; padding:2px 1px; text-align:center;">청산가</th>
+              <th style="width:9%; padding:2px 1px; text-align:center;">수량</th>
+              <th style="width:11%; padding:2px 1px; text-align:center;">T수익금</th>
             </tr>
           </thead>
           <tbody id="historyTableBody">
-            <tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">매매 내역이 없습니다</td></tr>
+            <tr><td colspan="9" style="text-align:center; padding:20px; color:#64748b;">매매 내역이 없습니다</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- 성과 분석 화면 -->
+    <div class="card panel-analysis hidden" id="panelAnalysisView">
+      <div class="section-header">
+        <h2 id="analysisTitle">🧩 성과 분석</h2>
+        <button id="btnCurrencyToggleAnalysis" class="btn-currency-toggle" onclick="toggleCurrencyMode()" title="통화 전환"
+          style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; margin-left:auto; display:flex; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
+          KRW
+        </button>
+        <button class="btn-icon-sub" onclick="toggleSettings()" title="설정"
+          style="font-size:18px; width:28px; height:24px; flex-shrink:0;">⚙️</button>
+      </div>
+      <div class="analysis-grid">
+        <div class="analysis-cell analysis-cell-legend-panel">
+          <div id="analysisTitleTotal" class="analysis-section-title"></div>
+          <div id="analysisLegendTotal" class="analysis-legend-list"></div>
+        </div>
+        <div class="analysis-cell analysis-cell-legend-panel">
+          <div id="analysisTitleYear" class="analysis-section-title"></div>
+          <div id="analysisLegendYear" class="analysis-legend-list"></div>
+        </div>
+        <div class="analysis-cell analysis-cell-chart">
+          <div class="analysis-chart-wrap"><canvas id="analysisTotalChart"></canvas></div>
+        </div>
+        <div class="analysis-cell analysis-cell-chart">
+          <div class="analysis-chart-wrap"><canvas id="analysisYearChart"></canvas></div>
+        </div>
+        <div class="analysis-cell analysis-cell-legend-panel">
+          <div id="analysisTitleMonth" class="analysis-section-title"></div>
+          <div id="analysisLegendMonth" class="analysis-legend-list"></div>
+        </div>
+        <div class="analysis-cell analysis-cell-legend-panel">
+          <div id="analysisTitleDay" class="analysis-section-title"></div>
+          <div id="analysisLegendDay" class="analysis-legend-list"></div>
+        </div>
+        <div class="analysis-cell analysis-cell-chart">
+          <div class="analysis-chart-wrap"><canvas id="analysisMonthChart"></canvas></div>
+        </div>
+        <div class="analysis-cell analysis-cell-chart">
+          <div class="analysis-chart-wrap"><canvas id="analysisDayChart"></canvas></div>
+        </div>
       </div>
     </div>
   </div>
@@ -409,15 +590,18 @@
     <div class="top-left">
       <div id="ledLamp" class="led-lamp"></div>
       <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃">로딩중...</div>
+      <!-- 🟢 키움 / 🟣 LS 선택 버튼 (broker-service.js switchBrokerMode가 갱신) -->
+      <button id="btnSingleBrokerNav" onclick="window.BrokerService && window.BrokerService.openBrokerSelectPopup()"
+        style="margin-left:6px; border:none; border-radius:6px; padding:3px 8px; font-weight:700; font-size:11px; cursor:pointer; background:linear-gradient(135deg,#10b981,#059669); color:#000; white-space:nowrap;">🟢 키움 <span style="font-size:9px;">▼</span></button>
     </div>
     <div class="top-right">
-      <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)"><span id="icoInstant">🏠</span></button>
-      <button id="btnPerfShow" class="top-icon-btn" title="성과 모드 (길게 누르면 강제갱신)" onclick="showPerfView()"><span
-          id="icoPerfShow">📊</span></button>
-      <button id="btnStatsShow" class="top-icon-btn" title="내역 모드 (길게 누르면 강제갱신)"><span
+      <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)" onclick="showOrderView()"><span id="icoInstant">🏠</span></button>
+      <button id="btnStatsShow" class="top-icon-btn" title="내역 모드" onclick="showStatsView()"><span
           id="icoStatsShow">📄</span></button>
       <button id="btnPriceInfo" class="top-icon-btn" onclick="showPriceInfoView()" title="주가 정보">📈</button>
-      <button id="btnSettings" class="top-icon-btn" onclick="toggleSettings()" title="설정">⚙️</button>
+      <button id="btnPerfShow" class="top-icon-btn" title="성과 모드" onclick="showPerfView()"><span
+          id="icoPerfShow">📊</span></button>
+      <button id="btnAnalysis" class="top-icon-btn" title="성과 분석" onclick="showPerformanceAnalysisView()" style="color:#22c55e; font-weight:700;">🧩</button>
     </div>
   </div>
 
@@ -573,9 +757,159 @@
     </div>
   </div>
 
-  <script src="engine.js?v=cf_v3522" defer></script>
-  <script src="core.js?v=cf_v3522" defer></script>
-  <script src="script.js?v=cf_v3522" defer></script>
+  <!-- 🧩 투자법 파라메타 확인 (MASTER_STRATEGIES 읽기 전용 뷰어) -->
+  <div id="strategyParameterOverlay" class="settings-overlay" style="display:none; z-index:1300;"
+    onclick="if(event.target===this) closeStrategyParameterViewer()">
+    <div class="settings-modal" style="width:94%; max-width:620px; padding:16px; max-height:90vh; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <h3 id="strategyParameterTitle" style="margin:0;">🧩 투자법 파라메타</h3>
+        <button type="button" onclick="closeStrategyParameterViewer()"
+          style="border:0; background:transparent; color:var(--text); font-size:20px; cursor:pointer;">×</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <label for="strategyParameterSelect" style="font-size:11px; font-weight:700; white-space:nowrap;">투자법 선택</label>
+        <select id="strategyParameterSelect" onchange="renderStrategyParameterViewer(this.value)"
+          style="width:100%; height:32px; padding:0 8px; border:1px solid rgba(148,163,184,.35); border-radius:7px; background:var(--card-bg,#1e293b); color:var(--text); font-size:11px;"></select>
+      </div>
+      <div id="strategyParameterContent" class="slim-scroll" style="max-height:72vh; overflow:auto;"></div>
+    </div>
+  </div>
+
+  <script>
+    function formatStrategyParameterValue(value) {
+      if (Array.isArray(value)) return value.join(', ');
+      if (typeof value === 'boolean') return value ? 'true' : 'false';
+      return String(value);
+    }
+
+    function openStrategyParameterViewer() {
+      const overlay = document.getElementById('strategyParameterOverlay');
+      const selector = document.getElementById('strategyParameterSelect');
+      if (!overlay || !selector) return;
+      const strategyNames = Object.keys(window.MASTER_STRATEGIES || {});
+      selector.replaceChildren(...strategyNames.map(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        return option;
+      }));
+      // 설정 화면에서 현재 선택 중인 투자법을 기본으로 연다.
+      const current = document.getElementById('strategySelect')?.value || '';
+      selector.value = strategyNames.includes(current) ? current : (strategyNames[0] || '');
+      overlay.style.display = 'flex';
+      renderStrategyParameterViewer(selector.value);
+    }
+
+    function renderStrategyParameterViewer(strategyName) {
+      const title = document.getElementById('strategyParameterTitle');
+      const content = document.getElementById('strategyParameterContent');
+      const strategy = window.MASTER_STRATEGIES?.[strategyName];
+      if (!title || !content) return;
+
+      title.textContent = `🧩 투자법 파라메타${strategyName ? ` · ${strategyName}` : ''}`;
+      content.replaceChildren();
+      if (!strategy) {
+        const empty = document.createElement('div');
+        empty.textContent = strategyName === '정지' ? '정지 투자법에는 파라메타가 없습니다.' : '투자법을 먼저 선택하세요.';
+        empty.style.cssText = 'padding:24px; text-align:center; color:var(--text-muted); font-size:12px;';
+        content.appendChild(empty);
+        return;
+      }
+
+      const sectionTitle = document.createElement('div');
+      sectionTitle.textContent = '기본 설정';
+      sectionTitle.style.cssText = 'font-size:12px; font-weight:700; color:var(--primary); margin:2px 0 6px;';
+      content.appendChild(sectionTitle);
+
+      const configGrid = document.createElement('div');
+      configGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-bottom:12px;';
+      Object.entries(strategy.config || {}).forEach(([key, value]) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex; justify-content:space-between; gap:8px; padding:7px 8px; border:1px solid rgba(148,163,184,.25); border-radius:6px; background:rgba(148,163,184,.08); font-size:10px;';
+        const name = document.createElement('strong');
+        name.textContent = key;
+        const val = document.createElement('span');
+        val.textContent = formatStrategyParameterValue(value);
+        item.append(name, val);
+        configGrid.appendChild(item);
+      });
+      content.appendChild(configGrid);
+
+      Object.entries(strategy.modes || {}).forEach(([modeName, mode]) => {
+        const modeTitle = document.createElement('div');
+        modeTitle.textContent = modeName;
+        modeTitle.style.cssText = 'font-size:11px; font-weight:700; color:#0ea5e9; margin:9px 0 4px;';
+        content.appendChild(modeTitle);
+
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'overflow-x:auto; border:1px solid rgba(148,163,184,.25); border-radius:7px;';
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%; min-width:430px; border-collapse:collapse; font-size:9.5px; text-align:center;';
+
+        const head = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        const tierCount = Math.max(...Object.values(mode).filter(Array.isArray).map(v => v.length), 0);
+        ['구분', ...Array.from({ length: tierCount }, (_, i) => i + 1)].forEach(label => {
+          const th = document.createElement('th');
+          th.textContent = label;
+          th.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.25); background:rgba(148,163,184,.12); white-space:nowrap;';
+          headRow.appendChild(th);
+        });
+        head.appendChild(headRow);
+        table.appendChild(head);
+
+        // weight/buy/sell/hold를 먼저 보여주고, 그 외 키는 뒤에 이어 붙인다.
+        const body = document.createElement('tbody');
+        const modeEntries = ['weight', 'buy', 'sell', 'hold']
+          .filter(key => Object.prototype.hasOwnProperty.call(mode, key))
+          .map(key => [key, mode[key]]);
+        Object.entries(mode).forEach(([key, values]) => {
+          if (!modeEntries.some(([orderedKey]) => orderedKey === key)) modeEntries.push([key, values]);
+        });
+        modeEntries.forEach(([key, values]) => {
+          const row = document.createElement('tr');
+          const label = document.createElement('th');
+          label.textContent = key;
+          label.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.15); background:rgba(148,163,184,.07);';
+          row.appendChild(label);
+          (Array.isArray(values) ? values : [values]).forEach(value => {
+            const td = document.createElement('td');
+            td.textContent = formatStrategyParameterValue(value);
+            td.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.15); white-space:nowrap;';
+            row.appendChild(td);
+          });
+          body.appendChild(row);
+        });
+        table.appendChild(body);
+        wrap.appendChild(table);
+        content.appendChild(wrap);
+      });
+    }
+
+    function closeStrategyParameterViewer() {
+      const overlay = document.getElementById('strategyParameterOverlay');
+      if (overlay) overlay.style.display = 'none';
+    }
+  </script>
+
+  <script src="engine/price_loader.js?v=cf_v9000" defer></script>
+  <script src="engine/strategies.js?v=cf_v9000" defer></script>
+  <script src="engine/engine.js?v=cf_v9000" defer></script>
+  <script src="engine/core.js?v=cf_v9000" defer></script>
+  <script src="ui/render-order.js?v=cf_v9004" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v9000" defer></script>
+  <script src="ui/render-performance.js?v=cf_v9000" defer></script>
+  <script src="ui/render-stats.js?v=cf_v9000" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v9000" defer></script>
+  <script src="ui/render-price-info.js?v=cf_v9000" defer></script>
+  <script src="ui/render-ui-updates.js?v=cf_v9000" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v9000" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v9000" defer></script>
+  <script src="ui/render-notifications.js?v=cf_v9000" defer></script>
+  <script src="ui/render-misc.js?v=cf_v9001" defer></script>
+  <script src="ui/index.js?v=cf_v9000" defer></script>
+  <script src="script.js?v=cf_v9011" defer></script>
+
 
 </body>
 
