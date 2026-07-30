@@ -1339,7 +1339,8 @@ async function handleSave() {
 
       showToast(newLogs.length > 0 ? `${newLogs.length}일치의 기록이 시트에 반영되었습니다.` : "설정값이 시트에 반영되었습니다. 매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.", "✅");
 
-      if (typeof pushTodayOrders === 'function') pushTodayOrders();
+      // 방금 재계산한 targetRes를 넘겨야 변경분(자산/증액/슬롯 활성화)이 VM 봇에 반영된다.
+      if (typeof pushTodayOrders === 'function') pushTodayOrders({ [targetSlot]: targetRes });
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
@@ -2616,7 +2617,18 @@ function updateChartRatesDisplay() {
     const mVal = (rates && rates.m !== undefined) ? Number(rates.m) : 0;
     const dVal = (rates && rates.d !== undefined) ? Number(rates.d) : 0;
     const ddVal = (rates && rates.dd !== undefined) ? Number(rates.dd) : 0;
-    display.innerHTML = '<span style="color:var(--text);">Y:</span><span style="color:' + getColor(yVal) + ';">' + (yVal > 0 ? "+" : "") + yVal.toFixed(1) + '%</span> | <span style="color:var(--text);">M:</span><span style="color:' + getColor(mVal) + ';">' + (mVal > 0 ? "+" : "") + mVal.toFixed(1) + '%</span> | <span style="color:var(--text);">D:</span><span style="color:' + getColor(dVal) + ';">' + (dVal > 0 ? "+" : "") + dVal.toFixed(1) + '%</span> | <span style="color:var(--text);">DD:</span><span style="color:' + getColor(-ddVal) + ';">' + (ddVal > 0 ? "-" : "") + ddVal.toFixed(1) + '%</span>';
+    // 항목 사이 구분기호(|) 없이 공백으로만 띄운다.
+    const seg = (label, val, color, sign) =>
+      '<span style="color:var(--text);">' + label + ':</span>' +
+      '<span style="color:' + color + ';">' + sign + val.toFixed(1) + '%</span>';
+    display.innerHTML = [
+      seg('Y', yVal, getColor(yVal), yVal > 0 ? "+" : ""),
+      seg('M', mVal, getColor(mVal), mVal > 0 ? "+" : ""),
+      seg('D', dVal, getColor(dVal), dVal > 0 ? "+" : ""),
+      seg('DD', ddVal, getColor(-ddVal), ddVal > 0 ? "-" : "")
+    // 간격은 이 span 하나로만 준다. 컨테이너(#chartRatesDisplay)의 flex gap은 0으로
+    // 맞춰둬야 하며, gap이 남아 있으면 여기서 아무리 줄여도 넓어 보인다.
+    ].join('<span style="display:inline-block; width:0.5ch;"></span>');
     if (typeof window.updateCombinedPerfRatesUI === "function") window.updateCombinedPerfRatesUI();
   } catch (e) {
     console.error("updateChartRatesDisplay error:", e);
@@ -2639,12 +2651,25 @@ window.renderChart = function() {
 // ── 21:00 KST 자동주문: 오늘의 주문표를 VM 프록시에 예약 저장 ──
 // App 1의 pushTodayOrders()와 동일 구조.
 // 앱을 켤 때 자동 호출. 20:50 이후는 프록시가 거부하므로 safe.
-async function pushTodayOrders() {
+// freshBySlot: { [slotNum]: 방금 재계산한 결과 }
+// ⚠️ handleSave는 재계산 결과를 지역변수에만 담고 lastBTResults/스냅샷을 갱신하지 않는다.
+//    그래서 인자 없이 부르면 "자산 변경·증액·슬롯 활성화" 직후에도 변경 전 주문표가
+//    VM으로 올라간다. 저장 경로에서는 반드시 방금 결과를 넘길 것.
+async function pushTodayOrders(freshBySlot) {
   try {
-    const kst = new Date(Date.now() + 9 * 3600 * 1000);
-    const kstMins = kst.getUTCHours() * 60 + kst.getUTCMinutes();
-    if (kstMins >= 0 * 60 + 43) { // 00:43 KST (서버 cutoff와 동일)
-      console.log("[OrderSync] 00:43 KST 이후라 주문표 갱신을 건너뜁니다.");
+    // 주문표는 "개장 15분 전(09:15 ET)"까지만 바꿀 수 있다. VM 스케줄러가 09:20 ET
+    // (개장 10분 전)에 집어가기 때문이다. 서버(broker3-proxy)도 같은 컷오프를 강제하므로
+    // 두 값을 함께 유지할 것.
+    // ⚠️ 반드시 뉴욕 시각으로 판정한다 — 서머타임 때문에 KST로 고정하면(여름 22:15 /
+    //    겨울 23:15) 계절마다 한 시간 어긋난다.
+    const nyNow = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit"
+    }).formatToParts(new Date());
+    const nyHh = Number((nyNow.find(p => p.type === "hour") || {}).value || 0) % 24;
+    const nyMm = Number((nyNow.find(p => p.type === "minute") || {}).value || 0);
+    const nyMins = nyHh * 60 + nyMm;
+    if (nyMins >= 9 * 60 + 15 && nyMins <= 9 * 60 + 50) {
+      console.log("[OrderSync] 주문표 수정 마감(09:15 ET, 개장 15분 전)이 지나 갱신을 건너뜁니다.");
       return;
     }
     if (!myUserId) return;
@@ -2653,7 +2678,7 @@ async function pushTodayOrders() {
     const orders = [];
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
-      const res = getBestResult(lastBTResults[i], i);
+      const res = (freshBySlot && freshBySlot[i]) || getBestResult(lastBTResults[i], i);
       if (!res || !res.orders) continue;
       const symbol = String(getSlotConfig(i)?.basics?.ticker || "").toUpperCase();
       res.orders.forEach(o => {

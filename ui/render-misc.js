@@ -98,8 +98,8 @@ function generateDynamicDOM() {
           <div id="combinedOrderView" class="view-pane-active">
             <div id="combinedOrderPanelTitle" class="slot-title slot-title-sm" style="color:#fbbf24; cursor:pointer; font-size:calc(var(--app-font-size, 10.5px) + 2px);" onclick="window.UI.toggles.toggleSortOrder()" title="클릭하여 오름/내림 정렬 토글">통합 주문표</div>
             <table class="data-table">
-              <thead><tr><th style="width:40%; text-align:center;">종류</th><th style="width:34%; text-align:center;">가격</th><th style="width:26%; text-align:center;">수량</th></tr></thead>
-              <tbody id="combinedOrderBody"><tr><td colspan="3" class="table-empty-cell">주문 없음</td></tr></tbody>
+              <thead><tr><th style="width:18%; text-align:center;" title="앱 주문표와 GCP 봇 예약분이 같은지">일치</th><th style="width:33%; text-align:center;">종류</th><th style="width:28%; text-align:center;">가격</th><th style="width:21%; text-align:center;">수량</th></tr></thead>
+              <tbody id="combinedOrderBody"><tr><td colspan="4" class="table-empty-cell">주문 없음</td></tr></tbody>
             </table>
           </div>
           <div id="combinedHoldingsView" class="view-pane-hidden">

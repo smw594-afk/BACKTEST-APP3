@@ -855,7 +855,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
         <div>예수금(D+2): <strong style="color:var(--text, #fff);">${usd(usdCash)}</strong></div>
         <div>평가금액: <strong style="color:#fbbf24;">${usd(evalAmt)}</strong></div>
-        <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit >= 0 ? '+' : ''}${usd(evalProfit)}</strong></div>
+        <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>
         <div>총 자산: <strong style="color:#fbbf24;">${usd(totalAsset)}</strong></div>
       </div>
     `;
@@ -898,7 +898,8 @@ async function renderKiwoomBalanceOnStatsTable(table) {
           `${h.qty.toLocaleString()}주`,
           `$${h.valuation.toFixed(2)}`,
           `${prefix}${profitRate.toFixed(1)}%`,
-          `${prefix}$${Math.abs(h.pnlVal).toFixed(2)}`
+          // 평가손익은 음수일 때만 부호를 붙인다(+ 기호 없음).
+          `${h.pnlVal < 0 ? '-' : ''}$${Math.abs(h.pnlVal).toFixed(2)}`
         ];
 
         rowVals.forEach((val, idx) => {

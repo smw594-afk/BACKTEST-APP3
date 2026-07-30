@@ -19,7 +19,18 @@ async function refreshOrderStatusCache() {
         : (window.WORKER3_URL || "https://autumn-limit-001e-3.smw594.workers.dev");
     }
 
-    // VM 프록시 예약 상태 조회는 Worker3에 미구현 → 요청 생략
+    // VM에 예약된 주문표(자동주문 대기분) — "(예약)" 배지의 근거.
+    if (window.BrokerService && typeof window.BrokerService.fetchPendingOrders === 'function') {
+      try {
+        const resP = await window.BrokerService.fetchPendingOrders();
+        if (resP && resP.ok) {
+          window.orderStatusCache.vmOrders = Array.isArray(resP.orders) ? resP.orders : [];
+          window.orderStatusCache.vmSaved = window.orderStatusCache.vmOrders.length > 0;
+          // 생성 창이 지났는데도 주문표가 없으면 "아직 생성 전"이 아니라 실패다.
+          window.orderStatusCache.vmOverdue = !!(resP.backtest && resP.backtest.overdue);
+        }
+      } catch (e) {}
+    }
 
     // 증권사 미체결/체결 내역 조회 (100% try-catch)
     if (window.BrokerService) {
@@ -47,47 +58,138 @@ async function refreshOrderStatusCache() {
 }
 window.refreshOrderStatusCache = refreshOrderStatusCache;
 
+// 오늘의 뉴욕 거래일(YYYY-MM-DD). 체결내역은 여러 날치를 받아오므로
+// 반드시 당일분만 걸러야 한다 — 안 그러면 며칠 전 체결이 오늘 주문 행을
+// "(체결)"로 물들인다(2026-07-29 증상: 매수 전부 체결, 매도 전부 예약).
+function nyTodayStr() {
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date());
+  return p; // en-CA → YYYY-MM-DD
+}
+
+// 주문표가 겨냥하는 거래일(YYYY-MM-DD).
+// ⚠️ "오늘"이 아니다. 주문표는 마감 후 만들어져 **다음 세션**을 겨냥한다.
+//    오늘 날짜로 체결을 대조하면, 방금 마감된 세션의 체결이 아직 내지도 않은
+//    다음 세션 주문에 (체결)로 붙는다(2026-07-29 실제 증상: LOC매수가 체결로 표시).
+// window.currentOrderDate 는 엔진이 준 "M/D" 문자열(render-order.js에서 세팅).
+function orderTableDateStr() {
+  const raw = String(window.currentOrderDate || "").replace(/\s*\(.*$/, "").trim();
+  const m = raw.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+  if (!m) return "";
+  const today = nyTodayStr();                 // YYYY-MM-DD
+  const year = Number(today.slice(0, 4));
+  const mm = String(m[1]).padStart(2, "0");
+  const dd = String(m[2]).padStart(2, "0");
+  let cand = `${year}-${mm}-${dd}`;
+  // 연말·연초 경계 보정: 대상일이 오늘보다 반년 이상 과거로 보이면 다음 해다.
+  if (cand < today && (new Date(today) - new Date(cand)) / 86400000 > 180) {
+    cand = `${year + 1}-${mm}-${dd}`;
+  }
+  return cand;
+}
+
+// 앱 통합 주문표의 한 줄이 GCP 봇에 예약된 주문과 같은지 표시한다.
+// 앱을 켰을 때 눈으로 바로 확인되므로 별도 경고 팝업이 필요 없다.
+// order: [side('매수'/'매도'), mode('LOC'/'MOC'), price, qty]
+function getVmMatchMarkup(order) {
+  const cache = window.orderStatusCache || {};
+  const vm = Array.isArray(cache.vmOrders) ? cache.vmOrders : null;
+  if (!vm || vm.length === 0) {
+    // 생성 창이 이미 지났는데도 비어 있으면 봇이 주문표를 못 만든 것이다 — 빨갛게 알린다.
+    if (cache.vmOverdue) {
+      return `<span style="color:#ef4444; font-size:9px; font-weight:800;" title="GCP 봇이 오늘 주문표를 만들지 못했습니다(시트 종가 미반영 등). 자동주문이 나가지 않습니다.">미생성</span>`;
+    }
+    // 아직 생성 시각 전이면 정상이므로 판정하지 않는다 — 섣불리 겁주지 않는다.
+    return `<span style="color:#64748b; font-size:9px;" title="아직 GCP 주문표 생성 전">-</span>`;
+  }
+  const side = order[0] === '매수' ? 'buy' : 'sell';
+  const ordType = String(order[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
+  const price = Math.round((parseFloat(order[2]) || 0) * 100) / 100;
+  const qty = parseInt(order[3], 10) || 0;
+
+  const hit = vm.find(v =>
+    String(v.side).toLowerCase() === side &&
+    String(v.ordType || '').toUpperCase() === ordType &&
+    Number(v.qty) === qty &&
+    (ordType === 'MOC' || Math.abs(Number(v.price) - price) < 0.005));
+
+  if (hit) {
+    return `<span style="color:#10b981; font-size:9px; font-weight:800;" title="GCP 봇 예약분과 일치">일치</span>`;
+  }
+  // 같은 방향·유형인데 값이 다른 게 있으면 무엇이 다른지 알려준다.
+  const near = vm.find(v => String(v.side).toLowerCase() === side && String(v.ordType || '').toUpperCase() === ordType);
+  const detail = near
+    ? `GCP: ${near.qty}주 @$${Number(near.price).toFixed(2)} / 앱: ${qty}주 @$${price.toFixed(2)}`
+    : `GCP 예약에 ${ordType}${order[0]} 없음`;
+  return `<span style="color:#ef4444; font-size:9px; font-weight:800;" title="${detail}">불일치</span>`;
+}
+
+// 통합/슬롯 주문표의 행은 [방향, 유형, 가격, 수량] 4개뿐이라 종목명이 없다.
+// 통합 주문표는 티커 불일치 검사로 단일 종목이 보장되므로 활성 슬롯에서 끌어온다.
+// (심볼을 못 구하면 배지를 못 붙이는데, 그러면 예약/주문/체결이 전부 사라진다.)
+function getSoleActiveTicker() {
+  const set = new Set();
+  const max = window.MAX_SLOTS || 6;
+  for (let i = 1; i <= max; i++) {
+    if (typeof window.isSlotActive === 'function' && !window.isSlotActive(i)) continue;
+    const tk = String(window.slotConfigs?.[i]?.basics?.ticker || "").toUpperCase();
+    if (tk) set.add(tk);
+  }
+  return set.size === 1 ? Array.from(set)[0] : "";
+}
+
 function getOrderStatusBadgeMarkup(order) {
-  // order: [side('매수'/'매도'), mode('MOC'/'LOC'등), price, qty, symbol, slot]
+  // order: [side('매수'/'매도'), mode('MOC'/'LOC'등), price, qty, symbol?, slot?]
   if (!order) return "";
   const side = order[0] === '매수' ? 'buy' : 'sell';
-  const price = parseFloat(order[2]) || 0;
   const qty = parseInt(order[3], 10) || 0;
-  const symbol = String(order[4] || "").toUpperCase();
+  const symbol = String(order[4] || "").toUpperCase() || getSoleActiveTicker();
+  if (!symbol) return ""; // 종목을 특정할 수 없으면 대조하지 않는다(과거엔 전부 매칭됐다)
 
   const cache = window.orderStatusCache || {};
+  const sideOf = (v) => String(v || "").toLowerCase();
+  const targetDate = orderTableDateStr(); // 주문표가 겨냥하는 거래일(= 다음 세션)
 
-  // 1. 체결 완료 확인 (증권사 당일 체결 내역)
-  if (Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
-    const matchedFill = cache.filledOrders.find(f => {
-      const fSym = String(f.symbol || f.stk_cd || "").toUpperCase();
-      const fSide = String(f.side || "").toLowerCase();
-      return (fSym === symbol || !symbol) && (fSide.includes(side) || fSide === side);
-    });
-    if (matchedFill) {
-      return `<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="증권사 체결 완료">(체결)</span>`;
+  // 1) 체결 — "주문표 대상 거래일"의 체결만 인정한다.
+  //    대상일을 못 구하면 아예 판정하지 않는다(엉뚱한 날 체결을 붙이느니 무표시가 낫다).
+  if (targetDate && Array.isArray(cache.filledOrders)) {
+    const hit = cache.filledOrders.find(f =>
+      String(f.symbol || f.stk_cd || "").toUpperCase() === symbol &&
+      sideOf(f.side).includes(side) &&
+      String(f.marketDate || "") === targetDate);
+    if (hit) {
+      return `<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="증권사 체결 완료 (${targetDate})">(체결)</span>`;
     }
   }
 
-  // 2. 주문 완료 / 미체결 확인 (증권사 미체결 잔고)
-  if (Array.isArray(cache.unfilledOrders) && cache.unfilledOrders.length > 0) {
-    const matchedUnfilled = cache.unfilledOrders.find(u => {
-      const uSym = String(u.symbol || u.stk_cd || "").toUpperCase();
-      const uSide = String(u.side || "").toLowerCase();
-      return (uSym === symbol || !symbol) && (uSide.includes(side) || uSide === side);
-    });
-    if (matchedUnfilled) {
+  // 2) 주문 — 증권사에 접수되어 미체결로 남아 있을 때.
+  if (Array.isArray(cache.unfilledOrders)) {
+    const hit = cache.unfilledOrders.find(u =>
+      String(u.symbol || u.stk_cd || "").toUpperCase() === symbol &&
+      sideOf(u.side).includes(side));
+    if (hit) {
       return `<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="증권사 접수 완료 (미체결)">(주문)</span>`;
     }
   }
 
-  // 3. 예약 완료 확인 (VM 프록시 21:50 예약 저장소)
-  if (cache.vmSaved) {
-    return `<span style="color:#fbbf24 !important; font-size:9px; font-weight:800; margin-left:3px;" title="21:50 KST 자동주문 예약 완료">(예약)</span>`;
+  // 3) 예약 — VM(GCP)에 오늘 주문표가 저장되어 자동주문을 기다리는 상태.
+  //    실제 저장분과 대조한다. 예전엔 무조건 "(예약)"을 반환해서, 올라가지도 않은
+  //    주문이 예약된 것처럼 보였다.
+  if (Array.isArray(cache.vmOrders)) {
+    const ordType = String(order[1] || "").toUpperCase() === "MOC" ? "MOC" : "LOC";
+    const hit = cache.vmOrders.find(v =>
+      String(v.symbol || "").toUpperCase() === symbol &&
+      sideOf(v.side) === side &&
+      String(v.ordType || "").toUpperCase() === ordType &&
+      (!qty || Number(v.qty) === qty));
+    if (hit) {
+      return `<span style="color:#fbbf24 !important; font-size:9px; font-weight:800; margin-left:3px;" title="GCP 자동주문 예약 완료 (개장 10분 전 발주)">(예약)</span>`;
+    }
   }
 
-  // 기본값 (21:40 전 앱 실행 시 자동 예약 전송되므로 예약완료 표시)
-  return `<span style="color:#fbbf24 !important; font-size:9px; font-weight:700; margin-left:3px;" title="자동주문 예약 상태">(예약)</span>`;
+  // 어디에도 없으면 배지를 붙이지 않는다(= 아직 예약 전).
+  return "";
 }
 
 // ui/render-order.js - 주문표 렌더링만 담당
@@ -139,7 +241,7 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
   }
   const uniqueTickers = Array.from(new Set(activeTickers));
   if (uniqueTickers.length > 1) {
-    tbody.innerHTML = "<tr><td colspan='3' style='padding:20px; color:#ef4444; text-align:center; font-weight:bold;'>⚠️ 티커 불일치 오류</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='4' style='padding:20px; color:#ef4444; text-align:center; font-weight:bold;'>⚠️ 티커 불일치 오류</td></tr>";
     const buyQtyEl = document.getElementById('combinedBuyQtyVal');
     const sellQtyEl = document.getElementById('combinedSellQtyVal');
     const pgEl = document.getElementById('combinedProgressVal');
@@ -229,7 +331,7 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
   if (!finalCombinedOrders || finalCombinedOrders.length === 0) {
     // 초기 로딩 중 빈 메모리 결과가 마지막 정상 주문표를 덮지 않게 한다.
     if (restoreRenderedView()) return;
-    tbody.innerHTML = "<tr><td colspan='3' style='padding:20px; color:#64748b; text-align:center;'>통합 주문 내역이 없습니다</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='4' style='padding:20px; color:#64748b; text-align:center;'>통합 주문 내역이 없습니다</td></tr>";
     return;
   }
 
@@ -254,7 +356,8 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
     const cls = o[0] === '매수' ? 'buy' : 'sell';
     const statusBadge = getOrderStatusBadgeMarkup(o);
     const sideText = ((o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0]) + statusBadge;
-    return `<tr><td class="${cls}" style="width:40%; text-align:center;">${sideText}</td><td class="${cls}" style="width:34%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:26%; text-align:center;">${o[3]}주</td></tr>`;
+    const m = getVmMatchMarkup(o);
+    return `<tr><td style="width:18%; text-align:center;">${m}</td><td class="${cls}" style="width:33%; text-align:center;">${sideText}</td><td class="${cls}" style="width:28%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:21%; text-align:center;">${o[3]}주</td></tr>`;
   }).join('');
 
   const buyQtyEl = document.getElementById('combinedBuyQtyVal');
@@ -335,8 +438,14 @@ function renderOrderTableSlot(orders, slotNum) {
     return `<tr><td class="${cls}" style="width:40%; text-align:center;">${sideText}</td><td class="${cls}" style="width:34%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:26%; text-align:center;">${o[3]}주</td></tr>`;
   }).join('')
     // 📤 App3: per-slot REST submit row (kiwoom slots 1~3 / LS slots 4~6 via BrokerService)
-    + (window.BrokerService ? `<tr><td colspan="3" style="padding:6px 4px;">
-        
+    // ⚠️ 이 버튼이 주문이 나가는 유일한 경로다. 비우면 주문 전송 수단이 사라진다.
+    + (window.BrokerService ? `<tr><td colspan="3" style="padding:6px 4px; text-align:center;">
+        <button onclick="window.submitSlotOrdersToBroker(${slotNum})"
+          style="width:100%; padding:6px 8px; border:none; border-radius:6px; cursor:pointer;
+                 background:linear-gradient(135deg, ${Number(slotNum) <= 3 ? '#10b981, #047857' : '#a855f7, #7e22ce'});
+                 color:#fff; font-size:11px; font-weight:800; letter-spacing:0.2px;">
+          📤 ${Number(slotNum) <= 3 ? '키움' : 'LS'} 슬롯${slotNum} 주문전송
+        </button>
       </td></tr>` : '');
 }
 

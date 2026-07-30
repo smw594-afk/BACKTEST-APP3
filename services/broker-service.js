@@ -4,7 +4,11 @@
  * Supports Local Storage Key Pre-filling & VM Proxy Sync
  */
 
-const LOCAL_PROXY_BASE = "http://localhost:8788";
+// 로컬 프록시는 "명시적으로 켤 때만" 쓴다.
+//   window.LOCAL_PROXY_BASE = "http://localhost:8788"  (index.html 등에서 지정)
+// 기본은 localhost에서도 Worker3 → VM 경로다. 브로커 키는 VM에만 있어야 하므로
+// (골든 룰 5) 로컬 프록시를 기본으로 두면 개발용으로 실계좌 키를 로컬에 복사하게 된다.
+const LOCAL_PROXY_BASE = window.LOCAL_PROXY_BASE || "";
 const WORKER3_RELAY_BASE = window.WORKER3_URL || "https://autumn-limit-001e-3.smw594.workers.dev";
 
 window.BrokerService = {
@@ -90,9 +94,8 @@ window.BrokerService = {
   activeBroker: "kiwoom",
 
   getApiBase() {
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-      return LOCAL_PROXY_BASE;
-    }
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocal && LOCAL_PROXY_BASE) return LOCAL_PROXY_BASE;
     return WORKER3_RELAY_BASE;
   },
 
@@ -150,18 +153,26 @@ window.BrokerService = {
     return await this.brokerFetch(`/api/broker/${broker}/cancel`, "POST", { orderNo });
   },
 
+  // 조회 계열은 VM이 증권사 TR을 여러 번 호출한다(체결내역은 일자별 TR).
+  // 기본 3.5초로는 동시 호출이 겹칠 때 모자라 "Timeout" 오류가 난다.
   async fetchUnfilledOrders(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    return await this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET");
+    return await this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, 15000);
   },
 
   async fetchOverseasBalance(broker = this.activeBroker) {
-    return await this.brokerFetch(`/api/broker/${broker}/balance`, "GET");
+    return await this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, 15000);
   },
 
   async fetchOverseasFills(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    return await this.brokerFetch(`/api/broker/${broker}/fills`, "GET");
+    return await this.brokerFetch(`/api/broker/${broker}/fills`, "GET", null, 20000);
+  },
+
+  // VM에 예약된 오늘의 주문표(자동주문 대기분)를 가져온다.
+  async fetchPendingOrders() {
+    const userId = this.getUserId();
+    return await this.brokerFetch(`/api/orders/pending?userId=${encodeURIComponent(userId)}`, "GET", null, 10000);
   },
 
   // ─────────── 키 상태 / 자동주문 on-off ───────────
@@ -235,7 +246,38 @@ window.BrokerService = {
           <span>${title}</span>
           <span onclick="document.getElementById('broker-key-modal').remove()" style="cursor:pointer; font-size:20px; color:#94a3b8;">&times;</span>
         </h3>
-        <p style="font-size:13px; color:#94a3b8; margin-bottom:16px;">API 키는 브라우저 및 GCP VM 프록시에 안전하게 저장됩니다.</p>
+        <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">AppSecret은 브라우저에 저장하지 않고 GCP VM에만 보관됩니다(골든 룰 5).</p>
+
+        <!-- 브로커 선택 탭: 키움/LS 각각 따로 등록한다 -->
+        <div style="display:flex; gap:8px; margin-bottom:14px;">
+          <button onclick="window.BrokerService.openBrokerKeyModal('kiwoom')"
+            style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
+                   border:2px solid ${broker === 'kiwoom' ? '#10b981' : '#334155'};
+                   background:${broker === 'kiwoom' ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f172a'}; color:#fff;">
+            🟢 키움 (슬롯1~3)
+          </button>
+          <button onclick="window.BrokerService.openBrokerKeyModal('ls')"
+            style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
+                   border:2px solid ${broker === 'ls' ? '#a855f7' : '#334155'};
+                   background:${broker === 'ls' ? 'linear-gradient(135deg,#a855f7,#7e22ce)' : '#0f172a'}; color:#fff;">
+            🟣 LS증권 (슬롯4~6)
+          </button>
+        </div>
+
+        <!-- GCP 봇(자동주문) 정지 스위치 — 브로커별로 독립 -->
+        <div id="broker-autoorder-box" style="display:flex; align-items:center; justify-content:space-between;
+             background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:4px;">
+          <div>
+            <div style="font-size:13px; font-weight:700; color:#f8fafc;">🤖 GCP 자동주문 봇</div>
+            <div id="broker-autoorder-status" style="font-size:11px; color:#94a3b8; margin-top:2px;">상태 확인 중...</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="window.BrokerService.toggleBotFromModal('${broker}', true)"
+              style="padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:700; background:#166534; color:#fff;">가동</button>
+            <button onclick="window.BrokerService.toggleBotFromModal('${broker}', false)"
+              style="padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:700; background:#7f1d1d; color:#fff;">정지</button>
+          </div>
+        </div>
         <div style="margin-top:12px;">
           <label style="display:block; font-size:12px; margin-bottom:4px; color:#cbd5e1;">AppKey / API Key</label>
           <input type="password" id="broker-modal-appkey" value="${saved.appKey || ''}" placeholder="AppKey 입력" style="width:100%; padding:10px; border-radius:6px; background:#0f172a; border:1px solid #334155; color:#fff; font-size:14px; outline:none;" />
@@ -255,6 +297,46 @@ window.BrokerService = {
       </div>
     `;
     document.body.appendChild(modal);
+    this.refreshBotStatusInModal(broker);
+  },
+
+  // 모달의 봇 상태줄을 서버 값으로 채운다(등록 여부 + 자동주문 on/off).
+  async refreshBotStatusInModal(broker) {
+    const el = document.getElementById("broker-autoorder-status");
+    if (!el) return;
+    try {
+      const st = await this.keyStatus(broker);
+      if (!st || st.success === false) { el.textContent = "상태 조회 실패"; return; }
+      if (!st.hasKey && !st.registered) {
+        el.innerHTML = `<span style="color:#94a3b8;">키 미등록 — 먼저 저장하세요</span>`;
+        return;
+      }
+      const on = !!st.autoOrderEnabled;
+      const mode = String(st.paperMode) === "1" ? "모의" : "실전";
+      el.innerHTML = on
+        ? `<span style="color:#4ade80; font-weight:700;">가동 중</span> · ${mode} · 계좌 ${st.accountNo || "-"}`
+        : `<span style="color:#f87171; font-weight:700;">정지됨</span> · ${mode} · 계좌 ${st.accountNo || "-"}`;
+    } catch (e) {
+      el.textContent = "상태 조회 실패: " + e.message;
+    }
+  },
+
+  async toggleBotFromModal(broker, enabled) {
+    const label = broker === "kiwoom" ? "키움" : "LS증권";
+    // 실계좌 자동발주를 켜는 쪽만 확인을 받는다(끄는 건 언제나 안전).
+    if (enabled && !confirm(`[${label}] GCP 자동주문 봇을 가동합니다.\n\n개장 10분 전에 예약된 주문이 사람 확인 없이 실제로 나갑니다.\n계속할까요?`)) return;
+    const el = document.getElementById("broker-autoorder-status");
+    if (el) el.textContent = "적용 중...";
+    try {
+      const res = await this.setAutoOrder(broker, enabled);
+      if (res && res.success === false) {
+        if (el) el.textContent = "실패: " + (res.error || "알 수 없는 오류");
+        return;
+      }
+      await this.refreshBotStatusInModal(broker);
+    } catch (e) {
+      if (el) el.textContent = "실패: " + e.message;
+    }
   },
 
   async saveModalKeys(broker) {

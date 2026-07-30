@@ -88,13 +88,13 @@ async function renderBrokerFills(broker) {
     thead.innerHTML = '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted);font-weight:700;">'
       + '<th style="padding:4px 2px;text-align:center;">종목</th>'
       + '<th style="padding:4px 2px;text-align:center;">구분</th>'
-      + '<th style="padding:4px 2px;text-align:right;">주문가</th>'
-      + '<th style="padding:4px 2px;text-align:right;">체결가</th>'
-      + '<th style="padding:4px 2px;text-align:right;">수량</th>'
+      + '<th style="padding:4px 2px;text-align:center;">주문가</th>'
+      + '<th style="padding:4px 2px;text-align:center;">체결가</th>'
+      + '<th style="padding:4px 2px;text-align:center;">수량</th>'
       + '<th style="padding:4px 2px;text-align:center;">상태</th>'
       + '<th style="padding:4px 2px;text-align:center;">시간</th>'
-      + '<th style="padding:4px 2px;text-align:right;">수수료</th>'
-      + '<th style="padding:4px 2px;text-align:right;">수익금</th></tr>';
+      + '<th style="padding:4px 2px;text-align:center;">수수료</th>'
+      + '<th style="padding:4px 2px;text-align:center;">수익금</th></tr>';
   }
 
   tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">${label} 해외주식 체결내역 조회 중...</td></tr>`;
@@ -119,7 +119,10 @@ async function renderBrokerFills(broker) {
       return;
     }
 
-    tbody.innerHTML = rows.slice().reverse().map(r => {
+    // 체결일시 기준 내림차순(최신이 맨 위). 배열 순서를 뒤집기만 하면 여러 날짜가 섞였을 때
+    // 최신이 위로 오지 않는다 — 거래일(marketDate) + 체결시각(KST)으로 정렬한다.
+    const sortKey = (r) => `${String(r.marketDate || r.date || "")} ${String(r.timeKst || r.time || "")}`;
+    tbody.innerHTML = rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
       const sideStr = String(r.side || r.io_tp_nm || '').toUpperCase();
       const isBuy = sideStr.includes('BUY') || sideStr.includes('매수');
       const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
@@ -132,18 +135,19 @@ async function renderBrokerFills(broker) {
 
       const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const profitCell = !isBuy
-        ? (pnlVal !== 0 ? `<td style="color:${pnlVal >= 0 ? '#10b981' : '#f43f5e'}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="color:var(--text-muted);">-</td>`)
-        : `<td style="color:var(--text-muted);">-</td>`;
+        ? (pnlVal !== 0 ? `<td style="text-align:center; color:${pnlVal >= 0 ? '#10b981' : '#f43f5e'}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="text-align:center; color:var(--text-muted);">-</td>`)
+        : `<td style="text-align:center; color:var(--text-muted);">-</td>`;
 
-      return `<tr>
-        <td style="font-weight:700; color:#fda4af;">${r.symbol || r.stk_nm || '-'}</td>
-        <td style="color:${isBuy ? '#f43f5e' : '#10b981'}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
-        <td>$${buyPric.toFixed(2)}</td>
-        <td>$${cntrPric.toFixed(2)}</td>
-        <td>${qty.toLocaleString()}주</td>
-        <td>${statusStr}</td>
-        <td style="color:var(--text-muted);">${timePart}</td>
-        <td>${feeVal > 0 ? usd(feeVal) : '-'}</td>
+      // 위 thead와 정렬을 맞춘다(전 컬럼 center) — 한쪽만 바꾸면 컬럼이 어긋나 보인다.
+      return `<tr style="text-align:center;">
+        <td style="text-align:center; font-weight:700; color:#fda4af;">${r.symbol || r.stk_nm || '-'}</td>
+        <td style="text-align:center; color:${isBuy ? '#f43f5e' : '#10b981'}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
+        <td style="text-align:center;">$${buyPric.toFixed(2)}</td>
+        <td style="text-align:center;">$${cntrPric.toFixed(2)}</td>
+        <td style="text-align:center;">${qty.toLocaleString()}주</td>
+        <td style="text-align:center;">${statusStr}</td>
+        <td style="text-align:center; color:var(--text-muted);">${timePart}</td>
+        <td style="text-align:center;">${feeVal > 0 ? usd(feeVal) : '-'}</td>
         ${profitCell}
       </tr>`;
     }).join('');
@@ -162,13 +166,13 @@ async function renderBrokerFills(broker) {
     thead.innerHTML = '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted);font-weight:700;">'
       + '<th style="padding:4px 2px;text-align:center;">종목</th>'
       + '<th style="padding:4px 2px;text-align:center;">구분</th>'
-      + '<th style="padding:4px 2px;text-align:right;">주문가</th>'
-      + '<th style="padding:4px 2px;text-align:right;">체결가</th>'
-      + '<th style="padding:4px 2px;text-align:right;">수량</th>'
+      + '<th style="padding:4px 2px;text-align:center;">주문가</th>'
+      + '<th style="padding:4px 2px;text-align:center;">체결가</th>'
+      + '<th style="padding:4px 2px;text-align:center;">수량</th>'
       + '<th style="padding:4px 2px;text-align:center;">상태</th>'
       + '<th style="padding:4px 2px;text-align:center;">시간</th>'
-      + '<th style="padding:4px 2px;text-align:right;">수수료</th>'
-      + '<th style="padding:4px 2px;text-align:right;">수익금</th></tr>';
+      + '<th style="padding:4px 2px;text-align:center;">수수료</th>'
+      + '<th style="padding:4px 2px;text-align:center;">수익금</th></tr>';
   }
 
   tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">${label} 해외주식 체결내역 조회 중...</td></tr>`;
@@ -193,7 +197,10 @@ async function renderBrokerFills(broker) {
       return;
     }
 
-    tbody.innerHTML = rows.slice().reverse().map(r => {
+    // 체결일시 기준 내림차순(최신이 맨 위). 배열 순서를 뒤집기만 하면 여러 날짜가 섞였을 때
+    // 최신이 위로 오지 않는다 — 거래일(marketDate) + 체결시각(KST)으로 정렬한다.
+    const sortKey = (r) => `${String(r.marketDate || r.date || "")} ${String(r.timeKst || r.time || "")}`;
+    tbody.innerHTML = rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
       const sideStr = String(r.side || r.io_tp_nm || '').toUpperCase();
       const isBuy = sideStr.includes('BUY') || sideStr.includes('매수');
       const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
@@ -206,18 +213,19 @@ async function renderBrokerFills(broker) {
 
       const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const profitCell = !isBuy
-        ? (pnlVal !== 0 ? `<td style="color:${pnlVal >= 0 ? '#10b981' : '#f43f5e'}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="color:var(--text-muted);">-</td>`)
-        : `<td style="color:var(--text-muted);">-</td>`;
+        ? (pnlVal !== 0 ? `<td style="text-align:center; color:${pnlVal >= 0 ? '#10b981' : '#f43f5e'}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="text-align:center; color:var(--text-muted);">-</td>`)
+        : `<td style="text-align:center; color:var(--text-muted);">-</td>`;
 
-      return `<tr>
-        <td style="font-weight:700; color:#fda4af;">${r.symbol || r.stk_nm || '-'}</td>
-        <td style="color:${isBuy ? '#f43f5e' : '#10b981'}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
-        <td>$${buyPric.toFixed(2)}</td>
-        <td>$${cntrPric.toFixed(2)}</td>
-        <td>${qty.toLocaleString()}주</td>
-        <td>${statusStr}</td>
-        <td style="color:var(--text-muted);">${timePart}</td>
-        <td>${feeVal > 0 ? usd(feeVal) : '-'}</td>
+      // 위 thead와 정렬을 맞춘다(전 컬럼 center) — 한쪽만 바꾸면 컬럼이 어긋나 보인다.
+      return `<tr style="text-align:center;">
+        <td style="text-align:center; font-weight:700; color:#fda4af;">${r.symbol || r.stk_nm || '-'}</td>
+        <td style="text-align:center; color:${isBuy ? '#f43f5e' : '#10b981'}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
+        <td style="text-align:center;">$${buyPric.toFixed(2)}</td>
+        <td style="text-align:center;">$${cntrPric.toFixed(2)}</td>
+        <td style="text-align:center;">${qty.toLocaleString()}주</td>
+        <td style="text-align:center;">${statusStr}</td>
+        <td style="text-align:center; color:var(--text-muted);">${timePart}</td>
+        <td style="text-align:center;">${feeVal > 0 ? usd(feeVal) : '-'}</td>
         ${profitCell}
       </tr>`;
     }).join('');
@@ -258,7 +266,10 @@ async function renderKisFills() {
       return;
     }
     const n = v => Math.round(Number(v) || 0).toLocaleString();
-    tbody.innerHTML = rows.slice().reverse().map(r => {
+    // 체결일시 기준 내림차순(최신이 맨 위). 배열 순서를 뒤집기만 하면 여러 날짜가 섞였을 때
+    // 최신이 위로 오지 않는다 — 거래일(marketDate) + 체결시각(KST)으로 정렬한다.
+    const sortKey = (r) => `${String(r.marketDate || r.date || "")} ${String(r.timeKst || r.time || "")}`;
+    tbody.innerHTML = rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
       const sideLabel = r.side === 'buy' ? '매수' : '매도';
       return `<tr><td>${escapeTradeHistoryHtml(r.name || r.ticker)}</td><td>${sideLabel}</td><td>${n(r.orderQty)}주</td><td>${n(r.filledQty)}주</td><td>₩${n(r.filledPrice)}</td><td>₩${n(r.filledAmt)}</td><td>${formatYymmdd(r.date)}</td></tr>`;
     }).join('');
