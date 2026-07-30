@@ -2517,7 +2517,8 @@ function calculateChartRatesDataEngine() {
 
     const combinedSnap = { yearlyData: [], monthlyData: [], dailyData: [] };
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (typeof isSlotActive === 'function' && isSlotActive(i) && lastBTResults[i]) {
+      if (typeof isSlotActive === 'function' && isSlotActive(i) && lastBTResults[i]
+          && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const snap = typeof getBestResult === 'function' ? getBestResult(lastBTResults[i], i) : lastBTResults[i];
         if (snap) {
           if (Array.isArray(snap.yearlyData)) combinedSnap.yearlyData.push(...snap.yearlyData);
@@ -2573,7 +2574,8 @@ function calculateChartRatesDataEngine() {
     try {
       const activeRes = [];
       for (let i = 1; i <= MAX_SLOTS; i++) {
-        if (typeof isSlotActive === 'function' && isSlotActive(i) && lastBTResults[i]) {
+        if (typeof isSlotActive === 'function' && isSlotActive(i) && lastBTResults[i]
+            && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
           const res = typeof getBestResult === 'function' ? getBestResult(lastBTResults[i], i) : lastBTResults[i];
           if (res) activeRes.push(res);
         }

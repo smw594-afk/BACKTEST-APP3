@@ -10,8 +10,10 @@ function renderCombinedHoldings() {
 
   let allHoldings = [];
 
+  // ⚠️ 2026-07-31부터 "통합 보유현황"도 활성 브로커(키움 슬롯1~3 / LS 슬롯4~6)만 필터링한다
+  // (사용자 요청). 이전엔 슬롯 6개를 항상 전부 합산했다.
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    if (window.isSlotActive(i)) {
+    if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       const res = window.getBestResult(window.lastBTResults[i], i);
       if (res && res.inv) {
         const stratName = res.currentStrat || window.slotConfigs[i]?.basics?.strategy || "";
@@ -128,9 +130,11 @@ function renderCombinedHoldings() {
     }
 
     // 📊 일치 컬럼: 브로커(키움 슬롯1~3 / LS 슬롯4~6) 매수 체결과 앱 보유수량 대조
+    // ⚠️ 슬롯의 실제 브로커를 명시해야 한다 — 안 그러면 키움/LS가 같은 종목을 같은 날
+    //    거래했을 때 서로의 체결과 섞여 대조된다(2026-07-30 실증).
     const symbol = window.slotConfigs?.[o.slotNum]?.basics?.ticker || o.ticker || "";
     const reconcileCell = window.BrokerReconcile
-      ? window.BrokerReconcile.cellHtml(window.BrokerReconcile.holdingStatus(symbol, o.buyDate || o.buy_date, o.qty))
+      ? window.BrokerReconcile.cellHtml(window.BrokerReconcile.holdingStatus(symbol, o.buyDate || o.buy_date, o.qty, window.BrokerReconcile.brokerForSlot(o.slotNum)))
       : '<td style="text-align:center;color:#94a3b8;font-size:9px;">-</td>';
 
     return `<tr>${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
@@ -278,7 +282,7 @@ function updateCombinedHoldingsSummary() {
 
   let allHoldings = [];
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    if (window.isSlotActive(i)) {
+    if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       const res = window.getBestResult(window.lastBTResults[i], i);
       if (res && res.inv) {
         if (Array.isArray(res.inv)) allHoldings.push(...res.inv);

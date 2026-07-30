@@ -78,6 +78,8 @@ async function toggleView() {
   renderDBTradeHistory();
 }
 
+// ⚠️ 2026-07-31: 이 함수가 파일에 완전히 동일하게 두 번 정의돼 있던 것을 정리했다
+// (JS는 나중 선언이 실제 적용되므로 앞쪽은 죽은 코드였다).
 async function renderBrokerFills(broker) {
   const tbody = document.getElementById('historyTableBody');
   const thead = document.querySelector('#historyTable thead');
@@ -101,88 +103,15 @@ async function renderBrokerFills(broker) {
 
   try {
     let data = null;
-    if (window.BrokerService && window.BrokerService.fetchOverseasFills) {
-      data = await window.BrokerService.fetchOverseasFills(broker);
-    } else if (window.BrokerReconcile && window.BrokerReconcile.getFills) {
+    // ⚠️ 2026-07-31: LS는 계좌조회 유량이 초당 1건(COSAQ00102, 10일 조회 시 ~11초)이라,
+    // 통합 보유현황/실전 매도 내역 쪽 대조 로직(broker-reconcile.js)이 이미 같은 브로커의
+    // 체결을 30초 캐시+중복요청 방지로 조회해 둔 게 있으면 그걸 재사용한다 — 안 그러면
+    // 이 화면과 대조 로직이 거의 동시에 각자 10일치를 처음부터 다시 조회해 유량을 나눠 쓰며
+    // 서로를 더 느리게 만든다(사용자 실증).
+    if (window.BrokerReconcile && window.BrokerReconcile.getFills) {
       data = await window.BrokerReconcile.getFills(broker);
-    }
-
-    if (!data || data.success === false) {
-      const errMsg = (data && data.error) || "체결내역 응답 없음";
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${label} 해외주식 체결내역 조회 실패<br/><span style="font-size:9.5px;opacity:0.8;">${errMsg}</span></td></tr>`;
-      return;
-    }
-
-    const rows = Array.isArray(data.executions) ? data.executions : (Array.isArray(data.rows) ? data.rows : []);
-    if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">${label} 해외주식 체결내역이 없습니다</td></tr>`;
-      return;
-    }
-
-    // 체결일시 기준 내림차순(최신이 맨 위). 배열 순서를 뒤집기만 하면 여러 날짜가 섞였을 때
-    // 최신이 위로 오지 않는다 — 거래일(marketDate) + 체결시각(KST)으로 정렬한다.
-    const sortKey = (r) => `${String(r.marketDate || r.date || "")} ${String(r.timeKst || r.time || "")}`;
-    tbody.innerHTML = rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
-      const sideStr = String(r.side || r.io_tp_nm || '').toUpperCase();
-      const isBuy = sideStr.includes('BUY') || sideStr.includes('매수');
-      const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
-      const buyPric = Number(r.ord_pric || r.price) || 0;
-      const cntrPric = Number(r.cntr_pric || r.price) || 0;
-      const statusStr = r.ord_stt || r.status || '체결';
-      const timePart = r.time || r.cntr_tm || r.ord_tm || '-';
-      const feeVal = Number(r.tdy_trde_cmsn || r.fee) || 0;
-      const pnlVal = Number(r.rlzt_pl || r.pnl) || 0;
-
-      const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const profitCell = !isBuy
-        ? (pnlVal !== 0 ? `<td style="text-align:center; color:${pnlVal >= 0 ? '#10b981' : '#f43f5e'}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="text-align:center; color:var(--text-muted);">-</td>`)
-        : `<td style="text-align:center; color:var(--text-muted);">-</td>`;
-
-      // 위 thead와 정렬을 맞춘다(전 컬럼 center) — 한쪽만 바꾸면 컬럼이 어긋나 보인다.
-      return `<tr style="text-align:center;">
-        <td style="text-align:center; font-weight:700; color:#fda4af;">${r.symbol || r.stk_nm || '-'}</td>
-        <td style="text-align:center; color:${isBuy ? '#f43f5e' : '#10b981'}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
-        <td style="text-align:center;">$${buyPric.toFixed(2)}</td>
-        <td style="text-align:center;">$${cntrPric.toFixed(2)}</td>
-        <td style="text-align:center;">${qty.toLocaleString()}주</td>
-        <td style="text-align:center;">${statusStr}</td>
-        <td style="text-align:center; color:var(--text-muted);">${timePart}</td>
-        <td style="text-align:center;">${feeVal > 0 ? usd(feeVal) : '-'}</td>
-        ${profitCell}
-      </tr>`;
-    }).join('');
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${label} 해외주식 체결내역 연동 실패<br/><span style="font-size:9.5px;opacity:0.8;">${e.message}</span></td></tr>`;
-  }
-}
-
-async function renderBrokerFills(broker) {
-  const tbody = document.getElementById('historyTableBody');
-  const thead = document.querySelector('#historyTable thead');
-  if (!tbody) return;
-  const label = broker === 'ls' ? 'LS증권' : '키움';
-
-  if (thead) {
-    thead.innerHTML = '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted);font-weight:700;">'
-      + '<th style="padding:4px 2px;text-align:center;">종목</th>'
-      + '<th style="padding:4px 2px;text-align:center;">구분</th>'
-      + '<th style="padding:4px 2px;text-align:center;">주문가</th>'
-      + '<th style="padding:4px 2px;text-align:center;">체결가</th>'
-      + '<th style="padding:4px 2px;text-align:center;">수량</th>'
-      + '<th style="padding:4px 2px;text-align:center;">상태</th>'
-      + '<th style="padding:4px 2px;text-align:center;">시간</th>'
-      + '<th style="padding:4px 2px;text-align:center;">수수료</th>'
-      + '<th style="padding:4px 2px;text-align:center;">수익금</th></tr>';
-  }
-
-  tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">${label} 해외주식 체결내역 조회 중...</td></tr>`;
-
-  try {
-    let data = null;
-    if (window.BrokerService && window.BrokerService.fetchOverseasFills) {
+    } else if (window.BrokerService && window.BrokerService.fetchOverseasFills) {
       data = await window.BrokerService.fetchOverseasFills(broker);
-    } else if (window.BrokerReconcile && window.BrokerReconcile.getFills) {
-      data = await window.BrokerReconcile.getFills(broker);
     }
 
     if (!data || data.success === false) {
@@ -235,7 +164,7 @@ async function renderBrokerFills(broker) {
 }
 
 // KIS는 초당 요청 한도가 엄격해 캐시 없이는 바로 rate limit(초당 거래건수 초과)에 걸린다.
-// 키움 getKiwoomFillsCached()와 동일한 1분 캐시 패턴.
+// getKisFillsCached 자체가 1분 캐시를 두는 이유.
 let kisFillsCache = null;
 let kisFillsCacheAt = 0;
 let kisFillsPromise = null;
@@ -278,223 +207,33 @@ async function renderKisFills() {
   }
 }
 
-// Shared 60s-cached fetch of ka10076 (today's fills) — reused by the "키움 매수·매도
-// 내역" view AND the 실전 매도내역 reconciliation check below.
-let kiwoomFillsCache = null;
-let kiwoomFillsCacheAt = 0;
-let kiwoomFillsPromise = null;
-
-async function getKiwoomFillsCached() {
-  const base = window.KIWOOM_API_BASE || 'http://localhost:8787';
-  if (kiwoomFillsCache && Date.now() - kiwoomFillsCacheAt < 60000) return kiwoomFillsCache;
-  if (!kiwoomFillsPromise) {
-    kiwoomFillsPromise = fetch(`${base}/api/kiwoom/fills`).then(async res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    }).finally(() => { kiwoomFillsPromise = null; });
-  }
-  const result = await kiwoomFillsPromise;
-  kiwoomFillsCache = result;
-  kiwoomFillsCacheAt = Date.now();
-  return result;
-}
-
-// Fetch today's fills (ka10076) + backfill the past ~6 weekdays (kt00009 via ?date=),
-// dedup, and persist to localStorage. Returns the deduped 7-day fill rows.
-// Shared by the "키움 매수·매도 내역" view AND the 실전 매도내역 대조(일치 컬럼).
-async function loadKiwoom7dFills() {
-  const data = await getKiwoomFillsCached();
-  const fetched = Array.isArray(data?.cntr) ? data.cntr : (Array.isArray(data?.acnt_ord_cntr_prst_array) ? data.acnt_ord_cntr_prst_array : []);
-  const now = Date.now();
-  const cacheKey = `vtotal_kiwoom_fills_7d_${window.myUserId || 'default'}`;
-  let cached = [];
-  try { cached = JSON.parse(localStorage.getItem(cacheKey) || '[]'); } catch (e) { cached = []; }
-  const today = kstDateKeyFromMs(now);
-  // The proxy reports which trading day the ka10076 rows belong to — on market
-  // holidays that's the previous session, NOT the calendar date.
-  const fetchDate = /^\d{8}$/.test(String(data?.trade_date || ''))
-    ? `${data.trade_date.slice(0, 4)}-${data.trade_date.slice(4, 6)}-${data.trade_date.slice(6, 8)}`
-    : today;
-  const fillIdKey = r => `${r.ord_no || ''}|${r.cntr_qty || r.ord_qty || ''}|${r.cntr_pric || ''}`;
-  const fetchedIds = new Set(fetched.map(fillIdKey));
-  cached = cached.filter(r => r._date === fetchDate || !fetchedIds.has(fillIdKey(r)));
-  const bfKey = `vtotal_kiwoom_fills_bf_${window.myUserId || 'default'}`;
-  let backfilled = [];
-  try { backfilled = JSON.parse(localStorage.getItem(bfKey) || '[]'); } catch (e) { backfilled = []; }
-  const haveDates = new Set([...cached.map(r => r._date), ...backfilled, today, fetchDate]);
-  const base = window.KIWOOM_API_BASE || 'http://localhost:8787';
-  for (let k = 1; k <= 6; k++) {
-    const dayMs = now - k * 86400000;
-    const dow = new Date(dayMs + 9 * 3600 * 1000).getUTCDay();
-    if (dow === 0 || dow === 6) continue;
-    const dkey = kstDateKeyFromMs(dayMs);
-    if (haveDates.has(dkey)) continue;
-    try {
-      const res = await fetch(`${base}/api/kiwoom/fills?date=${dkey.replace(/-/g, '')}`);
-      if (!res.ok) continue; // retry on next render
-      const day = await res.json();
-      if (String(day?.date || '') !== dkey.replace(/-/g, '')) continue;
-      (Array.isArray(day?.cntr) ? day.cntr : []).forEach(r => cached.push({ ...r, _date: dkey, _seenAt: now }));
-      backfilled.push(dkey);
-    } catch (e) { }
-  }
-  backfilled = backfilled.filter(dkey => now - new Date(`${dkey}T00:00:00+09:00`).getTime() <= 8 * 86400000);
-  try { localStorage.setItem(bfKey, JSON.stringify(backfilled)); } catch (e) { }
-  const deduped = Array.from(new Map([...cached, ...fetched.map(r => ({ ...r, _date: fetchDate, _seenAt: now }))].map(r => [`${fillIdKey(r)}|${r._date || ''}`, r])).values())
-    .filter(r => now - Number(r._seenAt || now) <= 7 * 86400000);
-  try { localStorage.setItem(cacheKey, JSON.stringify(deduped)); } catch (e) { }
-  return deduped;
-}
-
 async function renderKiwoomFills() { return renderBrokerFills('kiwoom'); }
-async function _old_renderKiwoomFills() {
-  const tbody = document.getElementById('historyTableBody');
-  const thead = document.querySelector('#historyTable thead');
-  if (!tbody) return;
-  if (thead) thead.innerHTML = '<tr><th>종목</th><th>구분</th><th>주문가</th><th>체결가</th><th>수량</th><th>상태</th><th>시간</th><th>수수료</th><th>수익금</th></tr>';
-  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">키움 체결내역 조회 중...</td></tr>';
+
+// ⚠️ 2026-07-30까지 이 아래에 App1(국내 키움) 프록시(`KIWOOM_API_BASE || 'http://localhost:8787'`,
+// ka10076/kt00009 등 국내 필드)를 참조하는 별도의 매도 대조 파이프라인이 있었다
+// (getKiwoomFillsCached/loadKiwoom7dFills/getKiwoom7dSellReconcile 등). 골든 룰 8이 금지하는
+// App1 프록시에 의존했을 뿐 아니라, 애초에 해외주식 체결과 무관한 데이터라 슬롯이 LS(4~6)여도
+// 항상 "키움" 체결로만 표시됐다(사용자 실증). 통합 보유현황(render-holdings.js)이 쓰는
+// window.BrokerReconcile(broker3-proxy 기반, 키움+LS 실제 해외주식 체결)로 완전히 교체했다 —
+// 아래 renderDBTradeHistory()의 대조 로직을 참고.
+let sellReconcileRefreshInFlight = false;
+let sellReconcileRefreshedAt = 0;
+async function refreshSellReconcileFills() {
+  if (sellReconcileRefreshInFlight) return;
+  if (Date.now() - sellReconcileRefreshedAt < 60000) return; // 1분 캐시
+  if (!window.BrokerReconcile) return;
+  sellReconcileRefreshInFlight = true;
   try {
-    const now = Date.now();
-    const today = kstDateKeyFromMs(now);
-    const deduped = await loadKiwoom7dFills();
-    // Newest first: date desc, then fill time (fallback order time) desc.
-    const fillSortKey = r => `${r._date || ''} ${String(r.cntr_tm || r.ord_tm || '').replace(/[^0-9]/g, '').padStart(6, '0')}`;
-    const rows = deduped.slice().sort((a, b) => fillSortKey(b).localeCompare(fillSortKey(a)));
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">체결내역이 없습니다</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(r => {
-      const tickerCode = String(r.stk_cd || '').replace(/^A/, '');
-      const managedTicker = window.KR_TICKERS_CONFIG?.DEFAULT_SYMBOLS?.find(item => item.code === tickerCode);
-      const fullStockName = String(r.stk_nm || r.stk_cd || '-');
-      const stockName = String(managedTicker?.name || fullStockName);
-      const stockChars = Array.from(stockName);
-      const shortStockName = stockChars.length > 10 ? `${stockChars.slice(0, 10).join('')}…` : stockName;
-      const side = String(r.io_tp_nm || '').replace(/^[-+]/, '') || '-';
-      // cntr_tm = real fill time ("15:30:07", merged from kt00009 by the proxy);
-      // fallback ord_tm = order-submission time ("152529") for unfilled/legacy rows.
-      const time = String(r.cntr_tm || r.ord_tm || '').replace(/[^0-9]/g, '')
-        .padStart(6, '0').replace(/^(\d{2})(\d{2})(\d{2})$/, '$1:$2:$3');
-      const n = v => Math.round(Number(String(v || 0).replace(/[^0-9.-]/g, '')) || 0).toLocaleString();
-      const qty = Number(String(r.cntr_qty || r.ord_qty || 0).replace(/[^0-9.-]/g, '')) || 0;
-      const gross = (Number(String(r.cntr_pric || r.ord_pric || 0).replace(/[^0-9.-]/g, '')) || 0) * qty;
-      // Backfilled past-day BUY rows have no fee data (only sell fees are queryable
-      // for past dates via ka10072) — show '-' instead of a misleading ₩0.
-      const feeKnown = r.tdy_trde_cmsn != null || r.tdy_trde_tax != null;
-      const fee = Number(String(r.tdy_trde_cmsn || 0).replace(/[^0-9.-]/g, '')) || 0;
-      const tax = Number(String(r.tdy_trde_tax || 0).replace(/[^0-9.-]/g, '')) || 0;
-      const isSell = side.includes('매도');
-      // 수익금 = 키움 실현손익(ka10072 tdy_sel_pl, 프록시가 rlzt_pl로 전달). 매수는 청산 전이라 '-'.
-      // 실현손익 값이 없는 매도 행(프록시 미갱신/조회 실패)도 '-'로 둔다.
-      const plKnown = isSell && r.rlzt_pl != null && String(r.rlzt_pl) !== '';
-      const pl = plKnown ? (Number(String(r.rlzt_pl).replace(/[^0-9.-]/g, '')) || 0) : 0;
-      const profitCell = !isSell
-        ? `<td style="color:var(--text-muted);">-</td>`
-        : (plKnown
-          ? `<td class="${pl >= 0 ? 'profit-plus' : 'profit-minus'}">${pl < 0 ? '-' : ''}₩${n(Math.abs(pl))}</td>`
-          : `<td style="color:var(--text-muted);">-</td>`);
-      return `<tr><td title="${escapeTradeHistoryHtml(fullStockName)}" style="max-width:10em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeTradeHistoryHtml(shortStockName)}</td><td>${side}</td><td>₩${n(r.ord_pric)}</td><td>₩${n(r.cntr_pric)}</td><td>${n(qty)}주</td><td>${r.ord_stt || '-'}</td><td>${formatYymmdd(r._date || today)} ${time}</td><td>${feeKnown ? `₩${n(fee)}` : '-'}</td>${profitCell}</tr>`;
-    }).join('');
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">키움 체결내역 조회 실패</td></tr>`;
-  }
-}
-
-// KST-shifted Y-M-D key, independent of the browser's local timezone.
-function kstDateKeyFromMs(ms) {
-  const d = new Date(ms + 9 * 3600 * 1000);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-}
-
-// ka10076 is TODAY-only, so 매도 reconciliation can only cover today's 청산 rows —
-// older rows have no live Kiwoom record to check against and are left unmarked.
-// Aggregated per ticker (not per-lot) for the same reason render-holdings.js does:
-// kt00018-style per-lot detail isn't available, only same-day fill totals.
-function getTodaySellAggregateByTicker(fillsData) {
-  const map = new Map();
-  const rows = Array.isArray(fillsData?.cntr) ? fillsData.cntr : (Array.isArray(fillsData?.acnt_ord_cntr_prst_array) ? fillsData.acnt_ord_cntr_prst_array : []);
-  rows.forEach(r => {
-    const side = String(r.io_tp_nm || '');
-    if (!side.includes('매도') || String(r.ord_stt || '') !== '체결') return;
-    const ticker = String(r.stk_cd || '').replace(/^A/, '');
-    const qty = Number(String(r.cntr_qty || r.ord_qty || 0).replace(/[^0-9.-]/g, '')) || 0;
-    const price = Number(String(r.cntr_pric || r.ord_pric || 0).replace(/[^0-9.-]/g, '')) || 0;
-    if (!ticker || qty <= 0) return;
-    const cur = map.get(ticker) || { qty: 0, cost: 0 };
-    cur.qty += qty;
-    cur.cost += qty * price;
-    map.set(ticker, cur);
-  });
-  return map;
-}
-
-let kiwoomTodaySellRefreshInFlight = false;
-async function refreshKiwoomTodaySellCache() {
-  if (kiwoomTodaySellRefreshInFlight) return;
-  if (window.__kiwoomTodaySellMap && Date.now() - (window.__kiwoomTodaySellMapAt || 0) < 60000) return;
-  kiwoomTodaySellRefreshInFlight = true;
-  try {
-    const data = await getKiwoomFillsCached();
-    window.__kiwoomTodaySellMap = getTodaySellAggregateByTicker(data);
-    window.__kiwoomTodaySellMapAt = Date.now();
-    if (historyViewMode === 'strategy') {
-      lastTradeHistoryRenderSignature = ''; // force re-render now that live data is available
-      renderDBTradeHistory();
-    }
-  } catch (e) {
-    console.warn("[매매내역] 키움 체결내역 조회 실패(대조 생략):", e.message);
-  } finally {
-    kiwoomTodaySellRefreshInFlight = false;
-  }
-}
-
-// 최근 ~7거래일 키움 체결(매도)로 실전 매도내역을 대조하기 위한 맵을 localStorage 캐시에서 구성한다.
-// (renderKiwoomFills/loadKiwoom7dFills가 저장해 둔 vtotal_kiwoom_fills_7d_* 를 그대로 읽음)
-// ⚠️ 날짜 포맷: 키움 _date는 YYYY-MM-DD 형태. normalizeDateKey로 재확인하여 일관성 보장.
-function getKiwoom7dSellReconcile() {
-  const uid = window.myUserId || 'default';
-  let rows = [], backfilled = [];
-  try { rows = JSON.parse(localStorage.getItem(`vtotal_kiwoom_fills_7d_${uid}`) || '[]'); } catch (e) { rows = []; }
-  try { backfilled = JSON.parse(localStorage.getItem(`vtotal_kiwoom_fills_bf_${uid}`) || '[]'); } catch (e) { backfilled = []; }
-  const sellMap = new Map();
-  const coveredDates = new Set(backfilled);
-  coveredDates.add(kstDateKeyFromMs(Date.now()));
-  rows.forEach(r => {
-    const rawDate = String(r._date || '');
-    const normalizedDate = normalizeDateKey(rawDate);
-    if (normalizedDate) coveredDates.add(normalizedDate);
-    if (!String(r.io_tp_nm || '').includes('매도') || String(r.ord_stt || '') !== '체결') return;
-    const ticker = String(r.stk_cd || '').replace(/^A/i, '').trim();
-    const qty = Number(String(r.cntr_qty || r.ord_qty || 0).replace(/[^0-9.-]/g, '')) || 0;
-    const price = Number(String(r.cntr_pric || r.ord_pric || 0).replace(/[^0-9.-]/g, '')) || 0;
-    if (!ticker || !normalizedDate || qty <= 0) return;
-    const key = `${ticker}|${normalizedDate}`;
-    const cur = sellMap.get(key) || { qty: 0, cost: 0 };
-    cur.qty += qty; cur.cost += qty * price;
-    sellMap.set(key, cur);
-  });
-  return { sellMap, coveredDates, hasData: rows.length > 0 };
-}
-
-// 실전 매도내역 대조용 7일 체결 캐시를 백그라운드로 갱신 후 재렌더 (키움 내역 뷰를 안 열어도 대조 가능).
-let kiwoom7dFillsRefreshInFlight = false;
-let kiwoom7dFillsRefreshedAt = 0;
-async function refreshKiwoom7dFillsCache() {
-  if (kiwoom7dFillsRefreshInFlight) return;
-  if (Date.now() - kiwoom7dFillsRefreshedAt < 60000) return; // 1분 캐시
-  kiwoom7dFillsRefreshInFlight = true;
-  try {
-    await loadKiwoom7dFills(); // localStorage 캐시 갱신
-    kiwoom7dFillsRefreshedAt = Date.now();
+    await window.BrokerReconcile.refreshFills();
+    sellReconcileRefreshedAt = Date.now();
     if (historyViewMode === 'strategy') {
       lastTradeHistoryRenderSignature = '';
       renderDBTradeHistory();
     }
   } catch (e) {
-    console.warn('[매매내역] 7일 체결 대조 데이터 갱신 실패:', e.message);
+    console.warn('[매매내역] 체결 대조 데이터 갱신 실패:', e.message);
   } finally {
-    kiwoom7dFillsRefreshInFlight = false;
+    sellReconcileRefreshInFlight = false;
   }
 }
 
@@ -588,33 +327,17 @@ function renderDBTradeHistory() {
     });
     allTrades = Array.from(mergedTrades.values());
 
-    // 최근 ~7거래일 키움 체결(매도)과 대조: 종목+청산일 단위로 수량/체결가를 비교한다.
-    // (과거엔 '오늘'만 가능했지만 키움 매수·매도 내역이 7일치를 보관하므로 그 범위 전부 대조)
+    // 최근 체결(해외주식, 브로커별)과 대조: 종목+청산일+브로커 단위로 수량/체결가를 비교한다.
     // ⚠️ 날짜 포맷 통일: 앱의 청산일 형태(26/07/21, 2026.7.21 등)를 normalizeDateKey로 YYYY-MM-DD로 변환
-    const todayKey = kstDateKeyFromMs(Date.now());
-    const reconcile7d = getKiwoom7dSellReconcile();
+    // window.BrokerReconcile이 키움+LS 양쪽의 실제 해외주식 체결(broker3-proxy)을 이미 캐시해 두므로
+    // 그 상태(state.sell/coveredDates)를 슬롯의 실제 브로커(brokerForSlot) 기준으로 조회한다.
     const stripA = s => String(s || '').replace(/^A/i, '').trim();
-    const appSellByTickerDate = new Map();
-    const debugDateFormats = []; // 디버깅용
-    allTrades.forEach(t => {
-      const rawSellDate = String(t.sellDate || t.sell_date || "");
-      const ticker = stripA(t.ticker);
-      if (!ticker || !rawSellDate) return;
-      const normalizedSellDate = normalizeDateKey(rawSellDate);
-      if (!normalizedSellDate) return;
-      // 디버깅: 날짜 변환 확인
-      if (debugDateFormats.length < 5) debugDateFormats.push({raw: rawSellDate, normalized: normalizedSellDate, ticker});
-      const key = `${ticker}|${normalizedSellDate}`;
-      const cur = appSellByTickerDate.get(key) || { qty: 0, cost: 0 };
-      const qty = Number(t.qty || 0);
-      cur.qty += qty;
-      cur.cost += qty * Number(t.sell_price ?? t.sellPrice ?? 0);
-      appSellByTickerDate.set(key, cur);
-    });
-    // 종목+청산일별 각 행의 reconciliation 상태를 결정
+    const BR = window.BrokerReconcile;
+    const reconcileState = BR ? BR.state : null;
+    // 종목+청산일+브로커별 각 행의 reconciliation 상태를 결정
     // 같은 그룹 내 행들을 진입일 역순으로 정렬한 후, 매도된 수량을 상위부터 차감
-    const sellStatusByRowKey = new Map(); // (ticker|sellDate|buyDate) → status & mismatchQty
-    const groupedByTicker = new Map(); // ticker|sellDate → [{buyDate, qty, cost}, ...]
+    const sellStatusByRowKey = new Map(); // (broker|ticker|sellDate|buyDate) → status & mismatchQty
+    const groupedByTicker = new Map(); // broker|ticker|sellDate → [{buyDate, qty}, ...]
 
     allTrades.forEach(t => {
       const rawSellDate = String(t.sellDate || t.sell_date || "");
@@ -622,18 +345,25 @@ function renderDBTradeHistory() {
       if (!ticker || !rawSellDate) return;
       const normalizedSellDate = normalizeDateKey(rawSellDate);
       if (!normalizedSellDate) return;
-      const groupKey = `${ticker}|${normalizedSellDate}`;
+      const broker = BR ? BR.brokerForSlot(t.slotNum) : "kiwoom";
+      const groupKey = `${broker}|${ticker}|${normalizedSellDate}`;
       if (!groupedByTicker.has(groupKey)) groupedByTicker.set(groupKey, []);
       groupedByTicker.get(groupKey).push({
         buyDate: String(t.buyDate || t.buy_date || ""),
-        qty: Number(t.qty || 0),
-        cost: Number(t.qty || 0) * Number(t.sell_price ?? t.sellPrice ?? 0)
+        qty: Number(t.qty || 0)
       });
     });
 
     groupedByTicker.forEach((rows, groupKey) => {
-      const [ticker, normalizedSellDate] = groupKey.split('|');
-      if (!reconcile7d.coveredDates.has(normalizedSellDate)) {
+      const [broker, ticker, normalizedSellDate] = groupKey.split('|');
+      if (!reconcileState || !reconcileState.ready) {
+        rows.forEach(r => {
+          const rowKey = `${groupKey}|${r.buyDate}`;
+          sellStatusByRowKey.set(rowKey, { status: (reconcileState && reconcileState.failed) ? 'unknown' : 'loading', mismatchQty: 0 });
+        });
+        return;
+      }
+      if (!reconcileState.coveredDates.has(`${broker}|${normalizedSellDate}`)) {
         rows.forEach(r => {
           const rowKey = `${groupKey}|${r.buyDate}`;
           sellStatusByRowKey.set(rowKey, { status: 'pending', mismatchQty: 0 });
@@ -641,7 +371,7 @@ function renderDBTradeHistory() {
         return;
       }
 
-      const live = reconcile7d.sellMap.get(groupKey);
+      const live = reconcileState.sell.get(`${broker}|${ticker}|${normalizedSellDate}`);
       if (!live) {
         rows.forEach(r => {
           const rowKey = `${groupKey}|${r.buyDate}`;
@@ -694,9 +424,14 @@ function renderDBTradeHistory() {
       const time = Date.parse(`${value}T00:00:00Z`);
       return time >= monthStart && time < monthEnd;
     }) : allTrades;
-    const signature = `${allTrades.length}|${historyMonthOffset}|${latestDate}|${allTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0)}|kw:${reconcile7d.sellMap.size}:${reconcile7d.coveredDates.size}:${reconcile7d.hasData}`;
+    const signature = `${allTrades.length}|${historyMonthOffset}|${latestDate}|${allTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0)}|br:${reconcileState ? reconcileState.sell.size : 0}:${reconcileState ? reconcileState.ready : false}`;
     if (signature === lastTradeHistoryRenderSignature && tbody.children.length > 0) return;
     lastTradeHistoryRenderSignature = signature;
+
+    // fire-and-forget: 체결 데이터가 아직 없으면(로딩) 받아온 뒤 자기 자신을 한 번 다시 그린다.
+    if (BR && !BR.isReady()) {
+      BR.refreshFills(() => { if (historyViewMode === 'strategy') renderDBTradeHistory(); });
+    }
 
     const scrollHost = tbody.closest('.slim-scroll');
     if (scrollHost && !historyScrollBound) {
@@ -746,11 +481,13 @@ function renderDBTradeHistory() {
         sellDate = sellDate.substring(2);
       }
 
-      // 키움 최근 ~7거래일 체결(매도)과 행 단위로 대조한 상태.
+      // 슬롯의 실제 브로커(키움 1~3 / LS 4~6) 체결과 행 단위로 대조한 상태.
+      const rowBroker = BR ? BR.brokerForSlot(slot) : "kiwoom";
+      const rowBrokerLabel = rowBroker === "ls" ? "LS" : "키움";
       const rawSellDate = String(t.sellDate || t.sell_date || "");
       const normalizedSellDateForLookup = normalizeDateKey(rawSellDate);
       const buyDateStr = String(t.buyDate || t.buy_date || "");
-      const rowKeyLookup = `${stripA(t.ticker)}|${normalizedSellDateForLookup}|${buyDateStr}`;
+      const rowKeyLookup = `${rowBroker}|${stripA(t.ticker)}|${normalizedSellDateForLookup}|${buyDateStr}`;
       const rowStatusObj = sellStatusByRowKey.get(rowKeyLookup) || { status: 'pending', mismatchQty: 0 };
       const rowStatus = rowStatusObj.status;
       const mismatchQty = rowStatusObj.mismatchQty || 0;
@@ -758,8 +495,8 @@ function renderDBTradeHistory() {
       const isMismatch = rowStatus === 'mismatch' || isOversold;
       const mmStyle = isMismatch ? "color:#ef4444; font-weight:700;" : "";
       const mmTitle = isOversold
-        ? `title="키움에서 예상보다 많이 매도됨 — 앱 예상 ${Math.round(rowStatusObj.appQty || 0)}주 / 키움 실제 ${Math.round(rowStatusObj.liveQty || 0)}주"`
-        : (isMismatch ? 'title="이 행의 수량이 키움 체결내역과 부분 불일치"' : "");
+        ? `title="${rowBrokerLabel}에서 예상보다 많이 매도됨 — 앱 예상 ${Math.round(rowStatusObj.appQty || 0)}주 / ${rowBrokerLabel} 실제 ${Math.round(rowStatusObj.liveQty || 0)}주"`
+        : (isMismatch ? `title="이 행의 수량이 ${rowBrokerLabel} 체결내역과 부분 불일치"` : "");
 
       // 일치 컬럼(보유현황과 동일 개념): 일치/과매도/불일치/보류. 팔린 내역 행은 배경색으로 강조.
       let reconcile, rowBg;
@@ -779,7 +516,8 @@ function renderDBTradeHistory() {
         rowBg = 'background:rgba(255,255,255,0.03);';
       }
       const reconcileTitle = isMismatch ? mmTitle
-        : (rowStatus === 'pending' ? 'title="키움 체결 대조 대기 — 최근 체결내역에 없거나 조회 범위(약 7거래일)를 벗어남"' : 'title="키움 체결과 일치"');
+        : (rowStatus === 'pending' ? `title="${rowBrokerLabel} 체결 대조 대기 — 최근 체결내역에 없음"`
+          : (rowStatus === 'match' ? `title="${rowBrokerLabel} 체결과 일치"` : `title="${rowBrokerLabel} 체결내역 확인 중"`));
 
       const mode = modeMap[t.mode] || t.mode || "-";
       const tier = t.tier || "-";
@@ -823,7 +561,7 @@ function renderDBTradeHistory() {
       </tr>`;
     }).join('');
     applyPrimaryDateHighlight();
-    refreshKiwoom7dFillsCache(); // fire-and-forget; 7일 체결 대조 데이터 갱신 후 재렌더
+    refreshSellReconcileFills(); // fire-and-forget; 체결 대조 데이터 갱신 후 재렌더
   } catch (e) {
     console.error("[매매내역] 렌더링 중 런타임 오류 발생:", e);
     tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px; color:var(--danger);">매매 내역 로딩 중 오류가 발생했습니다. (콘솔 확인 요망)</td></tr>`;
@@ -986,19 +724,22 @@ function getClosePriceOnDate(dateStr, slotNum) {
   return bestIdx !== -1 ? mainData.close[bestIdx] : null;
 }
 
-// 브로커 전환 시 호출: "키움/한투 매수매도 내역"(fills) 뷰를 보고 있었다면 새 증권사의
+// 브로커 전환 시 호출: "키움/LS 매수매도 내역"(fills) 뷰를 보고 있었다면 새 증권사의
 // fills 뷰로 즉시 갈아탄다. "실전 매도 내역"(strategy) 뷰는 이미 isSlotActive로 필터링되므로
 // 그대로 둔다.
+// ⚠️ 2026-07-30까지 이 함수는 옛 키움/한투(KIS) 체계(window.brokerService.getBroker(),
+//    모드값 'kis')를 참조하고 있었다 — 지금은 키움/LS 체계(window.BrokerService.activeBroker,
+//    모드값 'ls')라 실행돼도 broker가 항상 'kiwoom'으로 잡혀 아무 효과가 없었다. toggleView()의
+//    현재 로직에 맞춰 다시 작성했다.
 function syncHistoryViewModeToBroker() {
-  if (historyViewMode !== 'kiwoom' && historyViewMode !== 'kis') return;
-  const broker = window.brokerService ? window.brokerService.getBroker() : 'kiwoom';
-  const wantMode = broker === 'kis' ? 'kis' : 'kiwoom';
+  if (historyViewMode !== 'kiwoom' && historyViewMode !== 'ls') return;
+  const broker = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
+  const wantMode = broker === 'ls' ? 'ls' : 'kiwoom';
   if (historyViewMode === wantMode) return;
   historyViewMode = wantMode;
-  const title = document.getElementById('historyTitle');
-  if (title) title.textContent = wantMode === 'kis' ? '📋 한투 매수·매도 내역' : '📋 키움 매수·매도 내역';
-  if (wantMode === 'kiwoom') { kiwoomFillsCache = null; renderKiwoomFills(); }
-  else { renderKisFills(); }
+  const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
+  if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매수·매도 내역' : '📋 키움 매수·매도 내역';
+  renderBrokerFills(wantMode);
 }
 
 if (!window.UI) window.UI = {};

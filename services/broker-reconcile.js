@@ -132,6 +132,9 @@
   //   data must not be rendered as a contradiction.
   const state = { buy: new Map(), sell: new Map(), coveredDates: new Set(), ready: false, failed: false, rows: [] };
 
+  // ⚠️ 2026-07-30까지 키가 `symbol|date`뿐이라 키움·LS가 같은 종목을 같은 날 매매하면
+  //    두 브로커의 체결이 한 칸에 합쳐졌다(수량 합산, 평균가 뒤섞임). 슬롯 1~3=키움,
+  //    4~6=LS인데 조회는 항상 브로커별이라 이제 broker를 키에 포함해 완전히 분리한다.
   function ingest(broker, data) {
     const rows = Array.isArray(data && data.executions) ? data.executions
       : (Array.isArray(data && data.rows) ? data.rows : []);
@@ -144,12 +147,12 @@
       const side = String(r.side || "").toUpperCase();
       const isBuy = side.includes("BUY") || side.includes("매수");
       const target = isBuy ? state.buy : state.sell;
-      const key = `${symbol}|${date}`;
+      const key = `${broker}|${symbol}|${date}`;
       const cur = target.get(key) || { qty: 0, cost: 0 };
       cur.qty += qty;
       cur.cost += qty * price;
       target.set(key, cur);
-      state.coveredDates.add(date);
+      state.coveredDates.add(`${broker}|${date}`);
       state.rows.push({ ...r, broker, _symbol: symbol, _date: date, _qty: qty, _price: price, _isBuy: isBuy });
     });
   }
@@ -181,21 +184,23 @@
   // ─────────── reconcile status ───────────
   // Compare rounded quantities only. Prices differ legitimately (limit vs fill),
   // so a price gap alone is surfaced in the tooltip, not as a mismatch.
-  function statusFor(map, symbol, dateKey, appQty) {
+  function statusFor(map, broker, symbol, dateKey, appQty) {
     if (!state.ready) return { status: state.failed ? "unknown" : "loading" };
     const sym = normSymbol(symbol);
     const date = normalizeDateKey(dateKey);
     if (!sym || !date) return { status: "unknown" };
-    if (!state.coveredDates.has(date)) return { status: "pending", appQty };
-    const live = map.get(`${sym}|${date}`);
+    if (!state.coveredDates.has(`${broker}|${date}`)) return { status: "pending", appQty };
+    const live = map.get(`${broker}|${sym}|${date}`);
     if (!live || live.qty <= 0) return { status: "mismatch", appQty, liveQty: 0, livePrice: 0 };
     const livePrice = live.cost / live.qty;
     const matched = Math.round(Number(appQty) || 0) === Math.round(live.qty);
     return { status: matched ? "match" : "mismatch", appQty, liveQty: live.qty, livePrice };
   }
 
-  const holdingStatus = (symbol, buyDate, appQty) => statusFor(state.buy, symbol, buyDate, appQty);
-  const sellStatus = (symbol, sellDate, appQty) => statusFor(state.sell, symbol, sellDate, appQty);
+  // broker는 필수가 아니라 편의상 기본값을 둔다 — 실제로는 항상 brokerForSlot(slotNum)으로
+  // 넘겨받아야 한다(안 넘기면 슬롯 4~6=LS 데이터를 잘못 키움 쪽에서 찾게 된다).
+  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom") => statusFor(state.buy, broker, symbol, buyDate, appQty);
+  const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => statusFor(state.sell, broker, symbol, sellDate, appQty);
 
   function badge(st) {
     switch (st && st.status) {

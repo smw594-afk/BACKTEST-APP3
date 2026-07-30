@@ -2,8 +2,9 @@
 
 function calculateCombinedPeriodData() {
   const activeRes = [];
+  // ⚠️ 2026-07-31: 일별수익(테이블 모드)도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && lastBTResults[i]) activeRes.push(getBestResult(lastBTResults[i], i));
+    if (isSlotActive(i) && lastBTResults[i] && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) activeRes.push(getBestResult(lastBTResults[i], i));
   }
 
   const results = activeRes.filter(r => r != null && r.chartDates && r.chartDates.length > 0);
@@ -36,7 +37,7 @@ function calculateCombinedPeriodData() {
     renderPeriodBarChart();
   } else {
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) renderPeriodTableText(i);
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) renderPeriodTableText(i);
     }
     renderPeriodTableText('Combined');
     renderPeriodTableText(0);
@@ -144,21 +145,21 @@ function renderPeriodTableSlot(slotNum) {
 function renderPerfTables() {
   // 년별 테이블 (viewStateOverride = 1, suffix = "Yearly")
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) renderPeriodTableTextRaw(i, 1, "Yearly");
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) renderPeriodTableTextRaw(i, 1, "Yearly");
   }
   renderPeriodTableTextRaw('Combined', 1, "Yearly");
   renderPeriodTableTextRaw(0, 1, "Yearly");
 
   // 월별 테이블 (viewStateOverride = 0, suffix = "Monthly")
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) renderPeriodTableTextRaw(i, 0, "Monthly");
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) renderPeriodTableTextRaw(i, 0, "Monthly");
   }
   renderPeriodTableTextRaw('Combined', 0, "Monthly");
   renderPeriodTableTextRaw(0, 0, "Monthly");
 
   // 일별 테이블 (viewStateOverride = 2, suffix = "Daily")
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) renderPeriodTableTextRaw(i, 2, "Daily");
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) renderPeriodTableTextRaw(i, 2, "Daily");
   }
   renderPeriodTableTextRaw('Combined', 2, "Daily");
   renderPeriodTableTextRaw(0, 2, "Daily");

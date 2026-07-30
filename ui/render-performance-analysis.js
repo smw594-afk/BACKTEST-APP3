@@ -48,7 +48,9 @@ function getAnalysisSeries(kind) {
   const slots = [];
 
   // 각 slot의 데이터 수집
+  // ⚠️ 2026-07-31: 성과 분석도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let slot = 1; slot <= MAX_SLOTS; slot++) {
+    if (window.BrokerService && !window.BrokerService.isSlotForBroker(slot)) continue;
     const snapKey = `vtotal3_snap${slot}_${myUserId || window.myUserId || ''}`;
     const snapStr = localStorage.getItem(snapKey);
     if (!snapStr) continue;

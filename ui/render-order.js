@@ -12,6 +12,13 @@ async function refreshOrderStatusCache() {
     const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
     if (!userId) return;
 
+    // ⚠️ 2026-07-31까지 이 함수가 lastUpdated를 갱신하지 않아 refreshOrderViewUI()의
+    // 60초 쓰로틀(Date.now() - lastUpdated > 60000)이 항상 통과했다 — renderOrderViewSlot()이
+    // 슬롯마다 매 렌더링 시 refreshOrderViewUI()를 호출하는 구조라, 초당 여러 번 재조회가
+    // 나가서 LS COSAQ00102/키움 ust21150이 유량 초과(429)에 걸렸다(사용자 실증).
+    // 시작 시점에 찍어야 느린/실패 응답 중에도 중복 재진입을 막는다.
+    window.orderStatusCache.lastUpdated = Date.now();
+
     let base = window.BROKER_API_BASE;
     if (!base || typeof base !== 'string' || !base.startsWith('http')) {
       base = (window.BrokerService && typeof window.BrokerService.getApiBase === 'function')
@@ -203,8 +210,10 @@ function buildCombinedOrderSignature(orders, orderDate = "") {
 function collectCurrentCombinedOrders() {
   const orders = [];
   let currentDate = "";
+  // ⚠️ 2026-07-31부터 "통합 주문표"도 활성 브로커(키움 슬롯1~3 / LS 슬롯4~6)만 필터링한다.
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
     if (!window.isSlotActive(i)) continue;
+    if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
     const res = window.getBestResult(window.lastBTResults[i], i);
     if (!res) continue;
     if (i === 1 && !currentDate) currentDate = res.orderDateStr || "";
@@ -232,9 +241,10 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
   if (!tbody) return;
 
   // ⚠️ Check for ticker mismatch. If active slots have different tickers, show error and display no orders.
+  // 2026-07-31: 활성 브로커(키움 1~3 / LS 4~6) 슬롯만 대상으로 한다.
   const activeTickers = [];
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    if (window.isSlotActive(i)) {
+    if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       const tk = window.slotConfigs[i]?.basics?.ticker || "";
       if (tk) activeTickers.push(tk);
     }
@@ -251,9 +261,14 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
     return;
   }
 
+  // ⚠️ 2026-07-31 실증: 캐시 키가 브로커 구분 없이 userId만으로 잡혀 있으면, LS로 전환해
+  // 활성 슬롯이 0개(current.orders.length===0)가 됐을 때 isFreshCombinedSnapshot()가
+  // "아직 데이터 로딩 전"이라고 오판해 기본값 true를 반환 — 키움의 예전 스냅샷을 "최신"으로
+  // 착각해 그대로 복원해버렸다. 캐시 키 자체에 브로커를 넣어 완전히 분리한다.
   const cacheUserId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
-  const cacheKey = cacheUserId ? `vtotal3_snap_combined_orders_${cacheUserId}` : '';
-  const viewCacheKey = cacheUserId ? `vtotal3_combined_order_view_${cacheUserId}` : '';
+  const cacheBroker = (window.BrokerService && window.BrokerService.activeBroker) || 'kiwoom';
+  const cacheKey = cacheUserId ? `vtotal3_snap_combined_orders_${cacheUserId}_${cacheBroker}` : '';
+  const viewCacheKey = cacheUserId ? `vtotal3_combined_order_view_${cacheUserId}_${cacheBroker}` : '';
 
   const isFreshCombinedSnapshot = (snapshot) => {
     if (!snapshot) return false;
@@ -332,6 +347,14 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
     // 초기 로딩 중 빈 메모리 결과가 마지막 정상 주문표를 덮지 않게 한다.
     if (restoreRenderedView()) return;
     tbody.innerHTML = "<tr><td colspan='4' style='padding:20px; color:#64748b; text-align:center;'>통합 주문 내역이 없습니다</td></tr>";
+    // ⚠️ 2026-07-31: BUY/SELL/PG 카운터도 같이 리셋한다 — 안 그러면 브로커를 바꿔 주문표가
+    // 비어도 이전 브로커의 수량이 그대로 남아 있었다.
+    const buyQtyElEmpty = document.getElementById('combinedBuyQtyVal');
+    const sellQtyElEmpty = document.getElementById('combinedSellQtyVal');
+    const pgElEmpty = document.getElementById('combinedProgressVal');
+    if (buyQtyElEmpty) buyQtyElEmpty.textContent = "-";
+    if (sellQtyElEmpty) sellQtyElEmpty.textContent = "-";
+    if (pgElEmpty) pgElEmpty.textContent = "-";
     return;
   }
 

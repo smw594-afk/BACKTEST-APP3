@@ -29,7 +29,7 @@ function togglePeriodDisplayModeYearly(skipChildren = false) {
     if (tableC) tableC.style.display = 'block';
     if (btn) btn.innerHTML = '<span>📊</span>';
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) window.UI.performance.renderPeriodTableTextRaw(i, 1, "Yearly");
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableTextRaw(i, 1, "Yearly");
     }
     window.UI.performance.renderPeriodTableTextRaw('Combined', 1, "Yearly");
     window.UI.performance.renderPeriodTableTextRaw(0, 1, "Yearly");
@@ -61,7 +61,7 @@ function togglePeriodDisplayModeMonthly() {
     if (tableC) tableC.style.display = 'block';
     if (btn) btn.innerHTML = '<span>📊</span>';
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) window.UI.performance.renderPeriodTableTextRaw(i, 0, "Monthly");
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableTextRaw(i, 0, "Monthly");
     }
     window.UI.performance.renderPeriodTableTextRaw('Combined', 0, "Monthly");
     window.UI.performance.renderPeriodTableTextRaw(0, 0, "Monthly");
@@ -88,7 +88,7 @@ function togglePeriodDisplayModeDaily() {
     if (tableC) tableC.style.display = 'block';
     if (btn) btn.innerHTML = '<span>📊</span>';
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) window.UI.performance.renderPeriodTableTextRaw(i, 2, "Daily");
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableTextRaw(i, 2, "Daily");
     }
     window.UI.performance.renderPeriodTableTextRaw('Combined', 2, "Daily");
     window.UI.performance.renderPeriodTableTextRaw(0, 2, "Daily");
@@ -130,7 +130,7 @@ function toggleOrderView(dir) {
   // 2. 보유현황 상태(window.isOrderView === false)일 때 타이틀 클릭 ➔ 보유현황 모드만 무한 루프 순환
   const activeSlots = [];
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    if (typeof isSlotActive === 'function' && isSlotActive(i)) {
+    if (typeof isSlotActive === 'function' && isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       activeSlots.push(i);
     }
   }
@@ -270,14 +270,16 @@ function toggleOrderExpansion() {
 }
 
 function toggleChartView() {
+  // ⚠️ 2026-07-31: 성과추이 순환도 활성 브로커(키움 1~3 / LS 4~6) 슬롯만 대상으로 한다(사용자 요청).
+  const chartSlotOk = (i) => isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i));
   let activeCount = 0;
-  for (let i = 1; i <= MAX_SLOTS; i++) if (isSlotActive(i)) activeCount++;
+  for (let i = 1; i <= MAX_SLOTS; i++) if (chartSlotOk(i)) activeCount++;
   if (activeCount === 0) return;
 
   // ⭐️ 안전한 순환 로직: 무한루프 방지 및 비어있는 슬롯 자동 건너뛰기
   do {
     chartViewMode = (chartViewMode + 1) % (MAX_SLOTS + 2);
-  } while (chartViewMode >= 2 && chartViewMode <= MAX_SLOTS + 1 && !isSlotActive(chartViewMode - 1));
+  } while (chartViewMode >= 2 && chartViewMode <= MAX_SLOTS + 1 && !chartSlotOk(chartViewMode - 1));
 
   try { localStorage.setItem(`vtotal3_chart_view_mode_${myUserId}`, chartViewMode); } catch (e) { }
   renderChartAll();
@@ -376,7 +378,7 @@ function togglePeriodView() {
 
     window.UI.performance.renderPeriodTableText(0);
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) window.UI.performance.renderPeriodTableText(i);
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableText(i);
     }
     window.UI.performance.renderPeriodTableText('Combined');
   }
@@ -444,7 +446,7 @@ function refreshAllUI() {
     renderPeriodBarChart();
   } else {
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) window.UI.performance.renderPeriodTableText(i);
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableText(i);
     }
     window.UI.performance.renderPeriodTableText('Combined');
     window.UI.performance.renderPeriodTableText(0);

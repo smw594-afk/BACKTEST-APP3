@@ -19,8 +19,10 @@ function buildStatsPieRows() {
   const slotColors = Array.isArray(window.SLOT_COLORS) && window.SLOT_COLORS.length > 0
     ? window.SLOT_COLORS
     : ['#6366f1', '#10b981', '#fbbf24', '#f43f5e', '#8b5cf6', '#06b6d4', '#eab308'];
+  // ⚠️ 2026-07-31: 자산현황(파이차트)도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let i = 1; i <= MAX_SLOTS; i++) {
     if (!isSlotActive(i)) continue;
+    if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
     const res = getBestResult(lastBTResults[i], i);
     if (!res) continue;
     const summary = getDisplayStatusData(res, i) || res.summary || {};
@@ -212,8 +214,9 @@ function renderOriginalStatsTable(table) {
   const grid = document.getElementById('mainGrid');
   const isBacktestStatsView = !!(grid && grid.classList.contains('backtest-view-layout'));
 
+  // ⚠️ 2026-07-31: 성과 지표도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) {
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       activeCount++;
       rows.push({
         res: getBestResult(lastBTResults[i], i),
@@ -374,7 +377,7 @@ function getDisplayStatusData(res, slotNum) {
   if (slotNum === 'Combined') {
     let firstActiveDate = null;
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) {
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const d = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`);
         if (d && d !== "-" && d !== "1900-01-01") {
           firstActiveDate = d;
@@ -499,6 +502,7 @@ function getDisplayStatusData(res, slotNum) {
     let hasHoldingsProfit = false;
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
+      if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
       const p = calcEvalProfit(getBestResult(lastBTResults[i], i));
       if (p !== null) {
         displayEvalProfit += p;
@@ -535,8 +539,9 @@ function renderRealtimeStatusTable(table) {
   let activeCount = 0;
   const slotRows = [];
 
+  // ⚠️ 2026-07-31: 실시간 운영현황도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) {
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       activeCount++;
       slotRows.push({
         res: getBestResult(lastBTResults[i], i),

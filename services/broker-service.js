@@ -49,6 +49,56 @@ window.BrokerService = {
     if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
       window.BrokerReconcile.invalidate();
     }
+
+    // ⚠️ 2026-07-30까지 여기서 캐시만 지우고 끝났다 — 계좌 정보/주문표 체결배지/매수매도내역
+    // 패널은 activeBroker를 정확히 읽고 있었지만 아무도 재렌더링을 트리거하지 않아, 브로커를
+    // 바꿔도 화면엔 이전 브로커 데이터가 그대로 남아 있었다(사용자 실증). 명시적으로 다시 그린다.
+    if (window.UI && window.UI.stats && typeof window.UI.stats.refreshStatsTable === "function") {
+      window.UI.stats.refreshStatsTable();
+    }
+    if (typeof window.refreshOrderStatusCache === "function") {
+      window.refreshOrderStatusCache();
+    }
+    if (window.UI && window.UI.tradeHistory && typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
+      window.UI.tradeHistory.syncHistoryViewModeToBroker();
+    }
+
+    // ⚠️ 2026-07-31부터 주문표/일별수익/성과추이/통합 보유현황도 활성 브로커(키움 1~3 / LS 4~6)
+    // 슬롯만 필터링하도록 바뀌었다(사용자 요청) — isSlotForBroker를 각 렌더 루프에 심었으니
+    // 브로커 전환 시 이 화면들도 다시 그려야 실제로 반영된다.
+    if (typeof window.updateSlotsVisibility === "function") {
+      window.updateSlotsVisibility();
+    }
+    if (window.UI && window.UI.holdings) {
+      if (typeof window.UI.holdings.renderCombinedHoldings === "function") window.UI.holdings.renderCombinedHoldings();
+      if (typeof window.UI.holdings.updateCombinedHoldingsSummary === "function") window.UI.holdings.updateCombinedHoldingsSummary();
+    }
+    if (window.UI && window.UI.order && typeof window.UI.order.renderCombinedOrderBook === "function") {
+      window.UI.order.renderCombinedOrderBook();
+    }
+    if (typeof window.renderChartAll === "function") {
+      window.renderChartAll();
+    }
+    if (typeof window.renderPeriodBarChart === "function") {
+      window.renderPeriodBarChart();
+    }
+    // 성과추이 상단 Y/M/D/DD는 window.chartRatesData에 계산 결과를 캐시해 재사용하므로
+    // (calculateChartRatesDataEngine, script.js), 캐시를 지우지 않으면 재계산 자체가 생략된다.
+    window.chartRatesData = null;
+    if (typeof window.updateChartRatesDisplay === "function") {
+      window.updateChartRatesDisplay();
+    }
+    // 일별수익이 "테이블" 모드(차트 모드가 아닐 때)인 경우도 다시 계산/렌더한다.
+    if (window.UI && window.UI.performance) {
+      if (typeof window.UI.performance.calculateCombinedPeriodData === "function") window.UI.performance.calculateCombinedPeriodData();
+      if (typeof window.UI.performance.renderPerfTables === "function") window.UI.performance.renderPerfTables();
+      // 성과 분석(도넛 차트) — render-performance-analysis.js.
+      if (typeof window.UI.performance.renderAnalysisView === "function") window.UI.performance.renderAnalysisView();
+    }
+    // 자산현황(파이차트) — perf-metrics-layout에서 계좌 정보와 토글되는 화면.
+    if (typeof window.updateStatsPieChart === "function") {
+      window.updateStatsPieChart();
+    }
   },
     openBrokerSelectPopup() {
     const old = document.getElementById("broker-select-popup-modal");
@@ -166,7 +216,9 @@ window.BrokerService = {
 
   async fetchOverseasFills(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    return await this.brokerFetch(`/api/broker/${broker}/fills`, "GET", null, 20000);
+    // ⚠️ 2026-07-31: LS는 계좌조회 유량이 초당 1건이라 하루씩 순차 조회하면 7일만도 최소 ~7.7초
+    // 걸린다(실제 API 지연 포함하면 더 길어짐) — 20초로는 여유가 부족해 타임아웃이 실증됐다.
+    return await this.brokerFetch(`/api/broker/${broker}/fills`, "GET", null, 30000);
   },
 
   // VM에 예약된 오늘의 주문표(자동주문 대기분)를 가져온다.

@@ -52,9 +52,11 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
   const isDaily = (targetViewState === 2);
   const globalDataArr = isDaily ? globalDailyDataArr : (isYearly ? globalYearlyDataArr : globalMonthlyDataArr);
 
+  // ⚠️ 2026-07-31부터 일별/월별/연별 수익 그래프도 활성 브로커(키움 1~3 / LS 4~6)만
+  // 필터링한다(사용자 요청).
   let activeSlotIndexes = [];
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && globalDataArr[i]) activeSlotIndexes.push(i);
+    if (isSlotActive(i) && globalDataArr[i] && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) activeSlotIndexes.push(i);
   }
 
   // 데이터 변경이 없을 경우 렌더링 생략 (점멸 방지)
@@ -97,7 +99,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
 
   let allPeriods = new Set();
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (globalDataArr[i] && isSlotActive(i)) {
+    if (globalDataArr[i] && isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       globalDataArr[i].forEach(r => {
         if (isDaily) {
           if (r.period && r.period.includes('-') && r.period.length >= 8) {
@@ -171,6 +173,7 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
   const yearlyMap = {}, monthlyMap = {}, dailyMap = {};
   for (let i = 1; i <= MAX_SLOTS; i++) {
     if (!isSlotActive(i)) continue;
+    if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
 
     if (globalYearlyDataArr[i]) globalYearlyDataArr[i].forEach(r => {
       if (r && r.period) {
@@ -221,7 +224,8 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
   try {
     const activeRes = [];
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (typeof isSlotActive === 'function' && isSlotActive(i) && lastBTResults[i]) {
+      if (typeof isSlotActive === 'function' && isSlotActive(i) && lastBTResults[i]
+          && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const res = typeof getBestResult === 'function' ? getBestResult(lastBTResults[i], i) : lastBTResults[i];
         if (res) activeRes.push(res);
       }
@@ -514,9 +518,10 @@ const titleClickPlugin = {
 // [4] 메인 성과추이 꺾은선 차트 렌더링
 // ---------------------------------------------------------
 function renderChartAll() {
+  // ⚠️ 2026-07-31부터 성과추이 차트도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   const validRes = [];
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i) && lastBTResults[i]) validRes.push(lastBTResults[i]);
+    if (isSlotActive(i) && lastBTResults[i] && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) validRes.push(lastBTResults[i]);
   }
   renderChart(validRes);
 }
@@ -609,7 +614,7 @@ function renderChart(resultsArray) {
     
     const slotMaps = [];
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i) && lastBTResults[i]) {
+      if (isSlotActive(i) && lastBTResults[i] && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const res = lastBTResults[i];
         const map = {};
         res.chartDates.forEach((d, idx) => { map[d] = res.chartBalances[idx]; });
@@ -688,7 +693,7 @@ function renderChart(resultsArray) {
     allMddValues = combinedMdd;
   } else {
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i) && lastBTResults[i]) {
+      if (isSlotActive(i) && lastBTResults[i] && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         if (chartViewMode === 1 || (chartViewMode - 1) === i) {
           const res = lastBTResults[i];
           const sName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;

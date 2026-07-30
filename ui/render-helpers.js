@@ -137,8 +137,9 @@ function getBestResult(currentRes, slotNum) {
 
 function calculateCombinedSummary() {
   const activeRes = [];
+  // ⚠️ 2026-07-31: "합산" 요약도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) {
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       const b = getBestResult(lastBTResults[i], i);
       if (b) activeRes.push(b);
     }

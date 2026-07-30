@@ -171,10 +171,13 @@ function generateDynamicDOM() {
 
     // 로그인/서버 초기화보다 먼저 통합 주문표 캐시를 DOM에 주입한다.
     // 전용 캐시가 아직 없으면 기존 슬롯 스냅샷에서 즉시 승격한다.
+    // ⚠️ 2026-07-31: 캐시 키에 브로커를 포함시킨다(render-order.js의 renderCombinedOrderBook과
+    // 동일 규칙) — 안 그러면 LS 전환 직후 이 조기 주입이 키움의 옛 스냅샷을 그대로 밀어넣는다.
     try {
       const cachedUserId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
+      const cachedBroker = (window.BrokerService && window.BrokerService.activeBroker) || 'kiwoom';
       const combinedBody = document.getElementById('combinedOrderBody');
-      const viewStr = cachedUserId ? localStorage.getItem(`vtotal3_combined_order_view_${cachedUserId}`) : null;
+      const viewStr = cachedUserId ? localStorage.getItem(`vtotal3_combined_order_view_${cachedUserId}_${cachedBroker}`) : null;
       const cachedView = viewStr ? JSON.parse(viewStr) : null;
       if (combinedBody && cachedView?.html && isFreshCombinedOrderSnapshot(cachedView, cachedUserId)) combinedBody.innerHTML = cachedView.html;
 
@@ -182,7 +185,7 @@ function generateDynamicDOM() {
       let cachedOrdersAlreadyCombined = false;
       let cachedCombinedSnapshot = null;
       if (cachedUserId) {
-        const combinedStr = localStorage.getItem(`vtotal3_snap_combined_orders_${cachedUserId}`);
+        const combinedStr = localStorage.getItem(`vtotal3_snap_combined_orders_${cachedUserId}_${cachedBroker}`);
         const combinedParsed = combinedStr ? JSON.parse(combinedStr) : null;
         if (combinedParsed?.type === 'final' && Array.isArray(combinedParsed.orders) && combinedParsed.orders.length > 0 && isFreshCombinedOrderSnapshot(combinedParsed, cachedUserId)) {
           cachedOrders = combinedParsed.orders;
@@ -199,6 +202,7 @@ function generateDynamicDOM() {
         if (!cachedOrders) {
           cachedOrders = [];
           for (let i = 1; i <= MAX_SLOTS; i++) {
+            if (window.BrokerService && !window.BrokerService.isSlotForBroker(i, cachedBroker)) continue;
             const slotStr = localStorage.getItem(`vtotal3_snap${i}_${cachedUserId}`);
             if (!slotStr) continue;
             const slotSnap = JSON.parse(slotStr);
@@ -210,7 +214,7 @@ function generateDynamicDOM() {
         if (useCachedCombined) {
           const sourceOrderDate = window.currentOrderDate || window.lastBTResults[1]?.orderDateStr || "";
           const orderSignature = `${sourceOrderDate}::${cachedOrders.map(o => [o?.[0] || "", o?.[1] || "", Number(o?.[2] || 0).toFixed(2), Number(o?.[3] || 0)].join('|')).join('||')}`;
-          localStorage.setItem(`vtotal3_snap_combined_orders_${cachedUserId}`, JSON.stringify({
+          localStorage.setItem(`vtotal3_snap_combined_orders_${cachedUserId}_${cachedBroker}`, JSON.stringify({
             type: cachedOrdersAlreadyCombined ? 'final' : 'raw',
             orders: cachedOrders,
             savedAt: Date.now(),
@@ -441,8 +445,9 @@ function updateHistorySummary() {
   if (!summaryEl) return;
 
   let allTrades = [];
+  // ⚠️ 2026-07-31: 실전 매도 내역 요약도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    if (window.isSlotActive(i)) {
+    if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       const res = window.getBestResult(window.lastBTResults[i], i);
       if (res && Array.isArray(res.trades)) {
         allTrades = allTrades.concat(res.trades.map(t => ({ ...t, slotNum: i })));
@@ -585,7 +590,7 @@ function showPerfView() {
 
   // 월별 성과 테이블 텍스트 렌더링 호출
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) window.UI.performance.renderPeriodTableText(i);
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableText(i);
   }
   window.UI.performance.renderPeriodTableText('Combined');
   window.UI.performance.renderPeriodTableText(0);
@@ -644,8 +649,10 @@ function updateSlotsVisibility() {
   if (!window.currentHoldingsViewMode) window.currentHoldingsViewMode = 'combined';
   const viewMode = window.currentHoldingsViewMode;
 
+  // ⚠️ 2026-07-31부터 개별 슬롯 표시(주문표/일별수익)도 활성 브로커(키움 1~3 / LS 4~6)만
+  // 필터링한다(사용자 요청) — isSlotActive(백테스트 활성 여부)에 브로커 필터를 더한다.
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    const active = isSlotActive(i);
+    const active = isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i));
     if (active) activeCount++;
     const v = document.getElementById('orderSlot' + i);
     if (v) {
@@ -730,8 +737,12 @@ function updateSlotsVisibility() {
 function saveCombinedOrderSnapshot() {
   if (!myUserId) return;
   const rawOrders = [];
+  // ⚠️ 2026-07-31: 활성 브로커(키움 1~3 / LS 4~6) 슬롯만 저장한다 — 안 그러면 이 스냅샷이
+  // 저장될 때의 activeBroker와 무관하게 항상 전 슬롯이 섞여 들어가, 브로커를 바꿔도
+  // 통합 주문표가 다른 브로커의 주문을 계속 보여주는 원인이 된다(사용자 실증).
   for (let i = 1; i <= MAX_SLOTS; i++) {
     if (!isSlotActive(i)) continue;
+    if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
     const res = lastBTResults[i];
     if (res?.rawOrders?.length) rawOrders.push(...res.rawOrders);
     else if (res?.orders?.length) rawOrders.push(...res.orders);
@@ -753,7 +764,8 @@ function saveCombinedOrderSnapshot() {
       : sanitizedOrders;
     const sourceOrderDate = window.currentOrderDate || window.lastBTResults[1]?.orderDateStr || "";
     const orderSignature = `${sourceOrderDate}::${(Array.isArray(finalOrders) ? finalOrders : []).map(o => [o?.[0] || "", o?.[1] || "", Number(o?.[2] || 0).toFixed(2), Number(o?.[3] || 0)].join('|')).join('||')}`;
-    localStorage.setItem(`vtotal3_snap_combined_orders_${myUserId}`, JSON.stringify({
+    const saveBroker = (window.BrokerService && window.BrokerService.activeBroker) || 'kiwoom';
+    localStorage.setItem(`vtotal3_snap_combined_orders_${myUserId}_${saveBroker}`, JSON.stringify({
       type: 'final',
       orders: finalOrders,
       savedAt: Date.now(),
@@ -808,6 +820,14 @@ async function enterAppDirectly() {
           window.currencyService.updateCurrentFXRate();
         }
       });
+
+    // ⚠️ 2026-07-31: 로그인/앱 실행 시점에 키움·LS 체결내역을 미리 조회해둔다(사용자 제안).
+    // LS는 일자별 순차 조회라 첫 조회에 ~7~8초 걸리는데, 사용자가 실제로 "매수매도내역"
+    // 탭을 열 때가 아니라 지금 백그라운드로 미리 데이터를 받아 fillsDayCache/30초 클라이언트
+    // 캐시를 채워두면, 그 탭을 열 때는 캐시 히트라 즉시 표시된다.
+    if (window.BrokerReconcile && typeof window.BrokerReconcile.refreshFills === 'function') {
+      window.BrokerReconcile.refreshFills().catch(e => console.warn("체결내역 선조회 실패:", e.message));
+    }
 
   const userHeader = document.getElementById('userDisplayHeader');
   if (userHeader) userHeader.innerText = myUserId + ' (로딩중...)';
@@ -895,7 +915,8 @@ async function enterAppDirectly() {
   let hasCombinedOrderSnapshot = false;
   let cachedCombinedAlreadyCombined = false;
   try {
-    const combinedOrderStr = localStorage.getItem(`vtotal3_snap_combined_orders_${myUserId}`);
+    const initBroker = (window.BrokerService && window.BrokerService.activeBroker) || 'kiwoom';
+    const combinedOrderStr = localStorage.getItem(`vtotal3_snap_combined_orders_${myUserId}_${initBroker}`);
     if (combinedOrderStr) {
       const parsed = JSON.parse(combinedOrderStr);
       if (parsed?.type === 'final' && Array.isArray(parsed.orders) && parsed.orders.length > 0) {
@@ -940,7 +961,13 @@ async function enterAppDirectly() {
         globalMonthlyDataArr[i] = snap.monthlyData;
         globalYearlyDataArr[i] = snap.yearlyData;
         globalDailyDataArr[i] = snap.dailyData;
-        if (!hasCombinedOrderSnapshot) cachedRawOrders.push(...(snap.rawOrders || snap.orders || []));
+        // ⚠️ 2026-07-31: 통합 주문표 스냅샷 승격은 활성 브로커(키움 1~3 / LS 4~6) 슬롯만 포함한다
+        // — 안 그러면 LS 전환 직후에도 키움 슬롯의 원시 주문이 섞여 들어가 통합 주문표가
+        // 브로커를 안 가리고 그대로 보였다(사용자 실증). 슬롯별 나머지 복원(설정/차트 등)은
+        // 그대로 전 슬롯 대상으로 둔다 — updateSlotsVisibility() 등에서 별도로 걸러진다.
+        if (!hasCombinedOrderSnapshot && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
+          cachedRawOrders.push(...(snap.rawOrders || snap.orders || []));
+        }
         if (i === 1) {
           initData(slotConfigs[1]);
           document.getElementById('mainGrid').classList.remove('hide-order-panel');
@@ -956,7 +983,8 @@ async function enterAppDirectly() {
     try {
       const sourceOrderDate = window.currentOrderDate || window.lastBTResults[1]?.orderDateStr || "";
       const orderSignature = `${sourceOrderDate}::${cachedRawOrders.map(o => [o?.[0] || "", o?.[1] || "", Number(o?.[2] || 0).toFixed(2), Number(o?.[3] || 0)].join('|')).join('||')}`;
-      localStorage.setItem(`vtotal3_snap_combined_orders_${myUserId}`, JSON.stringify({
+      const promoBroker = (window.BrokerService && window.BrokerService.activeBroker) || 'kiwoom';
+      localStorage.setItem(`vtotal3_snap_combined_orders_${myUserId}_${promoBroker}`, JSON.stringify({
         type: 'raw',
         orders: cachedRawOrders,
         savedAt: Date.now(),
@@ -1978,7 +2006,7 @@ async function runEngine() {
   (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
 
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) window.UI.performance.renderPeriodTableText(i);
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableText(i);
   }
   window.UI.performance.renderPeriodTableText('Combined');
 
