@@ -352,7 +352,7 @@ function generatePeriodTableDOM(containerId, suffix, viewState) {
   for (let i = 1; i <= MAX_SLOTS; i++) {
     tableHtml += `
       <div id="monthlySlot${i}${suffix}" class="monthly-slot-item">
-        <div class="slot-title swipe-handler" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};" id="slot${i}TableName${suffix}">V-QUANT 2-${i}</div>
+        <div class="slot-title swipe-handler" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};" id="slot${i}TableName${suffix}">A-QUANT 2-${i}</div>
         <table class="data-table" id="periodTable${i}${suffix}">
           <thead><tr id="periodTableHead${i}${suffix}">${headDataStr}</tr></thead>
           <tbody id="periodBody${i}${suffix}"><tr><td colspan="3" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
@@ -1213,7 +1213,7 @@ async function handleSave() {
         // "정지" 전략이 담긴 설정을 실제로 시트에 기록해야 다른 기기에서도 비활성화가 유지된다.
         await saveSlotToSheet(targetSlot, stoppedConfig, []);
         rememberSheetConfigSnapshot(targetSlot, stoppedConfig);
-        showToast(`[V-QUANT 2-${targetSlot}] 비활성화 설정이 시트에 반영되었습니다.`, "✅");
+        showToast(`[A-QUANT 2-${targetSlot}] 비활성화 설정이 시트에 반영되었습니다.`, "✅");
       } else {
         handleOfflineSave(buildSheetSavePayload(targetSlot, stoppedConfig, []));
       }
@@ -1340,7 +1340,12 @@ async function handleSave() {
       showToast(newLogs.length > 0 ? `${newLogs.length}일치의 기록이 시트에 반영되었습니다.` : "설정값이 시트에 반영되었습니다. 매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.", "✅");
 
       // 방금 재계산한 targetRes를 넘겨야 변경분(자산/증액/슬롯 활성화)이 VM 봇에 반영된다.
-      if (typeof pushTodayOrders === 'function') pushTodayOrders({ [targetSlot]: targetRes });
+      if (typeof pushTodayOrders === 'function') await pushTodayOrders({ [targetSlot]: targetRes });
+      // ⚠️ 시트에 저장했으니 GCP도 같은 시트를 다시 읽어 재계산하게 트리거한다.
+      // 위 push는 "앱이 계산한 값"을 즉시 반영하는 안전망이고(트리거가 실패해도 최신 설정으로
+      // 주문이 나가도록), 이 트리거가 성공하면 GCP가 자기 계산으로 덮어써서 화면의
+      // "일치/불일치"가 다시 서로 독립적으로 계산한 값끼리의 진짜 대조가 된다.
+      if (typeof triggerVmRecalc === 'function') triggerVmRecalc();
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
@@ -1862,7 +1867,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 function handleDeposit() {
-  const activeSlotName = slotConfigs[activeSettingsTab]?.basics?.strategy || `V-QUANT 2-${activeSettingsTab}`;
+  const activeSlotName = slotConfigs[activeSettingsTab]?.basics?.strategy || `A-QUANT 2-${activeSettingsTab}`;
   let amountStr = prompt(`[${activeSlotName}] 얼마를 증액(입금)하시겠습니까?\n(달러 단위로 숫자만 입력하세요)`);
   if (!amountStr) return;
   let amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''));
@@ -2762,3 +2767,37 @@ async function pushTodayOrders(freshBySlot) {
   }
 }
 window.pushTodayOrders = pushTodayOrders;
+
+// 앱이 시트에 저장한 뒤, GCP(VM)도 같은 시트를 다시 읽어 주문표를 재생성하게 만든다.
+// GCP 쪽은 "오늘자 데일리스테이트가 있으면 그대로 쓰고, 없으면 계산해서 저장한 뒤 사용"으로
+// 앱과 동일하게 동작한다(/api/orders/refresh). 실패해도 앱 동작에는 영향을 주지 않는다 —
+// 직전 pushTodayOrders가 이미 최신 설정 기준 주문표를 올려둔 상태이기 때문이다.
+async function triggerVmRecalc() {
+  try {
+    if (!myUserId) return;
+    const base = "https://autumn-limit-001e-3.smw594.workers.dev";
+    const controller = new AbortController();
+    // 시세 로드 + 슬롯별 엔진 2회전이라 수 초 걸린다. 넉넉하게 잡는다.
+    const timer = setTimeout(() => controller.abort(), 45000);
+    const resp = await fetch(`${base}/api/orders/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-app-key": window.BROKER_APP_KEY || "app3_key_083530e9ad0c0f2080e09515a87852768dab4c3c",
+        "x-user-id": myUserId,
+      },
+      body: JSON.stringify({ userId: myUserId }),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+    const result = await resp.json();
+    if (result.ok) {
+      console.log(`[OrderSync] ✅ GCP 재계산 완료 (${result.count}건)`);
+      if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache();
+    } else {
+      console.warn("[OrderSync] ⚠️ GCP 재계산 거부/실패:", result.reason);
+    }
+  } catch (e) {
+    console.warn("[OrderSync] ⚠️ GCP 재계산 트리거 오류(앱 동작에는 영향 없음):", e.message);
+  }
+}
+window.triggerVmRecalc = triggerVmRecalc;

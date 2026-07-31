@@ -83,7 +83,7 @@ function renderPeriodTableTextRaw(slotNum, viewStateOverride, suffix = "") {
 
   if (slotNum !== 'Combined') {
     const titleEl = document.getElementById(`slot${slotNum}TableName${suffix}`);
-    if (titleEl) titleEl.innerHTML = formatStrategyNameWithSmallParentheses(getSlotConfig(slotNum)?.basics?.strategy || `V-QUANT 2-${slotNum}`);
+    if (titleEl) titleEl.innerHTML = formatStrategyNameWithSmallParentheses(getSlotConfig(slotNum)?.basics?.strategy || `A-QUANT 2-${slotNum}`);
   }
 
   const mData = slotNum === 'Combined' ? globalCombinedMonthlyData : globalMonthlyDataArr[slotNum];

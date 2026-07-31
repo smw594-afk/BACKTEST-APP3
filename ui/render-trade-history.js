@@ -471,8 +471,15 @@ function renderDBTradeHistory() {
 
     tbody.innerHTML = visibleTrades.map(t => {
       const slot = t.slotNum;
-      let buyDate = parseDateStr(t.buyDate || t.buy_date || "-");
-      let sellDate = parseDateStr(t.sellDate || t.sell_date || "-");
+      // ⚠️ 2026-07-31: parseDateStr()은 문자열 끝의 "-"를 malformed 날짜 구분자로 보고
+      // 잘라내는 로직이 있어서(예: "2026-07-" → "2026-07"), 여기서처럼 "데이터 없음" 표시용으로
+      // 리터럴 "-"를 fallback으로 넘기면 parseDateStr("-")가 그 "-"까지 잘라내 빈 문자열("")을
+      // 돌려준다 — 그 결과 진입일 칸이 "-" 대신 빈칸으로 보였다(사용자 지적). 진짜 날짜가 있을
+      // 때만 parseDateStr을 거치고, 없으면 그대로 "-"를 보여주게 fallback을 바깥으로 뺐다.
+      const rawBuyDateVal = t.buyDate || t.buy_date || "";
+      const rawSellDateVal = t.sellDate || t.sell_date || "";
+      let buyDate = rawBuyDateVal ? parseDateStr(rawBuyDateVal) : "-";
+      let sellDate = rawSellDateVal ? parseDateStr(rawSellDateVal) : "-";
 
       if (buyDate && buyDate.includes('-') && buyDate.length === 10) {
         buyDate = buyDate.substring(2);
@@ -545,7 +552,11 @@ function renderDBTradeHistory() {
         sellPriceStr = "$" + sellPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
       }
 
-      const stockName = window.getSlotStockName ? window.getSlotStockName(slot) : "-";
+      // ⚠️ 2026-07-31: 전에는 존재하지 않는 window.getSlotStockName()을 불러서 항상 "-"만
+      // 찍혔다(사용자 지적: "화면 이동하면 종목 -로 바뀐다" — 데이터가 로딩된 뒤에야 이
+      // 줄이 실행되니 처음엔 "매매 내역이 없습니다"로 안 보이다가, 로딩 후 이 버그가 드러났다).
+      // 같은 함수 위쪽(274번째 줄 부근)에서 이미 t.ticker로 슬롯의 실제 종목을 채워두므로 그걸 쓴다.
+      const stockName = t.ticker || "-";
 
       return `<tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03); ${rowBg}">
         <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:9px; font-weight:800; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>

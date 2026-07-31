@@ -429,7 +429,17 @@ function showStatsView() {
   renderChartAll();
   if (typeof updateChartRatesDisplay === 'function') updateChartRatesDisplay();
   (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
-  window.UI.tradeHistory.renderDBTradeHistory();
+  // ⚠️ 2026-07-31: 내역모드 진입 시 항상 "실전 매도 내역"(키움/LS 매수매도내역이 아니라)이
+  // 보이도록 강제 리셋한다. historyViewMode는 render-trade-history.js의 모듈 전역 변수라
+  // 마지막으로 봤던 화면(예: 키움 매수매도내역)이 세션 내내 남아있었다 — renderDBTradeHistory()를
+  // 그냥 부르면 그 남아있는 모드를 그대로 다시 그려서 "실전 매도 내역" 대신 브로커 체결내역이
+  // 보이는 버그가 있었다(사용자 지적). resetToStrategyHistory()는 이미 구현/export돼 있었지만
+  // 아무도 호출하지 않는 죽은 코드였다.
+  if (window.UI.tradeHistory.resetToStrategyHistory) {
+    window.UI.tradeHistory.resetToStrategyHistory();
+  } else {
+    window.UI.tradeHistory.renderDBTradeHistory();
+  }
 
   // 매도 내역 요약 업데이트
   updateHistorySummary();

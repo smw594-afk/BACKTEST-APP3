@@ -221,7 +221,7 @@ function renderOriginalStatsTable(table) {
       rows.push({
         res: getBestResult(lastBTResults[i], i),
         slotNum: i,
-        name: getSlotConfig(i)?.basics?.strategy || `V-QUANT 2-${i}`,
+        name: getSlotConfig(i)?.basics?.strategy || `A-QUANT 2-${i}`,
         color: SLOT_COLORS[(i - 1) % SLOT_COLORS.length]
       });
     }
