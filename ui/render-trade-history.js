@@ -442,6 +442,30 @@ function renderDBTradeHistory() {
           renderDBTradeHistory();
         }
       }, { passive: true });
+
+      // ⚠️ 2026-08-04: 행이 몇 개뿐이면 scrollHeight===clientHeight라 위 'scroll' 이벤트가
+      // 아예 발생하지 않는다(스크롤할 내용이 없음) — 그래서 사용자가 스와이프해도 반응이
+      // 없었다(실증: 3줄짜리 표에서 스크롤 자체가 안 걸림). 오버플로우 여부와 무관하게
+      // 위로 스와이프(휠 아래로 굴림 포함)하면 바로 이전 달을 불러오도록 별도 처리한다.
+      let touchStartY = null;
+      scrollHost.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+      scrollHost.addEventListener('touchend', (e) => {
+        if (touchStartY === null) return;
+        const deltaY = touchStartY - e.changedTouches[0].clientY;
+        touchStartY = null;
+        if (deltaY > 40) { // 위로 스와이프 = 아래로 스크롤 의도
+          historyMonthOffset += 1;
+          renderDBTradeHistory();
+        }
+      }, { passive: true });
+      scrollHost.addEventListener('wheel', (e) => {
+        if (e.deltaY > 20 && scrollHost.scrollHeight <= scrollHost.clientHeight + 5) {
+          historyMonthOffset += 1;
+          renderDBTradeHistory();
+        }
+      }, { passive: true });
     }
 
     allTrades.sort((a, b) => {
@@ -495,7 +519,33 @@ function renderDBTradeHistory() {
       const normalizedSellDateForLookup = normalizeDateKey(rawSellDate);
       const buyDateStr = String(t.buyDate || t.buy_date || "");
       const rowKeyLookup = `${rowBroker}|${stripA(t.ticker)}|${normalizedSellDateForLookup}|${buyDateStr}`;
-      const rowStatusObj = sellStatusByRowKey.get(rowKeyLookup) || { status: 'pending', mismatchQty: 0 };
+      let rowStatusObj = sellStatusByRowKey.get(rowKeyLookup) || { status: 'pending', mismatchQty: 0 };
+
+      // ⚠️ 2026-08-04: 당일 청산 거래(진입일=청산일)의 경우, 브로커 매수 체결과 대조한다.
+      // 보유현황과 동일한 개념: 청산일에 매수된 순수량(매수-당일매도)이 브로커 매수 체결과
+      // 일치하면, 그 매도분(t.qty)도 "일치"로 표시한다.
+      // 예: 8/3 15주 매수 + 8/3 2주 매도 → 순수량 13 = 키움 매수체결 13 → 이 2주 매도행도 일치.
+      if (rowStatusObj.status !== 'match' && normalizedSellDateForLookup) {
+        const sellDateNorm = normalizedSellDateForLookup;
+        // res.trades에서 같은 청산일(=진입일)로 매수된 총 수량을 구한다 (해당 슬롯의 inv에서)
+        const slotRes = lastBTResults[slot];
+        const invMatch = slotRes && Array.isArray(slotRes.inv)
+          ? slotRes.inv.find(h => normalizeDateKey(String(h.buyDate || h.buy_date || "")) === sellDateNorm)
+          : null;
+        if (invMatch && BR) {
+          const grossQty = Math.round(Number(invMatch.qty) || 0);
+          const sameDaySellQty = Array.isArray(slotRes.trades)
+            ? slotRes.trades.filter(tr => normalizeDateKey(String(tr.sellDate || tr.sell_date || "")) === sellDateNorm)
+                .reduce((sum, tr) => sum + Math.abs(Number(tr.qty) || 0), 0)
+            : 0;
+          const netQty = Math.max(0, grossQty - sameDaySellQty);
+          const buyStatus = BR.holdingStatus(t.ticker, sellDateNorm, grossQty, rowBroker, sameDaySellQty);
+          if (buyStatus && buyStatus.status === 'match') {
+            rowStatusObj = { status: 'match', mismatchQty: 0 };
+          }
+        }
+      }
+
       const rowStatus = rowStatusObj.status;
       const mismatchQty = rowStatusObj.mismatchQty || 0;
       const isOversold = rowStatus === 'oversold';
@@ -536,15 +586,15 @@ function renderDBTradeHistory() {
       const profitClass = profit > 0 ? "profit-plus" : (profit < 0 ? "profit-minus" : "");
       const sign = profit < 0 ? "-" : "";
       let profitStr = "";
-      if (true) {
-        profitStr = sign + Math.round(Math.abs(profit) * currentFXRate / 10000).toLocaleString() + "만";
+      if (window.isCurrencyKRW) {
+        profitStr = sign + "₩" + Math.round(Math.abs(profit) * currentFXRate).toLocaleString();
       } else {
         profitStr = sign + "$" + Math.abs(profit).toLocaleString(undefined, {minimumFractionDigits: 2});
       }
 
       let buyPriceStr = "";
       let sellPriceStr = "";
-      if (true) {
+      if (window.isCurrencyKRW) {
         buyPriceStr = "₩" + Math.round(buyPrice * currentFXRate).toLocaleString();
         sellPriceStr = "₩" + Math.round(sellPrice * currentFXRate).toLocaleString();
       } else {

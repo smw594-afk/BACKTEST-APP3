@@ -2,6 +2,7 @@
 // script.js에서 보유현황 관련 함수들 분리
 
 function renderCombinedHoldings() {
+  console.log("[renderCombinedHoldings] 함수 호출됨");
   // ⚠️ dualOrderContainer 전체를 덮어쓰면 generateDynamicDOM()이 만든 주문표 DOM
   // (combinedOrderView, orderSlot1~N 등)이 통째로 파괴되어 다시 복구되지 않는다.
   // 반드시 통합 보유현황 전용 tbody(combinedHoldingsBody)만 갱신해서 주문표와 완전히 분리한다.
@@ -22,10 +23,39 @@ function renderCombinedHoldings() {
         if (mainData && mainData.close && mainData.close.length > 0) {
           currPrice = mainData.close[mainData.close.length - 1] || 0;
         }
-        res.inv.forEach(h => {
+        // ⚠️ 2026-08-04: 같은 날짜에 청산된 거래의 수량을 찾기
+        // 예: inv[진입일=8/3, qty=15] → 청산일=8/3인 거래 찾기 → sellQtyToday=2
+        if (res.inv && res.inv.length > 0 && res.trades && res.trades.length > 0) {
+          console.log(`[renderCombinedHoldings] slot=${i}, inv.length=${res.inv.length}, trades.length=${res.trades.length}`);
+        }
+        res.inv.forEach((h, hIdx) => {
           const qty = parseFloat(h.qty) || 0;
           const buyPrice = parseFloat(String(h.buy_price || h.buyPrice || "0").replace(/[^0-9.-]/g, "")) || 0;
           const profit = (currPrice - buyPrice) * qty;
+
+          // 진입일과 같은 날에 청산된 거래 찾기 (당일 합산 계산용)
+          const buyDateStr = String(h.buyDate || h.buy_date || "").trim();
+          const ticker = String(h.ticker || window.slotConfigs?.[i]?.basics?.ticker || "").trim().toUpperCase();
+          let sellQtyToday = 0;
+
+          try {
+            if (buyDateStr && res.trades && Array.isArray(res.trades) && res.trades.length > 0) {
+              // ⚠️ res.trades는 ticker 정보가 없으므로, 청산일만 비교
+              // 같은 슬롯에서 청산일이 진입일과 같은 거래 찾기
+              // 예: inv의 buyDate=8/3 → trade의 sellDate=8/3인 거래 찾음
+              const sameDateSells = res.trades.filter(t => {
+                const tSellDate = String(t.sellDate || t.sell_date || "").trim();
+                // 청산일이 진입일과 같음
+                return tSellDate === buyDateStr;
+              });
+              if (sameDateSells.length > 0) {
+                sellQtyToday = sameDateSells.reduce((sum, t) => sum + Math.abs(parseFloat(t.qty) || 0), 0);
+                console.log(`  inv[${hIdx}]: buyDate=${buyDateStr}, found ${sameDateSells.length} sells, sellQtyToday=${sellQtyToday}`);
+              }
+            }
+          } catch (e) {
+            console.warn(`[보유현황] 매도 수량 계산 오류:`, e);
+          }
 
           allHoldings.push({
             ...h,
@@ -33,7 +63,8 @@ function renderCombinedHoldings() {
             slotNum: i,
             currPrice: currPrice,
             profit: profit,
-            qty: qty
+            qty: qty,
+            sellQtyToday: sellQtyToday  // 당일 매도 수량 (순 수량 계산용)
           });
         });
       }
@@ -132,9 +163,12 @@ function renderCombinedHoldings() {
     // 📊 일치 컬럼: 브로커(키움 슬롯1~3 / LS 슬롯4~6) 매수 체결과 앱 보유수량 대조
     // ⚠️ 슬롯의 실제 브로커를 명시해야 한다 — 안 그러면 키움/LS가 같은 종목을 같은 날
     //    거래했을 때 서로의 체결과 섞여 대조된다(2026-07-30 실증).
+    // ⚠️ 2026-08-04: 당일 매수·매도가 있으면 순 수량(매수-매도)으로 비교한다.
+    //    예: 8/3 15주 매수, 2주 매도 → 순 수량 13주와 키움 13주 체결 비교
+    //    res.trades에서 같은 날짜의 매도 기록을 찾아 sellQtyToday를 계산한다.
     const symbol = window.slotConfigs?.[o.slotNum]?.basics?.ticker || o.ticker || "";
     const reconcileCell = window.BrokerReconcile
-      ? window.BrokerReconcile.cellHtml(window.BrokerReconcile.holdingStatus(symbol, o.buyDate || o.buy_date, o.qty, window.BrokerReconcile.brokerForSlot(o.slotNum)))
+      ? window.BrokerReconcile.cellHtml(window.BrokerReconcile.holdingStatus(symbol, o.buyDate || o.buy_date, o.qty, window.BrokerReconcile.brokerForSlot(o.slotNum), o.sellQtyToday || 0))
       : '<td style="text-align:center;color:#94a3b8;font-size:9px;">-</td>';
 
     return `<tr>${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
@@ -324,3 +358,11 @@ window.UI.holdings.renderCombinedHoldings = renderCombinedHoldings;
 window.UI.holdings.renderTableSlot = renderTableSlot;
 window.UI.holdings.toggleIndividualHoldings = toggleIndividualHoldings;
 window.UI.holdings.updateCombinedHoldingsSummary = updateCombinedHoldingsSummary;
+
+// ⚠️ 2026-08-04: 페이지 로드 후 800ms 뒤에 renderCombinedHoldings 자동 호출
+// (초기 로드 시에는 호출되지 않아서 당일 합산 로직이 작동하지 않는 문제 해결)
+setTimeout(() => {
+  if (typeof window.renderCombinedHoldings === 'function' && !window.showIndividualHoldings) {
+    window.renderCombinedHoldings();
+  }
+}, 800);

@@ -51,12 +51,18 @@ function syncCurrencyUI() {
 
 function updateDefaultCurrency(val) {
   isCurrencyKRW = (val === 'KRW');
+  window.isCurrencyKRW = isCurrencyKRW;  // ⚠️ window 객체에도 동기화
   if (myUserId) {
     localStorage.setItem(`vtotal3_pref_currency_${myUserId}`, val);
     showToast(`기본 통화가 ${val === 'KRW' ? '원화' : '달러'}로 설정되었습니다.`);
   }
   syncCurrencyUI();
   window.UI.toggles.refreshAllUI();
+  // ⚠️ 2026-08-04: 통화 설정 변경 시 실전 매도 내역도 다시 렌더링해야 한다
+  // renderDBTradeHistory는 window.renderDBTradeHistory로 직접 호출
+  if (typeof window.renderDBTradeHistory === 'function') {
+    window.renderDBTradeHistory();
+  }
 }
 
 function updateTheme(val) {

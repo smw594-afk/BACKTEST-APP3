@@ -674,17 +674,44 @@ function shouldAutoRefresh() {
   const nyTimeStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   const nyDateStr = formatDateNY(now);
   const lastDate = localStorage.getItem('vtotal3_last_auto_ny_' + myUserId);
-  
+
   const nyDateObj = new Date(nyTimeStr);
   const nyHour = nyDateObj.getHours();
   const nyMin = nyDateObj.getMinutes();
-  
+
   // 뉴욕 장 마감(16:00) 이후부터 다음 장 시작(09:30) 전까지 자동 갱신 허용
   const isMarketClosedTime = (nyHour >= 16 || nyHour < 9 || (nyHour === 9 && nyMin < 30));
-  
+
   if (isMarketClosedTime) {
     if (lastDate !== nyDateStr) {
       localStorage.setItem('vtotal3_last_auto_ny_' + myUserId, nyDateStr);
+      return true;
+    }
+  }
+  return false;
+}
+
+// 2026-08-04: GCP 주문시간(개장 10분 전 = NY 09:20) 이후 첫 갱신 여부 추적
+function shouldForceFirstRefreshAfterOrderTime() {
+  if (!myUserId) return false;
+  const now = new Date();
+  const nyTimeStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const nyDateStr = formatDateNY(now);
+
+  const nyDateObj = new Date(nyTimeStr);
+  const nyHour = nyDateObj.getHours();
+  const nyMin = nyDateObj.getMinutes();
+
+  // GCP 주문 시간(09:20 NY) 이후인지 확인
+  const isAfterOrderTime = (nyHour > 9 || (nyHour === 9 && nyMin >= 20));
+
+  if (isAfterOrderTime) {
+    const lastFreshKey = 'vtotal3_last_order_refresh_' + myUserId;
+    const lastRefreshDate = localStorage.getItem(lastFreshKey);
+
+    // 오늘 처음 갱신하는 경우
+    if (lastRefreshDate !== nyDateStr) {
+      localStorage.setItem(lastFreshKey, nyDateStr);
       return true;
     }
   }
@@ -1934,15 +1961,27 @@ window.addEventListener('load', () => {
 });
 
 // 앱이 백그라운드에서 다시 활성화될 때 자동 갱신 확인
-// ⚠️ handleInstantOrder()는 mainGrid의 레이아웃 클래스(perf-metrics-layout 등)를 강제로 초기화하므로
-//    홈(주문표) 화면에 있을 때만 호출한다. 내역/성과/설정 화면 등에 있을 때 호출하면
-//    사용자가 보던 화면이 임의로 주문표 화면으로 바뀌어버리는 문제가 있었다.
+// 2026-08-04: 다음 두 경우를 처리한다:
+// 1. shouldAutoRefresh() = true: 마감 후 처음 갱신 시 → 전체 재계산(handleInstantOrder)
+// 2. shouldForceFirstRefreshAfterOrderTime() = true: 주문시간 이후 첫 갱신 → 주문 상태만 갱신
+// ⚠️ handleInstantOrder()는 mainGrid의 레이아웃을 강제로 초기화하므로 홈(주문표) 화면에서만 호출
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
+    // 전체 재계산이 필요한 경우
     if (typeof shouldAutoRefresh === 'function' && shouldAutoRefresh()) {
       if (window.isOrderView && !window.isStatsMode) {
         window.UI.misc.handleInstantOrder();
       }
+    }
+    // GCP 주문시간 이후 첫 갱신 — 주문 상태 캐시만 갱신
+    else if (typeof shouldForceFirstRefreshAfterOrderTime === 'function' && shouldForceFirstRefreshAfterOrderTime()) {
+      if (typeof window.refreshOrderStatusCache === 'function') {
+        window.refreshOrderStatusCache();
+      }
+    }
+    // 그 외 일반적인 갱신
+    else if (typeof window.refreshOrderStatusCache === 'function') {
+      window.refreshOrderStatusCache();
     }
   }
 });

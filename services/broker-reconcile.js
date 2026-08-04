@@ -199,7 +199,12 @@
 
   // broker는 필수가 아니라 편의상 기본값을 둔다 — 실제로는 항상 brokerForSlot(slotNum)으로
   // 넘겨받아야 한다(안 넘기면 슬롯 4~6=LS 데이터를 잘못 키움 쪽에서 찾게 된다).
-  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom") => statusFor(state.buy, broker, symbol, buyDate, appQty);
+  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom", appSellQty = 0) => {
+    // ⚠️ 당일 매도가 있으면 순 수량(매수 - 매도)으로 비교한다.
+    // 예: 8/3 15주 매수, 2주 매도 → 순 수량 13주와 키움 체결 비교
+    const netAppQty = Math.max(0, Math.round(Number(appQty) || 0) - Math.round(Number(appSellQty) || 0));
+    return statusFor(state.buy, broker, symbol, buyDate, netAppQty);
+  };
   const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => statusFor(state.sell, broker, symbol, sellDate, appQty);
 
   function badge(st) {

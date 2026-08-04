@@ -391,6 +391,7 @@ function togglePeriodView() {
 
 function toggleCurrencyMode() {
   isCurrencyKRW = !isCurrencyKRW;
+  window.isCurrencyKRW = isCurrencyKRW;  // ⚠️ 2026-08-04: window 객체에도 동기화 (render-trade-history.js가 window.isCurrencyKRW를 참조함)
   const val = isCurrencyKRW ? 'KRW' : 'USD';
   if (myUserId) {
     localStorage.setItem(`vtotal3_pref_currency_${myUserId}`, val);
@@ -409,6 +410,14 @@ function toggleCurrencyMode() {
   const analysisCard = document.getElementById('panelAnalysisView');
   if (analysisCard && !analysisCard.classList.contains('hidden') && window.UI && window.UI.performance && window.UI.performance.renderAnalysisView) {
     window.UI.performance.renderAnalysisView();
+  }
+
+  // ⚠️ 2026-08-04: 실전 매도 내역(진입가/청산가/수익금)도 통화 전환 시 다시 렌더링해야 한다.
+  // 여기서 renderDBTradeHistory를 호출하지 않으면 화면에 이미 그려진 값이 그대로 남아
+  // KRW/USD 버튼을 눌러도 실전 매도 내역만 바뀌지 않는 것처럼 보인다(사용자 반복 지적).
+  lastTradeHistoryRenderSignature = '';
+  if (typeof renderDBTradeHistory === 'function') {
+    renderDBTradeHistory();
   }
 }
 
