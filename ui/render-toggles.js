@@ -3,7 +3,13 @@
 function toggleSettings() {
   const screen = document.getElementById('settingsScreen');
   const isVisible = screen.style.display === 'flex';
-  if (!isVisible) updateSettingsTabButtons();
+  if (!isVisible) {
+    updateSettingsTabButtons();
+    // 활성 브로커의 슬롯 탭만 보이게 맞춘다(키움 1~6 / LS 7~12).
+    // 부팅 시점엔 broker-service.js가 script.js보다 먼저 돌아 탭 이동을 못 할 수 있으므로,
+    // 설정 화면을 여는 이 시점에 반드시 한 번 더 확정한다.
+    window.BrokerService?.applySettingsTabVisibility?.();
+  }
   screen.style.display = isVisible ? 'none' : 'flex';
 }
 
@@ -439,7 +445,7 @@ function toggleSortOrder() {
     window.UI.order.renderCombinedOrderBook();
   }
   
-  const maxSlots = window.MAX_SLOTS || 5;
+  const maxSlots = window.MAX_SLOTS || 12;
   for (let i = 1; i <= maxSlots; i++) {
     if (window.lastBTResults && window.lastBTResults[i] && window.lastBTResults[i].orders) {
       if (window.UI.order && typeof window.UI.order.renderOrderTableSlot === 'function') {

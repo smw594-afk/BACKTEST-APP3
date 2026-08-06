@@ -83,7 +83,12 @@
   }
 
   const normSymbol = (s) => String(s || "").trim().toUpperCase();
-  const brokerForSlot = (slot) => (Number(slot) <= 3 ? "kiwoom" : "ls");
+  // 슬롯→브로커 판정은 BrokerService가 단일 진실 공급원이다(services/broker-service.js).
+  // 예전엔 여기에 `slot<=3`이 따로 복사돼 있어, 경계값을 바꿀 때 한쪽만 고치면
+  // 체결 대조가 엉뚱한 브로커 계좌를 보게 됐다.
+  const brokerForSlot = (slot) => (window.BrokerService
+    ? window.BrokerService.brokerForSlot(slot)
+    : (Number(slot) <= 6 ? "kiwoom" : "ls"));
 
   // ─────────── cached proxy reads ───────────
   async function getFills(broker) {

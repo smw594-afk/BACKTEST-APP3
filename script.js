@@ -19,7 +19,11 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxUSDds-kN5QQL9cvuNeSJu
 // 쓰기(로그인/입출금/자동저장)는 그대로 GAS_URL을 사용한다.
 const BACKTEST_LOG_SPREADSHEET_ID = "1SrDC8Gkm8ztodtvt_oAOSEQMHE2U-CphetIMz7qWqQY";
 const APP_VERSION = "3.642";
-const MAX_SLOTS = 6;
+// 2026-08-06: 6→12 확장. 슬롯1~6=키움, 슬롯7~12=LS.
+// 브로커 판정은 BrokerService.brokerForSlot(services/broker-service.js)이 단일 기준이며,
+// 서버 쪽 짝(proxy/broker3-proxy.js의 KIWOOM_MAX_SLOT, daily-backtest3.js의 BROKER_OF)과
+// 경계값을 **항상 함께** 유지해야 한다.
+const MAX_SLOTS = 12;
 const APP_RUNTIME_VERSION_KEY = "vtotal3_runtime_version";
 const TRANSIENT_CACHE_PREFIXES = [
   "vtotal3_snap",
@@ -722,6 +726,10 @@ function shouldForceFirstRefreshAfterOrderTime() {
 function switchSettingsTab(tabNum) {
   saveCurrentFormToSlot(activeSettingsTab);
   activeSettingsTab = tabNum;
+  // ⚠️ activeSettingsTab은 이 파일의 지역 변수라, window에 반영하지 않으면 다른 모듈
+  //    (broker-service.js 등)이 부팅 시점의 낡은 값(1)을 계속 보게 된다. 저장 대상 슬롯을
+  //    좌우하는 값이므로 반드시 함께 갱신한다.
+  window.activeSettingsTab = tabNum;
   loadSlotToForm(tabNum);
   updateSettingsTabButtons();
   window.UI.updates.updateCurrentStatusUI(tabNum);
@@ -1367,12 +1375,27 @@ async function handleSave() {
       showToast(newLogs.length > 0 ? `${newLogs.length}일치의 기록이 시트에 반영되었습니다.` : "설정값이 시트에 반영되었습니다. 매매기록은 종가 데이터가 있는 날짜부터 저장됩니다.", "✅");
 
       // 방금 재계산한 targetRes를 넘겨야 변경분(자산/증액/슬롯 활성화)이 VM 봇에 반영된다.
-      if (typeof pushTodayOrders === 'function') await pushTodayOrders({ [targetSlot]: targetRes });
+      // ⚠️ 2026-08-06: 시트 저장은 성공했는데 GCP 반영(push/재계산)이 조용히 실패하면
+      // 사용자는 "시트엔 반영되는데 GCP엔 안 된다"는 걸 알 방법이 없었다(콘솔 warn뿐).
+      // 실패 시 반드시 토스트로 알린다.
+      if (typeof pushTodayOrders === 'function') {
+        const pushResult = await pushTodayOrders({ [targetSlot]: targetRes });
+        if (pushResult && pushResult.ok === false) {
+          showToast(`⚠️ GCP 자동주문 서버 반영 실패: ${pushResult.reason}`, "⚠️");
+        }
+      }
       // ⚠️ 시트에 저장했으니 GCP도 같은 시트를 다시 읽어 재계산하게 트리거한다.
       // 위 push는 "앱이 계산한 값"을 즉시 반영하는 안전망이고(트리거가 실패해도 최신 설정으로
       // 주문이 나가도록), 이 트리거가 성공하면 GCP가 자기 계산으로 덮어써서 화면의
       // "일치/불일치"가 다시 서로 독립적으로 계산한 값끼리의 진짜 대조가 된다.
-      if (typeof triggerVmRecalc === 'function') triggerVmRecalc();
+      // fire-and-forget 유지(사용자를 최대 45초 기다리게 하지 않는다) — 실패만 사후 토스트로 알린다.
+      if (typeof triggerVmRecalc === 'function') {
+        triggerVmRecalc().then(recalcResult => {
+          if (recalcResult && recalcResult.ok === false) {
+            showToast(`⚠️ GCP 재계산 실패(방금 저장한 값은 이미 반영됨): ${recalcResult.reason}`, "⚠️");
+          }
+        });
+      }
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
@@ -1915,6 +1938,28 @@ function handleDeposit() {
     showToast(`$${amount.toLocaleString()} 처리 완료! 데이터를 다시 불러옵니다.`, "💰");
     if (btn) btn.innerHTML = orgText;
     await window.UI.misc.checkAndSyncWithServer(false, true); // 시트 데이터 강제 다시 불러오기
+
+    // ⚠️ 2026-08-06: handleSave()와 달리 이 함수는 GAS에 직접 ADD_FUNDS를 써서 시트만
+    // 갱신했고, VM(GCP) 자동주문 예약(pushTodayOrders/triggerVmRecalc)을 전혀 호출하지
+    // 않았다 — 그래서 "증액은 시트에 반영되는데 GCP에는 반영 안 된다"는 증상이 났다
+    // (사용자 실증: 앱 화면엔 증액분 주문이 계산돼 보이는데 VM orders-store3.json엔
+    // 어제 자동생성값만 남아있고 배지가 (예약) 없이 "불일치"로 뜸).
+    // checkAndSyncWithServer가 끝난 시점에 lastBTResults가 이미 최신(증액 반영)이므로
+    // 인자 없이 호출해도 pushTodayOrders 내부의 getBestResult(lastBTResults[i], i)가
+    // 최신값을 집는다.
+    if (typeof pushTodayOrders === 'function') {
+      const pushResult = await pushTodayOrders();
+      if (pushResult && pushResult.ok === false) {
+        showToast(`⚠️ GCP 자동주문 서버 반영 실패: ${pushResult.reason}`, "⚠️");
+      }
+    }
+    if (typeof triggerVmRecalc === 'function') {
+      triggerVmRecalc().then(recalcResult => {
+        if (recalcResult && recalcResult.ok === false) {
+          showToast(`⚠️ GCP 재계산 실패(방금 저장한 값은 이미 반영됨): ${recalcResult.reason}`, "⚠️");
+        }
+      });
+    }
   }).catch(e => {
     alert("처리 실패: 네트워크를 확인하세요.");
     setLED('error');
@@ -2716,9 +2761,9 @@ async function pushTodayOrders(freshBySlot) {
     const nyMins = nyHh * 60 + nyMm;
     if (nyMins >= 9 * 60 + 15 && nyMins <= 9 * 60 + 50) {
       console.log("[OrderSync] 주문표 수정 마감(09:15 ET, 개장 15분 전)이 지나 갱신을 건너뜁니다.");
-      return;
+      return { ok: false, reason: "주문표 수정 마감(09:15~09:50 ET, 개장 직전) 시간대라 GCP에는 반영되지 않았습니다. 이 시간대가 지나면 자동으로 정상 반영됩니다." };
     }
-    if (!myUserId) return;
+    if (!myUserId) return { ok: false, reason: "userId 없음" };
 
     // 활성 슬롯의 주문 수집
     const orders = [];
@@ -2749,7 +2794,7 @@ async function pushTodayOrders(freshBySlot) {
     }
     if (orders.length === 0) {
       console.log("[OrderSync] 예약할 주문이 없습니다.");
-      return;
+      return { ok: false, reason: "예약할 주문이 없습니다" };
     }
 
     // ── 예수금 부족 경고 (브로커별 매수 필요금액 vs 보유 예수금) ──
@@ -2773,7 +2818,7 @@ async function pushTodayOrders(freshBySlot) {
             );
             if (!proceed) {
               console.log("[OrderSync] 사용자가 예수금 부족 경고에서 취소함");
-              return;
+              return { ok: false, reason: "예수금 부족 경고에서 사용자가 취소함" };
             }
           }
         } catch (e) {
@@ -2798,11 +2843,14 @@ async function pushTodayOrders(freshBySlot) {
     if (result.ok) {
       console.log(`[OrderSync] ✅ ${orders.length}건 주문 예약 완료 (자동주문 ON)`);
       if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache();
+      return { ok: true, count: orders.length };
     } else {
       console.warn("[OrderSync] ⚠️ 예약 실패:", result.reason || result.error);
+      return { ok: false, reason: result.reason || result.error || "알 수 없는 오류" };
     }
   } catch (e) {
     console.warn("[OrderSync] ⚠️ 주문표 전송 중 오류 (네트워크 무시):", e.message);
+    return { ok: false, reason: `네트워크 오류: ${e.message}` };
   }
 }
 window.pushTodayOrders = pushTodayOrders;
@@ -2813,7 +2861,7 @@ window.pushTodayOrders = pushTodayOrders;
 // 직전 pushTodayOrders가 이미 최신 설정 기준 주문표를 올려둔 상태이기 때문이다.
 async function triggerVmRecalc() {
   try {
-    if (!myUserId) return;
+    if (!myUserId) return { ok: false, reason: "userId 없음" };
     const base = "https://autumn-limit-001e-3.smw594.workers.dev";
     const controller = new AbortController();
     // 시세 로드 + 슬롯별 엔진 2회전이라 수 초 걸린다. 넉넉하게 잡는다.
@@ -2832,11 +2880,14 @@ async function triggerVmRecalc() {
     if (result.ok) {
       console.log(`[OrderSync] ✅ GCP 재계산 완료 (${result.count}건)`);
       if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache();
+      return { ok: true, count: result.count };
     } else {
       console.warn("[OrderSync] ⚠️ GCP 재계산 거부/실패:", result.reason);
+      return { ok: false, reason: result.reason || "알 수 없는 오류" };
     }
   } catch (e) {
     console.warn("[OrderSync] ⚠️ GCP 재계산 트리거 오류(앱 동작에는 영향 없음):", e.message);
+    return { ok: false, reason: `네트워크/타임아웃 오류: ${e.message}` };
   }
 }
 window.triggerVmRecalc = triggerVmRecalc;

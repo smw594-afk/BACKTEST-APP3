@@ -30,7 +30,9 @@ const prefetchService = {
       const GAS_URL_EARLY = "https://script.google.com/macros/s/AKfycbxUSDds-kN5QQL9cvuNeSJuw6YAImIp-N8XK699Ov2cmIP1tfizXUuT87ECVgvVlU8V/exec";
 
       let gasUrl = `${GAS_URL_EARLY}?action=GET_ALL_INIT&id=${encodeURIComponent(savedId)}`;
-      for (let i = 1; i <= 6; i++) {
+      // ⚠️ script.js보다 먼저 도는 조기 프리페치라 MAX_SLOTS를 못 쓴다 — index.html의
+      //    인라인 프리페치 루프와 같은 값을 유지할 것. (12 = MAX_SLOTS)
+      for (let i = 1; i <= 12; i++) {
         let strat = "";
         try {
           const raw = localStorage.getItem(`vtotal3_conf${i}_${savedId}`);

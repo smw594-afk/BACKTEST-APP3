@@ -25,9 +25,37 @@ window.BrokerService = {
     return this.setAutoOrder("ls", enabled);
   },
 
+  // 설정 화면의 슬롯 탭을 활성 브로커 것만 보이게 한다(키움=1~6 / LS=7~12).
+  // ⚠️ 표시만 바꾸면 안 된다 — 지금 열려 있는 탭(activeSettingsTab)이 반대 브로커 슬롯이면
+  //    사용자에게 보이지 않는 슬롯에 설정이 저장된다. 그래서 현재 브로커의 첫 슬롯으로 옮긴다.
+  applySettingsTabVisibility() {
+    const broker = this.activeBroker || "kiwoom";
+    const groups = { kiwoom: "settingsTabGroupKiwoom", ls: "settingsTabGroupLs" };
+    Object.keys(groups).forEach((b) => {
+      const el = document.getElementById(groups[b]);
+      if (el) el.style.display = (b === broker) ? "" : "none";
+    });
+
+    const mine = this.slotsForBroker(broker);
+    if (!mine.length) return;
+
+    // ⚠️ 반드시 switchSettingsTab()을 통해 옮긴다. activeSettingsTab은 script.js의 지역
+    //    변수이고 저장 대상 슬롯을 결정하므로, window에만 값을 써넣으면 화면에 보이는 탭과
+    //    실제 저장되는 슬롯이 갈라진다.
+    //    부팅 순서상 이 함수가 script.js보다 먼저 돌 수 있는데, 그때는 아직 옮길 수
+    //    없으므로 표시만 바꾸고 넘어간다 — 설정 화면을 열 때 toggleSettings()가 다시 부른다.
+    if (typeof window.switchSettingsTab !== "function") return;
+
+    const current = Number(window.activeSettingsTab || 0);
+    if (!mine.includes(current)) window.switchSettingsTab(mine[0]);
+  },
+
   switchBrokerMode(broker) {
     this.activeBroker = broker;
     localStorage.setItem("vtotal3_active_broker", broker);
+
+    // 설정 화면 슬롯 탭도 이 브로커 것만 보이도록 갱신
+    this.applySettingsTabVisibility();
 
     // Update Single Nav Bar Button Text & Style
     const btn = document.getElementById("btnSingleBrokerNav");
@@ -149,10 +177,32 @@ window.BrokerService = {
     return WORKER3_RELAY_BASE;
   },
 
+  // ⚠️ 슬롯 → 브로커 판정의 **단일 진실 공급원**. 다른 파일에서 `slot <= N` 같은 비교를
+  //    새로 만들지 말고 반드시 이 함수를 쓸 것.
+  //    2026-08-06 6→12 확장 전에는 이 판정이 isSlotForBroker 바깥에도 5곳(그중 2곳은 실제
+  //    발주 경로)에 `slot<=3`으로 복사돼 있었다 — 한 곳만 고치면 화면과 실제 발주 브로커가
+  //    어긋나는 사고로 이어진다(2026-07-31 오발주 사고와 같은 계열).
+  //    서버 쪽 짝: proxy/broker3-proxy.js의 KIWOOM_MAX_SLOT, daily-backtest3.js의 BROKER_OF.
+  //    **네 곳의 경계값은 항상 함께 바꾼다.**
+  KIWOOM_MAX_SLOT: 6,
+
+  brokerForSlot(slot) {
+    return Number(slot) <= this.KIWOOM_MAX_SLOT ? "kiwoom" : "ls";
+  },
+
+  // 그 브로커가 쓰는 슬롯 번호 목록(설정 화면 탭 표시 등에 사용)
+  slotsForBroker(broker = this.activeBroker) {
+    const max = window.MAX_SLOTS || 12;
+    const out = [];
+    for (let i = 1; i <= max; i++) if (this.brokerForSlot(i) === broker) out.push(i);
+    return out;
+  },
+
   isSlotForBroker(slot, broker = this.activeBroker) {
     const slotNum = Number(slot);
-    if (broker === "kiwoom") return slotNum >= 1 && slotNum <= 3;
-    if (broker === "ls") return slotNum >= 4 && slotNum <= 6;
+    const max = window.MAX_SLOTS || 12;
+    if (!(slotNum >= 1 && slotNum <= max)) return false;
+    if (broker === "kiwoom" || broker === "ls") return this.brokerForSlot(slotNum) === broker;
     return true;
   },
 
@@ -194,12 +244,12 @@ window.BrokerService = {
   },
 
   async sendOverseasOrder({ slot, symbol, qty, price, side, ordType = "LIMIT" }) {
-    const broker = Number(slot) <= 3 ? "kiwoom" : "ls";
+    const broker = this.brokerForSlot(slot);
     return await this.brokerFetch(`/api/broker/${broker}/order`, "POST", { symbol, qty, price: Number(price).toFixed(2), side, ordType });
   },
 
   async cancelOverseasOrder(slot, orderNo) {
-    const broker = Number(slot) <= 3 ? "kiwoom" : "ls";
+    const broker = this.brokerForSlot(slot);
     return await this.brokerFetch(`/api/broker/${broker}/cancel`, "POST", { orderNo });
   },
 

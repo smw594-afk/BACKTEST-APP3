@@ -20,7 +20,7 @@ const eventHandlers = {
   updateSettingsTabButtons() {
     const activeTab = window.activeSettingsTab || 1;
 
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= (window.MAX_SLOTS || 12); i++) {
       const btn = document.getElementById(`tabSlot${i}`);
       if (btn) {
         if (i === activeTab) {

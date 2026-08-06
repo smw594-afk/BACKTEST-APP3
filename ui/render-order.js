@@ -137,7 +137,7 @@ function getVmMatchMarkup(order) {
 // (심볼을 못 구하면 배지를 못 붙이는데, 그러면 예약/주문/체결이 전부 사라진다.)
 function getSoleActiveTicker() {
   const set = new Set();
-  const max = window.MAX_SLOTS || 6;
+  const max = window.MAX_SLOTS || 12;
   for (let i = 1; i <= max; i++) {
     if (typeof window.isSlotActive === 'function' && !window.isSlotActive(i)) continue;
     const tk = String(window.slotConfigs?.[i]?.basics?.ticker || "").toUpperCase();
@@ -460,16 +460,19 @@ function renderOrderTableSlot(orders, slotNum) {
     const sideText = ((o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0]) + statusBadge;
     return `<tr><td class="${cls}" style="width:40%; text-align:center;">${sideText}</td><td class="${cls}" style="width:34%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:26%; text-align:center;">${o[3]}주</td></tr>`;
   }).join('')
-    // 📤 App3: per-slot REST submit row (kiwoom slots 1~3 / LS slots 4~6 via BrokerService)
+    // 📤 App3: per-slot REST submit row (키움 슬롯1~6 / LS 슬롯7~12 — BrokerService가 판정)
     // ⚠️ 이 버튼이 주문이 나가는 유일한 경로다. 비우면 주문 전송 수단이 사라진다.
-    + (window.BrokerService ? `<tr><td colspan="3" style="padding:6px 4px; text-align:center;">
+    + (window.BrokerService ? (() => {
+      const isKiwoom = window.BrokerService.brokerForSlot(slotNum) === 'kiwoom';
+      return `<tr><td colspan="3" style="padding:6px 4px; text-align:center;">
         <button onclick="window.submitSlotOrdersToBroker(${slotNum})"
           style="width:100%; padding:6px 8px; border:none; border-radius:6px; cursor:pointer;
-                 background:linear-gradient(135deg, ${Number(slotNum) <= 3 ? '#10b981, #047857' : '#a855f7, #7e22ce'});
+                 background:linear-gradient(135deg, ${isKiwoom ? '#10b981, #047857' : '#a855f7, #7e22ce'});
                  color:#fff; font-size:11px; font-weight:800; letter-spacing:0.2px;">
-          📤 ${Number(slotNum) <= 3 ? '키움' : 'LS'} 슬롯${slotNum} 주문전송
+          📤 ${isKiwoom ? '키움' : 'LS'} 슬롯${slotNum} 주문전송
         </button>
-      </td></tr>` : '');
+      </td></tr>`;
+    })() : '');
 }
 
 function renderOrderViewSlot(res, slotNum) {
@@ -771,8 +774,11 @@ window.submitSlotOrdersToBroker = async function (slotNum) {
   const symbol = window.slotConfigs?.[slotNum]?.basics?.ticker || "";
   if (!symbol) { alert("슬롯 티커를 찾을 수 없습니다. 설정을 확인하세요."); return; }
 
-  const brokerLabel = Number(slotNum) <= 3 ? "키움" : "LS증권";
-  const broker = Number(slotNum) <= 3 ? "kiwoom" : "ls";
+  // ⚠️ 실제 발주 브로커 결정 — BrokerService.brokerForSlot이 단일 진실 공급원이다.
+  //    서버(broker3-proxy의 sanitizeOrders3)도 slot 번호로 같은 판정을 하므로 경계가 어긋나면
+  //    화면과 다른 계좌로 주문이 나간다.
+  const broker = window.BrokerService.brokerForSlot(slotNum);
+  const brokerLabel = broker === "kiwoom" ? "키움" : "LS증권";
 
   // 실전/모의를 주문 직전에 서버에서 확인해 팝업에 명시한다.
   // 실전이면 이 확인 팝업이 유일한 안전장치이므로(자동주문 스케줄러 없음) 문구를 강하게.
