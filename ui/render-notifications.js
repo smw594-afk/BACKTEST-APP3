@@ -336,6 +336,14 @@ function getPeriodCalendarDays(periodKey, dailyRows, boundaryStart, boundaryEnd)
   // 총 CAGR(yrs 계산)과 동일하게 반올림 없이 소수 일수 그대로 사용
   return Math.max(1 / 24, (last - first) / 86400000);
 }
+
+// 월 CAGR 전용 연환산 함수: 월초 일수가 적어 발생하는 지수 폭발(수십만%)을 방지하고
+// 사용자 요청에 따라 1달 기준 12개월 연환산 ((1 + rate)^12 - 1)으로 계산한다.
+function annualizeMonthlyRate(rate) {
+  if (rate === null || rate === undefined || isNaN(rate)) return rate;
+  const v = Math.pow(1 + Number(rate), 12) - 1;
+  return (isFinite(v) && !isNaN(v)) ? v : rate;
+}
 function annualizePeriodRate(rate, periodKey, dailyRows, boundaryStart, boundaryEnd, daysPerYear) {
   if (rate === null || rate === undefined) return rate;
   const days = getPeriodCalendarDays(periodKey, dailyRows, boundaryStart, boundaryEnd);
@@ -416,7 +424,7 @@ function openRankingModal(mode = 'backtest') {
         const isOnlyYear = res.yearlyData && res.yearlyData.length === 1;
         const isOnlyMonth = res.monthlyData && res.monthlyData.length === 1;
         const yearlyCagr = yRow ? annualizePeriodRate(yearlyRate, yRow.period, res.dailyData, isOnlyYear ? cfgStart : null, cfgEnd) : null;
-        const monthlyCagr = mRow ? annualizePeriodRate(monthlyRate, mRow.period, res.dailyData, isOnlyMonth ? cfgStart : null, cfgEnd) : null;
+        const monthlyCagr = mRow ? annualizeMonthlyRate(monthlyRate) : null;
         // 칼마비율 = CAGR(연환산 수익률) / MDD (단순 구간 수익률이 아님)
         const totalCalmar = s.calmar !== undefined ? s.calmar : 0;
         const yearlyCalmar = (yearlyCagr !== null && yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(yearlyCagr / Number(yRow.mdd)) : null;
@@ -470,7 +478,7 @@ function openRankingModal(mode = 'backtest') {
         // 년/월 CAGR도 현재시각으로 늘리지 말고 동일 기준(경계 없음 + 365)으로 계산해 총 CAGR과 일치시킨다.
         // (단일 년 백테스트면 년 구간 = 총 구간 → 년 CAGR = 총 CAGR)
         const yearlyCagr = yRow ? annualizePeriodRate(yearlyRate, yRow.period, globalDailyDataArr[i], null, null, 365) : null;
-        const monthlyCagr = mRow ? annualizePeriodRate(monthlyRate, mRow.period, globalDailyDataArr[i], null, null, 365) : null;
+        const monthlyCagr = mRow ? annualizeMonthlyRate(monthlyRate) : null;
         // 칼마비율 = CAGR(연환산 수익률) / MDD (단순 구간 수익률이 아님)
         const totalCalmar = displaySummary.calmar !== undefined ? displaySummary.calmar : 0;
         const yearlyCalmar = (yearlyCagr !== null && yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(yearlyCagr / Number(yRow.mdd)) : null;

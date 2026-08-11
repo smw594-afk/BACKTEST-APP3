@@ -503,9 +503,9 @@ function preparePerfLayout() {
   const currencyBtns = document.querySelectorAll('.btn-currency-toggle');
 
   // 패널 타이틀 고정
-  if (periodTitle) periodTitle.innerHTML = '📅 년별 수익 그래프';
-  if (periodChartTitle) periodChartTitle.innerHTML = '📅 월별 수익 그래프';
-  if (periodDailyTitle) periodDailyTitle.innerHTML = '📅 일별 수익 그래프';
+  if (periodTitle) periodTitle.innerHTML = '📅 년별 자산 증감';
+  if (periodChartTitle) periodChartTitle.innerHTML = '📅 월별 자산 증감';
+  if (periodDailyTitle) periodDailyTitle.innerHTML = '📅 일별 자산 증감';
 
   // 홈화면용 토글 버튼은 숨김
   if (btnPeriodMode) btnPeriodMode.style.display = 'none';
@@ -1646,7 +1646,11 @@ function updatePeriodTitle() {
   const isPerfTabLayout = grid && grid.classList.contains('perf-tab-layout');
   if (isPerfTabLayout) {
     const periodTitle = document.getElementById('periodTitle');
-    if (periodTitle) periodTitle.innerHTML = '📅 년별 수익 그래프';
+    if (periodTitle) periodTitle.innerHTML = '📅 년별 자산 증감';
+    const periodChartTitle = document.getElementById('periodChartTitle');
+    if (periodChartTitle) periodChartTitle.innerHTML = '📅 월별 자산 증감';
+    const periodDailyTitle = document.getElementById('periodDailyTitle');
+    if (periodDailyTitle) periodDailyTitle.innerHTML = '📅 일별 자산 증감';
     return;
   }
 
@@ -1658,14 +1662,14 @@ function updatePeriodTitle() {
   let titleText = "";
   let chartTitleText = "";
   if (periodViewState === 0) {
-    titleText = `📅 월별 수익 <span ${smallStyle}>(종합)</span>`;
-    chartTitleText = `📅 월별 수익 그래프`;
+    titleText = `📅 년별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    chartTitleText = `📅 년별 자산 증감`;
   } else if (periodViewState === 1) {
-    titleText = `📅 년별 수익 <span ${smallStyle}>(종합)</span>`;
-    chartTitleText = `📅 년별 수익 그래프`;
+    titleText = `📅 월별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    chartTitleText = `📅 월별 자산 증감`;
   } else {
-    titleText = `📅 일별 수익 <span ${smallStyle}>(종합)</span>`;
-    chartTitleText = `📅 일별 수익 그래프`;
+    titleText = `📅 일별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    chartTitleText = `📅 일별 자산 증감`;
   }
   
   periodTitle.innerHTML = titleText;

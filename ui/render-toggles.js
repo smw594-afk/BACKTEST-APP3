@@ -360,7 +360,9 @@ function togglePeriodView() {
   const isPerfTabLayout = grid && grid.classList.contains('perf-tab-layout');
   if (isPerfTabLayout) return; // 성과 탭 레이아웃에서는 타이틀 클릭 동작을 막음
 
-  periodViewState = (periodViewState + 1) % 3;
+  // 토글 순서: 년별(1) -> 월별(0) -> 일별(2) -> 년별(1)
+  const nextPeriodStateMap = { 1: 0, 0: 2, 2: 1 };
+  periodViewState = nextPeriodStateMap[periodViewState] !== undefined ? nextPeriodStateMap[periodViewState] : 1;
   try { localStorage.setItem(`vtotal3_period_view_state_${myUserId}`, periodViewState); } catch (e) { }
   updatePeriodTitle();
 

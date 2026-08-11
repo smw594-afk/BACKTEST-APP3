@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html id="docHtml">
 
 <head>
@@ -228,6 +228,7 @@
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -403,7 +404,7 @@
     <!-- 성과 탭 중단1: 년별 성과 -->
     <div class="card panel-monthly" id="panelMonthly">
       <div class="section-header swipe-handler" id="monthlyHeader">
-        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 년별 수익 그래프</h2>
+        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 년별 자산 증감</h2>
         <div id="performanceSummary" style="display:grid; grid-template-columns:1fr 1fr; row-gap:2px; column-gap:0; font-size:11px; color:var(--text); justify-content:start; align-self:flex-start; margin-right:0; padding:0; line-height:1;">
           <div id="perfSummaryHoldingsQty" style="line-height:1;"></div>
           <div id="perfSummaryHoldingsTotal" style="line-height:1;"></div>
@@ -445,7 +446,7 @@
     <!-- 성과 탭 중단2: 월별 성과 -->
     <div class="card panel-monthly-chart hidden" id="panelMonthlyChart">
       <div class="section-header swipe-handler" id="monthlyChartHeader">
-        <h2 id="periodChartTitle" class="period-toggle" onclick="togglePeriodView()" title="월별 수익">📅 월별 수익 그래프</h2>
+        <h2 id="periodChartTitle" class="period-toggle" onclick="togglePeriodView()" title="월별 자산 증감">📅 월별 자산 증감</h2>
         <!-- 성과 탭 전용 일괄 차트/테이블 토글 버튼 -->
         <button id="btnPeriodModeYearly" onclick="togglePeriodDisplayModeYearly()" class="btn-icon-sub" title="차트/테이블 전환"
           style="font-size:20px; display:none; align-items:center; justify-content:center; margin-left:auto;">
@@ -470,7 +471,7 @@
     <!-- 성과 탭 하단: 일별 성과 -->
     <div class="card panel-daily-chart hidden" id="panelDailyChart">
       <div class="section-header swipe-handler" id="dailyChartHeader">
-        <h2 id="periodDailyTitle" class="period-toggle" title="일별 수익">📅 일별 수익 그래프</h2>
+        <h2 id="periodDailyTitle" class="period-toggle" title="일별 자산 증감">📅 일별 자산 증감</h2>
         <button id="btnCurrencyToggleDaily" class="btn-currency-toggle" onclick="toggleCurrencyMode()" title="통화 전환"
           style="background:none; color:var(--text); border:none; outline:none; padding:4px; font-size:11px; font-weight:bold; cursor:pointer; transition:all 0.2s; margin-left:auto; display:none; align-items:center; justify-content:center; min-width:40px; box-shadow:none;">
           KRW
@@ -614,7 +615,7 @@
   <div class="top-bar hidden" id="topBar">
     <div class="top-left">
       <div id="ledLamp" class="led-lamp"></div>
-      <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃">로딩중...</div>
+      <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃" style="white-space:nowrap; overflow:hidden; text-overflow:clip; max-width:100%; display:inline-block;">로딩중...</div>
       <!-- 🟢 키움 / 🟣 LS 선택 버튼 (broker-service.js switchBrokerMode가 갱신) -->
       <button id="btnSingleBrokerNav" onclick="window.BrokerService && window.BrokerService.openBrokerSelectPopup()"
         style="margin-left:6px; border:none; border-radius:6px; padding:3px 8px; font-weight:700; font-size:11px; cursor:pointer; background:linear-gradient(135deg,#10b981,#059669); color:#000; white-space:nowrap;">🟢 키움 <span style="font-size:9px;">▼</span></button>
@@ -623,10 +624,10 @@
       <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)" onclick="showOrderView()"><span id="icoInstant">🏠</span></button>
       <button id="btnStatsShow" class="top-icon-btn" title="내역 모드" onclick="showStatsView()"><span
           id="icoStatsShow">📄</span></button>
-      <button id="btnPriceInfo" class="top-icon-btn" onclick="showPriceInfoView()" title="주가 정보">📈</button>
       <button id="btnPerfShow" class="top-icon-btn" title="성과 모드" onclick="showPerfView()"><span
           id="icoPerfShow">📊</span></button>
       <button id="btnAnalysis" class="top-icon-btn" title="성과 분석" onclick="showPerformanceAnalysisView()" style="color:#22c55e; font-weight:700;">🧩</button>
+      <button id="btnPriceInfo" class="top-icon-btn" onclick="showPriceInfoView()" title="주가 정보">📈</button>
     </div>
   </div>
 
@@ -647,6 +648,7 @@
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -660,6 +662,7 @@
               <option value="2M3D2(1.0)" selected>2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -673,6 +676,7 @@
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)" selected>2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -686,6 +690,7 @@
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -699,6 +704,7 @@
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)" selected>2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -712,6 +718,7 @@
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)" selected>2M3D2(2.1)</option>
               <option value="3M3D1-R">3M3D1-R</option>
             </select>
@@ -918,22 +925,22 @@
   </script>
 
   <script src="engine/price_loader.js?v=cf_v9000" defer></script>
-  <script src="engine/strategies.js?v=cf_v9000" defer></script>
+  <script src="engine/strategies.js?v=cf_v9001" defer></script>
   <script src="engine/engine.js?v=cf_v9000" defer></script>
   <script src="engine/core.js?v=cf_v9001" defer></script>
   <script src="ui/render-order.js?v=cf_v9015" defer></script>
   <script src="ui/render-holdings.js?v=cf_v9003" defer></script>
   <script src="ui/render-performance.js?v=cf_v9001" defer></script>
-  <script src="ui/render-stats.js?v=cf_v9002" defer></script>
+  <script src="ui/render-stats.js?v=cf_v9006" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v9005" defer></script>
   <script src="ui/render-price-info.js?v=cf_v9000" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v9000" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v9003" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v9004" defer></script>
   <script src="ui/render-helpers.js?v=cf_v9002" defer></script>
-  <script src="ui/render-notifications.js?v=cf_v9000" defer></script>
+  <script src="ui/render-notifications.js?v=cf_v9002" defer></script>
   <script src="ui/render-misc.js?v=cf_v9007" defer></script>
   <script src="ui/index.js?v=cf_v9000" defer></script>
-  <script src="script.js?v=cf_v9019" defer></script>
+  <script src="script.js?v=cf_v9021" defer></script>
 
 
 </body>

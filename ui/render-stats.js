@@ -179,33 +179,22 @@ function refreshStatsTable() {
   }
 
   // ══════════════════════════════════════════════════════
-  // 📊 성과 모드 (perf-tab-layout)
+  // 📊 성과 모드, 백테스트 뷰 및 일반 뷰 (perfStatsMode 지원)
   //   상태: perfStatsMode ('stats' | 'realtime')
-  //   화면: 📄 성과 지표(CAGR/승률/MDD) ↔ 📡 실시간 운영현황
-  //   ※ 계좌 정보 절대 없음
+  //   화면: 📄 성과 지표 ↔ 📡 실시간 운영현황
   // ══════════════════════════════════════════════════════
-  if (grid && grid.classList.contains('perf-tab-layout')) {
-    if (statsTitle) statsTitle.innerHTML = perfStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
-    if (tableContainer) tableContainer.style.display = 'block';
-    if (chartContainer) chartContainer.style.display = 'none';
-    if (selector) selector.style.display = 'none';
-    if (actionArea) actionArea.style.display = 'flex';
-    if (!table) return; // DOM 없으면 중단
-    if (perfStatsMode === 'realtime') {
-      renderRealtimeStatusTable(table);
-    } else {
-      renderOriginalStatsTable(table);
-    }
-    return;
-  }
-
-  // 기타 레이아웃 (주문표, 백테스트 등): statsTableBody가 없으면 그냥 리턴
-  if (!table) return;
+  if (statsTitle) statsTitle.innerHTML = perfStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
   if (tableContainer) tableContainer.style.display = 'block';
   if (chartContainer) chartContainer.style.display = 'none';
   if (selector) selector.style.display = 'none';
   if (actionArea) actionArea.style.display = 'flex';
-  renderRealtimeStatusTable(table);
+  if (!table) return; // DOM 없으면 중단
+
+  if (perfStatsMode === 'realtime') {
+    renderRealtimeStatusTable(table);
+  } else {
+    renderOriginalStatsTable(table);
+  }
 }
 
 function renderOriginalStatsTable(table) {
@@ -345,7 +334,7 @@ function renderOriginalStatsTable(table) {
 
   let html = `<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%; min-width:${tableMinWidthPx}px;">`;
   html += `<div class="stats-header-row" style="display:flex; align-items:center; gap:1px; padding:2px 3px 2px 0px; box-sizing:border-box; line-height:1; min-height:${headerRowMinHeightPx}px; width:100%;">`;
-  html += `<div style="${headerCellStyle} ${labelColSizeStyle} flex-shrink:0; justify-content:flex-start; text-align:left; overflow:hidden; text-overflow:ellipsis;">구분</div>`;
+  html += `<div style="${headerCellStyle} ${labelColSizeStyle} flex-shrink:0; justify-content:flex-start; text-align:left; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" onclick="window.onStatsTitleClick()" title="클릭하여 성과지표 / 실시간 운영현황 토글">구분 🔄</div>`;
   metricsList.forEach(m => {
     const minWidth = (m.key === 'totalAssets') ? totalAssetsColMinWidthPx : defaultMetricColMinWidthPx;
     html += `<div style="flex:1; min-width:${minWidth}px; ${headerCellStyle}">${m.label}</div>`;
@@ -956,8 +945,8 @@ function onStatsTitleClick() {
   if (grid && grid.classList.contains('perf-metrics-layout')) {
     // 내역모드: 💼 자산현황 ↔ 📡 계좌 정보
     statsDisplayMode = statsDisplayMode === 'chart' ? 'table' : 'chart';
-  } else if (grid && grid.classList.contains('perf-tab-layout')) {
-    // 성과모드: 📄 성과 지표 ↔ 📡 실시간 운영현황
+  } else {
+    // 성과모드/백테스트뷰/일반뷰: 📄 성과 지표 ↔ 📡 실시간 운영현황 토글
     perfStatsMode = perfStatsMode === 'stats' ? 'realtime' : 'stats';
   }
   refreshStatsTable();

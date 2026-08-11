@@ -111,6 +111,7 @@
   flex: 1;
   overflow: hidden;
   margin-right: 8px;
+  white-space: nowrap;
 }
 
 .top-right {
@@ -489,8 +490,10 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 .panel-order h2,
-.panel-monthly h2 {
-  font-size: 14px !important;
+.panel-monthly h2,
+.panel-monthly-chart h2,
+.panel-daily-chart h2 {
+  font-size: 13px !important;
   letter-spacing: -0.01em;
   margin-bottom: 4px;
 }
@@ -800,17 +803,18 @@ h2:hover {
 }
 
 .user-id-box {
-  display: block;
+  display: inline-block;
   font-weight: 700;
   color: var(--primary);
   cursor: pointer;
   font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
   min-width: 0;
-  flex: 1;
-  flex-shrink: 1;
+  max-width: 100%;
+  flex: 0 1 auto;
   line-height: 36px;
 }
 
