@@ -259,7 +259,7 @@ function renderDBTradeHistory() {
   try {
     let allTrades = [];
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) {
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const res = lastBTResults[i];
         if (res) {
           let trades = Array.isArray(res.trades) ? res.trades : [];
@@ -793,14 +793,14 @@ function getClosePriceOnDate(dateStr, slotNum) {
 //    모드값 'ls')라 실행돼도 broker가 항상 'kiwoom'으로 잡혀 아무 효과가 없었다. toggleView()의
 //    현재 로직에 맞춰 다시 작성했다.
 function syncHistoryViewModeToBroker() {
-  if (historyViewMode !== 'kiwoom' && historyViewMode !== 'ls') return;
   const broker = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
   const wantMode = broker === 'ls' ? 'ls' : 'kiwoom';
-  if (historyViewMode === wantMode) return;
-  historyViewMode = wantMode;
-  const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
-  if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매수·매도 내역' : '📋 키움 매수·매도 내역';
-  renderBrokerFills(wantMode);
+  if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
+    historyViewMode = wantMode;
+    const title = document.getElementById('historyTitle');
+    if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매수·매도 내역' : '📋 키움 매수·매도 내역';
+    renderBrokerFills(wantMode);
+  }
 }
 
 if (!window.UI) window.UI = {};

@@ -57,12 +57,20 @@ function minifySnapshot(snap) {
 }
 
 function saveSnapshot(snap, slotNum, userId) {
+  const key = `vtotal3_snap${slotNum}_${userId}`;
+  const minified = minifySnapshot(snap);
+  if (minified) minified.savedAt = Date.now();
   try {
-    const minified = minifySnapshot(snap);
-    minified.savedAt = Date.now();
-    localStorage.setItem(`vtotal3_snap${slotNum}_${userId}`, JSON.stringify(minified));
-  } catch (e) {
-    console.error(`Snapshot 저장 실패 [슬롯${slotNum}]:`, e.message);
+    localStorage.setItem(key, JSON.stringify(minified));
+    return;
+  } catch (_) {
+    try {
+      clearTransientAppCaches();
+      localStorage.setItem(key, JSON.stringify(minified));
+      return;
+    } catch (e) {
+      console.error(`Snapshot 저장 실패 [슬롯${slotNum}]:`, e.message);
+    }
   }
 }
 
@@ -78,9 +86,39 @@ function loadSnapshot(slotNum, userId) {
 
 // 🏆 BT 랭킹 결과 저장/복원
 function saveBTResult(result, slotNum, userId) {
+  const key = `vtotal3_manual_BT_${slotNum}_${userId}`;
+  const minified = minifySnapshot(result);
+  // 1차 시도: 전체 저장
   try {
-    const minified = minifySnapshot(result);
-    localStorage.setItem(`vtotal3_manual_BT_${slotNum}_${userId}`, JSON.stringify(minified));
+    localStorage.setItem(key, JSON.stringify(minified));
+    return;
+  } catch (_) { /* quota exceeded — 아래 fallback */ }
+  // 공간 확보: 다른 슬롯의 오래된 BT 캐시 + snap 캐시 제거
+  try {
+    for (let s = 1; s <= MAX_SLOTS; s++) {
+      if (s === slotNum) continue;
+      localStorage.removeItem(`vtotal3_manual_BT_${s}_${userId}`);
+      localStorage.removeItem(`vtotal3_snap${s}_${userId}`);
+    }
+    localStorage.removeItem(`vtotal3_snap${slotNum}_${userId}`);
+  } catch (_) { }
+  // 2차 시도: 공간 확보 후 재시도
+  try {
+    localStorage.setItem(key, JSON.stringify(minified));
+    return;
+  } catch (_) { /* 여전히 부족 — 경량화 */ }
+  // 3차 시도: dailyData 제거 (가장 큰 필드)
+  try {
+    const light = { ...minified, dailyData: undefined };
+    localStorage.setItem(key, JSON.stringify(light));
+    console.warn(`BT 결과 경량 저장 [슬롯${slotNum}]: dailyData 제외`);
+    return;
+  } catch (_) { }
+  // 4차 시도: trades + 차트 데이터도 제거
+  try {
+    const ultraLight = { ...minified, dailyData: undefined, trades: undefined, chartDates: undefined, chartBalances: undefined, chartInout: undefined, chartMdd: undefined };
+    localStorage.setItem(key, JSON.stringify(ultraLight));
+    console.warn(`BT 결과 최소 저장 [슬롯${slotNum}]: 요약만`);
   } catch (e) {
     console.error(`BT 결과 저장 실패 [슬롯${slotNum}]:`, e.message);
   }
@@ -177,7 +215,7 @@ function formatStrategyNameWithSmallParentheses(name) {
 window.formatStrategyNameWithSmallParentheses = formatStrategyNameWithSmallParentheses;
 
 // 글로벌 상태 변수
-let myUserId = "";
+let myUserId = localStorage.getItem("vtotal3_id") || "smw594";
 let myChart = null;
 let currentOrderDate = "";
 let isOrderView = true;
@@ -1395,6 +1433,28 @@ async function handleSave() {
             showToast(`⚠️ GCP 재계산 실패(방금 저장한 값은 이미 반영됨): ${recalcResult.reason}`, "⚠️");
           }
         });
+      }
+
+      // ⭐️ [시트에 반영 후 UI 갱신] 메모리 결과 및 스냅샷 업데이트 후 실시간 운용현황/통계/차트 즉시 갱신
+      lastBTResults[targetSlot] = targetRes;
+      saveSnapshot(normalizeSnapAmounts(targetRes), targetSlot, myUserId);
+
+      if (window.UI) {
+        if (window.UI.updates && typeof window.UI.updates.updateUIWithResult === 'function') {
+          window.UI.updates.updateUIWithResult(targetRes, slotConfigs[targetSlot], targetSlot, true);
+          if (typeof window.UI.updates.updateCurrentStatusUI === 'function') {
+            window.UI.updates.updateCurrentStatusUI(targetSlot);
+          }
+        }
+        if (window.UI.stats && typeof window.UI.stats.refreshStatsTable === 'function') {
+          window.UI.stats.refreshStatsTable();
+        }
+        if (window.UI.performance && typeof window.UI.performance.calculateCombinedPeriodData === 'function') {
+          window.UI.performance.calculateCombinedPeriodData();
+        }
+      }
+      if (typeof renderChartAll === 'function') {
+        renderChartAll();
       }
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
@@ -2791,7 +2851,7 @@ async function pushTodayOrders(freshBySlot) {
             qty,
             ordType,
             price: price.toFixed(2),
-            broker: getSlotConfig(i)?.basics?.broker || "kiwoom",
+            broker: window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "kiwoom" : "ls"),
           });
         }
       });
@@ -2802,7 +2862,7 @@ async function pushTodayOrders(freshBySlot) {
     }
 
     // ── 예수금 부족 경고 (브로커별 매수 필요금액 vs 보유 예수금) ──
-    if (window.BrokerService && typeof window.BrokerService.fetchOverseasBalance === 'function') {
+    if (localStorage.getItem("vtotal3_ignore_deposit_warning") !== "true" && window.BrokerService && typeof window.BrokerService.fetchOverseasBalance === 'function') {
       const buyNeededByBroker = {};
       orders.forEach(o => {
         if (o.side === 'buy') {
@@ -2812,12 +2872,19 @@ async function pushTodayOrders(freshBySlot) {
       for (const [broker, needed] of Object.entries(buyNeededByBroker)) {
         try {
           const bal = await window.BrokerService.fetchOverseasBalance(broker);
-          const cash = Number(bal && bal.usdCash || 0);
-          if (bal && bal.success && cash < needed) {
+          // COSOQ02701OutBlock3 기반 외화 주문가능금액(buyingPowerUsd) 및 예수금(usdCash + rpCash) 중
+          // 하나라도 필요 금액(needed) 이상이면 주문 승인 (OR 조건)
+          const usdCashVal = Number(bal && bal.usdCash || 0);
+          const rpCashVal = Number(bal && bal.rpCash || 0);
+          const buyingPowerVal = Number(bal && bal.buyingPowerUsd || 0);
+          const maxAvailable = Math.max(usdCashVal + rpCashVal, buyingPowerVal);
+
+          if (bal && bal.success && maxAvailable < needed) {
             const proceed = confirm(
-              `⚠️ [${broker.toUpperCase()}] 예수금 부족 경고\n\n` +
-              `필요 금액: $${needed.toFixed(2)}\n` +
-              `보유 예수금: $${cash.toFixed(2)}\n\n` +
+              `⚠️ [${broker.toUpperCase()}] 예수금 / 주문가능금액 부족 경고\n\n` +
+              `필요 금액: ${needed.toFixed(2)}\n` +
+              `순수 예수금: ${usdCashVal.toFixed(2)}\n` +
+              `주문가능금액(COSOQ02701 TR): ${maxAvailable.toFixed(2)}\n\n` +
               `그대로 주문을 예약하시겠습니까?\n(증권사에서 증거금 부족으로 거부될 수 있습니다)`
             );
             if (!proceed) {
@@ -2846,7 +2913,8 @@ async function pushTodayOrders(freshBySlot) {
     const result = await resp.json();
     if (result.ok) {
       console.log(`[OrderSync] ✅ ${orders.length}건 주문 예약 완료 (자동주문 ON)`);
-      if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache();
+      if (window.orderStatusCache) window.orderStatusCache.lastUpdated = 0;
+      if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache(true);
       return { ok: true, count: orders.length };
     } else {
       console.warn("[OrderSync] ⚠️ 예약 실패:", result.reason || result.error);
@@ -2883,7 +2951,8 @@ async function triggerVmRecalc() {
     const result = await resp.json();
     if (result.ok) {
       console.log(`[OrderSync] ✅ GCP 재계산 완료 (${result.count}건)`);
-      if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache();
+      if (window.orderStatusCache) window.orderStatusCache.lastUpdated = 0;
+      if (typeof refreshOrderStatusCache === 'function') refreshOrderStatusCache(true);
       return { ok: true, count: result.count };
     } else {
       console.warn("[OrderSync] ⚠️ GCP 재계산 거부/실패:", result.reason);

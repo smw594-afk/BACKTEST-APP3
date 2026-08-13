@@ -129,7 +129,7 @@ function updateFontSize(val) {
 }
 
 function getBestResult(currentRes, slotNum) {
-  if (isViewingHistory) return currentRes;
+  if (window.isManualBacktestMode || isViewingHistory) return currentRes;
   if (currentRes && currentRes.isSynced) return currentRes;
   const cachedStr = localStorage.getItem(`vtotal3_snap${slotNum}_` + myUserId);
   if (cachedStr) {

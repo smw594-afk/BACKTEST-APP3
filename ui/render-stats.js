@@ -839,7 +839,8 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       return { symbol, qty, avgPrice, currPrice, pnlVal, valuation };
     });
 
-    const totalAsset = usdCash + evalAmt;
+    const rpCash = Number(result.rpCash || (buyingPower > usdCash ? (buyingPower - usdCash) / 0.95 : 0));
+    const totalAsset = usdCash + rpCash + evalAmt;
     const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     let html = '<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%;">';
@@ -848,6 +849,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     html += `
       <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
         <div>예수금(D+2): <strong style="color:var(--text, #fff);">${usd(usdCash)}</strong></div>
+        <div>주문 가능금액: <strong style="color:#38bdf8;">${usd(buyingPower)}</strong></div>
         <div>평가금액: <strong style="color:#fbbf24;">${usd(evalAmt)}</strong></div>
         <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>
         <div>총 자산: <strong style="color:#fbbf24;">${usd(totalAsset)}</strong></div>

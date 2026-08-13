@@ -83,6 +83,7 @@ function updateCurrentStatusUI(slotNum) {
   const elRenew = document.getElementById('statRenew');
   const elPrincipal = document.getElementById('statPrincipal');
   const elCash = document.getElementById('statCash');
+  const elRpCash = document.getElementById('statRpCash');
 
   if (!res || !res.summary) {
     if (elDate) elDate.innerText = "-";
@@ -128,6 +129,14 @@ function updateCurrentStatusUI(slotNum) {
   if (elRenew) elRenew.innerText = fmt(displayBase);
   if (elPrincipal) elPrincipal.innerText = fmt(displayPrincipal);
   if (elCash) elCash.innerText = fmt(displayCash);
+  if (elRpCash) {
+    let rpVal = s.rpCash;
+    if (rpVal === undefined && window.orderStatusCache && window.orderStatusCache.balance) {
+      rpVal = window.orderStatusCache.balance.rpCash;
+    }
+    if (rpVal === undefined) rpVal = 0;
+    elRpCash.innerText = fmt(rpVal);
+  }
 
   // 📦 보유 주식 (시트 꾸러미 데이터 - 꾸러미에 실제 저장되는 필드만 표시)
   const elHoldings = document.getElementById('statHoldings');

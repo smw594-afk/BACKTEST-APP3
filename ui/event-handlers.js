@@ -43,7 +43,7 @@ const eventHandlers = {
 
   showOrderView() {
     window.isOrderView = true;
-    window.isManualBacktestMode = false;
+    // window.isManualBacktestMode preserved during view switch
     const orderView = document.getElementById('orderViewContainer');
     const holdingsView = document.getElementById('holdingsViewContainer');
     const statsView = document.getElementById('statsViewContainer');
@@ -57,7 +57,7 @@ const eventHandlers = {
 
   showHoldingsView() {
     window.isOrderView = false;
-    window.isManualBacktestMode = false;
+    // window.isManualBacktestMode preserved during view switch
     const orderView = document.getElementById('orderViewContainer');
     const holdingsView = document.getElementById('holdingsViewContainer');
 
@@ -67,7 +67,7 @@ const eventHandlers = {
 
   showStatsView() {
     window.isStatsMode = true;
-    window.isManualBacktestMode = false;
+    // window.isManualBacktestMode preserved during view switch
     const statsView = document.getElementById('statsViewContainer');
     const perfView = document.getElementById('perfViewContainer');
 
@@ -77,7 +77,7 @@ const eventHandlers = {
 
   showPerfView() {
     window.isStatsMode = false;
-    window.isManualBacktestMode = false;
+    // window.isManualBacktestMode preserved during view switch
     const statsView = document.getElementById('statsViewContainer');
     const perfView = document.getElementById('perfViewContainer');
 
@@ -171,28 +171,28 @@ window.showOrderView = () => {
   if (window.isManualBacktestMode) {
     if (typeof window.restoreLocalCache === 'function') window.restoreLocalCache();
   }
-  window.isManualBacktestMode = false;
+  // window.isManualBacktestMode preserved during view switch
   eventHandlers.showOrderView();
 };
 window.showHoldingsView = () => {
   if (window.isManualBacktestMode) {
     if (typeof window.restoreLocalCache === 'function') window.restoreLocalCache();
   }
-  window.isManualBacktestMode = false;
+  // window.isManualBacktestMode preserved during view switch
   eventHandlers.showHoldingsView();
 };
 window.showStatsView = () => {
   if (window.isManualBacktestMode) {
     if (typeof window.restoreLocalCache === 'function') window.restoreLocalCache();
   }
-  window.isManualBacktestMode = false;
+  // window.isManualBacktestMode preserved during view switch
   eventHandlers.showStatsView();
 };
 window.showPerfView = () => {
   if (window.isManualBacktestMode) {
     if (typeof window.restoreLocalCache === 'function') window.restoreLocalCache();
   }
-  window.isManualBacktestMode = false;
+  // window.isManualBacktestMode preserved during view switch
   eventHandlers.showPerfView();
 };
 window.toggleChartView = () => eventHandlers.toggleChartView();

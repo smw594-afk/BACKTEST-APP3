@@ -7,7 +7,10 @@ window.orderStatusCache = window.orderStatusCache || {
   lastUpdated: 0
 };
 
-async function refreshOrderStatusCache() {
+async function refreshOrderStatusCache(force = false) {
+  if (force && window.orderStatusCache) {
+    window.orderStatusCache.lastUpdated = 0;
+  }
   try {
     const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
     if (!userId) return;
@@ -18,6 +21,7 @@ async function refreshOrderStatusCache() {
     // 나가서 LS COSAQ00102/키움 ust21150이 유량 초과(429)에 걸렸다(사용자 실증).
     // 시작 시점에 찍어야 느린/실패 응답 중에도 중복 재진입을 막는다.
     window.orderStatusCache.lastUpdated = Date.now();
+    window.__forceOrderViewReRender = true;
 
     let base = window.BROKER_API_BASE;
     if (!base || typeof base !== 'string' || !base.startsWith('http')) {
@@ -49,6 +53,13 @@ async function refreshOrderStatusCache() {
         const res1 = await window.BrokerService.fetchUnfilledOrders(activeBr);
         if (res1 && res1.success && Array.isArray(res1.unfilled)) {
           window.orderStatusCache.unfilledOrders = res1.unfilled;
+        }
+      } catch (e) {}
+
+      try {
+        const resBal = await window.BrokerService.fetchOverseasBalance(activeBr);
+        if (resBal && resBal.success !== false) {
+          window.orderStatusCache.balance = resBal;
         }
       } catch (e) {}
 
@@ -99,9 +110,20 @@ function orderTableDateStr() {
 // 앱 통합 주문표의 한 줄이 GCP 봇에 예약된 주문과 같은지 표시한다.
 // 앱을 켰을 때 눈으로 바로 확인되므로 별도 경고 팝업이 필요 없다.
 // order: [side('매수'/'매도'), mode('LOC'/'MOC'), price, qty]
-function getVmMatchMarkup(order) {
+function getVmMatchMarkup(order, slotNum) {
   const cache = window.orderStatusCache || {};
-  const vm = Array.isArray(cache.vmOrders) ? cache.vmOrders : null;
+  let rawVm = Array.isArray(cache.vmOrders) ? cache.vmOrders : null;
+  if (!rawVm) return `<span style="color:#64748b; font-size:9px;">-</span>`;
+  
+  // ⭐️ [브로커 분리 대조] 키움 슬롯 주문과 LS 슬롯 주문이 서로 섞이지 않도록
+  // 현재 활성 브로커(activeBroker)와 일치하는 GCP 주문만 필터링한다.
+  const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
+  const vm = rawVm.filter(v => {
+    const b = v.broker || (Number(v.slot) <= 6 ? 'kiwoom' : 'ls');
+    if (b !== activeBr) return false;
+    if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
+    return true;
+  });
   if (!vm || vm.length === 0) {
     // 생성 창이 이미 지났는데도 비어 있으면 봇이 주문표를 못 만든 것이다 — 빨갛게 알린다.
     if (cache.vmOverdue) {
@@ -115,15 +137,38 @@ function getVmMatchMarkup(order) {
   const price = Math.round((parseFloat(order[2]) || 0) * 100) / 100;
   const qty = parseInt(order[3], 10) || 0;
 
-  const hit = vm.find(v =>
+  // GCP VM의 개별 슬롯 주문들도 퉁치기(합산)하여 통합 비교한다.
+  let combinedVm = vm;
+  if (vm.length > 1 && typeof combineOrders === 'function') {
+    try {
+      const rawVmTuples = vm.map(v => [
+        v.side === 'buy' ? '매수' : '매도',
+        v.ordType || 'LOC',
+        v.price,
+        v.qty
+      ]);
+      const combinedTuples = combineOrders(rawVmTuples);
+      combinedVm = combinedTuples.map(t => ({
+        side: t[0] === '매수' ? 'buy' : 'sell',
+        ordType: String(t[1] || '').toUpperCase(),
+        price: parseFloat(t[2]) || 0,
+        qty: parseInt(t[3], 10) || 0
+      }));
+    } catch(e) {}
+  }
+
+  const hit = combinedVm.find(v =>
     String(v.side).toLowerCase() === side &&
     String(v.ordType || '').toUpperCase() === ordType &&
     Number(v.qty) === qty &&
-    (ordType === 'MOC' || Math.abs(Number(v.price) - price) < 0.005));
+    (ordType === 'MOC' || Math.abs(Number(v.price) - price) < 0.05));
 
   if (hit) {
     return `<span style="color:#10b981; font-size:9px; font-weight:800;" title="GCP 봇 예약분과 일치">일치</span>`;
   }
+
+  const vmSummary = vm.map(v => `${v.side} ${v.ordType} ${v.qty}주@${v.price}(${v.symbol || ''})`).join(' / ');
+  console.log(`[VmMatch mismatch] 앱: ${side} ${ordType} ${qty}주@${price} vs GCP: [${vmSummary}]`);
   // 같은 방향·유형인데 값이 다른 게 있으면 무엇이 다른지 알려준다.
   const near = vm.find(v => String(v.side).toLowerCase() === side && String(v.ordType || '').toUpperCase() === ordType);
   const detail = near
@@ -146,7 +191,7 @@ function getSoleActiveTicker() {
   return set.size === 1 ? Array.from(set)[0] : "";
 }
 
-function getOrderStatusBadgeMarkup(order) {
+function getOrderStatusBadgeMarkup(order, slotNum) {
   // order: [side('매수'/'매도'), mode('MOC'/'LOC'등), price, qty, symbol?, slot?]
   if (!order) return "";
   const side = order[0] === '매수' ? 'buy' : 'sell';
@@ -184,8 +229,13 @@ function getOrderStatusBadgeMarkup(order) {
   //    실제 저장분과 대조한다. 예전엔 무조건 "(예약)"을 반환해서, 올라가지도 않은
   //    주문이 예약된 것처럼 보였다.
   if (Array.isArray(cache.vmOrders)) {
+    const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
+    const activeVmOrders = cache.vmOrders.filter(v => {
+      const b = v.broker || (Number(v.slot) <= 6 ? 'kiwoom' : 'ls');
+      return b === activeBr;
+    });
     const ordType = String(order[1] || "").toUpperCase() === "MOC" ? "MOC" : "LOC";
-    const hit = cache.vmOrders.find(v =>
+    const hit = activeVmOrders.find(v =>
       String(v.symbol || "").toUpperCase() === symbol &&
       sideOf(v.side) === side &&
       String(v.ordType || "").toUpperCase() === ordType &&
@@ -282,7 +332,7 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
   };
 
   const restoreRenderedView = () => {
-    if (!viewCacheKey) return false;
+    if (!viewCacheKey || window.__forceOrderViewReRender) return false;
     try {
       const cachedView = JSON.parse(localStorage.getItem(viewCacheKey) || 'null');
       if (cachedView?.html && isFreshCombinedSnapshot(cachedView)) {
@@ -456,7 +506,7 @@ function renderOrderTableSlot(orders, slotNum) {
 
   tbody.innerHTML = sortedOrders.map(o => {
     const cls = o[0] === '매수' ? 'buy' : 'sell';
-    const statusBadge = getOrderStatusBadgeMarkup(o);
+    const statusBadge = getOrderStatusBadgeMarkup(o, slotNum);
     const sideText = ((o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0]) + statusBadge;
     return `<tr><td class="${cls}" style="width:40%; text-align:center;">${sideText}</td><td class="${cls}" style="width:34%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:26%; text-align:center;">${o[3]}주</td></tr>`;
   }).join('')

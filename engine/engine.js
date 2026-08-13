@@ -179,6 +179,9 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
     let fSellT = p(params.basics.fBase) + p(params.basics.fSec);
     let tierAssign = cfg.tierMethod, dLimit = cfg.dLimit, cDn3 = cfg.cDn3, cDn2 = cfg.cDn2, cDn1 = cfg.cDn1;
     let useMid1 = cfg.useMid1, useMid2 = cfg.useMid2, useMid3 = cfg.useMid3;
+    let rsi_up = cfg.rsi_up !== undefined ? cfg.rsi_up : 65.2;
+    let rsi_dn = cfg.rsi_dn !== undefined ? cfg.rsi_dn : 45.6;
+    let isRsiStrat = cfg.rsi_up !== undefined || (curStrat.startsWith('3M3D1-R') || curStrat.startsWith('3M3D3-R'));
 
     // 주입받은 priceData에서 티커와 QQQ 가격 데이터 로딩
     let mainDataAll = priceData[ticker];
@@ -268,9 +271,9 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
       let dtStr = formatDateNY(dtStrObj);
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
-        if (curStrat === '3M3D1-R') {
-          if (rv >= 65.2) rsi_m = 'AG';
-          else if (rv <= 45.6) rsi_m = 'SF';
+        if (isRsiStrat) {
+          if (rv >= rsi_up) rsi_m = 'AG';
+          else if (rv <= rsi_dn) rsi_m = 'SF';
           else rsi_m = 'DEF';
         } else {
           if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
@@ -292,9 +295,9 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
 
       let rv = wRsiMap[dtStr] ? wRsiMap[dtStr].dR : 50, rrv = wRsiMap[dtStr] ? wRsiMap[dtStr].dRR : 50;
       if (rv !== 0) {
-        if (curStrat === '3M3D1-R') {
-          if (rv >= 65.2) rsi_m = 'AG';
-          else if (rv <= 45.6) rsi_m = 'SF';
+        if (isRsiStrat) {
+          if (rv >= rsi_up) rsi_m = 'AG';
+          else if (rv <= rsi_dn) rsi_m = 'SF';
           else rsi_m = 'DEF';
         } else {
           if (rrv <= 35 && rrv < rv) rsi_m = 'AG';
@@ -312,7 +315,9 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
       if (is3Drop) {
         if (rsi_m === 'SF' && useMid1) applied_m = 'Middle';
         else if (rsi_m === 'AG' && useMid3) applied_m = 'Middle3';
-        else if (rsi_m === 'DEF' && curStrat === '3M3D1-R') applied_m = 'Middle';
+        else if (rsi_m === 'DEF' && isRsiStrat) {
+          applied_m = (!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle';
+        }
       }
       if (!applied_m && isPlunge && useMid2) {
         applied_m = 'Middle2';
@@ -454,9 +459,9 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
           const rv = lastBarInfo.dCurrent;
           const rrv = lastBarInfo.dR;
           if (rv !== 0) {
-            if (curStrat === '3M3D1-R') {
-              if (rv >= 65.2) today_m = 'AG';
-              else if (rv <= 45.6) today_m = 'SF';
+            if (isRsiStrat) {
+              if (rv >= rsi_up) today_m = 'AG';
+              else if (rv <= rsi_dn) today_m = 'SF';
               else today_m = 'DEF';
             } else {
               if (rrv <= 35 && rrv < rv) today_m = 'AG';
@@ -482,7 +487,9 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
         if (is3Drop_t) {
           if (today_m === 'SF' && useMid1) applied_m_t = 'Middle';
           else if (today_m === 'AG' && useMid3) applied_m_t = 'Middle3';
-          else if (today_m === 'DEF' && curStrat === '3M3D1-R') applied_m_t = 'Middle';
+          else if (today_m === 'DEF' && isRsiStrat) {
+            applied_m_t = (!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle';
+          }
         }
         if (!applied_m_t && isPlunge_t && useMid2) {
           applied_m_t = 'Middle2';
@@ -521,7 +528,8 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
     let lastIdx = res.BA.length - 1, tAssets = lastIdx >= 0 ? res.BA[lastIdx] : initialCash;
     let totalRealizedProfit = fixFloat(cumulativeRealizedProfit);
     let tQty = inv.reduce((s, p) => s + p.qty, 0), avgPrice = tQty > 0 ? fixFloat(inv.reduce((s, p) => s + p.cost, 0) / tQty) : 0;
-    let currPrice = full_c.length > 0 ? full_c[full_c.length - 1] : 0;
+    let lastCloseIdx = (startIndex >= 0 && bDates.length > 0) ? (startIndex + bDates.length - 1) : (full_c.length - 1);
+    let currPrice = (lastCloseIdx >= 0 && lastCloseIdx < full_c.length) ? full_c[lastCloseIdx] : (full_c[full_c.length - 1] || 0);
     let evalVal = fixFloat(inv.reduce((s, p_i) => s + (p_i.qty * currPrice), 0));
     let realPrincipal = fixFloat(trackingRealPrincipal);
     let totalProfit = fixFloat(tAssets - realPrincipal);

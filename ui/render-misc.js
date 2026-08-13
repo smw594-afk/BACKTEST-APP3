@@ -1142,6 +1142,7 @@ function applyQuickConfig() {
   }
 
   isManualBacktestMode = true;
+  window.isManualBacktestMode = true;
   isViewingHistory = true;
   // ⚠️ 배열 재할당 금지: window.lastBTResults 등이 옛 배열을 계속 참조하게 되어
   //    백테스트 모드에서 이전 실전 데이터가 보이는 문제가 생긴다. 제자리에서 비운다.
@@ -1284,7 +1285,8 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
         // 프리페치가 없었거나 실패한 경우 폴백: 지금 바로 요청
         // 읽기는 Worker3(GCP Sheets API 통로)를 우선 시도하고, 실패 시 GAS로 폴백한다.
         try {
-          const workerInitUrl = `${window.WORKER3_URL || "https://autumn-limit-001e-3.smw594.workers.dev"}/api/backtest-log-init?id=${encodeURIComponent(myUserId)}&spreadsheetId=${encodeURIComponent(BACKTEST_LOG_SPREADSHEET_ID)}`;
+          const currentUid = myUserId || window.myUserId || localStorage.getItem("vtotal3_id") || "smw594";
+          const workerInitUrl = `${window.WORKER3_URL || "https://autumn-limit-001e-3.smw594.workers.dev"}/api/backtest-log-init?id=${encodeURIComponent(currentUid)}&spreadsheetId=${encodeURIComponent(BACKTEST_LOG_SPREADSHEET_ID)}`;
           const resWorker = await fetchWithTimeout(workerInitUrl);
           if (!resWorker.ok) throw new Error('worker http ' + resWorker.status);
           const workerData = await resWorker.json();
@@ -1311,15 +1313,11 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
       }
 
       // 데이터 구조 매핑: GET_ALL_INIT 응답을 GET_INIT, GET_MY_PERF 형식으로 분리
-      const dataInit = {
-        config: dataAll.config,
-        config2: dataAll.config2,
-        config3: dataAll.config3,
-        config4: dataAll.config4,
-        config5: dataAll.config5,
-        config6: dataAll.config6,
-        hasSheet: dataAll.hasSheet
-      };
+      const dataInit = { hasSheet: dataAll.hasSheet };
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const key = i === 1 ? 'config' : `config${i}`;
+        dataInit[key] = dataAll[key];
+      }
 
       const dataPerf = dataAll.perf || {};
 
@@ -1360,6 +1358,18 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
       }
     }
     saveCombinedOrderSnapshot();
+    // ⭐️ [자동 동기화] 로컬 계산이 완료되면 GCP 자동주문 서버에도 최신 주문표를 자동 전송하여 화면과 GCP 간 일치 유도
+    if (typeof window.pushTodayOrders === 'function') {
+      window.pushTodayOrders().then(() => {
+        if (typeof window.refreshOrderStatusCache === 'function') {
+          window.refreshOrderStatusCache(true).then(() => {
+            if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
+              window.UI.order.refreshOrderViewUI();
+            }
+          });
+        }
+      }).catch(e => console.warn('GCP 자동 주문 전송 실패:', e));
+    }
     // ⭐️ [버그 수정] 모든 슬롯 동기화가 완전히 끝난 시점에 통합 주문표를 최신 데이터로 강제 최종 갱신
     if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
       window.UI.order.refreshOrderViewUI();
@@ -1969,15 +1979,22 @@ async function runEngine() {
     forceFullRange = true;
   }
 
-  let priceData;
-  try {
-    console.log(forceFullRange ? "🔄 구글 시트에서 전체 기간 주가 데이터 로드 중..." : "🔄 구글 시트에서 캐시된 주가 데이터 로드 중...");
-    priceData = await priceLoader.loadAllSheetPrices(forceFullRange);
-    console.log("✅ 주가 데이터 로드 완료:", Object.keys(priceData));
-  } catch (err) {
-    console.error("❌ 주가 데이터 로드 실패:", err);
-    restoreBtn();
-    return alert("주가 데이터를 불러올 수 없습니다: " + err.message);
+  let priceData = (window.priceLoader && window.priceLoader.priceDataCache && window.priceLoader.priceDataCache['SOXL'] && window.priceLoader.priceDataCache['SOXL'].dates.length > 0)
+    ? window.priceLoader.priceDataCache
+    : null;
+
+  if (!priceData) {
+    try {
+      console.log(forceFullRange ? "🔄 구글 시트에서 전체 기간 주가 데이터 로드 중..." : "🔄 구글 시트에서 캐시된 주가 데이터 로드 중...");
+      priceData = await priceLoader.loadAllSheetPrices(forceFullRange);
+      console.log("✅ 주가 데이터 로드 완료:", Object.keys(priceData));
+    } catch (err) {
+      console.error("❌ 주가 데이터 로드 실패:", err);
+      restoreBtn();
+      return alert("주가 데이터를 불러올 수 없습니다: " + err.message);
+    }
+  } else {
+    console.log("⚡ [메모리 캐시 사용] 이미 로드된 주가 데이터를 사용하여 백테스트를 즉시 실행합니다.");
   }
   const executeSlot = async (cfg, isActive, slotNum) => {
     if (isManualBacktestMode) {

@@ -199,6 +199,7 @@ window.BrokerService = {
   },
 
   isSlotForBroker(slot, broker = this.activeBroker) {
+    if (window.isManualBacktestMode || window.isViewingHistory) return true;
     const slotNum = Number(slot);
     const max = window.MAX_SLOTS || 12;
     if (!(slotNum >= 1 && slotNum <= max)) return false;
@@ -212,7 +213,7 @@ window.BrokerService = {
     const headers = {
       "Content-Type": "application/json",
       "x-app-key": window.BROKER_APP_KEY || "",
-      "x-user-id": localStorage.getItem("vtotal3_id") || "default"
+      "x-user-id": this.getUserId()
     };
 
     const controller = new AbortController();
@@ -261,7 +262,9 @@ window.BrokerService = {
   },
 
   async fetchOverseasBalance(broker = this.activeBroker) {
-    return await this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, 15000);
+    const res = await this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, 15000);
+    console.log(`[BrokerService] ${broker} balance raw result:`, res);
+    return res;
   },
 
   async fetchOverseasFills(broker = this.activeBroker) {
@@ -279,17 +282,17 @@ window.BrokerService = {
 
   // ─────────── 키 상태 / 자동주문 on-off ───────────
   async keyStatus(broker = this.activeBroker) {
-    const userId = localStorage.getItem("vtotal3_id") || "default";
+    const userId = this.getUserId();
     return await this.brokerFetch(`/api/user/${broker}-key/status?userId=${encodeURIComponent(userId)}`, "GET");
   },
 
   async setAutoOrder(broker, enabled) {
-    const userId = localStorage.getItem("vtotal3_id") || "default";
+    const userId = this.getUserId();
     return await this.brokerFetch(`/api/user/${broker}-key/autoorder`, "POST", { userId, enabled: !!enabled });
   },
 
   async deleteKey(broker = this.activeBroker) {
-    const userId = localStorage.getItem("vtotal3_id") || "default";
+    const userId = this.getUserId();
     return await this.brokerFetch(`/api/user/${broker}-key`, "DELETE", { userId });
   },
 
@@ -366,6 +369,27 @@ window.BrokerService = {
           </button>
         </div>
 
+        <!-- 예수금 부족 경고 팝업 ON/OFF 스위치 -->
+        <div id="broker-deposit-warning-box" style="display:flex; align-items:center; justify-content:space-between;
+             background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:8px; margin-top:4px;">
+          <div>
+            <div style="font-size:13px; font-weight:700; color:#f8fafc;">⚠️ 예수금 부족 경고 팝업</div>
+            <div id="broker-deposit-warning-status" style="font-size:11px; color:#94a3b8; margin-top:2px;">
+              ${localStorage.getItem('vtotal3_ignore_deposit_warning') === 'true' ? 'OFF (팝업 차단됨)' : 'ON (예수금 체크 팝업 표시)'}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="localStorage.setItem('vtotal3_ignore_deposit_warning', 'false'); window.BrokerService.openBrokerKeyModal('${broker}');"
+              style="padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;
+                     border:1px solid ${localStorage.getItem('vtotal3_ignore_deposit_warning') !== 'true' ? '#10b981' : '#334155'};
+                     background:${localStorage.getItem('vtotal3_ignore_deposit_warning') !== 'true' ? '#10b981' : '#1e293b'}; color:#fff;">ON</button>
+            <button onclick="localStorage.setItem('vtotal3_ignore_deposit_warning', 'true'); window.BrokerService.openBrokerKeyModal('${broker}');"
+              style="padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;
+                     border:1px solid ${localStorage.getItem('vtotal3_ignore_deposit_warning') === 'true' ? '#ef4444' : '#334155'};
+                     background:${localStorage.getItem('vtotal3_ignore_deposit_warning') === 'true' ? '#ef4444' : '#1e293b'}; color:#fff;">OFF</button>
+          </div>
+        </div>
+
         <!-- GCP 봇(자동주문) 정지 스위치 — 브로커별로 독립 -->
         <div id="broker-autoorder-box" style="display:flex; align-items:center; justify-content:space-between;
              background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:4px;">
@@ -415,9 +439,20 @@ window.BrokerService = {
       }
       const on = !!st.autoOrderEnabled;
       const mode = String(st.paperMode) === "1" ? "모의" : "실전";
-      el.innerHTML = on
+      let extraBal = "";
+      try {
+        const bal = await this.fetchOverseasBalance(broker);
+        if (bal && bal.success !== false) {
+          const cash = Number(bal.usdCash || 0).toLocaleString(undefined, {minimumFractionDigits:2});
+          const rp = Number(bal.rpCash || 0).toLocaleString(undefined, {minimumFractionDigits:2});
+          const bp = Number(bal.buyingPowerUsd || 0).toLocaleString(undefined, {minimumFractionDigits:2});
+          extraBal = `<div style="margin-top:4px; font-size:11px; color:#cbd5e1;">예수금: ${cash} | 外貨RP: ${rp} | 주문가능: ${bp}</div>`;
+        }
+      } catch (e) {}
+
+      el.innerHTML = (on
         ? `<span style="color:#4ade80; font-weight:700;">가동 중</span> · ${mode} · 계좌 ${st.accountNo || "-"}`
-        : `<span style="color:#f87171; font-weight:700;">정지됨</span> · ${mode} · 계좌 ${st.accountNo || "-"}`;
+        : `<span style="color:#f87171; font-weight:700;">정지됨</span> · ${mode} · 계좌 ${st.accountNo || "-"}`) + extraBal;
     } catch (e) {
       el.textContent = "상태 조회 실패: " + e.message;
     }
@@ -474,7 +509,7 @@ window.BrokerService = {
       localStorage.setItem(`vtotal3_${broker}_keys`, JSON.stringify({ appKey, accountNo }));
 
       // 2. Sync to VM Proxy server
-      const userId = localStorage.getItem("vtotal3_id") || "default";
+      const userId = this.getUserId();
       const res = await this.brokerFetch(`/api/user/${broker}-key`, "POST", { appKey, appSecret, accountNo, userId });
 
       if (res && res.success) {
