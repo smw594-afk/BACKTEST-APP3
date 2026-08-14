@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html id="docHtml">
+<html id="docHtml" style="background-color: #020617; background: #020617; color: #f8fafc;">
 
 <head>
   <script>
@@ -19,6 +19,10 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+    <meta name="theme-color" content="#020617">
+  <meta name="background-color" content="#020617">
+  <meta name="apple-mobile-web-app-title" content="A-QUANT">
+  <script>if(window.location.protocol !== "file:"){var m=document.createElement("link");m.rel="manifest";m.href="manifest.json?v=cf_v9048";document.head.appendChild(m);}</script>
   <link rel="apple-touch-icon" href="images/logo.png?v=3">
   <link rel="icon" href="images/logo.png?v=3">
   <title>A-QUANT(ST)</title>
@@ -121,38 +125,46 @@
 
     // detectLayout과 updateMobileButtonText는 ui/layout-detector.js로 이동됨
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js?v=cf_v9040" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js?v=cf_v9048" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v9040" defer></script>
-  <link rel="stylesheet" href="ui/styles/core.css?v=cf_v9040">
-  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v9040">
-  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v9040">
-  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v9040">
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v9048" defer></script>
+  <link rel="stylesheet" href="ui/styles/core.css?v=cf_v9048">
+  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v9048">
+  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v9048">
+  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v9048">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
-  <script src="utils/formatters.js?v=cf_v9040" defer></script>
-  <script src="utils/date-helpers.js?v=cf_v9040" defer></script>
-  <script src="utils/period-calculator.js?v=cf_v9040" defer></script>
-  <script src="utils/summary-calculator.js?v=cf_v9040" defer></script>
+  <script src="utils/formatters.js?v=cf_v9048" defer></script>
+  <script src="utils/date-helpers.js?v=cf_v9048" defer></script>
+  <script src="utils/period-calculator.js?v=cf_v9048" defer></script>
+  <script src="utils/summary-calculator.js?v=cf_v9048" defer></script>
   <!-- Phase 2: Services (currency, export, prefetch) -->
-  <script src="services/currency-service.js?v=cf_v9040" defer></script>
-  <script src="services/export-service.js?v=cf_v9040" defer></script>
-  <script src="services/prefetch-service.js?v=cf_v9040" defer></script>
+  <script src="services/currency-service.js?v=cf_v9048" defer></script>
+  <script src="services/export-service.js?v=cf_v9048" defer></script>
+  <script src="services/prefetch-service.js?v=cf_v9048" defer></script>
   <!-- Phase 3: UI Layer (layout, state, events) -->
-  <script src="ui/layout-detector.js?v=cf_v9040" defer></script>
-  <script src="ui/state-manager.js?v=cf_v9040" defer></script>
-  <script src="ui/event-handlers.js?v=cf_v9040" defer></script>
+  <script src="ui/layout-detector.js?v=cf_v9048" defer></script>
+  <script src="ui/state-manager.js?v=cf_v9048" defer></script>
+  <script src="ui/event-handlers.js?v=cf_v9048" defer></script>
   <!-- Phase 4, 5, 6: Business Logic Services (config, sync, stats) -->
-  <script src="services/broker-service.js?v=cf_v9040" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v9040" defer></script>
-  <script src="services/config-manager.js?v=cf_v9040" defer></script>
+  <script src="services/broker-service.js?v=cf_v9048" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v9048" defer></script>
+  <script src="services/config-manager.js?v=cf_v9048" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
-  <script src="services/stats-config.js?v=cf_v9040" defer></script>
+  <script src="services/stats-config.js?v=cf_v9048" defer></script>
   <!-- UI Helpers (Performance icons, analysis) -->
-  <script src="ui/helpers/performance-icons.js?v=cf_v9040" defer></script>
-  <script src="ui/render-performance-analysis.js?v=cf_v9040" defer></script>
+  <script src="ui/helpers/performance-icons.js?v=cf_v9048" defer></script>
+  <script src="ui/render-performance-analysis.js?v=cf_v9048" defer></script>
 </head>
 
-<body>
+<body style="background-color: #020617; background: radial-gradient(circle at top right, #1e1b4b, #020617 60%); background-attachment: fixed; color: #f8fafc; margin: 0; padding: 4px;">
+
+  <!-- 앱 시작 스플래시 / 로고 화면 (배경 검은색 #020617) -->
+  <div id="appSplashScreen" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: #000000; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease-out, visibility 0.4s ease-out;">
+    <img src="images/logo.png?v=3" alt="Logo" style="width: 120px; height: 120px; border-radius: 24px; object-fit: contain; background: #000000;" />
+    <div style="margin-top: 18px; font-size: 24px; font-weight: 800; font-family: 'Outfit', 'Inter', sans-serif; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+      A-QUANT<span style="font-size: 18px; opacity: 0.8; margin-left: 2px;">(ST)</span>
+    </div>
+  </div>
 
   <div id="loginScreen" class="login-container hidden">
     <div class="login-inner">
@@ -405,7 +417,7 @@
     <!-- 성과 탭 중단1: 년별 성과 -->
     <div class="card panel-monthly" id="panelMonthly">
       <div class="section-header swipe-handler" id="monthlyHeader">
-        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 년별 자산 증감</h2>
+        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="월별/년별/일별 전환">📅 월별 자산 증감</h2>
         <div id="performanceSummary" style="display:grid; grid-template-columns:1fr 1fr; row-gap:2px; column-gap:0; font-size:11px; color:var(--text); justify-content:start; align-self:flex-start; margin-right:0; padding:0; line-height:1;">
           <div id="perfSummaryHoldingsQty" style="line-height:1;"></div>
           <div id="perfSummaryHoldingsTotal" style="line-height:1;"></div>
@@ -864,11 +876,13 @@
       configGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-bottom:12px;';
       Object.entries(strategy.config || {}).forEach(([key, value]) => {
         const item = document.createElement('div');
-        item.style.cssText = 'display:flex; justify-content:space-between; gap:8px; padding:7px 8px; border:1px solid rgba(148,163,184,.25); border-radius:6px; background:rgba(148,163,184,.08); font-size:10px;';
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 10px; border:1px solid rgba(148,163,184,.3); border-radius:6px; background:rgba(148,163,184,.12); font-size:11px; color:var(--text,#f8fafc);';
         const name = document.createElement('strong');
         name.textContent = key;
+        name.style.cssText = 'color:#38bdf8; font-weight:700;';
         const val = document.createElement('span');
         val.textContent = formatStrategyParameterValue(value);
+        val.style.cssText = 'color:var(--text,#f8fafc); font-weight:600;';
         item.append(name, val);
         configGrid.appendChild(item);
       });
@@ -891,7 +905,7 @@
         ['구분', ...Array.from({ length: tierCount }, (_, i) => i + 1)].forEach(label => {
           const th = document.createElement('th');
           th.textContent = label;
-          th.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.25); background:rgba(148,163,184,.12); white-space:nowrap;';
+          th.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.25); background:rgba(148,163,184,.2); color:var(--text,#f8fafc); font-weight:700; white-space:nowrap;';
           headRow.appendChild(th);
         });
         head.appendChild(headRow);
@@ -909,12 +923,12 @@
           const row = document.createElement('tr');
           const label = document.createElement('th');
           label.textContent = key;
-          label.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.15); background:rgba(148,163,184,.07);';
+          label.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.15); background:rgba(148,163,184,.12); color:#38bdf8; font-weight:700;';
           row.appendChild(label);
           (Array.isArray(values) ? values : [values]).forEach(value => {
             const td = document.createElement('td');
             td.textContent = formatStrategyParameterValue(value);
-            td.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.15); white-space:nowrap;';
+            td.style.cssText = 'padding:6px 5px; border-bottom:1px solid rgba(148,163,184,.15); white-space:nowrap; color:var(--text,#f8fafc); font-weight:600;';
             row.appendChild(td);
           });
           body.appendChild(row);
@@ -931,25 +945,27 @@
     }
   </script>
 
-  <script src="engine/price_loader.js?v=cf_v9040" defer></script>
-  <script src="engine/strategies.js?v=cf_v9040" defer></script>
-  <script src="engine/engine.js?v=cf_v9040" defer></script>
-  <script src="engine/core.js?v=cf_v9040" defer></script>
-  <script src="ui/render-order.js?v=cf_v9040" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v9040" defer></script>
-  <script src="ui/render-performance.js?v=cf_v9040" defer></script>
-  <script src="ui/render-stats.js?v=cf_v9040" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v9040" defer></script>
-  <script src="ui/render-price-info.js?v=cf_v9040" defer></script>
-  <script src="ui/render-ui-updates.js?v=cf_v9040" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v9040" defer></script>
-  <script src="ui/render-helpers.js?v=cf_v9040" defer></script>
-  <script src="ui/render-notifications.js?v=cf_v9040" defer></script>
-  <script src="ui/render-misc.js?v=cf_v9040" defer></script>
-  <script src="ui/index.js?v=cf_v9040" defer></script>
-  <script src="script.js?v=cf_v9040" defer></script>
+  <script src="engine/price_loader.js?v=cf_v9048" defer></script>
+  <script src="engine/strategies.js?v=cf_v9048" defer></script>
+  <script src="engine/engine.js?v=cf_v9048" defer></script>
+  <script src="engine/core.js?v=cf_v9048" defer></script>
+  <script src="ui/render-order.js?v=cf_v9048" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v9048" defer></script>
+  <script src="ui/render-performance.js?v=cf_v9048" defer></script>
+  <script src="ui/render-stats.js?v=cf_v9048" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v9048" defer></script>
+  <script src="ui/render-price-info.js?v=cf_v9048" defer></script>
+  <script src="ui/render-ui-updates.js?v=cf_v9048" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v9048" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v9048" defer></script>
+  <script src="ui/render-notifications.js?v=cf_v9048" defer></script>
+  <script src="ui/render-misc.js?v=cf_v9048" defer></script>
+  <script src="ui/index.js?v=cf_v9048" defer></script>
+  <script src="script.js?v=cf_v9048" defer></script>
 
 
 </body>
 
 </html>
+
+

@@ -78,6 +78,11 @@ window.BrokerService = {
       window.BrokerReconcile.invalidate();
     }
 
+    // ⚠️ 브로커 전환 시 새로 선택한 브로커의 계좌정보를 백그라운드로 즉시 선조회해 캐시를 채운다.
+    if (window.BrokerReconcile && typeof window.BrokerReconcile.getBalance === "function") {
+      window.BrokerReconcile.getBalance(broker).catch(e => console.warn("브로커 전환 계좌정보 선조회 실패:", e.message));
+    }
+
     // ⚠️ 2026-07-30까지 여기서 캐시만 지우고 끝났다 — 계좌 정보/주문표 체결배지/매수매도내역
     // 패널은 activeBroker를 정확히 읽고 있었지만 아무도 재렌더링을 트리거하지 않아, 브로커를
     // 바꿔도 화면엔 이전 브로커 데이터가 그대로 남아 있었다(사용자 실증). 명시적으로 다시 그린다.
@@ -154,14 +159,14 @@ window.BrokerService = {
           <!-- 키움증권 선택 버튼 -->
           <button onclick="window.BrokerService.switchBrokerMode('kiwoom'); document.getElementById('broker-select-popup-modal').remove();" 
             style="padding:12px; border-radius:10px; background:${active === 'kiwoom' ? 'linear-gradient(135deg, #10b981, #059669)' : '#0f172a'}; color:${active === 'kiwoom' ? '#000' : '#fff'}; border:2px solid ${active === 'kiwoom' ? '#10b981' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
-            <span>🟢 키움증권 모드 (슬롯 1~3)</span>
+            <span>🟢 키움증권 모드 (슬롯 1~6)</span>
             ${active === 'kiwoom' ? '<span style="font-size:11px; background:#000; color:#10b981; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
 
           <!-- LS증권 선택 버튼 -->
           <button onclick="window.BrokerService.switchBrokerMode('ls'); document.getElementById('broker-select-popup-modal').remove();" 
             style="padding:12px; border-radius:10px; background:${active === 'ls' ? 'linear-gradient(135deg, #a855f7, #7e22ce)' : '#0f172a'}; color:#fff; border:2px solid ${active === 'ls' ? '#a855f7' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
-            <span>🟣 LS증권 모드 (슬롯 4~6)</span>
+            <span>🟣 LS증권 모드 (슬롯 7~12)</span>
             ${active === 'ls' ? '<span style="font-size:11px; background:#fff; color:#a855f7; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
         </div>
@@ -258,11 +263,13 @@ window.BrokerService = {
   // 기본 3.5초로는 동시 호출이 겹칠 때 모자라 "Timeout" 오류가 난다.
   async fetchUnfilledOrders(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    return await this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, 15000);
+    const timeout = broker === "ls" ? 30000 : 15000;
+    return await this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout);
   },
 
   async fetchOverseasBalance(broker = this.activeBroker) {
-    const res = await this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, 15000);
+    const timeout = broker === "ls" ? 30000 : 15000;
+    const res = await this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout);
     console.log(`[BrokerService] ${broker} balance raw result:`, res);
     return res;
   },
@@ -359,13 +366,13 @@ window.BrokerService = {
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
                    border:2px solid ${broker === 'kiwoom' ? '#10b981' : '#334155'};
                    background:${broker === 'kiwoom' ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f172a'}; color:#fff;">
-            🟢 키움 (슬롯1~3)
+            🟢 키움 (슬롯1~6)
           </button>
           <button onclick="window.BrokerService.openBrokerKeyModal('ls')"
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
                    border:2px solid ${broker === 'ls' ? '#a855f7' : '#334155'};
                    background:${broker === 'ls' ? 'linear-gradient(135deg,#a855f7,#7e22ce)' : '#0f172a'}; color:#fff;">
-            🟣 LS증권 (슬롯4~6)
+            🟣 LS증권 (슬롯7~12)
           </button>
         </div>
 

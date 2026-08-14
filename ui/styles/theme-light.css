@@ -295,3 +295,15 @@ body.light-mode #dualOrderContainer [id^="holdingsBody"] .date-sync-highlight-ro
 body.light-mode #historyTable #historyTableBody .date-sync-highlight-row > td {
   background: rgba(100, 116, 139, 0.12) !important;
 }
+
+/* 계좌 정보 (Account Info) 라이트 모드 글자색 및 카드 배경 오버라이드 */
+body.light-mode #accountInfoModal .modal-content,
+body.light-mode .account-info-card {
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--card-border) !important;
+}
+
+body.light-mode #statsTable > div > div {
+  color: var(--text) !important;
+}

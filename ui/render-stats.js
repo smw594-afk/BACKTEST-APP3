@@ -881,11 +881,11 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       normalizedHoldings.forEach(h => {
         const profitRate = (h.avgPrice > 0 && h.qty > 0) ? ((h.currPrice - h.avgPrice) / h.avgPrice * 100) : 0;
         const isPlus = profitRate >= 0;
-        const color = isPlus ? '#10b981' : '#f43f5e';
+        const color = isPlus ? (isLightMode ? '#1d4ed8' : '#10b981') : (isLightMode ? '#b91c1c' : '#f43f5e');
         const prefix = isPlus ? '+' : '';
 
         html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:1px 3px; box-sizing:border-box; min-height:18px; width:100%; border-bottom:1px solid rgba(255,255,255,0.05);">`;
-        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:68px; min-width:68px; flex-shrink:0; color:#fda4af; display:flex; flex-direction:column; justify-content:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}<br/><span style="font-size:8px; color:#94a3b8; font-weight:normal;">${h.symbol}</span></div>`;
+        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:68px; min-width:68px; flex-shrink:0; color:var(--text, #fda4af); display:flex; flex-direction:column; justify-content:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}<br/><span style="font-size:8px; color:var(--text-muted, #94a3b8); font-weight:normal;">${h.symbol}</span></div>`;
         html += `<div style="font-size:10px; font-weight:700; letter-spacing:-0.2px; width:45px; min-width:45px; flex-shrink:0; color:#6366f1; display:flex; align-items:center; justify-content:center;">${brokerLabel}</div>`;
 
         const rowVals = [

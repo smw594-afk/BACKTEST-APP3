@@ -163,21 +163,29 @@
   }
 
   let refreshInFlight = false;
-  async function refreshFills(onDone) {
+  async function refreshFills(targetBroker, onDone) {
+    if (typeof targetBroker === "function") {
+      onDone = targetBroker;
+      targetBroker = null;
+    }
     if (refreshInFlight) return;
     if (!window.BrokerService) return;
+
+    // ⚠️ 키움 모드일 땐 키움 체결내역만, LS 모드일 땐 LS 체결내역만 조회한다. (불필요한 타 증권사 호출 제거)
+    const activeBr = targetBroker || (window.BrokerService && window.BrokerService.activeBroker) || "kiwoom";
     refreshInFlight = true;
     try {
-      const results = await Promise.all(BROKERS.map(b =>
-        getFills(b).then(d => ({ b, d })).catch(e => ({ b, d: null, e }))));
-      state.buy = new Map();
-      state.sell = new Map();
-      state.coveredDates = new Set();
-      state.rows = [];
+      const d = await getFills(activeBr).catch(e => null);
+      state.rows = state.rows.filter(r => r.broker !== activeBr);
+      for (const [k] of state.buy) { if (k.startsWith(`${activeBr}|`)) state.buy.delete(k); }
+      for (const [k] of state.sell) { if (k.startsWith(`${activeBr}|`)) state.sell.delete(k); }
+      for (const dKey of state.coveredDates) { if (dKey.startsWith(`${activeBr}|`)) state.coveredDates.delete(dKey); }
+
       let anyOk = false;
-      results.forEach(({ b, d }) => {
-        if (d && d.success !== false) { ingest(b, d); anyOk = true; }
-      });
+      if (d && d.success !== false) {
+        ingest(activeBr, d);
+        anyOk = true;
+      }
       state.ready = true;
       state.failed = !anyOk;
       if (typeof onDone === "function") onDone();
@@ -243,9 +251,11 @@
 
     function accountSectionHtml(broker, data) {
     const label = BROKER_LABEL[broker];
+    const isLight = typeof document !== "undefined" && document.body && document.body.classList.contains("light-mode");
+
     if (!data || data.success === false) {
-      return `<div style="margin-bottom:16px; background:#0f172a; padding:14px; border-radius:10px; border:1px solid #334155;">
-        <div style="font-weight:700; font-size:14px; margin-bottom:6px; color:#f8fafc;">${label}</div>
+      return `<div style="margin-bottom:16px; background:var(--card, #0f172a); padding:14px; border-radius:10px; border:1px solid var(--card-border, #334155); color:var(--text, #f8fafc);">
+        <div style="font-weight:700; font-size:14px; margin-bottom:6px; color:var(--text, #f8fafc);">${label}</div>
         <div style="color:#f43f5e; font-size:12px; background:rgba(244,63,94,0.1); padding:8px; border-radius:6px;">❌ ${escapeHtml((data && data.error) || "계좌 정보를 불러올 수 없습니다.")}</div>
       </div>`;
     }
@@ -272,50 +282,50 @@
         const currPrice = Number(h.currentPrice || 0);
         const pnl = Number(h.evalPnlUsd || 0);
         const pnlPct = (avgPrice > 0 && qty > 0) ? ((currPrice - avgPrice) / avgPrice * 100) : 0;
-        const color = pnl > 0 ? "#3b82f6" : (pnl < 0 ? "#ef4444" : "#f8fafc");
+        const color = pnl > 0 ? (isLight ? "#1d4ed8" : "#3b82f6") : (pnl < 0 ? (isLight ? "#b91c1c" : "#ef4444") : "var(--text, #f8fafc)");
 
-        return `<tr style="border-bottom:1px solid #334155;">
-            <td style="padding:10px 8px; font-weight:700; color:#f8fafc;">${escapeHtml(h.symbol)}</td>
-            <td style="padding:10px 8px; text-align:right; color:#cbd5e1;">${qty.toLocaleString()}주</td>
-            <td style="padding:10px 8px; text-align:right; color:#94a3b8;">${usd(avgPrice)}</td>
-            <td style="padding:10px 8px; text-align:right; color:#f8fafc;">${usd(currPrice)}</td>
+        return `<tr style="border-bottom:1px solid var(--card-border, #334155);">
+            <td style="padding:10px 8px; font-weight:700; color:var(--text, #f8fafc);">${escapeHtml(h.symbol)}</td>
+            <td style="padding:10px 8px; text-align:right; color:var(--text, #cbd5e1);">${qty.toLocaleString()}주</td>
+            <td style="padding:10px 8px; text-align:right; color:var(--text-muted, #94a3b8);">${usd(avgPrice)}</td>
+            <td style="padding:10px 8px; text-align:right; color:var(--text, #f8fafc);">${usd(currPrice)}</td>
             <td style="padding:10px 8px; text-align:right; color:${color}; font-weight:700;">${pnl < 0 ? "-" : ""}${usd(Math.abs(pnl))}</td>
             <td style="padding:10px 8px; text-align:right; color:${color}; font-weight:700;">${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%</td>
           </tr>`;
       }).join("")
-      : `<tr><td colspan="6" style="padding:16px; text-align:center; color:#64748b; font-size:13px;">현재 보유 중인 종목이 없습니다.</td></tr>`;
+      : `<tr><td colspan="6" style="padding:16px; text-align:center; color:var(--text-muted, #64748b); font-size:13px;">현재 보유 중인 종목이 없습니다.</td></tr>`;
 
     return `
-      <div style="margin-bottom:20px; background:#0f172a; padding:16px; border-radius:12px; border:1px solid #334155;">
+      <div style="margin-bottom:20px; background:var(--card, #0f172a); padding:16px; border-radius:12px; border:1px solid var(--card-border, #334155); color:var(--text, #f8fafc);">
         <!-- 국내주식 스타일 상단 계좌 요약 카드 -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #1e293b; padding-bottom:10px;">
-          <span style="font-weight:700; font-size:15px; color:#f8fafc;">${label}</span>
-          <span style="font-size:12px; color:#94a3b8;">계좌: ${escapeHtml(data.accountNo || '연동 완료')}</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--card-border, #1e293b); padding-bottom:10px;">
+          <span style="font-weight:700; font-size:15px; color:var(--text, #f8fafc);">${label}</span>
+          <span style="font-size:12px; color:var(--text-muted, #94a3b8);">계좌: ${escapeHtml(data.accountNo || '연동 완료')}</span>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:14px; background:#1e293b; padding:12px; border-radius:8px;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:14px; background:rgba(148,163,184,0.1); padding:12px; border-radius:8px;">
           <div>
-            <div style="font-size:11px; color:#94a3b8;">외화 예수금</div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">외화 예수금</div>
             <div style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">${usd(usdCash)}</div>
           </div>
           <div>
-            <div style="font-size:11px; color:#94a3b8;">주문 가능 금액</div>
-            <div style="font-size:14px; font-weight:700; color:#34d399; margin-top:2px;">${usd(buyingPower)}</div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">주문 가능 금액</div>
+            <div style="font-size:14px; font-weight:700; color:${isLight ? '#059669' : '#34d399'}; margin-top:2px;">${usd(buyingPower)}</div>
           </div>
           <div>
-            <div style="font-size:11px; color:#94a3b8;">총 평가 금액</div>
-            <div style="font-size:14px; font-weight:700; color:#f8fafc; margin-top:2px;">${usd(totalEval)}</div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">총 평가 금액</div>
+            <div style="font-size:14px; font-weight:700; color:var(--text, #f8fafc); margin-top:2px;">${usd(totalEval)}</div>
           </div>
         </div>
 
         <!-- 국내주식 스타일 보유 종목 테이블 -->
-        <div style="font-size:13px; font-weight:700; margin-bottom:8px; color:#cbd5e1; display:flex; justify-content:space-between;">
+        <div style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--text, #cbd5e1); display:flex; justify-content:space-between;">
           <span>📦 실시간 보유 종목 (${holdings.length}건)</span>
         </div>
-        <div style="overflow-x:auto; border-radius:8px; border:1px solid #334155;">
-          <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+        <div style="overflow-x:auto; border-radius:8px; border:1px solid var(--card-border, #334155);">
+          <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left; color:var(--text, #f8fafc);">
             <thead>
-              <tr style="background:#1e293b; color:#94a3b8; border-bottom:1px solid #334155;">
+              <tr style="background:rgba(148,163,184,0.15); color:var(--text-muted, #94a3b8); border-bottom:1px solid var(--card-border, #334155);">
                 <th style="padding:8px;">종목</th>
                 <th style="padding:8px; text-align:right;">수량</th>
                 <th style="padding:8px; text-align:right;">매수단가</th>

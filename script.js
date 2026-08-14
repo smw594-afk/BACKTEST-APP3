@@ -1,4 +1,4 @@
-
+﻿
 // 🛡️ Chart.js DOM detach 시 ownerDocument null 예외 안전 방어 래퍼
 function safeChartResize(chartInstance) {
   if (!chartInstance || typeof chartInstance.resize !== 'function') return;
@@ -869,6 +869,16 @@ function initAppImmediate() {
   } else { 
     document.getElementById('loginScreen').classList.remove('hidden'); 
   }
+
+  // 스플래시 로고 화면 페이드아웃 및 제거 (배경 검은색 템플릿)
+  const splash = document.getElementById('appSplashScreen');
+  if (splash) {
+    splash.style.opacity = '0';
+    splash.style.pointerEvents = 'none';
+    setTimeout(() => {
+      if (splash.parentNode) splash.parentNode.removeChild(splash);
+    }, 400);
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -1722,11 +1732,11 @@ function updatePeriodTitle() {
   let titleText = "";
   let chartTitleText = "";
   if (periodViewState === 0) {
-    titleText = `📅 년별 자산 증감 <span ${smallStyle}>(종합)</span>`;
-    chartTitleText = `📅 년별 자산 증감`;
-  } else if (periodViewState === 1) {
     titleText = `📅 월별 자산 증감 <span ${smallStyle}>(종합)</span>`;
     chartTitleText = `📅 월별 자산 증감`;
+  } else if (periodViewState === 1) {
+    titleText = `📅 년별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    chartTitleText = `📅 년별 자산 증감`;
   } else {
     titleText = `📅 일별 자산 증감 <span ${smallStyle}>(종합)</span>`;
     chartTitleText = `📅 일별 자산 증감`;
@@ -2964,3 +2974,6 @@ async function triggerVmRecalc() {
   }
 }
 window.triggerVmRecalc = triggerVmRecalc;
+
+
+

@@ -1,0 +1,25 @@
+﻿{
+  "id": "/?app=a-quant-st",
+  "name": "A-QUANT(ST)",
+  "short_name": "A-QUANT",
+  "description": "A-QUANT(ST) 해외주식 자동매매",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "images/logo-square-192-v2.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "images/logo-square-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

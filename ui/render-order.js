@@ -7,10 +7,22 @@ window.orderStatusCache = window.orderStatusCache || {
   lastUpdated: 0
 };
 
+let _roscInFlight = null;
 async function refreshOrderStatusCache(force = false) {
   if (force && window.orderStatusCache) {
     window.orderStatusCache.lastUpdated = 0;
   }
+  // ⚠️ 30초 이내 재호출 시 네트워크 요청 없이 반환 (pending/unfilled 중복 방지)
+  const now = Date.now();
+  if (!force && window.orderStatusCache.lastUpdated && now - window.orderStatusCache.lastUpdated < 30000) {
+    return;
+  }
+  // inflight 중복 방지: 이미 진행 중이면 그 Promise를 공유
+  if (_roscInFlight) return _roscInFlight;
+  _roscInFlight = _refreshOrderStatusCacheInner(force);
+  try { await _roscInFlight; } finally { _roscInFlight = null; }
+}
+async function _refreshOrderStatusCacheInner(force) {
   try {
     const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
     if (!userId) return;
@@ -57,16 +69,27 @@ async function refreshOrderStatusCache(force = false) {
       } catch (e) {}
 
       try {
-        const resBal = await window.BrokerService.fetchOverseasBalance(activeBr);
+        let resBal = null;
+        if (window.BrokerReconcile && typeof window.BrokerReconcile.getBalance === 'function') {
+          resBal = await window.BrokerReconcile.getBalance(activeBr);
+        } else {
+          resBal = await window.BrokerService.fetchOverseasBalance(activeBr);
+        }
         if (resBal && resBal.success !== false) {
           window.orderStatusCache.balance = resBal;
         }
       } catch (e) {}
 
       try {
-        const res2 = await window.BrokerService.fetchOverseasFills(activeBr);
-        if (res2 && res2.success && Array.isArray(res2.executions)) {
-          window.orderStatusCache.filledOrders = res2.executions;
+        let res2 = null;
+        if (window.BrokerReconcile && typeof window.BrokerReconcile.getFills === 'function') {
+          res2 = await window.BrokerReconcile.getFills(activeBr);
+        } else {
+          res2 = await window.BrokerService.fetchOverseasFills(activeBr);
+        }
+        if (res2 && res2.success !== false) {
+          const list = Array.isArray(res2.executions) ? res2.executions : (Array.isArray(res2.rows) ? res2.rows : []);
+          if (list) window.orderStatusCache.filledOrders = list;
         }
       } catch (e) {}
     }

@@ -831,12 +831,23 @@ async function enterAppDirectly() {
         }
       });
 
-    // ⚠️ 2026-07-31: 로그인/앱 실행 시점에 키움·LS 체결내역을 미리 조회해둔다(사용자 제안).
-    // LS는 일자별 순차 조회라 첫 조회에 ~7~8초 걸리는데, 사용자가 실제로 "매수매도내역"
-    // 탭을 열 때가 아니라 지금 백그라운드로 미리 데이터를 받아 fillsDayCache/30초 클라이언트
-    // 캐시를 채워두면, 그 탭을 열 때는 캐시 히트라 즉시 표시된다.
-    if (window.BrokerReconcile && typeof window.BrokerReconcile.refreshFills === 'function') {
-      window.BrokerReconcile.refreshFills().catch(e => console.warn("체결내역 선조회 실패:", e.message));
+    // ⚠️ 로그인/앱 실행 시점에 활성 브로커(키움/LS) 계좌정보 및 체결내역을 백그라운드로 미리 조회해둔다.
+    // 사용자가 내역모드 화면으로 이동하거나 "계좌 정보"를 누를 때 지연 없이 즉시 열리도록 memory cache를 채운다.
+    if (window.BrokerReconcile) {
+      const activeBr = (window.BrokerService && window.BrokerService.activeBroker)
+        || localStorage.getItem("vtotal3_active_broker")
+        || "kiwoom";
+      if (typeof window.BrokerReconcile.getBalance === 'function') {
+        window.BrokerReconcile.getBalance(activeBr)
+          .catch(e => console.warn("계좌정보 선조회 실패:", e.message))
+          .finally(() => {
+            if (typeof window.BrokerReconcile.refreshFills === 'function') {
+              window.BrokerReconcile.refreshFills().catch(e => console.warn("체결내역 선조회 실패:", e.message));
+            }
+          });
+      } else if (typeof window.BrokerReconcile.refreshFills === 'function') {
+        window.BrokerReconcile.refreshFills().catch(e => console.warn("체결내역 선조회 실패:", e.message));
+      }
     }
 
   const userHeader = document.getElementById('userDisplayHeader');
@@ -1362,7 +1373,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     if (typeof window.pushTodayOrders === 'function') {
       window.pushTodayOrders().then(() => {
         if (typeof window.refreshOrderStatusCache === 'function') {
-          window.refreshOrderStatusCache(true).then(() => {
+          window.refreshOrderStatusCache(false).then(() => {
             if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
               window.UI.order.refreshOrderViewUI();
             }
