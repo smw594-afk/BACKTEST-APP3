@@ -879,9 +879,10 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       html += `<div style="text-align:center; padding:20px; color:#64748b; font-size:10.5px;">보유 주식이 없습니다.</div>`;
     } else {
       normalizedHoldings.forEach(h => {
+        const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
         const profitRate = (h.avgPrice > 0 && h.qty > 0) ? ((h.currPrice - h.avgPrice) / h.avgPrice * 100) : 0;
         const isPlus = profitRate >= 0;
-        const color = isPlus ? (isLightMode ? '#1d4ed8' : '#10b981') : (isLightMode ? '#b91c1c' : '#f43f5e');
+        const color = isPlus ? (isLight ? '#1d4ed8' : '#10b981') : (isLight ? '#b91c1c' : '#f43f5e');
         const prefix = isPlus ? '+' : '';
 
         html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:1px 3px; box-sizing:border-box; min-height:18px; width:100%; border-bottom:1px solid rgba(255,255,255,0.05);">`;
