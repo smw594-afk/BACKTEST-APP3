@@ -50,7 +50,64 @@ window.BrokerService = {
     if (!mine.includes(current)) window.switchSettingsTab(mine[0]);
   },
 
-  switchBrokerMode(broker) {
+  saveCurrentViewBeforeSwitch() {
+    try {
+      const settingsScreen = document.getElementById('settingsScreen');
+      const isSettingsOpen = settingsScreen && (
+        settingsScreen.style.display === 'flex' ||
+        (typeof window.getComputedStyle === 'function' && window.getComputedStyle(settingsScreen).display === 'flex')
+      );
+      if (isSettingsOpen) {
+        localStorage.setItem('vtotal3_last_view_after_broker_switch', 'settings');
+        return;
+      }
+
+      const priceInfoCard = document.getElementById('panelPriceInfo');
+      const isPriceActive = document.getElementById('btnPriceInfo')?.classList.contains('active') || (
+        priceInfoCard && priceInfoCard.style.display !== 'none' && priceInfoCard.style.display !== '' &&
+        (typeof window.getComputedStyle === 'function' && window.getComputedStyle(priceInfoCard).display !== 'none')
+      );
+      if (isPriceActive) {
+        localStorage.setItem('vtotal3_last_view_after_broker_switch', 'price');
+        return;
+      }
+
+      const perfAnalysisCard = document.getElementById('panelAnalysisView');
+      const isAnalysisActive = document.getElementById('btnAnalysis')?.classList.contains('active') || (
+        perfAnalysisCard && !perfAnalysisCard.classList.contains('hidden') && perfAnalysisCard.style.display !== 'none' && perfAnalysisCard.style.display !== '' &&
+        (typeof window.getComputedStyle === 'function' && window.getComputedStyle(perfAnalysisCard).display !== 'none')
+      );
+      if (isAnalysisActive) {
+        localStorage.setItem('vtotal3_last_view_after_broker_switch', 'analysis');
+        return;
+      }
+
+      const isPerfActive = document.getElementById('btnPerfShow')?.classList.contains('active');
+      if (isPerfActive) {
+        localStorage.setItem('vtotal3_last_view_after_broker_switch', 'perf');
+        return;
+      }
+
+      const isStatsActive = document.getElementById('btnStatsShow')?.classList.contains('active') || window.isStatsMode;
+      if (isStatsActive) {
+        localStorage.setItem('vtotal3_last_view_after_broker_switch', 'stats');
+        return;
+      }
+
+      // 주문표 화면 내에서 '보유현황' 보기 상태인지 확인
+      if (!window.isStatsMode && window.isOrderView === false) {
+        localStorage.setItem('vtotal3_last_view_after_broker_switch', 'holdings');
+        return;
+      }
+
+      localStorage.setItem('vtotal3_last_view_after_broker_switch', 'order');
+    } catch (e) {
+      console.warn("saveCurrentViewBeforeSwitch error:", e);
+    }
+  },
+
+  switchBrokerMode(broker, isInitial = false) {
+    const prevBroker = this.activeBroker;
     this.activeBroker = broker;
     localStorage.setItem("vtotal3_active_broker", broker);
 
@@ -75,6 +132,13 @@ window.BrokerService = {
       }
     } catch (e) { console.warn("[BrokerService] btn update error:", e); }
 
+    // ⭐️ 사용자가 증권사를 변경한 경우, 보고 있던 마지막 화면을 저장하고 앱을 깔끔하게 새로고침
+    if (!isInitial && prevBroker && prevBroker !== broker) {
+      this.saveCurrentViewBeforeSwitch();
+      window.location.reload();
+      return;
+    }
+
     // 1. Reconcile 캐시 무효화
     try {
       if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
@@ -82,111 +146,24 @@ window.BrokerService = {
       }
     } catch (e) { console.warn("[BrokerService] invalidate error:", e); }
 
-    // 2. 새로 선택한 브로커의 계좌정보 및 체결내역 즉시 백그라운드 선조회
+    // 2. 초기 렌더링 동기화
     try {
-      if (window.BrokerReconcile) {
-        if (typeof window.BrokerReconcile.getBalance === "function") {
-          window.BrokerReconcile.getBalance(broker)
-            .catch(e => console.warn("[BrokerService] 계좌정보 선조회 실패:", e.message))
-            .finally(() => {
-              if (typeof window.BrokerReconcile.refreshFills === "function") {
-                window.BrokerReconcile.refreshFills().catch(e => console.warn("[BrokerService] 체결내역 선조회 실패:", e.message));
-              }
-            });
-        } else if (typeof window.BrokerReconcile.refreshFills === "function") {
-          window.BrokerReconcile.refreshFills().catch(e => console.warn("[BrokerService] 체결내역 선조회 실패:", e.message));
-        }
+      if (window.UI && window.UI.stats && typeof window.UI.stats.refreshStatsTable === "function") {
+        window.UI.stats.refreshStatsTable();
       }
-    } catch (e) { console.warn("[BrokerService] getBalance error:", e); }
-
-    // 3. 성과 지표 / 자산현황 파이차트 / 계좌 정보 테이블 다시 그리기
-    try {
-      if (window.UI && window.UI.stats) {
-        if (typeof window.UI.stats.refreshStatsTable === "function") {
-          window.UI.stats.refreshStatsTable();
-        }
-        if (typeof window.UI.stats.updateStatsPieChart === "function") {
-          window.UI.stats.updateStatsPieChart();
-        }
+      if (window.UI && window.UI.holdings && typeof window.UI.holdings.renderCombinedHoldings === "function") {
+        window.UI.holdings.renderCombinedHoldings();
       }
-    } catch (e) { console.warn("[BrokerService] stats error:", e); }
-
-    // 4. 주문표 주문상태 캐시 갱신
-    try {
       if (typeof window.refreshOrderStatusCache === "function") {
         window.refreshOrderStatusCache();
       }
-    } catch (e) { console.warn("[BrokerService] refreshOrderStatusCache error:", e); }
-
-    // 5. 매수매도내역(실전 매도 내역 / 백테스트 매매내역) 브로커 모드 동기화 및 렌더링
-    try {
-      if (window.UI && window.UI.tradeHistory) {
-        if (typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
-          window.UI.tradeHistory.syncHistoryViewModeToBroker();
-        }
-        if (typeof window.UI.tradeHistory.renderDBTradeHistory === "function") {
-          window.UI.tradeHistory.renderDBTradeHistory();
-        }
+      if (window.UI && window.UI.tradeHistory && typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
+        window.UI.tradeHistory.syncHistoryViewModeToBroker();
       }
-    } catch (e) { console.warn("[BrokerService] tradeHistory error:", e); }
-
-    // 6. 슬롯 가시성 갱신 (키움 1~6 / LS 7~12)
-    try {
       if (typeof window.updateSlotsVisibility === "function") {
         window.updateSlotsVisibility();
       }
-    } catch (e) { console.warn("[BrokerService] updateSlotsVisibility error:", e); }
-
-    // 7. 통합 보유현황 테이블 & 요약 갱신
-    try {
-      if (window.UI && window.UI.holdings) {
-        if (typeof window.UI.holdings.renderCombinedHoldings === "function") {
-          window.UI.holdings.renderCombinedHoldings();
-        }
-        if (typeof window.UI.holdings.updateCombinedHoldingsSummary === "function") {
-          window.UI.holdings.updateCombinedHoldingsSummary();
-        }
-      }
-      if (typeof window.renderHoldingsTable === "function") {
-        window.renderHoldingsTable();
-      }
-    } catch (e) { console.warn("[BrokerService] holdings error:", e); }
-
-    // 8. 주문표 렌더링
-    try {
-      if (window.UI && window.UI.order && typeof window.UI.order.renderCombinedOrderBook === "function") {
-        window.UI.order.renderCombinedOrderBook();
-      }
-    } catch (e) { console.warn("[BrokerService] order error:", e); }
-
-    // 9. 성과 추이 캐시 무효화 및 재계산/렌더링
-    try {
-      window.chartRatesData = null;
-      if (typeof window.updateChartRatesDisplay === "function") {
-        window.updateChartRatesDisplay();
-      }
-      if (window.UI && window.UI.performance) {
-        if (typeof window.UI.performance.calculateCombinedPeriodData === "function") {
-          window.UI.performance.calculateCombinedPeriodData();
-        }
-        if (typeof window.UI.performance.renderPerfTables === "function") {
-          window.UI.performance.renderPerfTables();
-        }
-        if (typeof window.UI.performance.renderAnalysisView === "function") {
-          window.UI.performance.renderAnalysisView();
-        }
-      }
-    } catch (e) { console.warn("[BrokerService] performance error:", e); }
-
-    // 10. 차트 및 막대차트 전체 다시 그리기
-    try {
-      if (typeof window.renderChartAll === "function") {
-        window.renderChartAll();
-      }
-      if (typeof window.renderPeriodBarChart === "function") {
-        window.renderPeriodBarChart();
-      }
-    } catch (e) { console.warn("[BrokerService] charts error:", e); }
+    } catch (e) { console.warn("[BrokerService] render error:", e); }
   },
   openBrokerSelectPopup() {
     const old = document.getElementById("broker-select-popup-modal");
@@ -601,7 +578,7 @@ window.BrokerService = {
   const paint = () => {
     try {
       const saved = localStorage.getItem("vtotal3_active_broker");
-      window.BrokerService.switchBrokerMode(saved === "ls" ? "ls" : "kiwoom");
+      window.BrokerService.switchBrokerMode(saved === "ls" ? "ls" : "kiwoom", true);
     } catch (e) { console.warn("[BrokerService] init:", e.message); }
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", paint);

@@ -83,7 +83,6 @@ function updateCurrentStatusUI(slotNum) {
   const elRenew = document.getElementById('statRenew');
   const elPrincipal = document.getElementById('statPrincipal');
   const elCash = document.getElementById('statCash');
-  const elRpCash = document.getElementById('statRpCash');
 
   if (!res || !res.summary) {
     if (elDate) elDate.innerText = "-";
@@ -129,14 +128,6 @@ function updateCurrentStatusUI(slotNum) {
   if (elRenew) elRenew.innerText = fmt(displayBase);
   if (elPrincipal) elPrincipal.innerText = fmt(displayPrincipal);
   if (elCash) elCash.innerText = fmt(displayCash);
-  if (elRpCash) {
-    let rpVal = s.rpCash;
-    if (rpVal === undefined && window.orderStatusCache && window.orderStatusCache.balance) {
-      rpVal = window.orderStatusCache.balance.rpCash;
-    }
-    if (rpVal === undefined) rpVal = 0;
-    elRpCash.innerText = fmt(rpVal);
-  }
 
   // 📦 보유 주식 (시트 꾸러미 데이터 - 꾸러미에 실제 저장되는 필드만 표시)
   const elHoldings = document.getElementById('statHoldings');
@@ -170,6 +161,18 @@ function updateCurrentStatusUI(slotNum) {
 function updateUIWithResult(resBT, config, slotNum, skipSave = false) {
   const existing = lastBTResults[slotNum];
   let finalRes = resBT;
+
+  // ⭐️ 신규 투자법 변경 등으로 시작일이 미래/익일로 설정되어 resBT의 차트/일별 데이터가 비어있을 경우,
+  // 기존의 풍부한 시트 차트/월별/년별 기록을 보존하여 화면이 빈 공간으로 비워지는 현상을 완벽 방지
+  if ((!resBT.chartDates || resBT.chartDates.length === 0) && existing && existing.chartDates && existing.chartDates.length > 0) {
+    finalRes = {
+      ...existing,
+      orders: (resBT.orders && resBT.orders.length > 0) ? resBT.orders : existing.orders,
+      nextOrderInfo: resBT.nextOrderInfo || existing.nextOrderInfo,
+      orderDateStr: resBT.orderDateStr || existing.orderDateStr,
+      currentStrat: resBT.currentStrat || existing.currentStrat
+    };
+  }
 
   // ⭐️ [거울 로직] 시트와 동기화된 데이터(existing)가 있더라도,
   // 엔진이 계산한 '오늘'의 새로운 매매나 상태가 있다면 이를 우선 반영하도록 개선

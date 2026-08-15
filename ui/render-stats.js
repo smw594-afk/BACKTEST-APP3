@@ -889,7 +889,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
         const prefix = isPlus ? '+' : '';
 
         html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:1px 3px; box-sizing:border-box; min-height:18px; width:100%; border-bottom:1px solid rgba(255,255,255,0.05);">`;
-        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text, #fda4af); display:flex; flex-direction:column; justify-content:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}<br/><span style="font-size:8px; color:var(--text-muted, #94a3b8); font-weight:normal;">${h.symbol}</span></div>`;
+        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text, #fda4af); display:flex; align-items:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}</div>`;
 
         const rowVals = [
           `$${h.avgPrice.toFixed(2)}`,

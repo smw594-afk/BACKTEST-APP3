@@ -2,15 +2,21 @@
 
 function toggleSettings() {
   const screen = document.getElementById('settingsScreen');
-  const isVisible = screen.style.display === 'flex';
-  if (!isVisible) {
+  if (!screen) return;
+  
+  // ⭐️ .hidden 클래스와 style.display를 모두 고려하여 완벽하게 토글
+  const isHidden = screen.classList.contains('hidden') || screen.style.display === 'none' || getComputedStyle(screen).display === 'none';
+  
+  if (isHidden) {
+    screen.classList.remove('hidden');
+    screen.style.display = 'flex';
     updateSettingsTabButtons();
     // 활성 브로커의 슬롯 탭만 보이게 맞춘다(키움 1~6 / LS 7~12).
-    // 부팅 시점엔 broker-service.js가 script.js보다 먼저 돌아 탭 이동을 못 할 수 있으므로,
-    // 설정 화면을 여는 이 시점에 반드시 한 번 더 확정한다.
     window.BrokerService?.applySettingsTabVisibility?.();
+  } else {
+    screen.classList.add('hidden');
+    screen.style.display = 'none';
   }
-  screen.style.display = isVisible ? 'none' : 'flex';
 }
 
 function togglePeriodDisplayModeYearly(skipChildren = false) {
@@ -181,6 +187,8 @@ function toggleOrderView(dir) {
 function updateOrderHeaderUI() {
   const titleEl = document.getElementById('orderTitle');
   const statusEl = document.getElementById('orderStatusText');
+  const rankingLiveBtn = document.getElementById('btnOrderRankingLive');
+  const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
 
   if (!titleEl || !statusEl) return;
@@ -197,6 +205,9 @@ function updateOrderHeaderUI() {
   
   let titleText = '⚡ 주문표';
   let statusText = '';
+  // ⭐️ 랭킹 버튼은 오직 '주문표' 상태(!window.isStatsMode && window.isOrderView)일 때만 표시되고,
+  // '통합 보유현황'이나 '투자법 N 보유현황' 등 보유현황 상태일 때는 절대 노출되지 않음
+  let showRankingBtns = (!window.isStatsMode && !!window.isOrderView);
 
   if (window.isStatsMode || !window.isOrderView) {
     const viewMode = window.currentHoldingsViewMode || 'combined';
@@ -210,6 +221,7 @@ function updateOrderHeaderUI() {
       titleText = `📦 ${formattedName} 보유현황`;
     }
     statusText = '';
+    showRankingBtns = false;
   } else {
     titleText = currentMode === 'combined' ? '⚡ 통합 주문표' : (currentMode === 'combined_normal' ? '⚡ 통합+일반 주문표' : '⚡ 주문표');
   }
@@ -220,7 +232,16 @@ function updateOrderHeaderUI() {
   titleEl.innerHTML = titleText + dateText;
   statusEl.innerHTML = statusText;
 
+  if (rankingLiveBtn) rankingLiveBtn.style.display = showRankingBtns ? 'flex' : 'none';
+  if (rankingBTBtn) rankingBTBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (settingsBtn) settingsBtn.style.display = (!window.isStatsMode && window.isOrderView) ? 'flex' : 'none';
+
+  // ⭐️ 보유현황일 때는 우측 상단의 확대 아이콘 숨김
+  const btnExpand = document.getElementById('btnExpandOrder');
+  if (btnExpand) {
+    btnExpand.style.display = 'none';
+  }
+  if (typeof window.updateCombinedPerfRatesUI === 'function') window.updateCombinedPerfRatesUI();
 }
 
 function getOrderExpansionPreferenceKey() {

@@ -1491,6 +1491,13 @@ async function handleSave() {
       if (typeof renderChartAll === 'function') {
         renderChartAll();
       }
+
+      // ⭐️ 시트 저장 성공 후 전체 데이터를 시트 기준으로 재동기화 (새로고침과 동일한 효과)
+      if (typeof checkAndSyncWithServer === 'function') {
+        await checkAndSyncWithServer(false, true);
+      } else if (typeof window.checkAndSyncWithServer === 'function') {
+        await window.checkAndSyncWithServer(false, true);
+      }
     } else {
       handleOfflineSave(buildSheetSavePayload(targetSlot, slotConfigs[targetSlot], newLogs));
     }
@@ -1665,50 +1672,31 @@ async function runEngine() {
   restoreBtn();
   triggerIconAnim('icoRun');
 
-  // ⭐️ 계산 중(await 구간)에 사용자가 이미 홈/다른 화면으로 이동해 백테스트 모드를
-  // 벗어났다면(isManualBacktestMode=false), 완료 시점에 화면을 강제로 백테스트 뷰로
-  // 되돌리지 않는다. 결과는 위 executeSlot에서 이미 lastManualBTResults에 저장됐으므로 데이터 손실은 없음.
-  if (!isManualBacktestMode) {
-    showToast("백테스트 엔진 실행 완료");
-    return;
-  }
-
-  restoreFromPerfLayout();
-  window.UI.misc.updateSlotsVisibility();
-  renderChartAll();
-
-  const grid = document.getElementById('mainGrid');
-  if (grid) {
-    grid.classList.add('backtest-view-layout');
-    grid.classList.remove('perf-metrics-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'analysis-expanded', 'price-info-expanded');
-  }
-
-  // ⭐️ 성과분석/주가정보/매도내역 화면에서 넘어온 경우, 해당 패널을 닫고
-  // 백테스트 결과 화면(주문표)으로 100% 동일하게 전환한다.
+  // ⭐️ 백테스트 완료 시 어느 화면에서 실행했든 홈 백테스트 뷰로 100% 완벽하게 전환
+  const orderView = document.getElementById('panelOrder');
+  const monthlyPanel = document.getElementById('panelMonthly');
+  const panelChart = document.getElementById('panelChart');
+  const statsView = document.getElementById('panelStats');
+  const panelHistory = document.getElementById('panelHistory');
+  const perfMonthlyChart = document.getElementById('panelMonthlyChart');
+  const perfDailyChart = document.getElementById('panelDailyChart');
   const perfAnalysisCard = document.getElementById('panelAnalysisView');
-  if (perfAnalysisCard) {
-    perfAnalysisCard.classList.add('hidden');
-    perfAnalysisCard.style.display = 'none';
-  }
+  const priceInfoCard = document.getElementById('panelPriceInfo');
+
+  if (orderView) { orderView.classList.remove('hidden'); orderView.style.display = ''; }
+  if (monthlyPanel) { monthlyPanel.classList.remove('hidden'); monthlyPanel.style.display = ''; }
+  if (panelChart) { panelChart.classList.remove('hidden'); panelChart.style.display = ''; }
+
+  if (statsView) { statsView.classList.add('hidden'); statsView.style.display = 'none'; }
+  if (panelHistory) { panelHistory.classList.add('hidden'); panelHistory.style.display = 'none'; }
+  if (perfMonthlyChart) { perfMonthlyChart.classList.add('hidden'); perfMonthlyChart.style.display = 'none'; }
+  if (perfDailyChart) { perfDailyChart.classList.add('hidden'); perfDailyChart.style.display = 'none'; }
+  if (perfAnalysisCard) { perfAnalysisCard.classList.add('hidden'); perfAnalysisCard.style.display = 'none'; }
+  if (priceInfoCard) { priceInfoCard.style.display = 'none'; }
+
   const analysisCurrencyBtn = document.getElementById('btnCurrencyToggleAnalysis');
   if (analysisCurrencyBtn) analysisCurrencyBtn.style.display = 'none';
   if (window.UI?.performance?.destroyAnalysisCharts) window.UI.performance.destroyAnalysisCharts();
-  const btnAnalysis = document.getElementById('btnAnalysis');
-  if (btnAnalysis) btnAnalysis.classList.remove('active');
-  const panelHistory = document.getElementById('panelHistory');
-  if (panelHistory) {
-    panelHistory.classList.add('hidden');
-    panelHistory.style.display = 'none';
-  }
-
-  const statsTitle = document.getElementById('statsTitle');
-  if (statsTitle) statsTitle.innerHTML = '📄 성과 지표';
-  backtestStatsMode = "performance";
-
-  isStatsMode = false;
-  window.isStatsMode = false;
-  isOrderView = true;
-  window.isOrderView = true;
 
   const btnInstant = document.getElementById('btnInstant');
   if (btnInstant) btnInstant.classList.add('active');
@@ -1716,6 +1704,33 @@ async function runEngine() {
   if (btnPerf) btnPerf.classList.remove('active');
   const btnStats = document.getElementById('btnStatsShow');
   if (btnStats) btnStats.classList.remove('active');
+  const btnAnalysis = document.getElementById('btnAnalysis');
+  if (btnAnalysis) btnAnalysis.classList.remove('active');
+  const btnPrice = document.getElementById('btnPriceInfo');
+  if (btnPrice) btnPrice.classList.remove('active');
+
+  isStatsMode = false;
+  window.isStatsMode = false;
+  isOrderView = true;
+  window.isOrderView = true;
+  window.showIndividualHoldings = false;
+  isViewingHistory = true;
+  isManualBacktestMode = true;
+  window.isManualBacktestMode = true;
+  backtestStatsMode = "performance";
+
+  restoreFromPerfLayout();
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.remove('perf-metrics-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'analysis-expanded', 'price-info-expanded');
+    grid.classList.add('backtest-view-layout');
+  }
+
+  const statsTitle = document.getElementById('statsTitle');
+  if (statsTitle) statsTitle.innerHTML = '📄 성과 지표';
+
+  if (window.UI?.toggles?.updateOrderHeaderUI) window.UI.toggles.updateOrderHeaderUI();
+  window.UI.misc.updateSlotsVisibility();
 
   window.UI.performance.calculateCombinedPeriodData();
   renderChartAll();
@@ -1726,9 +1741,13 @@ async function runEngine() {
   }
   window.UI.performance.renderPeriodTableText('Combined');
 
-  window.UI.toggles.toggleSettings();
+  const settingsScreen = document.getElementById('settingsScreen');
+  if (settingsScreen && !settingsScreen.classList.contains('hidden')) {
+    settingsScreen.classList.add('hidden');
+  }
+  const quickConfigOverlay = document.getElementById('quickConfigOverlay');
+  if (quickConfigOverlay) quickConfigOverlay.style.display = 'none';
 
-  // 레이아웃 전환 후 차트 리사이즈 (성과모드→백테스트 시 차트 크기 어긋남 방지)
   if (window.myChart) setTimeout(() => safeChartResize(window.myChart), 50);
   if (window.myPeriodChart) setTimeout(() => safeChartResize(window.myPeriodChart), 50);
 

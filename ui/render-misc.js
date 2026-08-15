@@ -242,7 +242,7 @@ function generateDynamicDOM() {
 function showOrderView() {
   restoreFromPerfLayout();
 
-  // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
+  // ⭐️ 수동 백테스트 중이었다면 다른 화면이나 홈 이동 시 원래 실전 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode || window.isManualBacktestMode) {
     if (typeof restoreLocalCache === 'function') restoreLocalCache();
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
@@ -359,6 +359,12 @@ function showStatsView() {
   restoreFromPerfLayout();
   resetOrderExpansion();
 
+  // ⭐️ 수동 백테스트 중이었다면 다른 화면 전환 시 원래 실전 설정과 캐시로 즉시 복귀
+  if (isManualBacktestMode || window.isManualBacktestMode) {
+    if (typeof restoreLocalCache === 'function') restoreLocalCache();
+    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
+  }
+
   // ⭐️ 내역 모드 및 화면 전환 시 스크롤 위치 초기화 (정상 위치 맨 위 복귀)
   window.scrollTo(0, 0);
   if (document.documentElement) document.documentElement.scrollTop = 0;
@@ -420,12 +426,7 @@ function showStatsView() {
     panelAnalysis.style.display = 'none';
   }
 
-  // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
-  // (화면 전환 후에 호출하여 UI 덮어쓰기 방지)
-  if (isManualBacktestMode || window.isManualBacktestMode) {
-    if (typeof restoreLocalCache === 'function') restoreLocalCache();
-    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
-  }
+  // (수동 백테스트 모드는 사용자가 명시적으로 '실전 데이터 복원'을 누를 때까지 유지됨)
 
   const statsTitle = document.getElementById('statsTitle');
   // App3 내역모드: 실시간 운영현황 대신 브로커 계좌 정보(App1 스타일)
@@ -538,6 +539,12 @@ function updateHistorySummary() {
 function showPerfView() {
   resetOrderExpansion();
 
+  // ⭐️ 수동 백테스트 중이었다면 다른 화면 전환 시 원래 실전 설정과 캐시로 즉시 복귀
+  if (isManualBacktestMode || window.isManualBacktestMode) {
+    if (typeof restoreLocalCache === 'function') restoreLocalCache();
+    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
+  }
+
   // 주가 정보 확장 해제 및 카드 숨김
   const priceInfoCard = document.getElementById('panelPriceInfo');
   if (priceInfoCard) priceInfoCard.style.display = 'none';
@@ -596,12 +603,7 @@ function showPerfView() {
   const pa = document.getElementById('panelAnalysisView'); if (pa) pa.classList.add('hidden');
   const pc = document.getElementById('panelChart'); if (pc) pc.classList.add('hidden');
 
-  // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
-  // (화면 전환 후에 호출하여 UI 덮어쓰기 방지)
-  if (isManualBacktestMode || window.isManualBacktestMode) {
-    if (typeof restoreLocalCache === 'function') restoreLocalCache();
-    showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
-  }
+  // (수동 백테스트 모드는 사용자가 명시적으로 '실전 데이터 복원'을 누를 때까지 유지됨)
 
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) statsTitle.innerHTML = perfStatsMode === 'realtime' ? '📡 실시간 운영현황' : '📄 성과 지표';
@@ -1116,6 +1118,36 @@ async function enterAppDirectly() {
     if (window.UI?.holdings?.renderCombinedHoldings) window.UI.holdings.renderCombinedHoldings();
     if (window.UI?.holdings?.updateCombinedHoldingsSummary) window.UI.holdings.updateCombinedHoldingsSummary();
     console.log('[병렬로드] ✅ Chart.js + GET_ALL_INIT 동시 로드 완료');
+
+    // ⭐️ 증권사 변경 후 새로고침된 경우, 직전에 보고 있던 마지막 화면으로 완벽 복원
+    const lastViewAfterSwitch = localStorage.getItem('vtotal3_last_view_after_broker_switch');
+    if (lastViewAfterSwitch) {
+      localStorage.removeItem('vtotal3_last_view_after_broker_switch');
+      try {
+        if (lastViewAfterSwitch === 'holdings') {
+          window.isStatsMode = false;
+          window.isOrderView = false;
+          if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
+            window.UI.order.refreshOrderViewUI();
+          }
+          if (typeof window.UI?.holdings?.renderCombinedHoldings === 'function') {
+            window.UI.holdings.renderCombinedHoldings();
+          }
+        } else if (lastViewAfterSwitch === 'stats') {
+          if (typeof showStatsView === 'function') showStatsView();
+        } else if (lastViewAfterSwitch === 'perf') {
+          if (typeof showPerfView === 'function') showPerfView();
+        } else if (lastViewAfterSwitch === 'analysis') {
+          if (typeof showPerformanceAnalysisView === 'function') showPerformanceAnalysisView();
+        } else if (lastViewAfterSwitch === 'price') {
+          if (typeof showPriceInfoView === 'function') showPriceInfoView();
+        } else if (lastViewAfterSwitch === 'settings') {
+          if (typeof toggleSettings === 'function') toggleSettings();
+        }
+      } catch (e) {
+        console.warn("증권사 변경 후 마지막 화면 복원 실패:", e);
+      }
+    }
   } catch (e) {
     console.error('[병렬로드] 병렬 로드 중 오류:', e);
     // 오류 발생해도 계속 진행
@@ -1240,6 +1272,7 @@ function applyQuickConfig() {
     });
 }
 
+window.checkAndSyncWithServer = checkAndSyncWithServer;
 async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave = false) {
   if (forceSync) {
     try { localStorage.removeItem(`vtotal3_sheet_perf_cache_${myUserId}`); localStorage.removeItem(`vtotal3_sheet_perf_cache_v2_${myUserId}`); } catch (e) {}
@@ -1805,9 +1838,14 @@ function triggerOptimisticSave() {
     // 📊 이미 로드된 캐시 데이터 사용 (priceLoader.priceDataCache)
     const cachedPriceData = window.priceLoader && window.priceLoader.priceDataCache ?
       window.priceLoader.priceDataCache : {};
-    runBacktestMemory(currentParams, cachedPriceData, targetSlot).then(res => {
-      if (res.status !== "error") window.UI.updates.updateUIWithResult(res, currentParams, targetSlot);
-    });
+    try {
+      const res = runBacktestMemory(currentParams, cachedPriceData, targetSlot);
+      if (res && res.status !== "error") {
+        window.UI.updates.updateUIWithResult(res, currentParams, targetSlot);
+      }
+    } catch (e) {
+      console.warn("triggerOptimisticSave runBacktestMemory error:", e);
+    }
   } else {
     // ⭐️ 설정 드롭다운을 비활성화하는 즉시 로컬 캐시와 이전 성과 메모리를 완벽히 청소
     localStorage.removeItem(`vtotal3_snap${targetSlot}_${myUserId}`);
@@ -1875,10 +1913,6 @@ function handleStrategyChange(strategyName) {
   if (!strategyName || strategyName === '정지' || strategyName === prevStrategy || !prevStrategy) {
     strategySelect.value = strategyName;
     strategySelect.dataset.prev = strategyName;
-    if (strategyName) {
-      document.getElementById('fBase').value = 0;
-      document.getElementById('fSec').value = 0;
-    }
     triggerOptimisticSave();
     return;
   }
@@ -1912,9 +1946,31 @@ function handleStrategyChange(strategyName) {
     return;
   }
 
-  const statDate = document.getElementById('statDate')?.innerText || '-';
-  const statTotal = document.getElementById('statTotal')?.innerText || '$0.00';
-  const statRenew = document.getElementById('statRenew')?.innerText || '$0.00';
+  const currentSlot = activeSettingsTab || 1;
+  const currentRes = (lastBTResults && lastBTResults[currentSlot]) || null;
+  const currentCfg = (slotConfigs && slotConfigs[currentSlot]?.basics) || null;
+
+  const elDate = document.getElementById('statDate');
+  const elTotal = document.getElementById('statTotal');
+  const elRenew = document.getElementById('statRenew');
+
+  let statDate = elDate?.innerText?.trim() || '-';
+  let statTotal = elTotal?.innerText?.trim() || '-';
+  let statRenew = elRenew?.innerText?.trim() || '-';
+
+  if ((statDate === '-' || !statDate) && currentRes?.dailyStates?.length) {
+    statDate = currentRes.dailyStates[currentRes.dailyStates.length - 1].date || '-';
+  }
+  if ((statTotal === '-' || statTotal === '$0.00') && currentRes?.summary?.totalAssets) {
+    statTotal = '$' + Number(currentRes.summary.totalAssets).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  } else if ((statTotal === '-' || statTotal === '$0.00') && currentCfg?.initialCash) {
+    statTotal = '$' + Number(currentCfg.initialCash).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  }
+  if ((statRenew === '-' || statRenew === '$0.00') && currentRes?.summary?.renewCash) {
+    statRenew = '$' + Number(currentRes.summary.renewCash).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  } else if ((statRenew === '-' || statRenew === '$0.00') && currentCfg?.renewCash) {
+    statRenew = '$' + Number(currentCfg.renewCash).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  }
 
   const nextDateStr = getNextDateStr(statDate);
 
@@ -1936,25 +1992,41 @@ function handleStrategyChange(strategyName) {
       strategySelect.value = strategyName;
       strategySelect.dataset.prev = strategyName;
 
-      document.getElementById('startDate').value = nextDateStr;
+      if (nextDateStr && nextDateStr !== '-') {
+        document.getElementById('startDate').value = nextDateStr;
+      }
 
-      const cleanTotal = parseFloat(statTotal.replace(/[^0-9.-]/g, '')) || 0;
-      document.getElementById('initialCash').value = formatComma(cleanTotal);
+      const parsedTotal = parseFloat(statTotal.replace(/[^0-9.-]/g, ''));
+      if (!isNaN(parsedTotal) && parsedTotal > 0) {
+        document.getElementById('initialCash').value = formatComma(parsedTotal);
+      }
 
-      const cleanRenew = parseFloat(statRenew.replace(/[^0-9.-]/g, '')) || 0;
-      document.getElementById('renewCash').value = formatComma(cleanRenew);
+      const parsedRenew = parseFloat(statRenew.replace(/[^0-9.-]/g, ''));
+      if (!isNaN(parsedRenew) && parsedRenew > 0) {
+        document.getElementById('renewCash').value = formatComma(parsedRenew);
+      }
 
-      document.getElementById('fBase').value = 0;
-      document.getElementById('fSec').value = 0;
+      setupCashAutoFill(parsedTotal > 0 ? parsedTotal : undefined, parsedRenew > 0 ? parsedRenew : undefined);
 
-      setupCashAutoFill(cleanTotal, cleanRenew);
-
-      triggerOptimisticSave();
       if (overlay) overlay.style.display = 'none';
+
+      saveCurrentFormToSlot(activeSettingsTab);
+      triggerOptimisticSave();
+
+      if (window.UI?.updates?.updateCurrentStatusUI) {
+        window.UI.updates.updateCurrentStatusUI(activeSettingsTab);
+      }
+      if (typeof updateSettingsTabButtons === 'function') {
+        updateSettingsTabButtons();
+      }
+
+      showToast(`[투자법 ${activeSettingsTab}] 투자법이 '${strategyName}'(으)로 변경되었습니다.`, "✅");
 
       // ⭐️ 시트에 반영까지 같이 진행
       try {
-        await handleSave();
+        if (typeof handleSave === 'function') {
+          await handleSave();
+        }
       } catch (e) {
         console.error("자동 시트 저장 실패:", e);
       }
@@ -2078,8 +2150,65 @@ async function runEngine() {
   restoreFromPerfLayout();
   updateSlotsVisibility();
 
-  // ⭐️ 백테스트 완료 시 무조건 홈 화면(showOrderView: 주문표/백테스트 뷰)으로 100% 동일하게 완벽 전환
-  showOrderView();
+  // ⭐️ 백테스트 완료 시 어느 화면에서 실행했든 홈 백테스트 뷰로 100% 완벽하게 전환
+  const orderView = document.getElementById('panelOrder');
+  const monthlyPanel = document.getElementById('panelMonthly');
+  const panelChart = document.getElementById('panelChart');
+  const statsView = document.getElementById('panelStats');
+  const panelHistory = document.getElementById('panelHistory');
+  const perfMonthlyChart = document.getElementById('panelMonthlyChart');
+  const perfDailyChart = document.getElementById('panelDailyChart');
+  const perfAnalysisCard = document.getElementById('panelAnalysisView');
+  const priceInfoCard = document.getElementById('panelPriceInfo');
+
+  if (orderView) { orderView.classList.remove('hidden'); orderView.style.display = ''; }
+  if (monthlyPanel) { monthlyPanel.classList.remove('hidden'); monthlyPanel.style.display = ''; }
+  if (panelChart) { panelChart.classList.remove('hidden'); panelChart.style.display = ''; }
+
+  if (statsView) { statsView.classList.add('hidden'); statsView.style.display = 'none'; }
+  if (panelHistory) { panelHistory.classList.add('hidden'); panelHistory.style.display = 'none'; }
+  if (perfMonthlyChart) { perfMonthlyChart.classList.add('hidden'); perfMonthlyChart.style.display = 'none'; }
+  if (perfDailyChart) { perfDailyChart.classList.add('hidden'); perfDailyChart.style.display = 'none'; }
+  if (perfAnalysisCard) { perfAnalysisCard.classList.add('hidden'); perfAnalysisCard.style.display = 'none'; }
+  if (priceInfoCard) { priceInfoCard.style.display = 'none'; }
+
+  const analysisCurrencyBtn = document.getElementById('btnCurrencyToggleAnalysis');
+  if (analysisCurrencyBtn) analysisCurrencyBtn.style.display = 'none';
+  if (window.UI?.performance?.destroyAnalysisCharts) window.UI.performance.destroyAnalysisCharts();
+
+  const btnInstant = document.getElementById('btnInstant');
+  if (btnInstant) btnInstant.classList.add('active');
+  const btnPerf = document.getElementById('btnPerfShow');
+  if (btnPerf) btnPerf.classList.remove('active');
+  const btnStats = document.getElementById('btnStatsShow');
+  if (btnStats) btnStats.classList.remove('active');
+  const btnAnalysis = document.getElementById('btnAnalysis');
+  if (btnAnalysis) btnAnalysis.classList.remove('active');
+  const btnPrice = document.getElementById('btnPriceInfo');
+  if (btnPrice) btnPrice.classList.remove('active');
+
+  isStatsMode = false;
+  window.isStatsMode = false;
+  isOrderView = true;
+  window.isOrderView = true;
+  window.showIndividualHoldings = false;
+  isViewingHistory = true;
+  isManualBacktestMode = true;
+  window.isManualBacktestMode = true;
+  backtestStatsMode = "performance";
+
+  restoreFromPerfLayout();
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.remove('perf-metrics-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'analysis-expanded', 'price-info-expanded');
+    grid.classList.add('backtest-view-layout');
+  }
+
+  const statsTitle = document.getElementById('statsTitle');
+  if (statsTitle) statsTitle.innerHTML = '📄 성과 지표';
+
+  if (window.UI?.toggles?.updateOrderHeaderUI) window.UI.toggles.updateOrderHeaderUI();
+  updateSlotsVisibility();
 
   window.UI.performance.calculateCombinedPeriodData();
   renderChartAll();
@@ -2090,11 +2219,15 @@ async function runEngine() {
   }
   window.UI.performance.renderPeriodTableText('Combined');
 
-  window.UI.toggles.toggleSettings();
+  const settingsScreen = document.getElementById('settingsScreen');
+  if (settingsScreen && !settingsScreen.classList.contains('hidden')) {
+    settingsScreen.classList.add('hidden');
+  }
+  const quickConfigOverlay = document.getElementById('quickConfigOverlay');
+  if (quickConfigOverlay) quickConfigOverlay.style.display = 'none';
 
-  // 레이아웃 전환 후 차트 리사이즈 (성과모드→백테스트 시 차트 크기 어긋남 방지)
-  if (window.myChart) setTimeout(() => { try { if (typeof safeChartResize === 'function') safeChartResize(window.myChart); else if (window.myChart) try { if (typeof safeChartResize === 'function') safeChartResize(window.myChart); else if (window.myChart) window.myChart.resize(); } catch(e){} } catch(e){} }, 50);
-  if (window.myPeriodChart) setTimeout(() => { try { if (typeof safeChartResize === 'function') safeChartResize(window.myPeriodChart); else if (window.myPeriodChart) try { if (typeof safeChartResize === 'function') safeChartResize(window.myPeriodChart); else if (window.myPeriodChart) window.myPeriodChart.resize(); } catch(e){} } catch(e){} }, 50);
+  if (window.myChart) setTimeout(() => { try { if (typeof safeChartResize === 'function') safeChartResize(window.myChart); else if (window.myChart) window.myChart.resize(); } catch(e){} }, 50);
+  if (window.myPeriodChart) setTimeout(() => { try { if (typeof safeChartResize === 'function') safeChartResize(window.myPeriodChart); else if (window.myPeriodChart) window.myPeriodChart.resize(); } catch(e){} }, 50);
 
   showToast("백테스트 엔진 실행 완료");
 }
