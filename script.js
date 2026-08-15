@@ -218,7 +218,16 @@ window.formatStrategyNameWithSmallParentheses = formatStrategyNameWithSmallParen
 let myUserId = localStorage.getItem("vtotal3_id") || "smw594";
 let myChart = null;
 let currentOrderDate = "";
-let isOrderView = true;
+let isOrderView = (function() {
+  try {
+    const uid = localStorage.getItem("vtotal3_id") || "smw594";
+    const layout = localStorage.getItem(`vtotal3_active_layout_${uid}`);
+    if (layout === 'history' || layout === 'stats') return false;
+    const pref = localStorage.getItem(`vtotal3_view_mode_${uid}`);
+    if (pref === 'holdings') return false;
+  } catch(e) {}
+  return true;
+})();
 let isCombinedOrderMode = false;
 let isStatsMode = false;
 let isViewingHistory = false;
@@ -307,14 +316,24 @@ function savePerfStatsMode() {
 function applyPrimaryDateHighlight() {
   const primaryDate = getPrimaryStrategyDisplayDate();
   if (!primaryDate) return;
+  // 기존 하이라이트 클래스 초기화
+  document.querySelectorAll('#combinedHoldingsBody tr, [id^="holdingsBody"] tr, #historyTableBody tr').forEach(row => {
+    row.classList.remove('date-sync-highlight-row');
+  });
+  // 각 표의 날짜 컬럼 지정 (통합보유: 3열(진입일), 개별보유: 2열(진입일), 매도내역: 5열(청산일) 및 4열(진입일))
   const selectors = [
-    '#combinedHoldingsBody tr td:nth-child(2)',
+    '#combinedHoldingsBody tr td:nth-child(3)',
     '[id^="holdingsBody"] tr td:nth-child(2)',
-    '#historyTableBody tr td:nth-child(3)'
+    '#historyTableBody tr td:nth-child(5)',
+    '#historyTableBody tr td:nth-child(4)'
   ];
   document.querySelectorAll(selectors.join(',')).forEach((cell) => {
     const row = cell.closest('tr');
-    if (row) row.classList.toggle('date-sync-highlight-row', normalizeHighlightDate(cell.textContent) === primaryDate);
+    if (row && !row.classList.contains('date-sync-highlight-row')) {
+      if (normalizeHighlightDate(cell.textContent) === primaryDate) {
+        row.classList.add('date-sync-highlight-row');
+      }
+    }
   });
 }
 

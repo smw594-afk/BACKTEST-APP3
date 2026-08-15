@@ -55,85 +55,140 @@ window.BrokerService = {
     localStorage.setItem("vtotal3_active_broker", broker);
 
     // 설정 화면 슬롯 탭도 이 브로커 것만 보이도록 갱신
-    this.applySettingsTabVisibility();
+    try { this.applySettingsTabVisibility(); } catch (e) { console.warn("[BrokerService] applySettingsTabVisibility error:", e); }
 
     // Update Single Nav Bar Button Text & Style
-    const btn = document.getElementById("btnSingleBrokerNav");
-    if (btn) {
-      if (broker === "kiwoom") {
-        btn.innerHTML = '🟢 키움 <span style="font-size:9px;">▼</span>';
-        btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
-        btn.style.color = "#000";
-        btn.style.boxShadow = "0 2px 6px rgba(16,185,129,0.4)";
-      } else {
-        btn.innerHTML = '🟣 LS <span style="font-size:9px;">▼</span>';
-        btn.style.background = "linear-gradient(135deg, #a855f7, #7e22ce)";
-        btn.style.color = "#fff";
-        btn.style.boxShadow = "0 2px 6px rgba(168,85,247,0.4)";
+    try {
+      const btn = document.getElementById("btnSingleBrokerNav");
+      if (btn) {
+        if (broker === "kiwoom") {
+          btn.innerHTML = '🟢 키움 <span style="font-size:9px;">▼</span>';
+          btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
+          btn.style.color = "#000";
+          btn.style.boxShadow = "0 2px 6px rgba(16,185,129,0.4)";
+        } else {
+          btn.innerHTML = '🟣 LS <span style="font-size:9px;">▼</span>';
+          btn.style.background = "linear-gradient(135deg, #a855f7, #7e22ce)";
+          btn.style.color = "#fff";
+          btn.style.boxShadow = "0 2px 6px rgba(168,85,247,0.4)";
+        }
       }
-    }
+    } catch (e) { console.warn("[BrokerService] btn update error:", e); }
 
-    // Refresh holdings & account UI
-    if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
-      window.BrokerReconcile.invalidate();
-    }
+    // 1. Reconcile 캐시 무효화
+    try {
+      if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
+        window.BrokerReconcile.invalidate();
+      }
+    } catch (e) { console.warn("[BrokerService] invalidate error:", e); }
 
-    // ⚠️ 브로커 전환 시 새로 선택한 브로커의 계좌정보를 백그라운드로 즉시 선조회해 캐시를 채운다.
-    if (window.BrokerReconcile && typeof window.BrokerReconcile.getBalance === "function") {
-      window.BrokerReconcile.getBalance(broker).catch(e => console.warn("브로커 전환 계좌정보 선조회 실패:", e.message));
-    }
+    // 2. 새로 선택한 브로커의 계좌정보 및 체결내역 즉시 백그라운드 선조회
+    try {
+      if (window.BrokerReconcile) {
+        if (typeof window.BrokerReconcile.getBalance === "function") {
+          window.BrokerReconcile.getBalance(broker)
+            .catch(e => console.warn("[BrokerService] 계좌정보 선조회 실패:", e.message))
+            .finally(() => {
+              if (typeof window.BrokerReconcile.refreshFills === "function") {
+                window.BrokerReconcile.refreshFills().catch(e => console.warn("[BrokerService] 체결내역 선조회 실패:", e.message));
+              }
+            });
+        } else if (typeof window.BrokerReconcile.refreshFills === "function") {
+          window.BrokerReconcile.refreshFills().catch(e => console.warn("[BrokerService] 체결내역 선조회 실패:", e.message));
+        }
+      }
+    } catch (e) { console.warn("[BrokerService] getBalance error:", e); }
 
-    // ⚠️ 2026-07-30까지 여기서 캐시만 지우고 끝났다 — 계좌 정보/주문표 체결배지/매수매도내역
-    // 패널은 activeBroker를 정확히 읽고 있었지만 아무도 재렌더링을 트리거하지 않아, 브로커를
-    // 바꿔도 화면엔 이전 브로커 데이터가 그대로 남아 있었다(사용자 실증). 명시적으로 다시 그린다.
-    if (window.UI && window.UI.stats && typeof window.UI.stats.refreshStatsTable === "function") {
-      window.UI.stats.refreshStatsTable();
-    }
-    if (typeof window.refreshOrderStatusCache === "function") {
-      window.refreshOrderStatusCache();
-    }
-    if (window.UI && window.UI.tradeHistory && typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
-      window.UI.tradeHistory.syncHistoryViewModeToBroker();
-    }
+    // 3. 성과 지표 / 자산현황 파이차트 / 계좌 정보 테이블 다시 그리기
+    try {
+      if (window.UI && window.UI.stats) {
+        if (typeof window.UI.stats.refreshStatsTable === "function") {
+          window.UI.stats.refreshStatsTable();
+        }
+        if (typeof window.UI.stats.updateStatsPieChart === "function") {
+          window.UI.stats.updateStatsPieChart();
+        }
+      }
+    } catch (e) { console.warn("[BrokerService] stats error:", e); }
 
-    // ⚠️ 2026-07-31부터 주문표/일별수익/성과추이/통합 보유현황도 활성 브로커(키움 1~3 / LS 4~6)
-    // 슬롯만 필터링하도록 바뀌었다(사용자 요청) — isSlotForBroker를 각 렌더 루프에 심었으니
-    // 브로커 전환 시 이 화면들도 다시 그려야 실제로 반영된다.
-    if (typeof window.updateSlotsVisibility === "function") {
-      window.updateSlotsVisibility();
-    }
-    if (window.UI && window.UI.holdings) {
-      if (typeof window.UI.holdings.renderCombinedHoldings === "function") window.UI.holdings.renderCombinedHoldings();
-      if (typeof window.UI.holdings.updateCombinedHoldingsSummary === "function") window.UI.holdings.updateCombinedHoldingsSummary();
-    }
-    if (window.UI && window.UI.order && typeof window.UI.order.renderCombinedOrderBook === "function") {
-      window.UI.order.renderCombinedOrderBook();
-    }
-    if (typeof window.renderChartAll === "function") {
-      window.renderChartAll();
-    }
-    if (typeof window.renderPeriodBarChart === "function") {
-      window.renderPeriodBarChart();
-    }
-    // 성과추이 상단 Y/M/D/DD는 window.chartRatesData에 계산 결과를 캐시해 재사용하므로
-    // (calculateChartRatesDataEngine, script.js), 캐시를 지우지 않으면 재계산 자체가 생략된다.
-    window.chartRatesData = null;
-    if (typeof window.updateChartRatesDisplay === "function") {
-      window.updateChartRatesDisplay();
-    }
-    // 일별수익이 "테이블" 모드(차트 모드가 아닐 때)인 경우도 다시 계산/렌더한다.
-    if (window.UI && window.UI.performance) {
-      if (typeof window.UI.performance.calculateCombinedPeriodData === "function") window.UI.performance.calculateCombinedPeriodData();
-      if (typeof window.UI.performance.renderPerfTables === "function") window.UI.performance.renderPerfTables();
-      // 성과 분석(도넛 차트) — render-performance-analysis.js.
-      if (typeof window.UI.performance.renderAnalysisView === "function") window.UI.performance.renderAnalysisView();
-    }
-    // 자산현황(파이차트) — perf-metrics-layout에서 계좌 정보와 토글되는 화면.
-    if (typeof window.updateStatsPieChart === "function") {
-      window.updateStatsPieChart();
-    }
+    // 4. 주문표 주문상태 캐시 갱신
+    try {
+      if (typeof window.refreshOrderStatusCache === "function") {
+        window.refreshOrderStatusCache();
+      }
+    } catch (e) { console.warn("[BrokerService] refreshOrderStatusCache error:", e); }
+
+    // 5. 매수매도내역(실전 매도 내역 / 백테스트 매매내역) 브로커 모드 동기화 및 렌더링
+    try {
+      if (window.UI && window.UI.tradeHistory) {
+        if (typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
+          window.UI.tradeHistory.syncHistoryViewModeToBroker();
+        }
+        if (typeof window.UI.tradeHistory.renderDBTradeHistory === "function") {
+          window.UI.tradeHistory.renderDBTradeHistory();
+        }
+      }
+    } catch (e) { console.warn("[BrokerService] tradeHistory error:", e); }
+
+    // 6. 슬롯 가시성 갱신 (키움 1~6 / LS 7~12)
+    try {
+      if (typeof window.updateSlotsVisibility === "function") {
+        window.updateSlotsVisibility();
+      }
+    } catch (e) { console.warn("[BrokerService] updateSlotsVisibility error:", e); }
+
+    // 7. 통합 보유현황 테이블 & 요약 갱신
+    try {
+      if (window.UI && window.UI.holdings) {
+        if (typeof window.UI.holdings.renderCombinedHoldings === "function") {
+          window.UI.holdings.renderCombinedHoldings();
+        }
+        if (typeof window.UI.holdings.updateCombinedHoldingsSummary === "function") {
+          window.UI.holdings.updateCombinedHoldingsSummary();
+        }
+      }
+      if (typeof window.renderHoldingsTable === "function") {
+        window.renderHoldingsTable();
+      }
+    } catch (e) { console.warn("[BrokerService] holdings error:", e); }
+
+    // 8. 주문표 렌더링
+    try {
+      if (window.UI && window.UI.order && typeof window.UI.order.renderCombinedOrderBook === "function") {
+        window.UI.order.renderCombinedOrderBook();
+      }
+    } catch (e) { console.warn("[BrokerService] order error:", e); }
+
+    // 9. 성과 추이 캐시 무효화 및 재계산/렌더링
+    try {
+      window.chartRatesData = null;
+      if (typeof window.updateChartRatesDisplay === "function") {
+        window.updateChartRatesDisplay();
+      }
+      if (window.UI && window.UI.performance) {
+        if (typeof window.UI.performance.calculateCombinedPeriodData === "function") {
+          window.UI.performance.calculateCombinedPeriodData();
+        }
+        if (typeof window.UI.performance.renderPerfTables === "function") {
+          window.UI.performance.renderPerfTables();
+        }
+        if (typeof window.UI.performance.renderAnalysisView === "function") {
+          window.UI.performance.renderAnalysisView();
+        }
+      }
+    } catch (e) { console.warn("[BrokerService] performance error:", e); }
+
+    // 10. 차트 및 막대차트 전체 다시 그리기
+    try {
+      if (typeof window.renderChartAll === "function") {
+        window.renderChartAll();
+      }
+      if (typeof window.renderPeriodBarChart === "function") {
+        window.renderPeriodBarChart();
+      }
+    } catch (e) { console.warn("[BrokerService] charts error:", e); }
   },
-    openBrokerSelectPopup() {
+  openBrokerSelectPopup() {
     const old = document.getElementById("broker-select-popup-modal");
     if (old) old.remove();
 
@@ -157,14 +212,14 @@ window.BrokerService = {
 
         <div style="display:flex; flex-direction:column; gap:10px;">
           <!-- 키움증권 선택 버튼 -->
-          <button onclick="window.BrokerService.switchBrokerMode('kiwoom'); document.getElementById('broker-select-popup-modal').remove();" 
+          <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('kiwoom');" 
             style="padding:12px; border-radius:10px; background:${active === 'kiwoom' ? 'linear-gradient(135deg, #10b981, #059669)' : '#0f172a'}; color:${active === 'kiwoom' ? '#000' : '#fff'}; border:2px solid ${active === 'kiwoom' ? '#10b981' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
             <span>🟢 키움증권 모드 (슬롯 1~6)</span>
             ${active === 'kiwoom' ? '<span style="font-size:11px; background:#000; color:#10b981; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
 
           <!-- LS증권 선택 버튼 -->
-          <button onclick="window.BrokerService.switchBrokerMode('ls'); document.getElementById('broker-select-popup-modal').remove();" 
+          <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('ls');" 
             style="padding:12px; border-radius:10px; background:${active === 'ls' ? 'linear-gradient(135deg, #a855f7, #7e22ce)' : '#0f172a'}; color:#fff; border:2px solid ${active === 'ls' ? '#a855f7' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
             <span>🟣 LS증권 모드 (슬롯 7~12)</span>
             ${active === 'ls' ? '<span style="font-size:11px; background:#fff; color:#a855f7; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}

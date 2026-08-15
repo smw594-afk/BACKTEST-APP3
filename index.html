@@ -22,7 +22,7 @@
     <meta name="theme-color" content="#020617">
   <meta name="background-color" content="#020617">
   <meta name="apple-mobile-web-app-title" content="A-QUANT">
-  <script>if(window.location.protocol !== "file:"){var m=document.createElement("link");m.rel="manifest";m.href="manifest.json?v=cf_v9048";document.head.appendChild(m);}</script>
+  <script>if(window.location.protocol !== "file:"){var m=document.createElement("link");m.rel="manifest";m.href="manifest.json?v=cf_v9078";document.head.appendChild(m);}</script>
   <link rel="apple-touch-icon" href="images/logo.png?v=3">
   <link rel="icon" href="images/logo.png?v=3">
   <title>A-QUANT(ST)</title>
@@ -125,35 +125,35 @@
 
     // detectLayout과 updateMobileButtonText는 ui/layout-detector.js로 이동됨
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js?v=cf_v9048" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js?v=cf_v9078" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v9048" defer></script>
-  <link rel="stylesheet" href="ui/styles/core.css?v=cf_v9048">
-  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v9048">
-  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v9048">
-  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v9048">
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v9078" defer></script>
+  <link rel="stylesheet" href="ui/styles/core.css?v=cf_v9078">
+  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v9078">
+  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v9078">
+  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v9078">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
-  <script src="utils/formatters.js?v=cf_v9048" defer></script>
-  <script src="utils/date-helpers.js?v=cf_v9048" defer></script>
-  <script src="utils/period-calculator.js?v=cf_v9048" defer></script>
-  <script src="utils/summary-calculator.js?v=cf_v9048" defer></script>
+  <script src="utils/formatters.js?v=cf_v9078" defer></script>
+  <script src="utils/date-helpers.js?v=cf_v9078" defer></script>
+  <script src="utils/period-calculator.js?v=cf_v9078" defer></script>
+  <script src="utils/summary-calculator.js?v=cf_v9078" defer></script>
   <!-- Phase 2: Services (currency, export, prefetch) -->
-  <script src="services/currency-service.js?v=cf_v9048" defer></script>
-  <script src="services/export-service.js?v=cf_v9048" defer></script>
-  <script src="services/prefetch-service.js?v=cf_v9048" defer></script>
+  <script src="services/currency-service.js?v=cf_v9078" defer></script>
+  <script src="services/export-service.js?v=cf_v9078" defer></script>
+  <script src="services/prefetch-service.js?v=cf_v9078" defer></script>
   <!-- Phase 3: UI Layer (layout, state, events) -->
-  <script src="ui/layout-detector.js?v=cf_v9048" defer></script>
-  <script src="ui/state-manager.js?v=cf_v9048" defer></script>
-  <script src="ui/event-handlers.js?v=cf_v9048" defer></script>
+  <script src="ui/layout-detector.js?v=cf_v9078" defer></script>
+  <script src="ui/state-manager.js?v=cf_v9078" defer></script>
+  <script src="ui/event-handlers.js?v=cf_v9078" defer></script>
   <!-- Phase 4, 5, 6: Business Logic Services (config, sync, stats) -->
-  <script src="services/broker-service.js?v=cf_v9048" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v9048" defer></script>
-  <script src="services/config-manager.js?v=cf_v9048" defer></script>
+  <script src="services/broker-service.js?v=cf_v9078" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v9078" defer></script>
+  <script src="services/config-manager.js?v=cf_v9078" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
-  <script src="services/stats-config.js?v=cf_v9048" defer></script>
+  <script src="services/stats-config.js?v=cf_v9078" defer></script>
   <!-- UI Helpers (Performance icons, analysis) -->
-  <script src="ui/helpers/performance-icons.js?v=cf_v9048" defer></script>
-  <script src="ui/render-performance-analysis.js?v=cf_v9048" defer></script>
+  <script src="ui/helpers/performance-icons.js?v=cf_v9078" defer></script>
+  <script src="ui/render-performance-analysis.js?v=cf_v9078" defer></script>
 </head>
 
 <body style="background-color: #020617; background: radial-gradient(circle at top right, #1e1b4b, #020617 60%); background-attachment: fixed; color: #f8fafc; margin: 0; padding: 4px;">
@@ -395,8 +395,6 @@
         <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
           <span id="orderStatusText" style="font-size:11px; color:var(--text-muted); font-weight:600; min-width:60px; text-align:right;"></span>
           <div id="combinedHoldingsSummary" style="display:none; gap:6px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text);"></div>
-          <button id="btnOrderRankingLive" onclick="showLiveRankingModal()" title="실전 투자법 랭킹" style="background:linear-gradient(135deg, #0ea5e9, #0369a1); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">📡 실전랭킹</button>
-          <button id="btnOrderRankingBacktest" onclick="showBacktestRankingModal()" title="BT랭킹" style="background:linear-gradient(135deg, #fbbf24, #d97706); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">🏆 BT랭킹</button>
           <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub btn-order-expand" title="주문표 세로 확장" style="display: none !important;">
             <svg width="20" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -519,7 +517,7 @@
       <!-- 표 컨테이너 -->
       <div id="statsTableContainer" class="slim-scroll" style="flex:1; overflow:auto; min-height:0; padding:4px 0; -webkit-overflow-scrolling:touch;">
         <div id="statsTable"
-          style="width:100%; font-size:10.5px; color:var(--text-white);">
+          style="width:100%; font-size:10.5px; color:var(--text);">
         </div>
       </div>
       <!-- 차트 컨테이너 (기본 숨김) -->
@@ -547,9 +545,8 @@
     </div>
 
     <div class="card panel-history hidden" id="panelHistory">
-      <div class="section-header">
-        <h2 id="historyTitle" onclick="window.toggleView()" style="cursor:pointer;" title="클릭하여 실전매도 내역 / 키움 매수매도 내역 전환" style="cursor:pointer;" onclick="window.toggleHistoryView && window.toggleHistoryView()"
-          title="클릭하여 전환: 실전 매도 내역 → 키움 매수·매도 내역 → LS증권 매수·매도 내역">📜 실전 매도 내역</h2>
+      <div class="section-header" onclick="if(event.target.tagName !== 'BUTTON' && !event.target.closest('button')) window.toggleView && window.toggleView();" style="cursor:pointer;" title="클릭하여 전환: 실전 매도 내역 ↔ 증권사 매수·매도 내역">
+        <h2 id="historyTitle" style="cursor:pointer; user-select:none;">📜 실전 매도 내역</h2>
         <div id="historySummary" style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center; font-size:11px; color:var(--text); text-align:right;"></div>
         <div id="historyActionArea" style="margin-left:auto; display:flex; gap:8px;">
           <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()"
@@ -945,23 +942,23 @@
     }
   </script>
 
-  <script src="engine/price_loader.js?v=cf_v9048" defer></script>
-  <script src="engine/strategies.js?v=cf_v9048" defer></script>
-  <script src="engine/engine.js?v=cf_v9048" defer></script>
-  <script src="engine/core.js?v=cf_v9048" defer></script>
-  <script src="ui/render-order.js?v=cf_v9048" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v9048" defer></script>
-  <script src="ui/render-performance.js?v=cf_v9048" defer></script>
-  <script src="ui/render-stats.js?v=cf_v9049" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v9048" defer></script>
-  <script src="ui/render-price-info.js?v=cf_v9048" defer></script>
-  <script src="ui/render-ui-updates.js?v=cf_v9048" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v9048" defer></script>
-  <script src="ui/render-helpers.js?v=cf_v9048" defer></script>
-  <script src="ui/render-notifications.js?v=cf_v9048" defer></script>
-  <script src="ui/render-misc.js?v=cf_v9049" defer></script>
-  <script src="ui/index.js?v=cf_v9048" defer></script>
-  <script src="script.js?v=cf_v9049" defer></script>
+  <script src="engine/price_loader.js?v=cf_v9078" defer></script>
+  <script src="engine/strategies.js?v=cf_v9078" defer></script>
+  <script src="engine/engine.js?v=cf_v9078" defer></script>
+  <script src="engine/core.js?v=cf_v9078" defer></script>
+  <script src="ui/render-order.js?v=cf_v9078" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v9078" defer></script>
+  <script src="ui/render-performance.js?v=cf_v9078" defer></script>
+  <script src="ui/render-stats.js?v=cf_v9078" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v9078" defer></script>
+  <script src="ui/render-price-info.js?v=cf_v9078" defer></script>
+  <script src="ui/render-ui-updates.js?v=cf_v9078" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v9078" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v9078" defer></script>
+  <script src="ui/render-notifications.js?v=cf_v9078" defer></script>
+  <script src="ui/render-misc.js?v=cf_v9078" defer></script>
+  <script src="ui/index.js?v=cf_v9078" defer></script>
+  <script src="script.js?v=cf_v9078" defer></script>
 
 
 </body>

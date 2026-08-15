@@ -7,7 +7,7 @@ body.light-mode {
   --card: rgba(255, 255, 255, 0.9);
   --card-border: rgba(0, 0, 0, 0.1);
   --text: #0f172a;
-  --text-muted: #475569;
+  --text-muted: #64748b;
   background: #f1f5f9 !important;
   color: var(--text);
 }
@@ -32,29 +32,21 @@ body.light-mode .top-bar {
   border-top-color: var(--card-border) !important;
 }
 
-body.light-mode .data-table td {
-  background: rgba(0, 0, 0, 0.02) !important;
-  border: none !important;
-}
-
-body.light-mode .data-table th {
+body.light-mode .data-table th,
+body.light-mode #historyTable th {
   color: var(--text-muted) !important;
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode .data-table td,
+body.light-mode #historyTable td {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border: none !important;
 }
 
 body.light-mode .metric-card {
   background: rgba(0, 0, 0, 0.04) !important;
   border: 1px solid rgba(0, 0, 0, 0.05) !important;
-}
-
-body.light-mode .price-info-comparison-table th {
-  border: none !important;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode .price-info-comparison-table td {
-  border: none !important;
-  background: rgba(0, 0, 0, 0.02) !important;
 }
 
 body.light-mode .order-slot-container.has-border-left {
@@ -74,27 +66,6 @@ body.light-mode .monthly-slot-combined {
   border-left-color: rgba(0, 0, 0, 0.12) !important;
 }
 
-body.light-mode .metric-value,
-body.light-mode .tier-footer span,
-body.light-mode #syncStatusDisplay span,
-body.light-mode .last-sync-time,
-body.light-mode #loginVersion {
-  color: var(--text) !important;
-}
-
-body.light-mode .login-title,
-body.light-mode h2,
-body.light-mode .settings-modal h3,
-body.light-mode .slot-title,
-body.light-mode #chartTitle {
-  color: var(--primary) !important;
-}
-
-body.light-mode .status-panel {
-  background: rgba(255, 255, 255, 0.6) !important;
-  border-color: var(--card-border) !important;
-}
-
 body.light-mode .section-header {
   border-bottom: 1px solid rgba(15, 23, 42, 0.15) !important;
 }
@@ -111,51 +82,69 @@ body.light-mode [id^="monthlySlotCombined"] > .slot-title {
   color: rgba(168, 85, 247, 0.9) !important;
 }
 
-body.light-mode [id^="slot1TableName"],
-body.light-mode #orderSlot1Name,
-body.light-mode #holdingsSlot1Name {
-  color: #6366f1 !important;
+/* 기준일 매수·매도 행 강조 */
+/* 기준일 매수·매도 행 강조: 라이트 모드에서 선명하고 자연스러운 음영 */
+body.light-mode #combinedHoldingsView #combinedHoldingsBody .date-sync-highlight-row > td,
+body.light-mode #dualOrderContainer [id^="holdingsBody"] .date-sync-highlight-row > td,
+body.light-mode #historyTable #historyTableBody .date-sync-highlight-row > td {
+  background: rgba(30, 41, 59, 0.08) !important;
 }
 
-body.light-mode [id^="slot2TableName"],
-body.light-mode #orderSlot2Name,
-body.light-mode #holdingsSlot2Name {
-  color: #10b981 !important;
+/* 계좌 정보 라이트 모드 */
+body.light-mode #accountInfoModal .modal-content,
+body.light-mode .account-info-card {
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--card-border) !important;
 }
 
-body.light-mode [id^="slot3TableName"],
-body.light-mode #orderSlot3Name,
-body.light-mode #holdingsSlot3Name {
-  color: #fbbf24 !important;
+body.light-mode #statsTable > div > div {
+  color: var(--text) !important;
 }
 
-body.light-mode [id^="slot4TableName"],
-body.light-mode #orderSlot4Name,
-body.light-mode #holdingsSlot4Name {
-  color: #f43f5e !important;
+/* 투자설정 모달 및 실시간 운용 현황 라이트 모드 오버라이드 */
+body.light-mode .status-panel,
+body.light-mode #settingsStatusPanel {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: none !important;
 }
 
-body.light-mode [id^="slot5TableName"],
-body.light-mode #orderSlot5Name,
-body.light-mode #holdingsSlot5Name {
-  color: #8b5cf6 !important;
+body.light-mode .status-panel-title,
+body.light-mode #settingsStatusPanel .status-panel-title {
+  color: var(--primary) !important;
 }
 
-body.light-mode [id^="slot6TableName"],
-body.light-mode #orderSlot6Name,
-body.light-mode #holdingsSlot6Name {
-  color: #06b6d4 !important;
+body.light-mode .status-row span:first-child {
+  color: var(--text-muted) !important;
 }
 
-body.light-mode [id^="slot7TableName"],
-body.light-mode #orderSlot7Name,
-body.light-mode #holdingsSlot7Name {
-  color: #eab308 !important;
+body.light-mode .status-row span:last-child {
+  color: #b45309 !important;
+}
+
+body.light-mode #statHoldingsArea {
+  border-top-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-mode #statHoldingsArea > div:first-child {
+  color: var(--text-muted) !important;
+}
+
+body.light-mode #statHoldings {
+  color: var(--text) !important;
+}
+
+/* 계좌 정보 및 자산현황 라이트 모드 음영 */
+body.light-mode .stats-balance-summary-card,
+body.light-mode #statsTable > div > div:first-child {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 body.light-mode .stats-row {
   background: transparent !important;
-  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06) !important;
 }
 
 body.light-mode .stats-row > div {
@@ -163,53 +152,7 @@ body.light-mode .stats-row > div {
 }
 
 body.light-mode .stats-header-row {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode #historyTable th {
-  border: none !important;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode #historyTable td {
-  border: none !important;
-  background: rgba(0, 0, 0, 0.02) !important;
-}
-
-body.light-mode #combinedHoldingsView .data-table th {
-  border: none !important;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode #combinedHoldingsView .data-table td {
-  border: none !important;
-  background: rgba(0, 0, 0, 0.02) !important;
-}
-
-body.light-mode [id^="holdingsView"] .data-table td {
-  background: rgba(0, 0, 0, 0.02) !important;
-  border: none !important;
-}
-
-body.light-mode [id^="holdingsView"] .data-table th {
-  border: none !important;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode .profit-plus {
-  color: #1d4ed8 !important;
-}
-
-body.light-mode .profit-minus {
-  color: #b91c1c !important;
-}
-
-body.light-mode .val-plus {
-  color: #1d4ed8 !important;
-}
-
-body.light-mode .val-minus {
-  color: #b91c1c !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12) !important;
 }
 
 body.light-mode .stats-asset-legend-row {
@@ -224,86 +167,4 @@ body.light-mode .stats-asset-legend-row:not(.stats-asset-header) > * {
 
 body.light-mode .stats-asset-header {
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode .stats-asset-legend-row[style*="cursor: pointer"]:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
-  border-color: rgba(0, 0, 0, 0.12) !important;
-}
-
-body.light-mode .stats-asset-eval {
-  background: transparent !important;
-  border: none !important;
-}
-
-body.light-mode .stats-asset-cash {
-  background: transparent !important;
-  border: none !important;
-}
-
-body.light-mode .stats-asset-principal {
-  background: transparent !important;
-  border: none !important;
-}
-
-body.light-mode .stats-asset-principal b,
-body.light-mode .stats-asset-principal-val {
-  color: #7c3aed !important;
-}
-
-body.light-mode .stats-asset-total {
-  background: transparent !important;
-  border: none !important;
-}
-
-body.light-mode .stats-asset-total > * {
-  background: rgba(0, 0, 0, 0.02) !important;
-}
-
-body.light-mode .analysis-legend-header {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode .analysis-legend-summary-row {
-  border-top: 1px solid rgba(15, 23, 42, 0.1) !important;
-}
-
-body.light-mode .stats-asset-plain {
-  background: transparent !important;
-  border: none !important;
-}
-
-body.light-mode .stats-asset-profit {
-  background: transparent !important;
-  border: none !important;
-}
-
-body.light-mode .stats-sub-strat-profit-container {
-  background: rgba(0, 0, 0, 0.02) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-body.light-mode [id^="orderView"] .data-table td,
-body.light-mode #combinedOrderView .data-table td {
-  background: rgba(0, 0, 0, 0.02) !important;
-  border: none !important;
-}
-
-/* 기준일 매수·매도 행 강조: 라이트 모드 기본 셀 배경보다 우선 적용 */
-body.light-mode #combinedHoldingsView #combinedHoldingsBody .date-sync-highlight-row > td,
-body.light-mode #dualOrderContainer [id^="holdingsBody"] .date-sync-highlight-row > td,
-body.light-mode #historyTable #historyTableBody .date-sync-highlight-row > td {
-  background: rgba(100, 116, 139, 0.12) !important;
-}
-
-/* 계좌 정보 (Account Info) 라이트 모드 글자색 및 카드 배경 오버라이드 */
-body.light-mode #accountInfoModal .modal-content,
-body.light-mode .account-info-card {
-  background: var(--card) !important;
-  color: var(--text) !important;
-  border-color: var(--card-border) !important;
-}
-
-body.light-mode #statsTable > div > div {
-  color: var(--text) !important;
 }

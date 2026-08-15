@@ -129,14 +129,14 @@ function generateDynamicDOM() {
       orderHtml += `
         <div id="orderSlot${i}" class="order-slot-container${borderClass}">
           <div id="orderScroll${i}" class="order-scroll-area slim-scroll">
-            <div id="orderView${i}" class="view-pane-active">
+            <div id="orderView${i}" class="${window.isOrderView === false ? 'view-pane-hidden' : 'view-pane-active'}">
               <div class="slot-title slot-title-sm" id="orderSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]}; cursor:pointer;" onclick="window.UI.toggles.toggleSortOrder()" title="클릭하여 오름/내림 정렬 토글"></div>
               <table class="data-table">
                 <thead><tr><th style="width:40%; text-align:center;">구분</th><th style="width:34%; text-align:center;">가격</th><th style="width:26%; text-align:center;">수량</th></tr></thead>
                 <tbody id="orderBody${i}"><tr><td colspan="3" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
               </table>
             </div>
-            <div id="holdingsView${i}" class="view-pane-hidden">
+            <div id="holdingsView${i}" class="${window.isOrderView === false ? 'view-pane-active' : 'view-pane-hidden'}">
               <div class="slot-title slot-title-sm" id="holdingsSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};"></div>
               <table class="data-table">
                 <thead><tr><th>투자법</th><th>진입일</th><th>청산일</th><th>모드/T</th><th>진입가</th><th>청산가</th><th>수량</th><th>T수익금</th></tr></thead>
@@ -243,7 +243,6 @@ function showOrderView() {
   restoreFromPerfLayout();
 
   // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
-  // (isViewingHistory/isManualBacktestMode를 참조하는 아래 레이아웃/타이틀 코드보다 반드시 먼저 실행)
   if (isManualBacktestMode || window.isManualBacktestMode) {
     if (typeof restoreLocalCache === 'function') restoreLocalCache();
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
@@ -255,14 +254,49 @@ function showOrderView() {
   isOrderView = true;  // 지역 참조도 함께 설정
   window.showIndividualHoldings = false;  // 보유현황 모드 초기화 (홈은 항상 주문표)
 
-  const orderView = document.getElementById('orderViewContainer');
-  const holdingsView = document.getElementById('holdingsViewContainer');
-  const statsView = document.getElementById('statsViewContainer');
-  const perfView = document.getElementById('perfViewContainer');
-  if (orderView) orderView.classList.remove('hidden');
-  if (holdingsView) holdingsView.classList.add('hidden');
-  if (statsView) statsView.classList.add('hidden');
-  if (perfView) perfView.classList.add('hidden');
+  const orderView = document.getElementById('panelOrder');
+  const statsView = document.getElementById('panelStats');
+  const perfView = document.getElementById('panelMonthly');
+  const perfChart1 = document.getElementById('panelMonthlyChart');
+  const perfChart2 = document.getElementById('panelDailyChart');
+  const panelHistory = document.getElementById('panelHistory');
+  const panelChart = document.getElementById('panelChart');
+  const panelAnalysis = document.getElementById('panelAnalysisView');
+
+  // 홈화면: 상단 주문표(panelOrder), 중단 년별자산증감(panelMonthly), 하단 성과추이(panelChart) 표시
+  if (orderView) {
+    orderView.classList.remove('hidden');
+    orderView.style.display = '';
+  }
+  if (perfView) {
+    perfView.classList.remove('hidden');
+    perfView.style.display = '';
+  }
+  if (panelChart) {
+    panelChart.classList.remove('hidden');
+    panelChart.style.display = '';
+  }
+
+  if (statsView) {
+    statsView.classList.add('hidden');
+    statsView.style.display = 'none';
+  }
+  if (panelHistory) {
+    panelHistory.classList.add('hidden');
+    panelHistory.style.display = 'none';
+  }
+  if (perfChart1) {
+    perfChart1.classList.add('hidden');
+    perfChart1.style.display = 'none';
+  }
+  if (perfChart2) {
+    perfChart2.classList.add('hidden');
+    perfChart2.style.display = 'none';
+  }
+  if (panelAnalysis) {
+    panelAnalysis.classList.add('hidden');
+    panelAnalysis.style.display = 'none';
+  }
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
@@ -277,15 +311,13 @@ function showOrderView() {
   if (btnPrice) btnPrice.classList.remove('active');
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) {
-    // App3 내역모드: 실시간 운영현황 대신 브로커 계좌 정보(App1 스타일)
     statsTitle.innerHTML = isViewingHistory ? '📄 성과 지표' : (statsDisplayMode === 'chart' ? '💼 자산현황' : '📡 계좌 정보');
   }
 
   // 성과 분석 패널 숨기기
-  const perfAnalysisCard = document.getElementById('panelAnalysisView');
-  if (perfAnalysisCard) {
-    perfAnalysisCard.classList.add('hidden');
-    perfAnalysisCard.style.display = 'none';
+  if (panelAnalysis) {
+    panelAnalysis.classList.add('hidden');
+    panelAnalysis.style.display = 'none';
   }
   const analysisCurrencyBtn = document.getElementById('btnCurrencyToggleAnalysis');
   if (analysisCurrencyBtn) analysisCurrencyBtn.style.display = 'none';
@@ -294,13 +326,6 @@ function showOrderView() {
   }
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
-
-  // 매도 내역 패널 숨기기
-  const panelHistory = document.getElementById('panelHistory');
-  if (panelHistory) {
-    panelHistory.classList.add('hidden');
-    panelHistory.style.display = 'none';
-  }
 
   // 홈화면에서 요약 정보 표시
   const perfSummaryHome = document.getElementById('performanceSummary');
@@ -316,7 +341,6 @@ function showOrderView() {
   const btnInstant = document.getElementById('btnInstant');
   if (btnInstant) btnInstant.classList.add('active');
 
-  // 미국 증시 마감 후 또는 휴일에만 필요할 때 갱신하도록 돕는 함수
   const shouldAutoRefresh = () => {
     if (typeof window.shouldAutoRefresh === 'function') {
       return window.shouldAutoRefresh();
@@ -324,6 +348,7 @@ function showOrderView() {
     return false;
   };
 
+  renderChartAll();
   if (shouldAutoRefresh()) handleInstantOrder();
   else window.UI.order.refreshOrderViewUI();
   window.UI.toggles?.applyOrderExpansionPreference?.();
@@ -370,14 +395,30 @@ function showStatsView() {
   window.currentHoldingsViewMode = 'combined'; // ⭐️ 내역모드 클릭 시 항상 통합 보유현황 고정
   statsDisplayMode = 'table'; // 내역모드 기본: 📡 계좌 정보 고정
 
-  const orderView = document.getElementById('orderViewContainer');
-  const holdingsView = document.getElementById('holdingsViewContainer');
-  const statsView = document.getElementById('statsViewContainer');
-  const perfView = document.getElementById('perfViewContainer');
-  if (orderView) orderView.classList.add('hidden');
-  if (holdingsView) holdingsView.classList.add('hidden');
+  const orderView = document.getElementById('panelOrder');
+  const statsView = document.getElementById('panelStats');
+  const perfView = document.getElementById('panelMonthly');
+  const perfChart1 = document.getElementById('panelMonthlyChart');
+  const perfChart2 = document.getElementById('panelDailyChart');
+  const panelHistory = document.getElementById('panelHistory');
+  const panelChart = document.getElementById('panelChart');
+  const panelAnalysis = document.getElementById('panelAnalysisView');
+
+  // 내역모드: 상단 자산현황(panelStats), 중단 보유현황(panelOrder), 하단 매도내역(panelHistory) 표시
   if (statsView) statsView.classList.remove('hidden');
+  if (orderView) orderView.classList.remove('hidden');
+  if (panelHistory) {
+    panelHistory.classList.remove('hidden');
+    panelHistory.style.display = 'flex';
+  }
   if (perfView) perfView.classList.add('hidden');
+  if (perfChart1) perfChart1.classList.add('hidden');
+  if (perfChart2) perfChart2.classList.add('hidden');
+  if (panelChart) panelChart.classList.add('hidden');
+  if (panelAnalysis) {
+    panelAnalysis.classList.add('hidden');
+    panelAnalysis.style.display = 'none';
+  }
 
   // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
   // (화면 전환 후에 호출하여 UI 덮어쓰기 방지)
@@ -403,12 +444,6 @@ function showStatsView() {
   const btnInstant = document.getElementById('btnInstant');
   if (btnInstant) btnInstant.classList.remove('active');
 
-  // 성과 분석 패널 숨기기
-  const perfAnalysisCard = document.getElementById('panelAnalysisView');
-  if (perfAnalysisCard) {
-    perfAnalysisCard.classList.add('hidden');
-    perfAnalysisCard.style.display = 'none';
-  }
   const analysisCurrencyBtn = document.getElementById('btnCurrencyToggleAnalysis');
   if (analysisCurrencyBtn) analysisCurrencyBtn.style.display = 'none';
   if (window.UI && window.UI.performance && window.UI.performance.destroyAnalysisCharts) {
@@ -417,24 +452,12 @@ function showStatsView() {
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
-  // 매도 내역 패널 표시
-  const panelHistory = document.getElementById('panelHistory');
-  if (panelHistory) {
-    panelHistory.classList.remove('hidden');
-    panelHistory.style.display = 'flex';
-  }
-
   // 데이터가 정상적으로 있으면 종합 데이터 및 차트만 리렌더링
   window.UI.performance.calculateCombinedPeriodData();
   renderChartAll();
   if (typeof updateChartRatesDisplay === 'function') updateChartRatesDisplay();
   (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
-  // ⚠️ 2026-07-31: 내역모드 진입 시 항상 "실전 매도 내역"(키움/LS 매수매도내역이 아니라)이
-  // 보이도록 강제 리셋한다. historyViewMode는 render-trade-history.js의 모듈 전역 변수라
-  // 마지막으로 봤던 화면(예: 키움 매수매도내역)이 세션 내내 남아있었다 — renderDBTradeHistory()를
-  // 그냥 부르면 그 남아있는 모드를 그대로 다시 그려서 "실전 매도 내역" 대신 브로커 체결내역이
-  // 보이는 버그가 있었다(사용자 지적). resetToStrategyHistory()는 이미 구현/export돼 있었지만
-  // 아무도 호출하지 않는 죽은 코드였다.
+
   if (window.UI.tradeHistory.resetToStrategyHistory) {
     window.UI.tradeHistory.resetToStrategyHistory();
   } else {
@@ -557,14 +580,21 @@ function showPerfView() {
   // statsDisplayMode는 내역모드 전용 — showPerfView에서 절대 건드리지 않음
   perfStatsMode = loadPerfStatsMode();
 
-  const orderView = document.getElementById('orderViewContainer');
-  const holdingsView = document.getElementById('holdingsViewContainer');
-  const statsView = document.getElementById('statsViewContainer');
-  const perfView = document.getElementById('perfViewContainer');
+  const orderView = document.getElementById('panelOrder');
+  const holdingsView = null;
+  const statsView = document.getElementById('panelStats');
+  const perfView = document.getElementById('panelMonthly');
+  const perfChart1 = document.getElementById('panelMonthlyChart');
+  const perfChart2 = document.getElementById('panelDailyChart');
   if (orderView) orderView.classList.add('hidden');
   if (holdingsView) holdingsView.classList.add('hidden');
   if (statsView) statsView.classList.add('hidden');
   if (perfView) perfView.classList.remove('hidden');
+  if (perfChart1) perfChart1.classList.remove('hidden');
+  if (perfChart2) perfChart2.classList.remove('hidden');
+  const ph = document.getElementById('panelHistory'); if (ph) ph.classList.add('hidden');
+  const pa = document.getElementById('panelAnalysisView'); if (pa) pa.classList.add('hidden');
+  const pc = document.getElementById('panelChart'); if (pc) pc.classList.add('hidden');
 
   // ⭐️ 수동 백테스트 중이었다면 원래 설정과 캐시로 즉시 복귀
   // (화면 전환 후에 호출하여 UI 덮어쓰기 방지)
@@ -1077,6 +1107,14 @@ async function enterAppDirectly() {
     if (typeof window.UI?.toggles?.refreshAllUI === 'function') {
       window.UI.toggles.refreshAllUI();
     }
+    // ⭐️ 성과추이 및 통합 보유현황 확실한 최종 렌더링
+    window.chartRatesData = null;
+    if (window.UI?.performance?.calculateCombinedPeriodData) window.UI.performance.calculateCombinedPeriodData();
+    if (typeof window.renderChartAll === "function") window.renderChartAll();
+    if (typeof window.renderPeriodBarChart === "function") window.renderPeriodBarChart();
+    if (typeof window.updateChartRatesDisplay === "function") window.updateChartRatesDisplay();
+    if (window.UI?.holdings?.renderCombinedHoldings) window.UI.holdings.renderCombinedHoldings();
+    if (window.UI?.holdings?.updateCombinedHoldingsSummary) window.UI.holdings.updateCombinedHoldingsSummary();
     console.log('[병렬로드] ✅ Chart.js + GET_ALL_INIT 동시 로드 완료');
   } catch (e) {
     console.error('[병렬로드] 병렬 로드 중 오류:', e);

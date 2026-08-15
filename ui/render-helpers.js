@@ -68,25 +68,37 @@ function updateDefaultCurrency(val) {
 function updateTheme(val) {
   if (val === 'light') document.body.classList.add('light-mode');
   else document.body.classList.remove('light-mode');
-  // Chart.js 캔버스는 CSS 변수 변경만으로 색상이 바뀌지 않으므로 테마 전환 시 강제 재렌더한다.
+
+  // Chart.js 캔버스 캐시 무효화 및 강제 재렌더
   window.currentChartSignature = "";
   window.currentBarChartSignature = "";
   window.barChartSignatures = {};
-  if (periodDisplayMode === 'chart') renderPeriodBarChart();
+  if (typeof periodDisplayMode !== 'undefined' && periodDisplayMode === 'chart' && typeof renderPeriodBarChart === 'function') {
+    renderPeriodBarChart();
+  }
+
+  // 테마 전환 시 UI 컴포넌트들 즉시 동기화 재렌더링
+  if (window.UI?.holdings?.renderCombinedHoldings) window.UI.holdings.renderCombinedHoldings();
+  for (let i = 1; i <= window.MAX_SLOTS; i++) {
+    if (window.UI?.holdings?.renderTableSlot && window.lastBTResults?.[i]) {
+      window.UI.holdings.renderTableSlot(window.lastBTResults[i].inv || [], window.lastBTResults[i].currentStrat, i);
+    }
+  }
+  if (window.UI?.order?.refreshOrderViewUI) window.UI.order.refreshOrderViewUI();
+  if (window.UI?.tradeHistory?.renderDBTradeHistory) window.UI.tradeHistory.renderDBTradeHistory();
+  if (window.UI?.stats?.refreshStatsTable) window.UI.stats.refreshStatsTable();
+  if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();
 
   setTimeout(() => {
     if (window.statsPieChartInstance && typeof updateStatsPieChart === 'function') {
       updateStatsPieChart();
     }
-    if (window.myChart) {
-      if (typeof renderChartAll === 'function') renderChartAll();
-      else window.myChart.update();
-    }
+    if (typeof renderChartAll === 'function') renderChartAll();
   }, 30);
 
-  if (myUserId) {
+  if (typeof myUserId !== 'undefined' && myUserId) {
     localStorage.setItem(`vtotal3_pref_theme_${myUserId}`, val);
-    showToast(`테마가 ${val === 'light' ? '라이트' : '다크'}로 설정되었습니다.`);
+    if (typeof showToast === 'function') showToast(`테마가 ${val === 'light' ? '라이트' : '다크'}로 설정되었습니다.`);
   }
 }
 

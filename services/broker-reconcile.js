@@ -264,16 +264,23 @@
     const buyingPower = Number(data.buyingPowerUsd || usdCash);
     const holdings = Array.isArray(data.holdings) ? data.holdings : [];
 
-    let totalEval = usdCash;
+    let evalStockAmt = 0;
     let totalPnl = 0;
 
     holdings.forEach(h => {
       const q = Number(h.qty || 0);
       const curr = Number(h.currentPrice || 0);
       const pnl = Number(h.evalPnlUsd || 0);
-      totalEval += (q * curr);
+      evalStockAmt += (q * curr);
       totalPnl += pnl;
     });
+
+    let cashAsset = usdCash;
+    if (buyingPower > usdCash) {
+      const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
+      cashAsset = wonCollateralUsd + usdCash;
+    }
+    const totalEval = cashAsset + evalStockAmt;
 
     const rows = holdings.length
       ? holdings.map(h => {

@@ -181,8 +181,6 @@ function toggleOrderView(dir) {
 function updateOrderHeaderUI() {
   const titleEl = document.getElementById('orderTitle');
   const statusEl = document.getElementById('orderStatusText');
-  const rankingLiveBtn = document.getElementById('btnOrderRankingLive');
-  const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
 
   if (!titleEl || !statusEl) return;
@@ -196,36 +194,24 @@ function updateOrderHeaderUI() {
   const marketBadgeHtml = window.dateHelpers?.getOrderHeaderMarketStatusBadge
     ? window.dateHelpers.getOrderHeaderMarketStatusBadge()
     : "";
-  let titleText = currentMode === 'combined' ? '⚡ 통합 주문표' : (currentMode === 'combined_normal' ? '⚡ 통합+일반 주문표' : '⚡ 주문표');
+  
+  let titleText = '⚡ 주문표';
   let statusText = '';
-  let showRankingBtns = true;
 
-  if (window.isStatsMode) {
-    titleText = '📦 보유현황';
-    // 내역 모드(isStatsMode)이면서 보유현황 모드(isOrderView=false)인 상황에 대한 동적 갱신 처리
-    if (!window.isOrderView) {
-      const viewMode = window.currentHoldingsViewMode || 'combined';
-      if (viewMode === 'combined') {
-        titleText = '📦 통합 보유현황';
-      } else {
-        const slotNum = parseInt(viewMode.replace('slot', ''), 10);
-        const stratName = (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
-        titleText = `📦 ${stratName} 보유현황`;
-      }
-    }
-    statusText = ''; // ⭐️ 보유현황 상태 글자 제거
-    showRankingBtns = false;
-  } else if (!window.isOrderView) {
+  if (window.isStatsMode || !window.isOrderView) {
     const viewMode = window.currentHoldingsViewMode || 'combined';
     if (viewMode === 'combined') {
       titleText = '📦 통합 보유현황';
     } else {
       const slotNum = parseInt(viewMode.replace('slot', ''), 10);
-      const stratName = (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
-      titleText = `📦 ${stratName} 보유현황`;
+      const res = (typeof getBestResult === 'function') ? getBestResult(lastBTResults[slotNum], slotNum) : lastBTResults[slotNum];
+      const stratName = (res && res.currentStrat) || (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
+      const formattedName = window.formatStrategyNameWithSmallParentheses ? window.formatStrategyNameWithSmallParentheses(stratName) : stratName;
+      titleText = `📦 ${formattedName} 보유현황`;
     }
-    statusText = ''; // ⭐️ 보유현황 상태 글자 제거
-    showRankingBtns = false;
+    statusText = '';
+  } else {
+    titleText = currentMode === 'combined' ? '⚡ 통합 주문표' : (currentMode === 'combined_normal' ? '⚡ 통합+일반 주문표' : '⚡ 주문표');
   }
 
   const dateText = !window.isStatsMode && window.isOrderView && orderDate
@@ -234,16 +220,7 @@ function updateOrderHeaderUI() {
   titleEl.innerHTML = titleText + dateText;
   statusEl.innerHTML = statusText;
 
-  if (rankingLiveBtn) rankingLiveBtn.style.display = showRankingBtns ? 'flex' : 'none';
-  if (rankingBTBtn) rankingBTBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (settingsBtn) settingsBtn.style.display = (!window.isStatsMode && window.isOrderView) ? 'flex' : 'none';
-
-  // ⭐️ 보유현황일 때는 우측 상단의 확대(화살표 2개) 아이콘을 완벽하게 없앤다 (showRankingBtns와 동일하게 제어)
-  const btnExpand = document.getElementById('btnExpandOrder');
-  if (btnExpand) {
-    btnExpand.style.display = 'none';
-  }
-  if (typeof window.updateCombinedPerfRatesUI === 'function') window.updateCombinedPerfRatesUI();
 }
 
 function getOrderExpansionPreferenceKey() {

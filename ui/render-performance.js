@@ -25,7 +25,9 @@ function calculateCombinedPeriodData() {
     return r.summary ? `${r.currentStrat}_${r.summary.totalAssets}_${fDates.length}` : "null";
   });
   const newSig = sigs.join('|') + "|" + isCurrencyKRW;
-  if (window.lastMonthlySig === newSig) return;
+  // ⭐️ 강제 갱신 지원
+  if (!window.__forcePerfRender && window.lastMonthlySig === newSig) return;
+  window.__forcePerfRender = false;
   window.lastMonthlySig = newSig;
 
   const combinedData = generateCombinedPeriodDataEngine(results);

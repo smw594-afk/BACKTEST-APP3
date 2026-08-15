@@ -121,11 +121,11 @@ const eventHandlers = {
 
   // 테마 업데이트
   updateTheme(val) {
-    localStorage.setItem('vtotal3_theme', val);
-    if (val === 'dark') {
-      document.documentElement.classList.add('dark-theme');
+    if (typeof window.updateTheme === 'function') {
+      window.updateTheme(val);
     } else {
-      document.documentElement.classList.remove('dark-theme');
+      if (val === 'light') document.body.classList.add('light-mode');
+      else document.body.classList.remove('light-mode');
     }
   },
 

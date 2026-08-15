@@ -839,15 +839,19 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       return { symbol, qty, avgPrice, currPrice, pnlVal, valuation };
     });
 
-    const rpCash = Number(result.rpCash || (buyingPower > usdCash ? (buyingPower - usdCash) / 0.95 : 0));
-    const totalAsset = usdCash + rpCash + evalAmt;
+    let cashAsset = usdCash;
+    if (buyingPower > usdCash) {
+      const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
+      cashAsset = wonCollateralUsd + usdCash;
+    }
+    const totalAsset = cashAsset + evalAmt;
     const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     let html = '<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%;">';
 
     // 앱1 가로 요약 바 그대로 적용 ($ 달러)
     html += `
-      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
+      <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
         <div>예수금(D+2): <strong style="color:var(--text, #fff);">${usd(usdCash)}</strong></div>
         <div>주문 가능금액: <strong style="color:#38bdf8;">${usd(buyingPower)}</strong></div>
         <div>평가금액: <strong style="color:#fbbf24;">${usd(evalAmt)}</strong></div>
@@ -858,8 +862,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
 
     // 앱1 헤더 정의 (stats-header-row)
     html += '<div class="stats-header-row" style="display:flex; align-items:center; gap:1px; padding:2px 3px; box-sizing:border-box; line-height:1; height:18px; width:100%;">';
-    html += '<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; width:68px; min-width:68px; flex-shrink:0; color:var(--text-muted, #94a3b8); display:flex; align-items:center;">종목명</div>';
-    html += '<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; width:45px; min-width:45px; flex-shrink:0; color:var(--text-muted, #94a3b8); display:flex; align-items:center; justify-content:center;">구분</div>';
+    html += '<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text-muted, #94a3b8); display:flex; align-items:center;">종목명</div>';
 
     const columns = [
       { label: '평단가', width: '56px' },
@@ -886,8 +889,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
         const prefix = isPlus ? '+' : '';
 
         html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:1px 3px; box-sizing:border-box; min-height:18px; width:100%; border-bottom:1px solid rgba(255,255,255,0.05);">`;
-        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:68px; min-width:68px; flex-shrink:0; color:var(--text, #fda4af); display:flex; flex-direction:column; justify-content:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}<br/><span style="font-size:8px; color:var(--text-muted, #94a3b8); font-weight:normal;">${h.symbol}</span></div>`;
-        html += `<div style="font-size:10px; font-weight:700; letter-spacing:-0.2px; width:45px; min-width:45px; flex-shrink:0; color:#6366f1; display:flex; align-items:center; justify-content:center;">${brokerLabel}</div>`;
+        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text, #fda4af); display:flex; flex-direction:column; justify-content:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}<br/><span style="font-size:8px; color:var(--text-muted, #94a3b8); font-weight:normal;">${h.symbol}</span></div>`;
 
         const rowVals = [
           `$${h.avgPrice.toFixed(2)}`,

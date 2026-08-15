@@ -31,7 +31,7 @@ function renderCombinedHoldings() {
         res.inv.forEach((h, hIdx) => {
           const qty = parseFloat(h.qty) || 0;
           const buyPrice = parseFloat(String(h.buy_price || h.buyPrice || "0").replace(/[^0-9.-]/g, "")) || 0;
-          const profit = (currPrice - buyPrice) * qty;
+          profit = (currPrice - buyPrice) * qty;
 
           // 진입일과 같은 날에 청산된 거래 찾기 (당일 합산 계산용)
           const buyDateStr = String(h.buyDate || h.buy_date || "").trim();
@@ -140,10 +140,11 @@ function renderCombinedHoldings() {
 
     let profitStr = "-";
     let profitClass = "";
+    let profit = null;
     if (currPrice > 0) {
       const buyPrice = parseFloat(String(o.buy_price || o.buyPrice || "0").replace(/[^0-9.-]/g, "")) || 0;
       const qty = parseFloat(o.qty) || 0;
-      const profit = (currPrice - buyPrice) * qty;
+      profit = (currPrice - buyPrice) * qty;
       const sign = profit < 0 ? "-" : "";
       if (window.isCurrencyKRW) {
         profitStr = sign + "₩" + Math.round(Math.abs(profit) * window.currentFXRate).toLocaleString();
@@ -171,7 +172,12 @@ function renderCombinedHoldings() {
       ? window.BrokerReconcile.cellHtml(window.BrokerReconcile.holdingStatus(symbol, o.buyDate || o.buy_date, o.qty, window.BrokerReconcile.brokerForSlot(o.slotNum), o.sellQtyToday || 0))
       : '<td style="text-align:center;color:#94a3b8;font-size:9px;">-</td>';
 
-    return `<tr>${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
+    const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+    const textColor = isLight ? '#0f172a' : '#f8fafc';
+    const textMuted = isLight ? '#64748b' : '#94a3b8';
+    const profitColor = (profit !== null && profit > 0) ? (isLight ? '#15803d' : '#10b981') : ((profit !== null && profit < 0) ? (isLight ? '#b91c1c' : '#f43f5e') : textMuted);
+
+    return `<tr style="color:${textColor};">${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td style="color:${textColor};">${stopDateStr}</td><td style="color:${textColor};">${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover" style="color:${textColor};">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}" style="color:${profitColor} !important; font-weight:700;">${profitStr}</td></tr>`;
   }).join('');
 
   container.innerHTML = tableRows;
@@ -257,10 +263,11 @@ function renderTableSlot(inv, stratName, slotNum) {
 
     let profitStr = "-";
     let profitClass = "";
+    let profit = null;
     if (currPrice > 0) {
       const buyPrice = parseFloat(String(o.buy_price || o.buyPrice || "0").replace(/[^0-9.-]/g, "")) || 0;
       const qty = parseFloat(o.qty) || 0;
-      const profit = (currPrice - buyPrice) * qty;
+      profit = (currPrice - buyPrice) * qty;
       const sign = profit < 0 ? "-" : "";
       if (window.isCurrencyKRW) {
         profitStr = sign + "₩" + Math.round(Math.abs(profit) * window.currentFXRate).toLocaleString();
@@ -277,7 +284,12 @@ function renderTableSlot(inv, stratName, slotNum) {
       buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
-    return `<tr><td style="color:${window.SLOT_COLORS[(slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
+    const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+    const textColor = isLight ? '#0f172a' : '#f8fafc';
+    const textMuted = isLight ? '#64748b' : '#94a3b8';
+    const profitColor = (profit !== null && profit > 0) ? (isLight ? '#15803d' : '#10b981') : ((profit !== null && profit < 0) ? (isLight ? '#b91c1c' : '#f43f5e') : textMuted);
+
+    return `<tr style="color:${textColor};"><td style="color:${window.SLOT_COLORS[(slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td style="color:${textColor};">${stopDateStr}</td><td style="color:${textColor};">${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover" style="color:${textColor};">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}" style="color:${profitColor} !important; font-weight:700;">${profitStr}</td></tr>`;
   }).join('');
 
   if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();
