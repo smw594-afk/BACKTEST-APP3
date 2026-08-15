@@ -1275,6 +1275,12 @@ async function handleSave() {
   const orgText = btn ? btn.innerHTML : "";
   if (btn) btn.innerText = '준비 중...';
 
+  const currentStrat = String(document.getElementById('strategySelect')?.value || "").trim();
+  if (!currentStrat || currentStrat === "-- 선택 안 함 --") {
+    showToast("⚠️ 투자법을 선택해주세요. (선택 안 함 상태는 시트에 저장되지 않습니다)", "⚠️");
+    return;
+  }
+
   try {
     saveCurrentFormToSlot(targetSlot);
 
