@@ -59,8 +59,21 @@ function renderPeriodTableTextRaw(slotNum, viewStateOverride, suffix = "") {
 
   if (slotNum === 0) {
     let dataCandidate = [];
-    let mapArr = viewStateOverride === 1 ? [...globalYearlyDataArr, globalCombinedYearlyData] : (viewStateOverride === 2 ? [...globalDailyDataArr, globalCombinedDailyData] : [...globalMonthlyDataArr, globalCombinedMonthlyData]);
-    for (let d of mapArr) if (d && d.length > (dataCandidate.length || 0)) dataCandidate = d;
+    // 현재 활성 브로커에 해당하는 슬롯 데이터와 종합 데이터만 모아서 가장 긴 배열(날짜 축)을 찾음
+    const brokerDataArr = [];
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
+        const d = viewStateOverride === 1 ? globalYearlyDataArr[i] : (viewStateOverride === 2 ? globalDailyDataArr[i] : globalMonthlyDataArr[i]);
+        if (d) brokerDataArr.push(d);
+      }
+    }
+    const combined = viewStateOverride === 1 ? globalCombinedYearlyData : (viewStateOverride === 2 ? globalCombinedDailyData : globalCombinedMonthlyData);
+    if (combined) brokerDataArr.push(combined);
+
+    for (let d of brokerDataArr) {
+      if (d && d.length > (dataCandidate.length || 0)) dataCandidate = d;
+    }
+    
 
     if (!dataCandidate || dataCandidate.length === 0) {
       tbody.innerHTML = `<tr><td style="${CELL_STYLE} text-align:center;">-</td></tr>`;

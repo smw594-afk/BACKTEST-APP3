@@ -316,7 +316,7 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
         if (rsi_m === 'SF' && useMid1) applied_m = 'Middle';
         else if (rsi_m === 'AG' && useMid3) applied_m = 'Middle3';
         else if (rsi_m === 'DEF' && isRsiStrat) {
-          applied_m = (!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle';
+          applied_m = (useMid1 || useMid2 || useMid3) ? ((!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle') : null;
         }
       }
       if (!applied_m && isPlunge && useMid2) {
@@ -488,7 +488,7 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
           if (today_m === 'SF' && useMid1) applied_m_t = 'Middle';
           else if (today_m === 'AG' && useMid3) applied_m_t = 'Middle3';
           else if (today_m === 'DEF' && isRsiStrat) {
-            applied_m_t = (!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle';
+            applied_m_t = (useMid1 || useMid2 || useMid3) ? ((!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle') : null;
           }
         }
         if (!applied_m_t && isPlunge_t && useMid2) {
