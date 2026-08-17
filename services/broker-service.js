@@ -134,7 +134,7 @@ window.BrokerService = {
 
     // ⭐️ 사용자가 증권사를 변경한 경우, 보고 있던 마지막 화면을 저장하고 앱을 깔끔하게 새로고침
     if (!isInitial && prevBroker && prevBroker !== broker) {
-      this.saveCurrentViewBeforeSwitch();
+      this.saveCurrentViewBeforeSwitch(); try { const u = this.getUserId(); localStorage.removeItem("vtotal3_combined_order_view_" + u + "_" + prevBroker); localStorage.removeItem("vtotal3_combined_order_view_" + u + "_" + broker); } catch(e){};
       window.location.reload();
       return;
     }
@@ -143,6 +143,11 @@ window.BrokerService = {
     try {
       if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
         window.BrokerReconcile.invalidate();
+      if (window.orderStatusCache) {
+        window.orderStatusCache.unfilledOrders = [];
+        window.orderStatusCache.filledOrders = [];
+        window.orderStatusCache.lastUpdated = 0;
+      }
       }
     } catch (e) { console.warn("[BrokerService] invalidate error:", e); }
 

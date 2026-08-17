@@ -4,7 +4,6 @@ window.orderStatusCache = window.orderStatusCache || {
   vmOrders: [],
   unfilledOrders: [],
   filledOrders: [],
-  brokerOrdersChecked: false,
   lastUpdated: 0
 };
 
@@ -29,7 +28,6 @@ async function _refreshOrderStatusCacheInner(force) {
     if (!userId) return;
 
     window.orderStatusCache.lastUpdated = Date.now();
-    window.orderStatusCache.brokerOrdersChecked = false;
     window.__forceOrderViewReRender = true;
 
     if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
@@ -38,7 +36,6 @@ async function _refreshOrderStatusCacheInner(force) {
     const BR = window.BrokerReconcile;
     const activeBr = (BS && typeof BS.activeBroker === 'string' && BS.activeBroker.length > 1) ? BS.activeBroker : 'kiwoom';
 
-    // 1. VM 예약 주문
     if (BS && typeof BS.fetchPendingOrders === 'function') {
       try {
         const resP = await BS.fetchPendingOrders();
@@ -51,18 +48,17 @@ async function _refreshOrderStatusCacheInner(force) {
       } catch (e) {}
     }
 
-    // 2. 증권사 미체결
     if (BS && typeof BS.fetchUnfilledOrders === 'function') {
       try {
         if (activeBr === 'ls') await new Promise(r => setTimeout(r, 1100));
         const res1 = await BS.fetchUnfilledOrders(activeBr);
         if (res1 && res1.success && Array.isArray(res1.unfilled)) {
           window.orderStatusCache.unfilledOrders = res1.unfilled;
+          if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
         }
       } catch (e) {}
     }
 
-    // 3. 증권사 체결
     try {
         if (activeBr === 'ls') await new Promise(r => setTimeout(r, 1100));
         let resFills = null;
@@ -72,15 +68,10 @@ async function _refreshOrderStatusCacheInner(force) {
         if (resFills && resFills.success !== false) {
            const list = Array.isArray(resFills.executions) ? resFills.executions : (Array.isArray(resFills.rows) ? resFills.rows : []);
            if (list) window.orderStatusCache.filledOrders = list;
+           if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
         }
     } catch(e) {}
 
-    // ★ 조회가 끝났으므로 완료 플래그와 현재 시장 상태(Phase)를 기록!
-    window.orderStatusCache.brokerOrdersChecked = true;
-    window.orderStatusCache.lastPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'unknown';
-    if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
-
-    // 4. 잔고
     try {
         if (activeBr === 'ls') await new Promise(r => setTimeout(r, 1100));
         let resBal = null;
@@ -94,6 +85,10 @@ async function _refreshOrderStatusCacheInner(force) {
     } catch(e) {}
 
   } catch(e) {
+  } finally {
+    try {
+      if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
+    } catch (e) {}
   }
 }
 window.refreshOrderStatusCache = refreshOrderStatusCache;
@@ -129,171 +124,10 @@ function orderTableDateStr() {
   return cand;
 }
 
-function nyMarketPhaseForOrderCompare() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit"
-  }).formatToParts(new Date());
-  const hh = Number((parts.find(p => p.type === "hour") || {}).value || 0) % 24;
-  const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
-  const mins = hh * 60 + mm;
-  if (mins >= 9 * 60 + 20 && mins < 16 * 60) return "broker";
-  return "reserved";
-}
-
-function shouldCompareBrokerOrdersNow() {
-  return nyMarketPhaseForOrderCompare() === "broker";
-}
-
-function todayStrForTimeZone(timeZone) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit"
-  }).format(new Date());
-}
-
-function brokerCompareDateSet() {
-  return new Set([orderTableDateStr(), nyTodayStr(), todayStrForTimeZone("Asia/Seoul")].filter(Boolean));
-}
-
-function normalizeOrderSide(value) {
-  const s = String(value || "").toLowerCase();
-  if (s.includes("buy") || s.includes("매수") || s === "02" || s === "2") return "buy";
-  if (s.includes("sell") || s.includes("매도") || s === "01" || s === "1") return "sell";
-  return "";
-}
-
-function normalizeOrderType(value) {
-  const s = String(value || "").toUpperCase();
-  if (s.includes("MOC")) return "MOC";
-  if (s.includes("LOC")) return "LOC";
-  return "";
-}
-
-function normalizeBrokerOrderDate(row) {
-  if (!row) return "";
-  if (window.BrokerReconcile && typeof window.BrokerReconcile.normalizeMarketDate === "function") {
-    const d = window.BrokerReconcile.normalizeMarketDate(row);
-    if (d) return d;
-  }
-  const raw = row.marketDate || row.date || row.orderDate || row.ordDate || row.trdDate || row.time || row.timestamp || "";
-  const digits = String(raw).replace(/[^0-9]/g, "");
-  if (digits.length >= 8) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
-  return "";
-}
-
-function brokerOrderSymbol(row) {
-  return String(row?.symbol || row?.ticker || row?.stk_cd || row?.stockCode || row?.code || row?.IsuNo || "").toUpperCase();
-}
-
-function brokerOrderQty(row) {
-  return Math.abs(Number(row?.qty ?? row?.filledQty ?? row?.unfilledQty ?? row?.remainingQty ?? row?.orderQty ?? row?.ordQty ?? 0) || 0);
-}
-
-function brokerOrderPrice(row) {
-  return Math.round(Math.abs(Number(row?.orderPrice ?? row?.ordPrice ?? row?.limitPrice ?? row?.price ?? row?.filledPrice ?? 0) || 0) * 100) / 100;
-}
-
-function getBrokerOrderMatchMarkup(order, slotNum) {
-  const cache = window.orderStatusCache || {};
-  const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'unknown';
-  
-  // 1. 최초 로딩 시 (한 번도 조회가 완료되지 않음)
-  if (!cache.lastPhase) {
-    return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="최초 데이터 조회 중">확인중</span>';
-  }
-  
-  // 2. 시간대(예약/주문)가 변경되었고 조회가 갱신 중인 경우 (이전 데이터 신뢰 불가)
-  if (cache.lastPhase !== currentPhase && cache.brokerOrdersChecked === false) {
-    return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="시장 상태 변경으로 인한 재조회 중">확인중</span>';
-  }
-
-  const side = normalizeOrderSide(order[0]);
-  const ordType = String(order[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-  const price = Math.round((parseFloat(order[2]) || 0) * 100) / 100;
-  const qty = parseInt(order[3], 10) || 0;
-  const symbol = String(order[4] || "").toUpperCase() || getSoleActiveTicker();
-  const targetDate = orderTableDateStr();
-  const compareDates = brokerCompareDateSet();
-  const activeBr = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
-
-  const slotOk = (row) => {
-    if (slotNum === undefined || row?.slot == null) return true;
-    return Number(row.slot) === Number(slotNum);
-  };
-  const brokerOk = (row) => {
-    if (!row?.broker) return true;
-    return String(row.broker).toLowerCase() === activeBr;
-  };
-  const symbolOk = (row) => {
-    const rowSym = brokerOrderSymbol(row);
-    return !symbol || !rowSym || rowSym === symbol;
-  };
-  const sideOk = (row) => normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.ord_gbn || row?.sll_buy_gbn_cd || row?.OrdPtnCode || row?.매매구분) === side;
-  const typeOk = (row) => {
-    const rowType = normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode || row?.ord_ptn_code);
-    return !rowType || rowType === ordType;
-  };
-  const dateOk = (row, isUnfilled) => {
-    const rowDate = normalizeBrokerOrderDate(row);
-    return !rowDate || compareDates.has(rowDate);
-  };
-  const priceOk = (row) => {
-    if (ordType === "MOC") return true;
-    const rowPrice = brokerOrderPrice(row);
-    // 가격이 없거나 오차가 0.1 달러 미만인 경우만 통과 (분할 주문 구별)
-    return !rowPrice || Math.abs(rowPrice - price) < 0.1;
-  };
-
-  let matchedQty = 0;
-  let debugReasons = [];
-  
-  const unfilled = Array.isArray(cache.unfilledOrders) ? cache.unfilledOrders : [];
-  unfilled.forEach(row => {
-    const s = slotOk(row), b = brokerOk(row), sy = symbolOk(row), si = sideOk(row), t = typeOk(row), d = dateOk(row, true), p = priceOk(row);
-    if (s && b && sy && si && t && d && p) {
-      matchedQty += brokerOrderQty(row);
-    } else if (b && s) { // 해당 증권사, 슬롯인 경우에만 실패 원인 기록
-      debugReasons.push("미체결("+brokerOrderSymbol(row)+") 실패: " + [
-        sy?"":"Symbol",
-        si?"":"Side(" + normalizeOrderSide(row?.side || row?.ord_gbn || row?.sll_buy_gbn_cd) + "!=" + side + ")",
-        t?"":"Type",
-        d?"":"Date(" + normalizeBrokerOrderDate(row) + ")",
-        p?"":"Price(" + brokerOrderPrice(row) + "!=" + price + ")"
-      ].filter(Boolean).join(","));
-    }
-  });
-
-  // 장중(주문시간)에는 미체결 내역만 확인하며 체결 내역은 합산하지 않는다.
-  if (currentPhase !== "broker") {
-    const fills = Array.isArray(cache.filledOrders) ? cache.filledOrders : [];
-    fills.forEach(row => {
-      const s = slotOk(row), b = brokerOk(row), sy = symbolOk(row), si = sideOk(row), d = dateOk(row, false);
-      if (s && b && sy && si && d) {
-        matchedQty += brokerOrderQty(row);
-      } else if (b && s) {
-        debugReasons.push("체결("+brokerOrderSymbol(row)+") 실패: " + [
-          sy?"":"Symbol",
-          si?"":"Side(" + normalizeOrderSide(row?.side || row?.ord_gbn || row?.sll_buy_gbn_cd) + "!=" + side + ")",
-          d?"":"Date(" + normalizeBrokerOrderDate(row) + ")"
-        ].filter(Boolean).join(","));
-      }
-    });
-  }
-
-  if (qty > 0 && Math.round(matchedQty) === Math.round(qty)) {
-    return '<span style="color:#10b981; font-size:9px; font-weight:800;" title="증권사 주문/체결 내역과 일치">일치</span>';
-  }
-  
-  const reasonStr = "수량 불일치(목표:" + qty + ",매칭:" + matchedQty + ") " + debugReasons.join(" | ");
-  return '<span style="color:#ef4444; font-size:9px; font-weight:800;">불일치(' + reasonStr + ')</span>';
-}
 // 앱 통합 주문표의 한 줄이 GCP 봇에 예약된 주문과 같은지 표시한다.
 // 앱을 켰을 때 눈으로 바로 확인되므로 별도 경고 팝업이 필요 없다.
 // order: [side('매수'/'매도'), mode('LOC'/'MOC'), price, qty]
 function getVmMatchMarkup(order, slotNum) {
-  if (shouldCompareBrokerOrdersNow()) {
-    return getBrokerOrderMatchMarkup(order, slotNum);
-  }
-
   const cache = window.orderStatusCache || {};
   let rawVm = Array.isArray(cache.vmOrders) ? cache.vmOrders : null;
   
@@ -379,7 +213,6 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
   const cache = window.orderStatusCache || {};
   const sideOf = (v) => String(v || "").toLowerCase();
   const targetDate = orderTableDateStr();
-  const compareDates = brokerCompareDateSet();
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
 
   if (Array.isArray(cache.unfilledOrders) && cache.unfilledOrders.length > 0) {
@@ -403,10 +236,6 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
     if (matchingFilled.length > 0) {
       return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%B2%B4%EA%B2%B0%20%EC%99%84%EB%A3%8C%20(') + targetDate + ')">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
     }
-  }
-
-  if (shouldCompareBrokerOrdersNow()) {
-    return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 주문 시간대 — 증권사 주문/체결 내역으로 일치 여부 확인">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
   }
 
   if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
