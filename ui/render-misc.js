@@ -1561,6 +1561,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
         const realData = processRealLogData(perfSlotData, confData.basics.strategy, confData.basics.initialCash);
 
         if (realData) {
+          realData.currentStrat = confData.basics.strategy;
           // 163주 튕김 방지 및 최신 증액/출금 내역을 엔진에 반영하기 위해 realData 기반으로 이어서 계산
           const pureEngineRes = await runBacktestMemory(confData, priceData, slotNum, realData);
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
@@ -1621,6 +1622,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
 
           let mergedSnap = {
             ...realData,
+            currentStrat: confData.basics.strategy,
             summary: isEngineNewer ? { ...pureEngineRes.summary, realPrincipal: realData.summary.realPrincipal } : realData.summary,
             inv: isEngineNewer ? pureEngineRes.inv : realData.inv,
             trades: sheetTrades,

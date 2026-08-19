@@ -132,13 +132,18 @@ function renderPeriodTableTextRaw(slotNum, viewStateOverride, suffix = "") {
     else { return '$' + Math.round(a).toLocaleString(); }
   };
   const fmtMdd = (m) => (m * 100).toFixed(1) + '%';
-  const cls = (v) => v > 0 ? 'val-plus' : 'val-minus';
+  const cls = (v) => {
+    const num = Number(v || 0);
+    if (num > 0.00001) return 'val-plus';
+    if (num < -0.00001) return 'val-minus';
+    return '';
+  };
 
   tbody.innerHTML = filteredData.map(row => {
     let html = "";
     html += `<td class='${cls(row.profit)}' style='${CELL_STYLE}'>${fmtProfit(row.profit)}</td>`;
     html += `<td class='${cls(row.rate)}' style='${CELL_STYLE}'>${fmtRate(row.rate)}</td>`;
-    html += `<td class='hide-on-cover ${(row.mdd < 0 ? 'val-minus' : '')}' style='${CELL_STYLE}'>${fmtMdd(row.mdd)}</td>`;
+    html += `<td class='hide-on-cover ${cls(row.mdd)}' style='${CELL_STYLE}'>${fmtMdd(row.mdd)}</td>`;
     return `<tr>${html}</tr>`;
   }).join('');
 }

@@ -280,7 +280,7 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
   }
 
   if (qty > 0 && Math.round(matchedQty) === Math.round(qty)) {
-    return '<span style="color:#10b981; font-size:9px; font-weight:800;" title="증권사 주문/체결 내역과 일치">일치</span>';
+    return '<span style="color:#3b82f6; font-size:9px; font-weight:800;" title="증권사 주문/체결 내역과 일치">일치</span>';
   }
   
   const reasonStr = "수량 불일치(목표:" + qty + ",매칭:" + matchedQty + ") " + debugReasons.join(" | ");
@@ -324,7 +324,8 @@ function getVmMatchMarkup(order, slotNum) {
   const qty = parseInt(order[3], 10) || 0;
 
   let combinedVm = vm;
-  if (vm.length > 1 && typeof combineOrders === 'function') {
+  const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : (typeof combineOrders === 'function' ? combineOrders : null);
+  if (vm.length > 1 && tungFn) {
     try {
       const rawVmTuples = vm.map(v => [
         v.side === 'buy' ? decodeURIComponent('%EB%A7%A4%EC%88%98') : decodeURIComponent('%EB%A7%A4%EB%8F%84'),
@@ -332,7 +333,14 @@ function getVmMatchMarkup(order, slotNum) {
         v.price,
         v.qty
       ]);
-      const combinedTuples = combineOrders(rawVmTuples);
+      const sanitizedOrders = rawVmTuples.map(o => {
+        const copy = [...o];
+        if (copy[2] !== undefined && copy[2] !== "" && !isNaN(copy[2])) {
+          copy[2] = Math.round(parseFloat(copy[2]) * 100) / 100;
+        }
+        return copy;
+      });
+      const combinedTuples = tungFn(sanitizedOrders);
       combinedVm = combinedTuples.map(t => ({
         side: (t[0] === decodeURIComponent('%EB%A7%A4%EC%88%98') || t[0] === 'buy') ? 'buy' : 'sell',
         ordType: String(t[1] || '').toUpperCase(),
@@ -349,7 +357,7 @@ function getVmMatchMarkup(order, slotNum) {
     (ordType === 'MOC' || Math.abs(Number(v.price) - price) < 0.1));
 
   if (hit) {
-    return '<span style="color:#10b981; font-size:9px; font-weight:800;" title="' + decodeURIComponent('GCP%20%EB%B4%87%20%EC%98%88%EC%95%BD%EB%B6%84%EA%B3%BC%20%EC%9D%BC%EC%B9%98') + '">' + decodeURIComponent('%EC%9D%BC%EC%B9%98') + '</span>';
+    return '<span style="color:#3b82f6; font-size:9px; font-weight:800;" title="' + decodeURIComponent('GCP%20%EB%B4%87%20%EC%98%88%EC%95%BD%EB%B6%84%EA%B3%BC%20%EC%9D%BC%EC%B9%98') + '">' + decodeURIComponent('%EC%9D%BC%EC%B9%98') + '</span>';
   }
   return '<span style="color:#ef4444; font-size:9px; font-weight:800;" title="' + decodeURIComponent('GCP%20%EC%98%88%EC%95%BD%EA%B3%BC%20%EB%B6%88%EC%9D%BC%EC%B9%98') + '">' + decodeURIComponent('%EB%B6%88%EC%9D%BC%EC%B9%98') + '</span>';
 }
@@ -624,7 +632,7 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
 
     const activeSlotPgs = [];
     for (let i = 1; i <= window.MAX_SLOTS; i++) {
-      if (window.isSlotActive(i)) {
+      if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const slotRes = window.getBestResult(window.lastBTResults[i], i);
         const statusData = window.UI?.stats?.getDisplayStatusData ? window.UI.stats.getDisplayStatusData(slotRes, i) : null;
         let slotPgStr = "-";
@@ -710,6 +718,16 @@ function renderOrderViewSlot(res, slotNum) {
     if (nameEl) nameEl.innerHTML = "";
     const holdingsNameEl = document.getElementById('holdingsSlot' + slotNum + 'Name');
     if (holdingsNameEl) holdingsNameEl.innerHTML = "";
+    const elTier = document.getElementById('tierCountVal' + slotNum);
+    const elMode = document.getElementById('modeCountVal' + slotNum);
+    const elWeight = document.getElementById('weightCountVal' + slotNum);
+    const elQty = document.getElementById('qtyCountVal' + slotNum);
+    const elPg = document.getElementById('progressVal' + slotNum);
+    if (elTier) elTier.innerText = "-";
+    if (elMode) elMode.innerText = "-";
+    if (elWeight) elWeight.innerText = "-";
+    if (elQty) elQty.innerText = "-";
+    if (elPg) elPg.innerText = "-";
     refreshOrderViewUI();
     return;
   }
@@ -726,28 +744,36 @@ function renderOrderViewSlot(res, slotNum) {
   const holdingsNameEl = document.getElementById('holdingsSlot' + slotNum + 'Name');
   if (holdingsNameEl) holdingsNameEl.innerHTML = window.formatStrategyNameWithSmallParentheses(res.currentStrat || "") + tickerSuffix;
 
-  if (res.nextOrderInfo) {
-    const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
-    const elTier = document.getElementById('tierCountVal' + slotNum);
-    const elMode = document.getElementById('modeCountVal' + slotNum);
-    const elWeight = document.getElementById('weightCountVal' + slotNum);
-    const elQty = document.getElementById('qtyCountVal' + slotNum);
+  const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
+  const elTier = document.getElementById('tierCountVal' + slotNum);
+  const elMode = document.getElementById('modeCountVal' + slotNum);
+  const elWeight = document.getElementById('weightCountVal' + slotNum);
+  const elQty = document.getElementById('qtyCountVal' + slotNum);
 
-    if (elTier) elTier.innerText = res.nextOrderInfo.tier;
-    if (elMode) elMode.innerText = modeMap[res.nextOrderInfo.mode] || res.nextOrderInfo.mode;
-    if (elWeight) elWeight.innerText = res.nextOrderInfo.weight + '%';
-    if (elQty) elQty.innerText = res.nextOrderInfo.qty;
+  const t = res.nextOrderInfo?.tier ?? res.currentT ?? '-';
+  const rawMode = res.nextOrderInfo?.mode ?? res.currentM ?? '-';
+  const m = modeMap[rawMode] || rawMode || '-';
+  const rawW = res.nextOrderInfo?.weight ?? res.currentW ?? '-';
+  let w = '-';
+  if (rawW !== '-' && rawW !== null && rawW !== undefined && rawW !== '') {
+    w = typeof rawW === 'number' ? rawW + '%' : (String(rawW).includes('%') ? rawW : rawW + '%');
+  }
+  const q = res.nextOrderInfo?.qty ?? res.currentQ ?? '-';
 
-    const elPg = document.getElementById('progressVal' + slotNum);
-    if (elPg) {
-      let slotPgVal = "-";
-      const statusData = window.UI?.stats?.getDisplayStatusData ? window.UI.stats.getDisplayStatusData(res, slotNum) : null;
-      if (statusData && statusData.depletion !== undefined && statusData.depletion !== null) {
-        const rawDep = Number(statusData.depletion || 0);
-        slotPgVal = (Math.abs(rawDep) * 100).toFixed(1) + "%";
-      }
-      elPg.innerText = slotPgVal;
+  if (elTier) elTier.innerText = (t !== '' && t !== undefined) ? t : '-';
+  if (elMode) elMode.innerText = (m !== '' && m !== undefined) ? m : '-';
+  if (elWeight) elWeight.innerText = w;
+  if (elQty) elQty.innerText = (q !== '' && q !== undefined) ? q : '-';
+
+  const elPg = document.getElementById('progressVal' + slotNum);
+  if (elPg) {
+    let slotPgVal = "-";
+    const statusData = window.UI?.stats?.getDisplayStatusData ? window.UI.stats.getDisplayStatusData(res, slotNum) : null;
+    if (statusData && statusData.depletion !== undefined && statusData.depletion !== null) {
+      const rawDep = Number(statusData.depletion || 0);
+      slotPgVal = (Math.abs(rawDep) * 100).toFixed(1) + "%";
     }
+    elPg.innerText = slotPgVal;
   }
 
   const orderDate = res.orderDateStr || "";

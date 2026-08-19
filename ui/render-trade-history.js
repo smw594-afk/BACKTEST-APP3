@@ -144,7 +144,8 @@ async function renderBrokerFills(broker) {
       const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
       const buyPric = Number(r.ord_pric || r.price) || 0;
       const cntrPric = Number(r.cntr_pric || r.price) || 0;
-      const statusStr = r.ord_stt || r.status || '체결';
+      let statusStr = r.ord_stt || r.status || '체결완료';
+      if (statusStr === '접수완료' || statusStr === '체결') statusStr = '체결완료';
       const timePart = r.time || r.cntr_tm || r.ord_tm || '-';
       const feeVal = Number(r.tdy_trde_cmsn || r.fee) || 0;
       const pnlVal = Number(r.rlzt_pl || r.pnl) || 0;
@@ -573,8 +574,8 @@ function renderDBTradeHistory() {
 
       let reconcile, rowBg;
       if (rowStatus === 'match') {
-        reconcile = { text: '일치', icon: '✓', color: isLight ? '#15803d' : '#10b981' };
-        rowBg = isLight ? 'background:rgba(16,185,129,0.08);' : 'background:rgba(16,185,129,0.10);';
+        reconcile = { text: '일치', icon: '✓', color: isLight ? '#1d4ed8' : '#3b82f6' };
+        rowBg = isLight ? 'background:rgba(59,130,246,0.08);' : 'background:rgba(59,130,246,0.10);';
       } else if (isOversold) {
         reconcile = { text: `${Math.round(rowStatusObj.overQty || 0)}과매도`, icon: '', color: '#f59e0b' };
         rowBg = isLight ? 'background:rgba(245,158,11,0.08);' : 'background:rgba(245,158,11,0.12);';

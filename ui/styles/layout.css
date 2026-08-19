@@ -319,7 +319,7 @@
 }
 
 .tier-footer span {
-  color: #fff;
+  color: var(--text, #fff);
   margin-left: 1px;
 }
 
@@ -396,6 +396,7 @@
   padding: 0 !important;
   text-align: center;
   height: 16px;
+  color: var(--text, #fff);
 }
 
 .period-table-0 th {

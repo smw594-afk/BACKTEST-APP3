@@ -44,6 +44,35 @@ body.light-mode #historyTable td {
   border: none !important;
 }
 
+/* ⭐️ 일별/월별/년별 자산증감 표 전용 라이트 모드 글자색 지정 (중립값: 검정, 플러스: 파랑, 마이너스: 빨강) */
+body.light-mode [id^="periodTable"] td,
+body.light-mode .period-table-0 td {
+  color: #0f172a;
+}
+
+body.light-mode [id^="periodTable"] td:not(.val-plus):not(.val-minus),
+body.light-mode .period-table-0 td {
+  color: #0f172a !important;
+}
+
+body.light-mode [id^="periodTable"] td.val-plus,
+body.light-mode .val-plus {
+  color: #1d4ed8 !important;
+  font-weight: 700;
+}
+
+body.light-mode [id^="periodTable"] td.val-minus,
+body.light-mode .val-minus {
+  color: #ef4444 !important;
+  font-weight: 700;
+}
+
+body.light-mode [id^="periodTable"] th,
+body.light-mode .period-table-0 th {
+  color: var(--text-muted, #64748b) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
 body.light-mode .metric-card {
   background: rgba(0, 0, 0, 0.04) !important;
   border: 1px solid rgba(0, 0, 0, 0.05) !important;
@@ -168,3 +197,6 @@ body.light-mode .stats-asset-legend-row:not(.stats-asset-header) > * {
 body.light-mode .stats-asset-header {
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
 }
+
+
+

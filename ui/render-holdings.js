@@ -168,9 +168,27 @@ function renderCombinedHoldings() {
     //    예: 8/3 15주 매수, 2주 매도 → 순 수량 13주와 키움 13주 체결 비교
     //    res.trades에서 같은 날짜의 매도 기록을 찾아 sellQtyToday를 계산한다.
     const symbol = window.slotConfigs?.[o.slotNum]?.basics?.ticker || o.ticker || "";
-    const reconcileCell = window.BrokerReconcile
-      ? window.BrokerReconcile.cellHtml(window.BrokerReconcile.holdingStatus(symbol, o.buyDate || o.buy_date, o.qty, window.BrokerReconcile.brokerForSlot(o.slotNum), o.sellQtyToday || 0))
-      : '<td style="text-align:center;color:#94a3b8;font-size:9px;">-</td>';
+    let reconcileCell = '<td style="text-align:center;color:#94a3b8;font-size:9px;">-</td>';
+    if (window.BrokerReconcile) {
+      const broker = window.BrokerReconcile.brokerForSlot(o.slotNum);
+      const buyDate = o.buyDate || o.buy_date;
+      
+      // 당일 해당 브로커, 종목의 통합 보유수량 합계를 구한다
+      let totalAppQtyForDay = 0;
+      let totalAppSellQtyForDay = 0;
+      allHoldings.forEach(h => {
+        const hSymbol = window.slotConfigs?.[h.slotNum]?.basics?.ticker || h.ticker || "";
+        const hBroker = window.BrokerReconcile.brokerForSlot(h.slotNum);
+        if (hSymbol === symbol && (h.buyDate || h.buy_date) === buyDate && hBroker === broker) {
+          totalAppQtyForDay += Number(h.qty) || 0;
+          totalAppSellQtyForDay += Number(h.sellQtyToday) || 0;
+        }
+      });
+      
+      reconcileCell = window.BrokerReconcile.cellHtml(
+        window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay)
+      );
+    }
 
     const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
     const textColor = isLight ? '#0f172a' : '#f8fafc';

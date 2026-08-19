@@ -206,7 +206,9 @@
     const live = map.get(`${broker}|${sym}|${date}`);
     if (!live || live.qty <= 0) return { status: "mismatch", appQty, liveQty: 0, livePrice: 0 };
     const livePrice = live.cost / live.qty;
-    const matched = Math.round(Number(appQty) || 0) === Math.round(live.qty);
+    const roundedAppQty = Math.round(Number(appQty) || 0);
+    const roundedLiveQty = Math.round(live.qty);
+    const matched = roundedAppQty === roundedLiveQty || roundedLiveQty >= roundedAppQty;
     return { status: matched ? "match" : "mismatch", appQty, liveQty: live.qty, livePrice };
   }
 
@@ -222,7 +224,7 @@
 
   function badge(st) {
     switch (st && st.status) {
-      case "match": return { text: "일치", icon: "✓", color: "#10b981" };
+      case "match": return { text: "일치", icon: "✓", color: "#3b82f6" };
       case "mismatch": return { text: "불일치", icon: "✕", color: "#ef4444" };
       case "loading": return { text: "확인 중", icon: "…", color: "#f59e0b" };
       case "pending": return { text: "보류", icon: "△", color: "#94a3b8" };

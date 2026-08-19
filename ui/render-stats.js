@@ -852,9 +852,9 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     // 앱1 가로 요약 바 그대로 적용 ($ 달러)
     html += `
       <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
-        <div>예수금(D+2): <strong style="color:var(--text, #fff);">${usd(usdCash)}</strong></div>
-        <div>주문 가능금액: <strong style="color:#38bdf8;">${usd(buyingPower)}</strong></div>
-        <div>평가금액: <strong style="color:#fbbf24;">${usd(evalAmt)}</strong></div>
+        <div>${(broker === "ls" ? "RP+예수금(D+2)" : "예수금(D+2)")}: <strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong></div>
+        <div>주문 가능금액: <strong style="color:var(--text, #fff);">${usd(buyingPower)}</strong></div>
+        <div>평가금액: <strong style="color:var(--text, #fff);">${usd(evalAmt)}</strong></div>
         <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>
         <div>총 자산: <strong style="color:#fbbf24;">${usd(totalAsset)}</strong></div>
       </div>
@@ -904,8 +904,9 @@ async function renderKiwoomBalanceOnStatsTable(table) {
         rowVals.forEach((val, idx) => {
           const w = columns[idx].width;
           const isProfitCol = (idx === 4 || idx === 5);
-          const valColor = isProfitCol ? color : 'var(--text, #fff)';
-          const valWeight = isProfitCol ? '700' : '400';
+          const isPurpleCol = (idx === 0 || idx === 2); // ⭐️ 평단가(idx 0) 및 수량(idx 2)은 통합보유현황 진입가/수량과 동일한 보라색(#8b5cf6)
+          const valColor = isProfitCol ? color : (isPurpleCol ? '#8b5cf6' : 'var(--text, #fff)');
+          const valWeight = (isProfitCol || isPurpleCol) ? '700' : '400';
           html += `<div style="flex:1; min-width:${w}; font-size:10px; font-weight:${valWeight}; color:${valColor}; display:flex; align-items:center; justify-content:center;">${val}</div>`;
         });
 
