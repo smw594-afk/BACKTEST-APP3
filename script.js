@@ -1216,8 +1216,15 @@ function checkAndRunAutoSave() {
       
       const isMissing = !existingDatesSet.has(date);
       const isFuture = date > normalizedLastDate;
-      
-      if (!isFuture && !isMissing) return;
+        
+        // ⭐️ [버그 수정] 클라이언트에서 장중 시세를 시트에 박제하는 것 방지 ('주가는 내렸는데 총자산은 오르는' 현상 방지)
+        const nyTime = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
+        const nyToday = nyTime.getFullYear() + '-' + String(nyTime.getMonth()+1).padStart(2, '0') + '-' + String(nyTime.getDate()).padStart(2, '0');
+        const isMarketClosedVal = nyTime.getHours() >= 16;
+        if (date > nyToday) return; // 미래 불가
+        if (date === nyToday && !isMarketClosedVal) return; // 장중 박제 금지
+
+        if (!isFuture && !isMissing) return;
 
       if (!combinedMap[date]) {
         const baseObj = { date };

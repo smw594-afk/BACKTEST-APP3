@@ -175,9 +175,10 @@ function normalizeOrderSide(value) {
 }
 
 function normalizeOrderType(value) {
-  const s = String(value || "").toUpperCase();
-  if (s.includes("MOC")) return "MOC";
-  if (s.includes("LOC")) return "LOC";
+  const s = String(value || "").toUpperCase().trim();
+  if (s.includes("MOC") || s === "33" || s === "M4") return "MOC";
+  if (s.includes("LOC") || s === "30" || s === "M2" || s === "00") return "LOC";
+  if (s === "03" || s === "M1" || s === "M3") return "MKT";
   return "";
 }
 
@@ -194,15 +195,15 @@ function normalizeBrokerOrderDate(row) {
 }
 
 function brokerOrderSymbol(row) {
-  return String(row?.symbol || row?.ticker || row?.stk_cd || row?.stockCode || row?.code || row?.IsuNo || "").toUpperCase();
+  return String(row?.symbol || row?.ticker || row?.stk_cd || row?.stockCode || row?.code || row?.IsuNo || row?.ShtnIsuNo || "").toUpperCase();
 }
 
 function brokerOrderQty(row) {
-  return Math.abs(Number(row?.qty ?? row?.filledQty ?? row?.unfilledQty ?? row?.remainingQty ?? row?.orderQty ?? row?.ordQty ?? 0) || 0);
+  return Math.abs(Number(row?.qty ?? row?.filledQty ?? row?.unfilledQty ?? row?.remainingQty ?? row?.orderQty ?? row?.ordQty ?? row?.OrdQty ?? row?.ExecQty ?? row?.cntr_qty ?? row?.ord_qty ?? row?.rmn_qty ?? 0) || 0);
 }
 
 function brokerOrderPrice(row) {
-  return Math.round(Math.abs(Number(row?.orderPrice ?? row?.ordPrice ?? row?.limitPrice ?? row?.price ?? row?.filledPrice ?? 0) || 0) * 100) / 100;
+  return Math.round(Math.abs(Number(row?.orderPrice ?? row?.ordPrice ?? row?.limitPrice ?? row?.price ?? row?.filledPrice ?? row?.ord_uv ?? row?.cntr_uv ?? row?.OvrsOrdPrc ?? row?.ExecPrc ?? 0) || 0) * 100) / 100;
 }
 
 function getBrokerOrderMatchMarkup(order, slotNum) {
@@ -391,6 +392,7 @@ function getSoleActiveTicker() {
   const max = window.MAX_SLOTS || 12;
   for (let i = 1; i <= max; i++) {
     if (typeof window.isSlotActive === 'function' && !window.isSlotActive(i)) continue;
+    if (window.BrokerService && typeof window.BrokerService.isSlotForBroker === 'function' && !window.BrokerService.isSlotForBroker(i)) continue;
     const tk = String(window.slotConfigs?.[i]?.basics?.ticker || "").toUpperCase();
     if (tk) set.add(tk);
   }
@@ -410,11 +412,13 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
   const targetDate = orderTableDateStr();
   const compareDates = brokerCompareDateSet();
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
+  const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
 
   if (Array.isArray(cache.unfilledOrders) && cache.unfilledOrders.length > 0) {
     const matchingUnfilled = cache.unfilledOrders.filter(u => {
-      const uSym = String(u.symbol || u.stk_cd || "").toUpperCase();
-      const uSide = sideOf(u.side);
+      if (u.broker && String(u.broker).toLowerCase() !== activeBr) return false;
+      const uSym = brokerOrderSymbol(u);
+      const uSide = sideOf(u.side || u.orderSide || u.ordSide || u.bsnTp || u.OrdPtnCode);
       return (uSym === symbol || !symbol) && uSide.includes(side);
     });
     if (matchingUnfilled.length > 0) {
@@ -424,18 +428,23 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
 
   if (targetDate && Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
     const matchingFilled = cache.filledOrders.filter(f => {
-      const fSym = String(f.symbol || f.stk_cd || "").toUpperCase();
-      const fSide = sideOf(f.side);
-      const fDate = String(f.marketDate || "");
-      return (fSym === symbol || !symbol) && fSide.includes(side) && fDate === targetDate;
+      if (f.broker && String(f.broker).toLowerCase() !== activeBr) return false;
+      const fSym = brokerOrderSymbol(f);
+      const fSide = sideOf(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
+      const fDate = normalizeBrokerOrderDate(f);
+      return (fSym === symbol || !symbol) && fSide.includes(side) && (fDate === targetDate || compareDates.has(fDate));
     });
     if (matchingFilled.length > 0) {
       return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%B2%B4%EA%B2%B0%20%EC%99%84%EB%A3%8C%20(') + targetDate + ')">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
     }
   }
 
-  if (shouldCompareBrokerOrdersNow()) {
-    return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 주문 시간대 — 증권사 주문/체결 내역으로 일치 여부 확인">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
+  if (currentPhase === 'closed') {
+    return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 마감 체결확인 시간대 — 당일 체결내역 대조">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
+  }
+
+  if (currentPhase === 'order') {
+    return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 주문 시간대 — 증권사 주문/체결 내역 대조">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
   }
 
   if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
@@ -443,20 +452,13 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
       const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? "kiwoom" : "ls");
       return b === activeBr;
     });
-    const ordType = String(order[1] || "").toUpperCase() === "MOC" ? "MOC" : "LOC";
-    const hit = activeVmOrders.find(v =>
-      (String(v.symbol || "").toUpperCase() === symbol || !symbol) &&
-      sideOf(v.side) === side &&
-      String(v.ordType || "").toUpperCase() === ordType);
-    if (hit) {
-      return '<span style="color:#fbbf24 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('GCP%20%EC%9E%90%EB%8F%99%EC%A3%BC%EB%AC%B8%20%EC%98%88%EC%95%BD%20%EC%99%84%EB%A3%8C%20(%EA%B0%9C%EC%9E%A5%2010%EB%B6%84%20%EC%A0%84%20%EB%B0%9C%EC%A3%BC)') + '">' + decodeURIComponent('(%EC%98%88%EC%95%BD)') + '</span>';
+    if (activeVmOrders.length > 0) {
+      return '<span style="color:#f59e0b !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('GCP%20%EB%B4%87%20%EC%98%88%EC%95%BD%20%EB%8C%80%EA%B8%B0%EC%A4%91') + '">' + decodeURIComponent('(%EC%98%88%EC%95%BD)') + '</span>';
     }
   }
+
   return "";
 }
-
-// ui/render-order.js - 주문표 렌더링만 담당
-// 필요한 데이터는 매개변수로 받음, 전역은 window에서 읽음
 
 function buildCombinedOrderSignature(orders, orderDate = "") {
   const list = Array.isArray(orders) ? orders : [];
@@ -472,7 +474,7 @@ function collectCurrentCombinedOrders() {
     if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
     const res = window.getBestResult(window.lastBTResults[i], i);
     if (!res) continue;
-    if (i === 1 && !currentDate) currentDate = res.orderDateStr || "";
+    if (!currentDate && res.orderDateStr) currentDate = res.orderDateStr;
     if (Array.isArray(res.rawOrders) && res.rawOrders.length > 0) orders.push(...res.rawOrders);
     else if (Array.isArray(res.orders) && res.orders.length > 0) orders.push(...res.orders);
   }
@@ -798,7 +800,7 @@ function renderOrderViewSlot(res, slotNum) {
   }
 
   const orderDate = res.orderDateStr || "";
-  if (slotNum === 1) window.currentOrderDate = orderDate;
+  if (!window.currentOrderDate || (window.BrokerService && window.BrokerService.isSlotForBroker(slotNum))) window.currentOrderDate = orderDate;
   refreshOrderViewUI();
 }
 
@@ -1136,8 +1138,8 @@ window.compareOrderBookManual = function() {
   const appMap = {};
   (appCombined || []).forEach(o => {
     const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-    const t = o[1];
-    const p = Number(o[2]).toFixed(2);
+    const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
+    const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
     appMap[`${s}|${t}|${p}`] = (appMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
   });
 
@@ -1168,8 +1170,8 @@ window.compareOrderBookManual = function() {
   const vmMap = {};
   (vmCombined || []).forEach(o => {
     const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-    const t = o[1];
-    const p = Number(o[2]).toFixed(2);
+    const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
+    const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
     vmMap[`${s}|${t}|${p}`] = (vmMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
   });
 
@@ -1215,8 +1217,8 @@ window.compareOrderBookManual = function() {
   if (isBrokerPhase) {
     (brokerCombined || []).forEach(o => {
       const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-      const t = o[1];
-      const p = Number(o[2]).toFixed(2);
+      const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
+      const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
       brMap[`${s}|${t}|${p}`] = (brMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
     });
   }
@@ -1240,7 +1242,8 @@ window.compareOrderBookManual = function() {
     allKeys.forEach(k => {
       const parts = k.split('|');
       const sideStr = parts[0] === 'buy' ? '<span style="color:#ef4444">매수</span>' : '<span style="color:#3b82f6">매도</span>';
-      const label = `${parts[1]} ${sideStr} ${parts[2]}`;
+      const priceDisplay = parts[1] === 'MOC' ? '<span style="font-size:11px; color:var(--text-muted);">시장가</span>' : '$' + Number(parts[2]).toFixed(2);
+      const label = `${parts[1]} ${sideStr} ${priceDisplay}`;
       
       const vQty = vmMap[k] || 0;
       const aQty = appMap[k] || 0;

@@ -617,7 +617,12 @@ function processRealLogData(d, currentStrat, userInitialCash) {
             const cleanBp = typeof rawBp === 'number' ? rawBp : parseFloat(String(rawBp).replace(/[^0-9.-]/g, "")) || 0;
             const rawCost = h.cost !== undefined ? h.cost : 0;
             const cleanCost = typeof rawCost === 'number' ? rawCost : parseFloat(String(rawCost).replace(/[^0-9.-]/g, "")) || 0;
-            return { ...h, buy_price: fixFloat(cleanBp), cost: fixFloat(cleanCost) };
+            
+            // ⭐️ [버그 수정] JSON에서 읽은 qty가 문자열로 남아있어 숫자 연산 시 문자열 병합(e.g., 10 + "5" = "105")이 일어나 총자산이 폭증하는 버그 방지
+            const rawQty = h.qty !== undefined ? h.qty : (h.quantity || 0);
+            const cleanQty = typeof rawQty === 'number' ? rawQty : parseFloat(String(rawQty).replace(/[^0-9.-]/g, "")) || 0;
+            
+            return { ...h, buy_price: fixFloat(cleanBp), cost: fixFloat(cleanCost), qty: fixFloat(cleanQty) };
           });
         } if (parsed.base_principal !== undefined) { restoredBase = fixFloat(parsed.base_principal); } else if (parsed.base !== undefined) { restoredBase = fixFloat(parsed.base); } if (parsed.realizedProfit !== undefined) realizedProfit = fixFloat(parsed.realizedProfit); if (parsed.cash !== undefined) cash = fixFloat(parsed.cash); if (parsed.realPrincipal !== undefined) restoredRealPrincipal = fixFloat(parsed.realPrincipal); } catch (e) { console.error("JSON 파싱 오류", e); } }
   let qty = 0, totalCost = 0; restoredInv.forEach(item => { const itemQty = fixFloat(item.qty) || 0; const itemCost = fixFloat(item.cost) || (fixFloat(item.buy_price) * itemQty); qty += itemQty; totalCost += itemCost; }); let avgPrice = qty > 0 ? fixFloat(totalCost / qty) : 0;

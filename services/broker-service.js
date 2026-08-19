@@ -302,7 +302,14 @@ window.BrokerService = {
   async _dedupFetch(key, fn) {
     if (this._bsInFlight[key]) return this._bsInFlight[key];
     this._bsInFlight[key] = (async () => {
-      try { return await fn(); } finally { setTimeout(() => { delete this._bsInFlight[key]; }, 2000); }
+      try {
+        const res = await fn();
+        setTimeout(() => { delete this._bsInFlight[key]; }, 2000);
+        return res;
+      } catch (err) {
+        delete this._bsInFlight[key];
+        throw err;
+      }
     })();
     return this._bsInFlight[key];
   },
@@ -314,6 +321,7 @@ window.BrokerService = {
   },
 
   async fetchOverseasBalance(broker = this.activeBroker) {
+    if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const timeout = broker === "ls" ? 30000 : 15000;
     return await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
   },
