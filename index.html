@@ -146,7 +146,7 @@
   <script src="ui/state-manager.js?v=cf_v9078" defer></script>
   <script src="ui/event-handlers.js?v=cf_v9078" defer></script>
   <!-- Phase 4, 5, 6: Business Logic Services (config, sync, stats) -->
-  <script src="services/broker-service.js?v=cf_v9123" defer></script>
+  <script src="services/broker-service.js?v=cf_v1787158335045" defer></script>
   <script src="services/broker-reconcile.js?v=cf_v9156" defer></script>
   <script src="services/config-manager.js?v=cf_v9078" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
@@ -395,6 +395,7 @@
         <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
           <span id="orderStatusText" style="font-size:11px; color:var(--text-muted); font-weight:600; min-width:60px; text-align:right;"></span>
           <div id="combinedHoldingsSummary" style="display:none; gap:6px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text);"></div>
+          <button id="btnOrderCompare" onclick="window.compareOrderBookManual && window.compareOrderBookManual()" title="VM/앱/증권사 주문표 강제 대조" style="background:linear-gradient(135deg, #10b981, #047857); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">✅ 일치확인</button>
           <button id="btnOrderRankingLive" onclick="showLiveRankingModal()" title="실전 투자법 랭킹" style="background:linear-gradient(135deg, #0ea5e9, #0369a1); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:none; align-items:center; justify-content:center; white-space:nowrap;">📡 실전랭킹</button>
           <button id="btnOrderRankingBacktest" onclick="showBacktestRankingModal()" title="BT랭킹" style="background:linear-gradient(135deg, #fbbf24, #d97706); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:none; align-items:center; justify-content:center; white-space:nowrap;">🏆 BT랭킹</button>
           <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub btn-order-expand" title="주문표 세로 확장" style="display: none !important;">
@@ -954,7 +955,7 @@
   <script src="engine/strategies.js?v=cf_v9080" defer></script>
   <script src="engine/engine.js?v=cf_v9080" defer></script>
   <script src="engine/core.js?v=cf_v9078" defer></script>
-  <script src="ui/render-order.js?v=cf_v9162" defer></script>
+  <script src="ui/render-order.js?v=cf_v1787158335045" defer></script>
   <script src="ui/render-holdings.js?v=cf_v9155" defer></script>
   <script src="ui/render-performance.js?v=cf_v9080" defer></script>
   <script src="ui/render-stats.js?v=cf_v9087" defer></script>

@@ -298,30 +298,34 @@ window.BrokerService = {
 
   // 조회 계열은 VM이 증권사 TR을 여러 번 호출한다(체결내역은 일자별 TR).
   // 기본 3.5초로는 동시 호출이 겹칠 때 모자라 "Timeout" 오류가 난다.
+  _bsInFlight: {},
+  async _dedupFetch(key, fn) {
+    if (this._bsInFlight[key]) return this._bsInFlight[key];
+    this._bsInFlight[key] = (async () => {
+      try { return await fn(); } finally { setTimeout(() => { delete this._bsInFlight[key]; }, 2000); }
+    })();
+    return this._bsInFlight[key];
+  },
+
   async fetchUnfilledOrders(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const timeout = broker === "ls" ? 30000 : 15000;
-    return await this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout);
+    return await this._dedupFetch(`unfilled_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout));
   },
 
   async fetchOverseasBalance(broker = this.activeBroker) {
     const timeout = broker === "ls" ? 30000 : 15000;
-    const res = await this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout);
-    console.log(`[BrokerService] ${broker} balance raw result:`, res);
-    return res;
+    return await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
   },
 
   async fetchOverseasFills(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    // ⚠️ 2026-07-31: LS는 계좌조회 유량이 초당 1건이라 하루씩 순차 조회하면 7일만도 최소 ~7.7초
-    // 걸린다(실제 API 지연 포함하면 더 길어짐) — 20초로는 여유가 부족해 타임아웃이 실증됐다.
-    return await this.brokerFetch(`/api/broker/${broker}/fills`, "GET", null, 30000);
+    return await this._dedupFetch(`fills_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/fills`, "GET", null, 30000));
   },
 
-  // VM에 예약된 오늘의 주문표(자동주문 대기분)를 가져온다.
   async fetchPendingOrders() {
     const userId = this.getUserId();
-    return await this.brokerFetch(`/api/orders/pending?userId=${encodeURIComponent(userId)}`, "GET", null, 10000);
+    return await this._dedupFetch(`pending_${userId}`, () => this.brokerFetch(`/api/orders/pending?userId=${encodeURIComponent(userId)}`, "GET", null, 10000));
   },
 
   // ─────────── 키 상태 / 자동주문 on-off ───────────
