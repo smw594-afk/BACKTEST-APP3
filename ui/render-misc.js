@@ -1841,7 +1841,12 @@ function triggerOptimisticSave() {
     const cachedPriceData = window.priceLoader && window.priceLoader.priceDataCache ?
       window.priceLoader.priceDataCache : {};
     try {
-      const res = runBacktestMemory(currentParams, cachedPriceData, targetSlot);
+      const existingSnap = (typeof getBestResult === "function" ? getBestResult(lastBTResults[targetSlot], targetSlot) : lastBTResults[targetSlot]) ||
+        (localStorage.getItem("vtotal3_snap" + targetSlot + "_" + myUserId) ? JSON.parse(localStorage.getItem("vtotal3_snap" + targetSlot + "_" + myUserId)) : null);
+      if (existingSnap && existingSnap.chartDates && existingSnap.chartDates.length > 0) {
+        existingSnap.currentStrat = currentParams?.basics?.strategy;
+      }
+      const res = runBacktestMemory(currentParams, cachedPriceData, targetSlot, existingSnap);
       if (res && res.status !== "error") {
         window.UI.updates.updateUIWithResult(res, currentParams, targetSlot);
       }

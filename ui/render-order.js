@@ -414,47 +414,68 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
 
-  if (Array.isArray(cache.unfilledOrders) && cache.unfilledOrders.length > 0) {
-    const matchingUnfilled = cache.unfilledOrders.filter(u => {
-      if (u.broker && String(u.broker).toLowerCase() !== activeBr) return false;
-      const uSym = brokerOrderSymbol(u);
-      const uSide = sideOf(u.side || u.orderSide || u.ordSide || u.bsnTp || u.OrdPtnCode);
-      return (uSym === symbol || !symbol) && uSide.includes(side);
-    });
-    if (matchingUnfilled.length > 0) {
-      return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%A0%91%EC%88%98%20%EC%99%84%EB%A3%8C%20(%EB%AF%B8%EC%B2%B4%EA%B2%B0)') + '">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
+  // ⭐️ 1. 예약 시간대 (17:00 ~ 익일 09:20 ET):
+  // 다음 세션을 위한 예약 주문 단계이므로 증권사 과거 체결/미체결을 대조하지 않고 VM 예약 여부만 표시
+  if (currentPhase === 'reserved') {
+    if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
+      const activeVmOrders = cache.vmOrders.filter(v => {
+        const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? "kiwoom" : "ls");
+        if (b !== activeBr) return false;
+        if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
+        return true;
+      });
+      if (activeVmOrders.length > 0) {
+        return '<span style="color:#a855f7 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('GCP%20%EB%B4%87%EC%97%90%20%EC%98%88%EC%95%BD%20%EC%A3%BC%EB%AC%B8%20%EC%A0%80%EC%9E%A5%EB%90%A8') + '">' + decodeURIComponent('(%EC%98%88%EC%95%BD)') + '</span>';
+      }
     }
+    return "";
   }
 
-  if (targetDate && Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
-    const matchingFilled = cache.filledOrders.filter(f => {
-      if (f.broker && String(f.broker).toLowerCase() !== activeBr) return false;
-      const fSym = brokerOrderSymbol(f);
-      const fSide = sideOf(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
-      const fDate = normalizeBrokerOrderDate(f);
-      return (fSym === symbol || !symbol) && fSide.includes(side) && (fDate === targetDate || compareDates.has(fDate));
-    });
-    if (matchingFilled.length > 0) {
-      return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%B2%B4%EA%B2%B0%20%EC%99%84%EB%A3%8C%20(') + targetDate + ')">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
-    }
-  }
-
+  // ⭐️ 2. 장마감/체결확인 시간대 (16:00 ~ 17:00 ET): 당일 체결 여부 대조
   if (currentPhase === 'closed') {
+    if (targetDate && Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
+      const matchingFilled = cache.filledOrders.filter(f => {
+        if (f.broker && String(f.broker).toLowerCase() !== activeBr) return false;
+        const fSym = brokerOrderSymbol(f);
+        const fSide = sideOf(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
+        const fDate = normalizeBrokerOrderDate(f);
+        return (fSym === symbol || !symbol) && fSide.includes(side) && (fDate === targetDate || compareDates.has(fDate));
+      });
+      if (matchingFilled.length > 0) {
+        return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%B2%B4%EA%B2%B0%20%EC%99%84%EB%A3%8C%20(') + targetDate + ')">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
+      }
+    }
     return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 마감 체결확인 시간대 — 당일 체결내역 대조">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
   }
 
+  // ⭐️ 3. 주문/장중 시간대 (09:20 ~ 16:00 ET): 증권사 미체결/체결 대조
   if (currentPhase === 'order') {
-    return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 주문 시간대 — 증권사 주문/체결 내역 대조">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
-  }
-
-  if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
-    const activeVmOrders = cache.vmOrders.filter(v => {
-      const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? "kiwoom" : "ls");
-      return b === activeBr;
-    });
-    if (activeVmOrders.length > 0) {
-      return '<span style="color:#f59e0b !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('GCP%20%EB%B4%87%20%EC%98%88%EC%95%BD%20%EB%8C%80%EA%B8%B0%EC%A4%91') + '">' + decodeURIComponent('(%EC%98%88%EC%95%BD)') + '</span>';
+    if (Array.isArray(cache.unfilledOrders) && cache.unfilledOrders.length > 0) {
+      const matchingUnfilled = cache.unfilledOrders.filter(u => {
+        if (u.broker && String(u.broker).toLowerCase() !== activeBr) return false;
+        const uSym = brokerOrderSymbol(u);
+        const uSide = sideOf(u.side || u.orderSide || u.ordSide || u.bsnTp || u.OrdPtnCode);
+        return (uSym === symbol || !symbol) && uSide.includes(side);
+      });
+      if (matchingUnfilled.length > 0) {
+        return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%A0%91%EC%88%98%20%EC%99%84%EB%A3%8C%20(%EB%AF%B8%EC%B2%B4%EA%B2%B0)') + '">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
+      }
     }
+
+    if (targetDate && Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
+      const matchingFilled = cache.filledOrders.filter(f => {
+        if (f.broker && String(f.broker).toLowerCase() !== activeBr) return false;
+        const fSym = brokerOrderSymbol(f);
+        const fSide = sideOf(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
+        const fDate = normalizeBrokerOrderDate(f);
+        return (fSym === symbol || !symbol) && fSide.includes(side) && (fDate === targetDate || compareDates.has(fDate));
+      });
+      if (matchingFilled.length > 0) {
+        return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%B2%B4%EA%B2%B0%20%EC%99%84%EB%A3%8C%20(') + targetDate + ')">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
+      }
+    }
+
+    return '<span style="color:#60a5fa !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 주문 시간대 — 증권사 주문/체결 내역 대조">' + decodeURIComponent('(%EC%A3%BC%EB%AC%B8)') + '</span>';
   }
 
   return "";
@@ -1294,7 +1315,10 @@ window.compareOrderBookManual = function() {
     <div id="${modalId}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px);">
       <div style="background:var(--card, #1e293b); color:var(--text, #fff); width:100%; max-width:600px; max-height:90vh; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.5); overflow:hidden; border:1px solid var(--card-border, rgba(255,255,255,0.1));">
         <div style="padding:14px 20px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0; font-size:16px; color:var(--primary, #8b5cf6);">✅ 일치확인 (수동 대조)</h3>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h3 style="margin:0; font-size:16px; color:var(--primary, #8b5cf6);">✅ 일치확인 (수동 대조)</h3>
+            <button onclick="window.openSheetVerificationModal && window.openSheetVerificationModal()" style="background:linear-gradient(135deg, #6366f1, #4338ca); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">📊 시트 1:1 검증</button>
+          </div>
           ${phaseBadge}
         </div>
         
@@ -1352,4 +1376,286 @@ window.compareOrderBookManual = function() {
     </div>
   `;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+
+window.openSheetVerificationModal = async function() {
+  const modalId = 'sheetVerificationModal';
+  let existing = document.getElementById(modalId);
+  if (existing) existing.remove();
+
+  // Create loading modal
+  const initialModalHtml = `
+    <div id="${modalId}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:999999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px);">
+      <div style="background:var(--card, #1e293b); color:var(--text, #fff); width:100%; max-width:860px; max-height:92vh; border-radius:14px; display:flex; flex-direction:column; box-shadow:0 12px 30px rgba(0,0,0,0.6); overflow:hidden; border:1px solid var(--card-border, rgba(255,255,255,0.12)); font-family:inherit;">
+        <!-- Header -->
+        <div style="padding:14px 20px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.12)); display:flex; justify-content:space-between; align-items:center; background:var(--bg, #0f172a);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">📊</span>
+            <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--text, #fff); letter-spacing:-0.3px;">시트 데이터 & JSON 꾸러미 1:1 정밀 검증 (앱 vs VM)</h3>
+          </div>
+          <button onclick="document.getElementById('${modalId}').remove()" style="background:transparent; border:none; color:var(--text-muted, #94a3b8); font-size:20px; font-weight:700; cursor:pointer; line-height:1; padding:2px 6px;">✕</button>
+        </div>
+
+        <!-- Body -->
+        <div id="${modalId}_body" style="padding:20px; overflow-y:auto; flex:1;">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px;">
+            <div style="width:36px; height:36px; border:3px solid rgba(99,102,241,0.2); border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <div style="font-size:13px; font-weight:700; color:var(--text, #fff);">VM 백엔드에서 시트 최신 계산 및 JSON 꾸러미 데이터를 수집 중입니다...</div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">시트 전날 데이터 기준 금일 10대 항목 + 매수티어별 JSON 1:1 대조</div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:12px 20px; border-top:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center; background:var(--bg, #0f172a);">
+          <div style="font-size:11px; color:var(--text-muted, #94a3b8);">
+            ℹ️ 시트의 전날 종가/스냅샷을 기반으로 생성된 금일 데이터와 JSON 매수티어별 내역을 실시간 비교합니다.
+          </div>
+          <button onclick="document.getElementById('${modalId}').remove()" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.15)); border-radius:6px; padding:7px 18px; font-size:12px; font-weight:700; cursor:pointer;">닫기</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', initialModalHtml);
+
+  // Fetch VM Data and Render Content
+  try {
+    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification() : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()));
+    
+    if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
+      throw new Error(vmRes?.reason || vmRes?.error || "VM 응답 데이터 형식이 올바르지 않습니다.");
+    }
+
+    // Extract App States
+    const appStates = [];
+    for (let i = 1; i <= (window.MAX_SLOTS || 12); i++) {
+      const isActive = typeof window.isSlotActive === "function" ? window.isSlotActive(i) : true;
+      const conf = window.slotConfigs ? window.slotConfigs[i] : null;
+      if (!isActive || !conf || !conf.basics || conf.basics.strategy === "정지" || conf.basics.strategy === "-- 선택 안 함 --") {
+        appStates.push({ slot: i, active: false, ticker: conf?.basics?.ticker || "-", strategy: "정지", holdings: [] });
+        continue;
+      }
+      const res = typeof window.getBestResult === "function" ? window.getBestResult(window.lastBTResults?.[i], i) : window.lastBTResults?.[i];
+      const dailyStates = Array.isArray(res?.dailyStates) ? res.dailyStates : [];
+      const lastState = dailyStates.length > 0 ? dailyStates[dailyStates.length - 1] : null;
+      let parsed = {};
+      if (lastState?.json) {
+        try { parsed = JSON.parse(lastState.json); } catch(e){}
+      }
+      const rawOrders = Array.isArray(res?.rawOrders) ? res.rawOrders : (Array.isArray(res?.orders) ? res.orders : []);
+      const buyOrder = rawOrders.find(o => {
+        const s = String(o[0] || o.side || "").toLowerCase();
+        return s.includes("매수") || s.includes("buy");
+      });
+      const noi = res?.nextOrderInfo;
+      
+      const sheetLastDate = typeof window.normalizeSheetStateDate === "function" 
+        ? window.normalizeSheetStateDate(localStorage.getItem(`vtotal3_sheet_last_date_${i}_${window.myUserId}`)) 
+        : (localStorage.getItem(`vtotal3_sheet_last_date_${i}_${window.myUserId}`) || "");
+      const slotDate = (lastState?.date ? String(lastState.date).slice(0, 10) : "") || (sheetLastDate !== "1900-01-01" ? sheetLastDate : "") || (res?.summary?.date || "");
+
+      const activeHoldings = (Array.isArray(res?.inv) && res.inv.length > 0)
+        ? res.inv
+        : (Array.isArray(parsed.holdings) && parsed.holdings.length > 0 ? parsed.holdings : []);
+
+      const normalizedHoldings = activeHoldings.map(h => ({
+        mode: h.mode || "-",
+        tier: h.tier !== undefined ? h.tier : "-",
+        qty: Number(h.qty || 0),
+        buy_price: Number(h.buy_price || h.price || 0),
+        buyDate: h.buyDate || ""
+      }));
+
+      appStates.push({
+        slot: i,
+        active: true,
+        ticker: String(conf.basics.ticker || "").toUpperCase(),
+        strategy: String(res?.currentStrat || conf.basics.strategy || ""),
+        date: slotDate,
+        asset: lastState ? Number(lastState.asset || 0) : Number(res?.summary?.totalAssets || 0),
+        inout: lastState ? Number(lastState.inout || 0) : Number(res?.summary?.inout || 0),
+        cash: Number(parsed.cash ?? res?.summary?.cash ?? 0),
+        base: Number(parsed.base_principal ?? parsed.base ?? res?.summary?.base ?? 0),
+        realPrincipal: Number(parsed.realPrincipal ?? res?.summary?.realPrincipal ?? 0),
+        mode: noi?.mode || res?.currentM || "-",
+        tier: (noi?.tier !== undefined && noi?.tier !== null) ? noi.tier : (res?.currentT || "-"),
+        weight: noi?.weight ? (String(noi.weight).replace('%', '') + '%') : "-",
+        buyQty: buyOrder ? Number(buyOrder[3] || buyOrder.qty || 0) : 0,
+        buyPrice: buyOrder ? Number(buyOrder[2] || buyOrder.price || 0) : 0,
+        orders: rawOrders,
+        holdings: normalizedHoldings,
+        rawJson: lastState?.json || ""
+      });
+    }
+
+    // Render Slots Comparison
+    const bodyEl = document.getElementById(`${modalId}_body`);
+    if (!bodyEl) return;
+
+    let overallAllMatched = true;
+    let activeSlotsHtml = "";
+    let activeCount = 0;
+
+    const fmtMoney = (v) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const isMoneyMatch = (a, b) => Math.abs(Number(a || 0) - Number(b || 0)) < 0.05;
+    const isExactMatch = (a, b) => String(a ?? "").trim() === String(b ?? "").trim();
+
+    const formatHoldingsHtml = (hList) => {
+      if (!Array.isArray(hList) || hList.length === 0) {
+        return '<span style="color:var(--text-muted, #94a3b8); font-size:11px;">(보유 티어 없음)</span>';
+      }
+      const totalQty = hList.reduce((s, h) => s + Number(h.qty || 0), 0);
+      const itemsHtml = hList.map(h => `
+        <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:2px 6px; margin:2px 0; font-size:10.5px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:700; color:var(--primary, #a78bfa);">[${h.mode} ${h.tier}T]</span>
+          <span style="font-weight:700; color:var(--text, #fff); margin:0 4px;">${h.qty}주 @ $${Number(h.buy_price || 0).toFixed(2)}</span>
+          <span style="color:var(--text-muted, #94a3b8); font-size:9.5px;">(${h.buyDate ? String(h.buyDate).slice(5) : '-'})</span>
+        </div>
+      `).join('');
+
+      return `
+        <div style="text-align:left;">
+          <div style="font-weight:800; color:var(--text, #fff); font-size:11.5px; margin-bottom:2px;">총 ${totalQty}주 (${hList.length}건)</div>
+          ${itemsHtml}
+        </div>
+      `;
+    };
+
+    const isHoldingsMatch = (arr1, arr2) => {
+      if (!Array.isArray(arr1) || !Array.isArray(arr2)) return false;
+      if (arr1.length !== arr2.length) return false;
+      for (let idx = 0; idx < arr1.length; idx++) {
+        const h1 = arr1[idx];
+        const h2 = arr2[idx];
+        if (String(h1.mode) !== String(h2.mode)) return false;
+        if (String(h1.tier) !== String(h2.tier)) return false;
+        if (Number(h1.qty) !== Number(h2.qty)) return false;
+        if (Math.abs(Number(h1.buy_price) - Number(h2.buy_price)) >= 0.05) return false;
+      }
+      return true;
+    };
+
+    for (let slot = 1; slot <= (window.MAX_SLOTS || 12); slot++) {
+      const app = appStates[slot - 1];
+      const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
+
+      if (!app.active && !vm.active) continue;
+      activeCount++;
+
+      const isKiwoom = slot <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6);
+      const brokerTag = isKiwoom ? `<span style="background:rgba(16,185,129,0.2); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">키움</span>` : `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">LS</span>`;
+
+      const holdingsMatch = isHoldingsMatch(app.holdings, vm.holdings);
+
+      // 11대 검증 항목 정의
+      const items = [
+        { label: "1. 기준 거래일자 (시트 상태일)", appVal: app.date || "-", vmVal: vm.date || "-", match: isExactMatch(app.date, vm.date), format: v => v },
+        { label: "2. 총자산 ($)", appVal: app.asset, vmVal: vm.asset, match: isMoneyMatch(app.asset, vm.asset), format: fmtMoney },
+        { label: "3. 누적 입출금 ($)", appVal: app.inout, vmVal: vm.inout, match: isMoneyMatch(app.inout, vm.inout), format: fmtMoney },
+        { label: "4. 예수금 / 현금 ($)", appVal: app.cash, vmVal: vm.cash, match: isMoneyMatch(app.cash, vm.cash), format: fmtMoney },
+        { label: "5. 갱신금 / 갱신원금 ($)", appVal: app.base, vmVal: vm.base, match: isMoneyMatch(app.base, vm.base), format: fmtMoney },
+        { label: "6. 실전 투입원금 ($)", appVal: app.realPrincipal, vmVal: vm.realPrincipal, match: isMoneyMatch(app.realPrincipal, vm.realPrincipal), format: fmtMoney },
+        { label: "7. 진입 모드 (Mode)", appVal: app.mode, vmVal: vm.mode, match: isExactMatch(app.mode, vm.mode), format: v => v },
+        { label: "8. 매수 티어 (Tier)", appVal: app.tier, vmVal: vm.tier, match: isExactMatch(app.tier, vm.tier), format: v => v },
+        { label: "9. 금일 매수예정 수량", appVal: app.buyQty, vmVal: vm.buyQty, match: Number(app.buyQty) === Number(vm.buyQty), format: v => `${v}주` },
+        { label: "10. 금일 매수예정 단가", appVal: app.buyPrice, vmVal: vm.buyPrice, match: isMoneyMatch(app.buyPrice, vm.buyPrice), format: fmtMoney },
+        { label: "11. 매수티어별 보유내역 (JSON holdings)", appVal: app.holdings, vmVal: vm.holdings, match: holdingsMatch, isCustom: true }
+      ];
+
+      const slotAllMatch = items.every(it => it.match);
+      if (!slotAllMatch) overallAllMatched = false;
+
+      const rowsHtml = items.map(it => {
+        const badge = it.match 
+          ? `<span style="color:#10b981; font-weight:800; font-size:11px;">✓ 일치</span>`
+          : `<span style="color:#ef4444; font-weight:800; font-size:11px; background:rgba(239,68,68,0.15); padding:2px 6px; border-radius:4px;">✗ 불일치</span>`;
+        const rowBg = it.match ? "transparent" : "background:rgba(239,68,68,0.08);";
+
+        if (it.isCustom) {
+          const appHoldingsHtml = formatHoldingsHtml(it.appVal);
+          const vmHoldingsHtml = formatHoldingsHtml(it.vmVal);
+          return `
+            <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); ${rowBg}">
+              <td style="text-align:left; padding:8px 12px; font-weight:700; color:var(--text, #fff); font-size:11.5px; vertical-align:top;">${it.label}</td>
+              <td style="padding:6px 8px; vertical-align:top;">${appHoldingsHtml}</td>
+              <td style="padding:6px 8px; vertical-align:top;">${vmHoldingsHtml}</td>
+              <td style="text-align:center; vertical-align:top; padding-top:8px;">${badge}</td>
+            </tr>
+          `;
+        }
+
+        const appDisplay = it.format(it.appVal);
+        const vmDisplay = it.format(it.vmVal);
+
+        return `
+          <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); height:30px; ${rowBg}">
+            <td style="text-align:left; padding-left:12px; font-weight:600; color:var(--text-muted, #94a3b8); font-size:11.5px;">${it.label}</td>
+            <td style="font-weight:700; color:var(--text, #fff); font-size:12px;">${appDisplay}</td>
+            <td style="font-weight:700; color:var(--text, #fff); font-size:12px;">${vmDisplay}</td>
+            <td style="text-align:center;">${badge}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const slotBadge = slotAllMatch
+        ? `<span style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">✓ 11개 항목 모두 일치</span>`
+        : `<span style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#ef4444; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">⚠️ 불일치 발생</span>`;
+
+      activeSlotsHtml += `
+        <div style="background:var(--bg, #0f172a); border:1px solid ${slotAllMatch ? 'var(--card-border, rgba(255,255,255,0.1))' : 'rgba(239,68,68,0.5)'}; border-radius:10px; margin-bottom:16px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+          <div style="padding:10px 14px; background:rgba(255,255,255,0.03); border-bottom:1px solid var(--card-border, rgba(255,255,255,0.08)); display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              ${brokerTag}
+              <span style="font-weight:800; font-size:13px; color:var(--text, #fff);">슬롯 #${slot}</span>
+              <span style="font-size:12px; color:var(--primary, #8b5cf6); font-weight:700;">${app.ticker || vm.ticker}</span>
+              <span style="font-size:11px; color:var(--text-muted, #94a3b8);">(${app.strategy || vm.strategy})</span>
+            </div>
+            ${slotBadge}
+          </div>
+          <table style="width:100%; border-collapse:collapse; text-align:center;">
+            <thead>
+              <tr style="height:28px; background:rgba(0,0,0,0.2); border-bottom:1px solid var(--card-border, rgba(255,255,255,0.08)); color:var(--text-muted, #94a3b8); font-size:10.5px; font-weight:700;">
+                <th style="width:34%; text-align:left; padding-left:12px;">검증 항목</th>
+                <th style="width:23%;">앱 (브라우저)</th>
+                <th style="width:23%;">VM (GCP 서버)</th>
+                <th style="width:20%;">판정</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    bodyEl.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 2px;">
+        <div style="font-size:12px; color:var(--text, #fff); font-weight:700;">
+          총 <span style="color:var(--primary, #8b5cf6); font-weight:800;">${activeCount}</span>개 활성 슬롯 정밀 대조 결과:
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${overallAllMatched 
+            ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800;">🎉 모든 활성 슬롯 100% 일치</span>'
+            : '<span style="background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800;">⚠️ 불일치 항목 확인 필요</span>'
+          }
+          <button onclick="window.openSheetVerificationModal()" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.2)); border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer;">🔄 다시 검증</button>
+        </div>
+      </div>
+      ${activeSlotsHtml || '<div style="text-align:center; padding:30px; color:var(--text-muted);">활성화된 슬롯이 없습니다.</div>'}
+    `;
+
+  } catch (err) {
+    const bodyEl = document.getElementById(`${modalId}_body`);
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div style="padding:30px 20px; text-align:center; color:#ef4444;">
+          <div style="font-size:28px; margin-bottom:10px;">⚠️</div>
+          <div style="font-weight:800; font-size:14px; margin-bottom:6px;">시트 검증 데이터 수집 실패</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">${err.message}</div>
+          <button onclick="window.openSheetVerificationModal()" style="background:var(--primary, #6366f1); color:#fff; border:none; border-radius:6px; padding:6px 16px; font-weight:700; cursor:pointer;">🔄 재시도</button>
+        </div>
+      `;
+    }
+  }
 };

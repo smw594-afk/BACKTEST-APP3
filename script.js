@@ -1366,7 +1366,19 @@ async function handleSave() {
     // 📊 이미 로드된 캐시 데이터 사용
     const cachedPriceData = window.priceLoader && window.priceLoader.priceDataCache ?
       window.priceLoader.priceDataCache : {};
-    let targetRes = await runBacktestMemory(slotConfigs[targetSlot], cachedPriceData, targetSlot);
+    
+    // ⭐️ [버그 수정] 기존 시트 기록이 있는 경우 스냅샷(realData)의 누적 증액/원금/보유내역을 overrideSnap으로 전달하여
+    //    설정 저장 시 단순 폼 입력값으로 원금/갱신금이 초기화되거나 자산이 엉뚱하게 계산되는 버그 원천 차단
+    let targetRes;
+    const existingSnap = (typeof getBestResult === "function" ? getBestResult(lastBTResults[targetSlot], targetSlot) : lastBTResults[targetSlot]) || 
+      (localStorage.getItem("vtotal3_snap" + targetSlot + "_" + myUserId) ? JSON.parse(localStorage.getItem("vtotal3_snap" + targetSlot + "_" + myUserId)) : null);
+    
+    if (!isFirstSheetSetup && existingSnap && existingSnap.chartDates && existingSnap.chartDates.length > 0) {
+      existingSnap.currentStrat = slotConfigs[targetSlot]?.basics?.strategy;
+      targetRes = await runBacktestMemory(slotConfigs[targetSlot], cachedPriceData, targetSlot, existingSnap);
+    } else {
+      targetRes = await runBacktestMemory(slotConfigs[targetSlot], cachedPriceData, targetSlot);
+    }
     if (!targetRes || targetRes.status === "error") {
       console.warn("시트 반영 전 계산 실패:", targetRes?.message || targetRes);
       if (sheetLastDate === "1900-01-01") {

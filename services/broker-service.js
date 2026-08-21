@@ -132,41 +132,40 @@ window.BrokerService = {
       }
     } catch (e) { console.warn("[BrokerService] btn update error:", e); }
 
-    // ⭐️ 사용자가 증권사를 변경한 경우, 보고 있던 마지막 화면을 저장하고 앱을 깔끔하게 새로고침
-    if (!isInitial && prevBroker && prevBroker !== broker) {
-      this.saveCurrentViewBeforeSwitch(); try { const u = this.getUserId(); localStorage.removeItem("vtotal3_combined_order_view_" + u + "_" + prevBroker); localStorage.removeItem("vtotal3_combined_order_view_" + u + "_" + broker); } catch(e){};
-      window.location.reload();
-      return;
-    }
-
-    // 1. Reconcile 캐시 무효화
+    // 1. Reconcile 캐시 무효화 및 orderStatusCache 초기화
     try {
       if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
         window.BrokerReconcile.invalidate();
+      }
       if (window.orderStatusCache) {
         window.orderStatusCache.unfilledOrders = [];
         window.orderStatusCache.filledOrders = [];
         window.orderStatusCache.lastUpdated = 0;
       }
-      }
     } catch (e) { console.warn("[BrokerService] invalidate error:", e); }
 
-    // 2. 초기 렌더링 동기화
+    // 2. 전체 UI 실시간 동기화 (화면 깜빡임이나 새로고침 없이 즉시 전환)
     try {
+      if (typeof window.updateSlotsVisibility === "function") {
+        window.updateSlotsVisibility();
+      }
+      if (window.UI && window.UI.order && typeof window.UI.order.renderCombinedOrderBook === "function") {
+        window.UI.order.renderCombinedOrderBook();
+      }
       if (window.UI && window.UI.stats && typeof window.UI.stats.refreshStatsTable === "function") {
         window.UI.stats.refreshStatsTable();
       }
       if (window.UI && window.UI.holdings && typeof window.UI.holdings.renderCombinedHoldings === "function") {
         window.UI.holdings.renderCombinedHoldings();
       }
-      if (typeof window.refreshOrderStatusCache === "function") {
-        window.refreshOrderStatusCache();
-      }
       if (window.UI && window.UI.tradeHistory && typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
         window.UI.tradeHistory.syncHistoryViewModeToBroker();
       }
-      if (typeof window.updateSlotsVisibility === "function") {
-        window.updateSlotsVisibility();
+      if (typeof window.updateStatsPieChart === "function") {
+        window.updateStatsPieChart();
+      }
+      if (typeof window.refreshOrderStatusCache === "function") {
+        window.refreshOrderStatusCache(true);
       }
     } catch (e) { console.warn("[BrokerService] render error:", e); }
   },
@@ -334,6 +333,11 @@ window.BrokerService = {
   async fetchPendingOrders() {
     const userId = this.getUserId();
     return await this._dedupFetch(`pending_${userId}`, () => this.brokerFetch(`/api/orders/pending?userId=${encodeURIComponent(userId)}`, "GET", null, 10000));
+  },
+
+  async fetchSheetVerification() {
+    const userId = this.getUserId();
+    return await this.brokerFetch(`/api/orders/verify-sheet?userId=${encodeURIComponent(userId)}`, "GET", null, 30000);
   },
 
   // ─────────── 키 상태 / 자동주문 on-off ───────────
