@@ -210,14 +210,8 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
   const cache = window.orderStatusCache || {};
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'unknown';
   
-  // 1. 최초 로딩 시 (한 번도 조회가 완료되지 않음)
   if (!cache.lastPhase) {
     return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="최초 데이터 조회 중">확인중</span>';
-  }
-  
-  // 2. 시간대(예약/주문)가 변경되었고 조회가 갱신 중인 경우 (이전 데이터 신뢰 불가)
-  if (cache.lastPhase !== currentPhase && cache.brokerOrdersChecked === false) {
-    return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="시장 상태 변경으로 인한 재조회 중">확인중</span>';
   }
 
   const side = normalizeOrderSide(order[0]);
@@ -237,76 +231,79 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
     const rowSym = brokerOrderSymbol(row);
     if (symbol && rowSym && rowSym !== symbol) return false;
     const rowDate = normalizeBrokerOrderDate(row);
-    if (rowDate && !compareDates.has(rowDate)) return false;
+    if (rowDate && compareDates.size > 0 && !compareDates.has(rowDate)) return false;
     return true;
   };
 
   const activeUnfilled = unfilled.filter(filterRow);
   const activeFilled = fills.filter(filterRow);
 
-  // 1. [통합 주문표] (slotNum === undefined) -> 증권사 주문들을 퉁치기 후 통합 비교
-  if (slotNum === undefined) {
-    const allBrokerOrders = [...activeUnfilled, ...activeFilled];
-    const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : (typeof combineOrders === 'function' ? combineOrders : null);
-    
-    let combinedBroker = [];
-    if (tungFn && allBrokerOrders.length > 0) {
-      try {
-        const rawTuples = allBrokerOrders.map(row => [
-          normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.ord_gbn || row?.sll_buy_gbn_cd || row?.OrdPtnCode || row?.매매구분) === 'buy' ? '매수' : '매도',
-          normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode || row?.ord_ptn_code) === 'MOC' ? 'MOC' : 'LOC',
-          brokerOrderPrice(row),
-          brokerOrderQty(row)
-        ]);
-        const sanitized = rawTuples.map(o => {
-          const c = [...o];
-          if (c[2] !== undefined && c[2] !== '' && !isNaN(c[2])) c[2] = Math.round(parseFloat(c[2]) * 100) / 100;
-          return c;
-        });
-        const combinedTuples = tungFn(sanitized);
-        combinedBroker = (combinedTuples || []).map(t => ({
-          side: (t[0] === '매수' || t[0] === 'buy') ? 'buy' : 'sell',
-          ordType: String(t[1] || '').toUpperCase(),
-          price: parseFloat(t[2]) || 0,
-          qty: parseInt(t[3], 10) || 0
-        }));
-      } catch (e) {}
+  // ⭐️ 1. 체결시간대 (16:00 ~ 17:00 ET / 한국 05:00 ~ 06:00):
+  if (currentPhase === 'closed') {
+    if (side === 'buy') {
+      const filledBuyQty = activeFilled.reduce((sum, f) => {
+        const s = String(f.side || '').toUpperCase();
+        return sum + (s.includes('BUY') || s.includes('매수') ? (Number(f.filledQty || f.qty) || 0) : 0);
+      }, 0);
+      if (filledBuyQty >= qty && qty > 0) {
+        return '<span style="color:#10b981; font-size:9px; font-weight:800;" title="증권사 정상 체결완료 (x' + filledBuyQty + '주)">일치</span>';
+      }
+      if (filledBuyQty > 0) {
+        return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="부분 체결 (' + filledBuyQty + '/' + qty + '주)">부분체결</span>';
+      }
+      return '<span style="color:#ef4444; font-size:9px; font-weight:800;" title="증권사 체결 미확인">불일치(미체결)</span>';
     } else {
-      combinedBroker = allBrokerOrders.map(row => ({
-        side: normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.ord_gbn || row?.sll_buy_gbn_cd || row?.OrdPtnCode || row?.매매구분),
-        ordType: normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode || row?.ord_ptn_code) || 'LOC',
-        price: brokerOrderPrice(row),
-        qty: brokerOrderQty(row)
-      }));
+      // 매도 주문: 당일 체결되었는지 또는 미체결로 마감되었는지 확인
+      const matchingSellFill = activeFilled.find(f => {
+        const s = String(f.side || '').toUpperCase();
+        return (s.includes('SELL') || s.includes('매도')) && Math.abs(Number(f.filledQty || f.qty) - qty) === 0;
+      });
+      if (matchingSellFill) {
+        return '<span style="color:#10b981; font-size:9px; font-weight:800;" title="증권사 매도 체결완료">일치(체결)</span>';
+      }
+      // 매도 목표가 미도달로 정상 미체결 마감
+      return '<span style="color:#10b981; font-size:9px; font-weight:800;" title="가격 미도달로 정상 미체결 마감">일치</span>';
     }
-
-    const hit = combinedBroker.find(v =>
-      String(v.side).toLowerCase() === side &&
-      String(v.ordType || '').toUpperCase() === ordType &&
-      Math.round(Number(v.qty)) === Math.round(qty) &&
-      (ordType === 'MOC' || Math.abs(Number(v.price) - price) < 0.1)
-    );
-
-    if (hit) {
-      return '<span style="color:#3b82f6; font-size:9px; font-weight:800;" title="증권사 퉁치기 주문과 일치">일치</span>';
-    }
-
-    const samePriceAndSide = combinedBroker.filter(v =>
-      String(v.side).toLowerCase() === side &&
-      String(v.ordType || '').toUpperCase() === ordType &&
-      (ordType === 'MOC' || Math.abs(Number(v.price) - price) < 0.1)
-    );
-    const actualQty = samePriceAndSide.reduce((sum, v) => sum + Number(v.qty), 0);
-
-    if (actualQty > 0) {
-      return '<span style="color:#ef4444; font-size:9px; font-weight:800;" title="목표 ' + qty + '주 대비 증권사 수량 ' + actualQty + '주">불일치(수량 ' + actualQty + '/' + qty + ')</span>';
-    }
-    return '<span style="color:#ef4444; font-size:9px; font-weight:800;" title="증권사 주문 미확인">불일치(미접수)</span>';
   }
 
-  // 2. [개별 슬롯 주문표] (slotNum !== undefined)
-  // 실제 주문은 통합되어 나갔으므로 증권사 내역에는 개별 슬롯 구분이 없음
-  return '<span style="color:#64748b; font-size:9px;" title="통합 발주됨">-</span>';
+  // ⭐️ 2. 장중 시간대 (09:20 ~ 16:00 ET):
+  // 미체결 주문 + 체결 주문 퉁치기 대조
+  const allBrokerOrders = [...activeUnfilled, ...activeFilled];
+  const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : null;
+  
+  let combinedBroker = [];
+  if (tungFn && allBrokerOrders.length > 0) {
+    try {
+      const rawTuples = allBrokerOrders.map(row => [
+        normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
+        normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode) === 'MOC' ? 'MOC' : 'LOC',
+        brokerOrderPrice(row),
+        brokerOrderQty(row)
+      ]);
+      const sanitized = rawTuples.map(o => {
+        const c = [...o];
+        if (c[2] !== undefined && c[2] !== '' && !isNaN(c[2])) c[2] = Math.round(parseFloat(c[2]) * 100) / 100;
+        return c;
+      });
+      combinedBroker = tungFn(sanitized) || [];
+    } catch (e) {
+      combinedBroker = allBrokerOrders;
+    }
+  } else {
+    combinedBroker = allBrokerOrders;
+  }
+
+  const hit = combinedBroker.find(v =>
+    String(v[0] || v.side || '').toLowerCase().includes(side) &&
+    Math.round(Number(v[3] || v.qty)) === Math.round(qty) &&
+    (ordType === 'MOC' || Math.abs(Number(v[2] || v.price) - price) < 0.5 || side === 'buy')
+  );
+
+  if (hit) {
+    return '<span style="color:#3b82f6; font-size:9px; font-weight:800;" title="증권사 주문과 일치">일치</span>';
+  }
+
+  return '<span style="color:#ef4444; font-size:9px; font-weight:800;" title="증권사 주문 미확인">불일치(미접수)</span>';
 }
 
 // 앱 통합 주문표의 한 줄이 GCP 봇에 예약된 주문과 같은지 표시한다.
@@ -433,19 +430,20 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
 
   // ⭐️ 2. 장마감/체결확인 시간대 (16:00 ~ 17:00 ET): 당일 체결 여부 대조
   if (currentPhase === 'closed') {
-    if (targetDate && Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
+    if (Array.isArray(cache.filledOrders) && cache.filledOrders.length > 0) {
       const matchingFilled = cache.filledOrders.filter(f => {
         if (f.broker && String(f.broker).toLowerCase() !== activeBr) return false;
         const fSym = brokerOrderSymbol(f);
         const fSide = sideOf(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
         const fDate = normalizeBrokerOrderDate(f);
-        return (fSym === symbol || !symbol) && fSide.includes(side) && (fDate === targetDate || compareDates.has(fDate));
+        return (fSym === symbol || !symbol) && fSide.includes(side) && (!fDate || !targetDate || fDate === targetDate || compareDates.has(fDate));
       });
       if (matchingFilled.length > 0) {
-        return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="' + decodeURIComponent('%EC%A6%9D%EA%B6%8C%EC%82%AC%20%EC%B2%B4%EA%B2%B0%20%EC%99%84%EB%A3%8C%20(') + targetDate + ')">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
+        return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="증권사 체결 완료">(체결)</span>';
       }
     }
-    return '<span style="color:#4ade80 !important; font-size:9px; font-weight:800; margin-left:3px;" title="미국장 마감 체결확인 시간대 — 당일 체결내역 대조">' + decodeURIComponent('(%EC%B2%B4%EA%B2%B0)') + '</span>';
+    // 체결되지 않은 주문은 (미체결) 배지 부여
+    return '<span style="color:#94a3b8 !important; font-size:9px; font-weight:800; margin-left:3px;" title="목표가 미도달로 정상 미체결 마감">(미체결)</span>';
   }
 
   // ⭐️ 3. 주문/장중 시간대 (09:20 ~ 16:00 ET): 증권사 미체결/체결 대조
@@ -654,13 +652,28 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
     return sum + (o?.[0] === '매도' ? qty : 0);
   }, 0);
 
+  window.__latestCombinedOrders = sortedOrders;
+
   tbody.innerHTML = sortedOrders.map(o => {
     const cls = o[0] === '매수' ? 'buy' : 'sell';
     const statusBadge = getOrderStatusBadgeMarkup(o);
     const sideText = ((o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0]) + statusBadge;
     const m = getVmMatchMarkup(o);
-    return `<tr><td style="width:18%; text-align:center;">${m}</td><td class="${cls}" style="width:33%; text-align:center;">${sideText}</td><td class="${cls}" style="width:28%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:21%; text-align:center;">${o[3]}주</td></tr>`;
-  }).join('');
+    return `<tr><td style="width:18%; text-align:center;">${m}</td><td class="${cls}" style="width:33%; text-align:center;">${sideText}</td><td class="${cls}" style="width:28%; text-align:center;">${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:21%; text-align:center;">${o[3]}주</td></tr>`;
+  }).join('')
+    // 📤 App3: 통합 주문 전송 버튼 (활성 브로커 키움 1~6 / LS 7~12 기준)
+    + (window.BrokerService && sortedOrders.length > 0 ? (() => {
+      const isKiwoom = window.BrokerService.activeBroker === 'kiwoom';
+      const brokerName = isKiwoom ? '키움' : 'LS';
+      return `<tr><td colspan="4" style="padding:8px 4px; text-align:center;">
+        <button id="btnSubmitCombinedOrders" onclick="window.submitCombinedOrdersToBroker()"
+          style="width:100%; padding:8px 10px; border:none; border-radius:8px; cursor:pointer;
+                 background:linear-gradient(135deg, ${isKiwoom ? '#10b981, #047857' : '#a855f7, #7e22ce'});
+                 color:#fff; font-size:12px; font-weight:800; letter-spacing:0.2px; box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+          📤 ${brokerName} 통합주문 전송 (총 ${sortedOrders.length}건)
+        </button>
+      </td></tr>`;
+    })() : '');
 
   const buyQtyEl = document.getElementById('combinedBuyQtyVal');
   const sellQtyEl = document.getElementById('combinedSellQtyVal');
@@ -1114,7 +1127,7 @@ window.submitSlotOrdersToBroker = async function (slotNum) {
   alert(`[${brokerLabel}] 슬롯${slotNum} 전송 결과\n\n` + results.join("\n"));
 };
 
-window.compareOrderBookManual = function() {
+window.compareOrderBookManual = async function() {
   const cache = window.orderStatusCache || {};
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
   const isBrokerPhase = currentPhase === 'order' || currentPhase === 'closed';
@@ -1205,47 +1218,63 @@ window.compareOrderBookManual = function() {
     const rowSym = brokerOrderSymbol(row);
     if (symbol && rowSym && rowSym !== symbol) return false;
     const rowDate = normalizeBrokerOrderDate(row);
-    if (rowDate && !compareDates.has(rowDate)) return false;
+    if (rowDate && compareDates.size > 0 && !compareDates.has(rowDate)) return false;
     return true;
   };
   const activeUnfilled = unfilled.filter(filterRow);
   const activeFilled = fills.filter(filterRow);
   
-  // 장마감 후(closed)에는 체결내역 위주, 장중(order)에는 미체결+체결
-  const allBrokerOrders = isClosedPhase ? [...activeFilled, ...activeUnfilled] : [...activeUnfilled, ...activeFilled];
-  
-  let brokerCombined = [];
-  if (isBrokerPhase) {
-    try {
-      const rawTuples = allBrokerOrders.map(row => [
-        normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.ord_gbn || row?.sll_buy_gbn_cd || row?.OrdPtnCode || row?.매매구분) === 'buy' ? '매수' : '매도',
-        normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode || row?.ord_ptn_code) === 'MOC' ? 'MOC' : 'LOC',
-        brokerOrderPrice(row),
-        brokerOrderQty(row)
-      ]);
-      brokerCombined = tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; }));
-    } catch(e) {
-      brokerCombined = allBrokerOrders.map(row => [
-        normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.ord_gbn || row?.sll_buy_gbn_cd || row?.OrdPtnCode || row?.매매구분) === 'buy' ? '매수' : '매도',
-        normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode || row?.ord_ptn_code) === 'MOC' ? 'MOC' : 'LOC',
-        brokerOrderPrice(row),
-        brokerOrderQty(row)
-      ]);
-    }
-  }
+  const filledBuyQty = activeFilled.reduce((sum, f) => {
+    const s = String(f.side || "").toUpperCase();
+    return sum + (s.includes("BUY") || s.includes("매수") ? (Number(f.filledQty || f.qty) || 0) : 0);
+  }, 0);
+  const filledSellQty = activeFilled.reduce((sum, f) => {
+    const s = String(f.side || "").toUpperCase();
+    return sum + (s.includes("SELL") || s.includes("매도") ? (Number(f.filledQty || f.qty) || 0) : 0);
+  }, 0);
 
   const brMap = {};
   if (isBrokerPhase) {
-    (brokerCombined || []).forEach(o => {
-      const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-      const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-      const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
-      brMap[`${s}|${t}|${p}`] = (brMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
-    });
+    if (isClosedPhase) {
+      // ⭐️ 체결시간대에는 실제 체결이 발생한 항목만 매핑
+      (appCombined || []).forEach(o => {
+        const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
+        const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
+        const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
+        const k = `${s}|${t}|${p}`;
+        if (s === 'buy' && filledBuyQty > 0) {
+          brMap[k] = filledBuyQty;
+        } else if (s === 'sell' && filledSellQty > 0) {
+          brMap[k] = filledSellQty;
+        }
+      });
+    } else {
+      const allBrokerOrders = [...activeUnfilled, ...activeFilled];
+      try {
+        const rawTuples = allBrokerOrders.map(row => [
+          normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
+          normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode) === 'MOC' ? 'MOC' : 'LOC',
+          brokerOrderPrice(row),
+          brokerOrderQty(row)
+        ]);
+        const brokerCombined = tungFn ? tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; })) : rawTuples;
+        (brokerCombined || []).forEach(o => {
+          const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
+          const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
+          const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
+          brMap[`${s}|${t}|${p}`] = (brMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
+        });
+      } catch(e) {}
+    }
   }
 
-  // Combine Keys
-  const allKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap), ...(isBrokerPhase ? Object.keys(brMap) : [])]));
+  // ⭐️ 체결시간대(isClosedPhase)에는 "실제 체결이 발생한 체결 항목만" 비교 목록에 포함
+  let allKeys = [];
+  if (isClosedPhase) {
+    allKeys = Object.keys(brMap);
+  } else {
+    allKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap), ...(isBrokerPhase ? Object.keys(brMap) : [])]));
+  }
   
   // Sort keys descending by price
   allKeys.sort((a, b) => {
@@ -1258,7 +1287,11 @@ window.compareOrderBookManual = function() {
   let allMatched = true;
 
   if (allKeys.length === 0) {
-    tbodyHtml = '<tr><td colspan="5" style="padding:10px;">비교할 주문 내역이 없습니다.</td></tr>';
+    if (isClosedPhase) {
+      tbodyHtml = '<tr><td colspan="5" style="padding:16px; color:var(--text-muted, #94a3b8); font-size:12px; text-align:center;">당일 체결 내역이 없습니다 (전량 목표가 미도달로 미체결 마감)</td></tr>';
+    } else {
+      tbodyHtml = '<tr><td colspan="5" style="padding:10px; color:var(--text-muted, #94a3b8);">비교할 주문 내역이 없습니다.</td></tr>';
+    }
   } else {
     allKeys.forEach(k => {
       const parts = k.split('|');
@@ -1270,20 +1303,15 @@ window.compareOrderBookManual = function() {
       const aQty = appMap[k] || 0;
       const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
       
-      let matched = false;
-      if (isBrokerPhase) {
-        matched = (vQty === aQty) && (aQty === bQty);
-      } else {
-        matched = (vQty === aQty);
-      }
+      let matched = (vQty === aQty) && (aQty === bQty);
       if (!matched) allMatched = false;
 
       tbodyHtml += `
         <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.07)); height:32px;">
-          <td>${label}</td>
+          <td style="text-align:left; padding-left:12px;">${label}</td>
           <td style="font-weight:bold; color:${vQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${vQty}</td>
           <td style="font-weight:bold; color:${aQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${aQty}</td>
-          ${isBrokerPhase ? `<td style="font-weight:bold; color:${bQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${bQty}</td>` : '<td style="color:var(--text-muted); font-size:11px;">-</td>'}
+          ${isBrokerPhase ? `<td style="font-weight:bold; color:${bQty > 0 ? '#10b981' : 'var(--text-muted)'}">${bQty}</td>` : '<td style="color:var(--text-muted); font-size:11px;">-</td>'}
           <td>
             ${matched ? '<span style="color:#10b981; font-weight:bold;">일치</span>' : '<span style="color:#ef4444; font-weight:bold;">불일치</span>'}
           </td>
@@ -1306,7 +1334,7 @@ window.compareOrderBookManual = function() {
     brokerColTitle = '<span style="color:var(--text-muted); font-weight:normal;">증권사 (-)</span>';
   }
 
-  // Inject Modal
+  // Inject Modal (Original Clean HTML Structure)
   const modalId = 'orderCompareManualModal';
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
@@ -1317,7 +1345,9 @@ window.compareOrderBookManual = function() {
         <div style="padding:14px 20px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:8px;">
             <h3 style="margin:0; font-size:16px; color:var(--primary, #8b5cf6);">✅ 일치확인 (수동 대조)</h3>
-            <button onclick="window.openSheetVerificationModal && window.openSheetVerificationModal()" style="background:linear-gradient(135deg, #6366f1, #4338ca); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">📊 시트 1:1 검증</button>
+            <button onclick="window.openSheetVerificationModal && window.openSheetVerificationModal()" style="background:linear-gradient(135deg, #6366f1, #4338ca); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 5px rgba(0,0,0,0.3);">
+              📊 시트 1:1 검증
+            </button>
           </div>
           ${phaseBadge}
         </div>
@@ -1353,7 +1383,7 @@ window.compareOrderBookManual = function() {
           <table style="width:100%; border-collapse:collapse; text-align:center; font-size:12px;">
             <thead style="background:var(--bg, #020617); position:sticky; top:0;">
               <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
-                <th style="width:30%;">주문</th>
+                <th style="width:30%; text-align:left; padding-left:12px;">주문</th>
                 <th style="width:15%;">VM</th>
                 <th style="width:15%;">앱</th>
                 <th style="width:20%;">${brokerColTitle}</th>
@@ -1364,13 +1394,13 @@ window.compareOrderBookManual = function() {
               ${tbodyHtml}
             </tbody>
           </table>
-          ${!allMatched ? '<div style="padding:10px; color:#ef4444; font-size:11px; text-align:center;">⚠️ <strong>수량 불일치가 발견되었습니다.</strong> 각 열의 값을 확인하세요.</div>' : '<div style="padding:10px; color:#10b981; font-size:11px; text-align:center;">🎉 모든 주문이 일치합니다!</div>'}
         </div>
-        <div style="padding:8px 16px; border-top:1px dashed var(--card-border, rgba(255,255,255,0.1)); text-align:center; font-size:11px; color:var(--text-muted, #94a3b8);">
-          ℹ️ 모든 주문표는 <strong>퉁치기(상계/합산)</strong>하여 표기 및 비교합니다.
-        </div>
-        <div style="padding:12px 16px; border-top:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:flex-end;">
-          <button onclick="document.getElementById('${modalId}').remove()" style="background:var(--bg, #333); color:var(--text, #fff); border:1px solid var(--border-color, #555); border-radius:6px; padding:7px 20px; font-weight:600; cursor:pointer;">닫기</button>
+
+        <div style="padding:12px 20px; border-top:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center; background:var(--bg, #020617);">
+          <div style="font-size:11px; color:var(--text-muted);">
+            <span style="color:#0ea5e9;">ℹ️</span> 모든 주문표는 <b>퉁치기(상계/합산)</b>하여 표기 및 비교합니다.
+          </div>
+          <button onclick="document.getElementById('${modalId}').remove()" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.15)); border-radius:6px; padding:6px 16px; font-size:12px; font-weight:bold; cursor:pointer;">닫기</button>
         </div>
       </div>
     </div>
@@ -1658,4 +1688,127 @@ window.openSheetVerificationModal = async function() {
       `;
     }
   }
+};
+
+
+// 📤 App3: 통합 주문표의 전체 통합 주문을 활성 브로커(키움/LS)로 일괄 전송
+window.submitCombinedOrdersToBroker = async function() {
+  let orders = window.__latestCombinedOrders;
+  
+  // Fallback: If __latestCombinedOrders is not populated yet, collect from active slots
+  if (!orders || !orders.length) {
+    const rawOrders = [];
+    const maxSlots = window.MAX_SLOTS || 12;
+    for (let i = 1; i <= maxSlots; i++) {
+      if (typeof window.isSlotActive === 'function' && !window.isSlotActive(i)) continue;
+      if (window.BrokerService && typeof window.BrokerService.isSlotForBroker === 'function' && !window.BrokerService.isSlotForBroker(i)) continue;
+      const res = typeof window.getBestResult === 'function' ? window.getBestResult(window.lastBTResults?.[i], i) : window.lastBTResults?.[i];
+      if (res && Array.isArray(res.orders)) {
+        rawOrders.push(...res.orders);
+      }
+    }
+    const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : null;
+    if (tungFn && rawOrders.length > 0) {
+      orders = tungFn(rawOrders);
+    } else {
+      orders = rawOrders;
+    }
+  }
+
+  if (!orders || !orders.length) {
+    alert("전송할 통합 주문이 없습니다.");
+    return;
+  }
+  if (!window.BrokerService) {
+    alert("BrokerService가 로드되지 않았습니다.");
+    return;
+  }
+
+  const broker = window.BrokerService.activeBroker || 'kiwoom';
+  const isKiwoom = broker === 'kiwoom';
+  const brokerLabel = isKiwoom ? '키움증권' : 'LS증권';
+  const slotRange = isKiwoom ? '1~6' : '7~12';
+
+  const symbol = (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : '') || 'SOXL';
+
+  // 실전/모의 계좌 상태 확인
+  let modeLine = "";
+  try {
+    const st = await window.BrokerService.keyStatus(broker);
+    if (st && st.success !== false) {
+      if (!st.hasKey && !st.registered) {
+        alert(`[${brokerLabel}] API 키가 등록되지 않았습니다.\n설정 → 🔐 브로커 API 키에서 먼저 등록하세요.`);
+        return;
+      }
+      modeLine = String(st.paperMode) === "1"
+        ? "🟡 모의투자 — 실제 체결되지 않습니다\n\n"
+        : "🔴 실전 계좌 — 실제로 체결되어 돈이 나갑니다\n\n";
+    }
+  } catch (e) {
+    modeLine = "⚠️ 실전/모의 확인 실패 — 실전일 수 있습니다\n\n";
+  }
+
+  const totalUsd = orders.reduce((s, o) => s + (Number(o[2]) || 0) * (Number(o[3]) || 0), 0);
+  const summary = orders.map((o, idx) =>
+    `${idx + 1}. ${o[0]}${o[1] ? `(${o[1]})` : ""} ${symbol} ${o[3]}주 @ $${Number(o[2]).toFixed(2)}`
+  ).join("\n");
+
+  const confirmMsg = `${modeLine}🏛️ [${brokerLabel} 통합 주문 전송]\n슬롯 범위: 슬롯 ${slotRange}\n총 주문 건수: ${orders.length}건\n총 예상 대금: $${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}\n\n[주문 상세 목록]\n${summary}\n\n위 통합 주문을 ${brokerLabel}에 지금 전송하시겠습니까?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById('btnSubmitCombinedOrders');
+  const orgText = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `⏳ ${brokerLabel} 주문 전송 중...`;
+  }
+
+  const results = [];
+  try {
+    for (let i = 0; i < orders.length; i++) {
+      const o = orders[i];
+      const side = o[0] === '매수' ? 'BUY' : 'SELL';
+      const ordType = o[1] || 'LOC';
+      const price = Number(o[2]) || 0;
+      const qty = Number(o[3]) || 0;
+
+      try {
+        const res = await window.BrokerService.sendOverseasOrder({
+          broker,
+          symbol,
+          qty,
+          price,
+          side,
+          ordType
+        });
+        const ok = res && (res.success || res.orderId || res.rsp_cd === "00000" || res.return_code === 0);
+        const ordNo = res?.orderId || res?.ord_no || res?.OrdNo || "";
+        const ordNoStr = ordNo ? ` (주문번호: ${ordNo})` : "";
+        const errMsg = res?.error || res?.reason || res?.rsp_msg || res?.message || "실패";
+        results.push(`[${i + 1}/${orders.length}] ${side}(${ordType}) $${price.toFixed(2)} x${qty}주 → ${ok ? '✅ 접수완료' + ordNoStr : '❌ ' + errMsg}`);
+      } catch (err) {
+        results.push(`[${i + 1}/${orders.length}] ${side}(${ordType}) $${price.toFixed(2)} x${qty}주 → ❌ ${err.message}`);
+      }
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = orgText;
+    }
+  }
+
+  // 주문 전송 후 캐시 무효화 및 화면 갱신
+  try {
+    if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === 'function') {
+      window.BrokerReconcile.invalidate();
+    }
+    if (typeof window.refreshOrderStatusCache === 'function') {
+      window.refreshOrderStatusCache(true);
+    }
+  } catch (e) {
+    console.warn("Status refresh error after submit:", e);
+  }
+
+  alert(`[${brokerLabel} 통합 주문 전송 결과]\n\n` + results.join("\n"));
 };

@@ -2902,29 +2902,55 @@ async function pushTodayOrders(freshBySlot) {
     }
     if (!myUserId) return { ok: false, reason: "userId 없음" };
 
-    // 활성 슬롯의 주문 수집
-    const orders = [];
+    // ⭐️ [통합 주문표 단일 발주] 개별 슬롯별로 따로 발주하지 않고,
+    // 동일 브로커(키움 슬롯 1~6 / LS 슬롯 7~12) 그룹별로 주문들을 모아 퉁치기(run_tungchigi_master)를 실행한 뒤
+    // 통합 주문표(1개 티켓)로 단일화하여 VM에 전송/예약합니다. (예수금 이중잠김 및 개별 튕김 원천 방지)
+    const rawOrdersByBroker = { kiwoom: [], ls: [] };
+    const tickerByBroker = { kiwoom: "", ls: "" };
+    const repSlotByBroker = { kiwoom: 1, ls: 7 };
+
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
       const res = (freshBySlot && freshBySlot[i]) || getBestResult(lastBTResults[i], i);
       if (!res || !res.orders) continue;
       const symbol = String(getSlotConfig(i)?.basics?.ticker || "").toUpperCase();
+      const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "kiwoom" : "ls");
+      if (symbol) tickerByBroker[broker] = symbol;
+      if (!repSlotByBroker[broker]) repSlotByBroker[broker] = i;
+
       res.orders.forEach(o => {
-        // order tuple: [side('매수'/'매도'), mode('MOC'/'LOC'등), price, qty] — 심볼은 슬롯 설정에서
+        if (Array.isArray(o) && o.length >= 4) {
+          rawOrdersByBroker[broker].push(o);
+        }
+      });
+    }
+
+    const orders = [];
+    const tungFn = typeof window.run_tungchigi_master === "function" ? window.run_tungchigi_master : null;
+
+    for (const br of ["kiwoom", "ls"]) {
+      const rawList = rawOrdersByBroker[br];
+      const symbol = tickerByBroker[br] || "SOXL";
+      const repSlot = repSlotByBroker[br] || (br === "kiwoom" ? 1 : 7);
+      if (!rawList || rawList.length === 0) continue;
+
+      const combined = tungFn ? tungFn(rawList) : rawList;
+
+      (combined || []).forEach(o => {
         const sideKr = o[0];
         const side = sideKr === '매수' ? 'buy' : (sideKr === '매도' ? 'sell' : '');
         const ordType = o[1] === 'MOC' ? 'MOC' : 'LOC';
-        const price = parseFloat(o[2]) || 0; // MOC는 가격 없음(빈 문자열)
-        const qty = parseInt(o[3], 10);
+        const price = parseFloat(o[2]) || 0;
+        const qty = parseInt(o[3], 10) || 0;
         if (symbol && side && qty > 0 && (ordType === 'MOC' || price > 0)) {
           orders.push({
-            slot: i,
+            slot: repSlot,
             symbol,
             side,
             qty,
             ordType,
             price: price.toFixed(2),
-            broker: window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "kiwoom" : "ls"),
+            broker: br,
           });
         }
       });

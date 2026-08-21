@@ -285,8 +285,8 @@ window.BrokerService = {
     }
   },
 
-  async sendOverseasOrder({ slot, symbol, qty, price, side, ordType = "LIMIT" }) {
-    const broker = this.brokerForSlot(slot);
+  async sendOverseasOrder({ slot, broker: targetBroker, symbol, qty, price, side, ordType = "LIMIT" }) {
+    const broker = targetBroker || (slot ? this.brokerForSlot(slot) : this.activeBroker);
     return await this.brokerFetch(`/api/broker/${broker}/order`, "POST", { symbol, qty, price: Number(price).toFixed(2), side, ordType });
   },
 
