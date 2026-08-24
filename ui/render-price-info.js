@@ -694,3 +694,78 @@ window.UI.priceInfo.preloadCorePriceTickers = preloadCorePriceTickers;
 window.UI.priceInfo.loadPriceInfoViewData = loadPriceInfoViewData;
 window.UI.priceInfo.renderPriceInfoView = renderPriceInfoView;
 window.UI.priceInfo.changePriceInfoTicker = changePriceInfoTicker;
+
+
+// ⭐️ [강제 새로고침] 주가 데이터 강제 재다운로드 및 화면 갱신
+async function forceReloadAllPrices() {
+  window.cachedPriceMap = {};
+  if (typeof showToast === 'function') {
+    showToast("📈 주가 데이터를 강제 다운로드 중입니다...", "⏳");
+  }
+  if (window.priceLoader && typeof window.priceLoader.loadAllSheetPrices === 'function') {
+    try {
+      window.priceLoader._loadAllPricesPromise = null;
+      await window.priceLoader.loadAllSheetPrices(true);
+      if (typeof showToast === 'function') {
+        showToast("주가 데이터 갱신 완료!", "✅");
+      }
+      if (typeof showPriceInfoView === 'function') {
+        showPriceInfoView();
+      }
+    } catch(e) {
+      if (typeof showToast === 'function') {
+        showToast("주가 데이터 다운로드 실패: " + (e?.message || e), "❌");
+      }
+    }
+  }
+}
+window.forceReloadAllPrices = forceReloadAllPrices;
+
+// ⭐️ [3초 롱프레스] 주가 정보 버튼을 3초간 길게 누르면 강제 새로고침 실행
+function initPriceInfoLongPress() {
+  const btn = document.getElementById('btnPriceInfo');
+  if (!btn || btn.__longPressBound) return;
+  btn.__longPressBound = true;
+
+  let timer = null;
+  let isLongPress = false;
+
+  const startPress = () => {
+    isLongPress = false;
+    timer = setTimeout(async () => {
+      isLongPress = true;
+      await forceReloadAllPrices();
+    }, 3000);
+  };
+
+  const cancelPress = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  btn.addEventListener('mousedown', startPress);
+  btn.addEventListener('touchstart', startPress, { passive: true });
+  btn.addEventListener('mouseup', cancelPress);
+  btn.addEventListener('mouseleave', cancelPress);
+  btn.addEventListener('touchend', cancelPress);
+  btn.addEventListener('touchcancel', cancelPress);
+
+  btn.addEventListener('click', (e) => {
+    if (isLongPress) {
+      e.preventDefault();
+      e.stopPropagation();
+      isLongPress = false;
+      return false;
+    }
+  });
+}
+window.initPriceInfoLongPress = initPriceInfoLongPress;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPriceInfoLongPress);
+} else {
+  setTimeout(initPriceInfoLongPress, 300);
+}
+
