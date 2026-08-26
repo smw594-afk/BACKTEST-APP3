@@ -157,7 +157,7 @@ async function renderBrokerFills(broker) {
         : `<td style="text-align:center; color:${textMuted};">-</td>`;
 
       return `<tr style="text-align:center; color:${textColor}; border-bottom:1px solid ${borderCol};">
-        <td style="text-align:center; font-weight:700; color:${symbolColor};">${r.symbol || r.stk_nm || '-'}</td>
+        <td style="text-align:center; font-weight:700; color:${symbolColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
         <td style="text-align:center; color:${isBuy ? buyColor : sellColor}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
         <td style="text-align:center; color:${textColor};">$${buyPric.toFixed(2)}</td>
         <td style="text-align:center; color:${textColor};">$${cntrPric.toFixed(2)}</td>
@@ -248,14 +248,20 @@ async function refreshSellReconcileFills() {
 }
 
 function renderDBTradeHistory() {
+  if (historyViewMode === 'ls') {
+    const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
+    if (title) title.textContent = '📋 LS증권 매수·매도 내역';
+    renderBrokerFills('ls');
+    return;
+  }
   if (historyViewMode === 'kiwoom') {
-    const title = document.getElementById('historyTitle');
+    const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
     if (title) title.textContent = '📋 키움 매수·매도 내역';
-    renderKiwoomFills();
+    renderBrokerFills('kiwoom');
     return;
   }
   if (historyViewMode === 'kis') {
-    const title = document.getElementById('historyTitle');
+    const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
     if (title) title.textContent = '📋 한투 매수·매도 내역';
     renderKisFills();
     return;
@@ -448,21 +454,20 @@ function renderDBTradeHistory() {
     if (scrollHost && !historyScrollBound) {
       historyScrollBound = true;
       scrollHost.addEventListener('scroll', () => {
+        if (historyViewMode !== 'strategy') return;
         if (scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 40) {
           historyMonthOffset += 1;
           renderDBTradeHistory();
         }
       }, { passive: true });
 
-      // ⚠️ 2026-08-04: 행이 몇 개뿐이면 scrollHeight===clientHeight라 위 'scroll' 이벤트가
-      // 아예 발생하지 않는다(스크롤할 내용이 없음) — 그래서 사용자가 스와이프해도 반응이
-      // 없었다(실증: 3줄짜리 표에서 스크롤 자체가 안 걸림). 오버플로우 여부와 무관하게
-      // 위로 스와이프(휠 아래로 굴림 포함)하면 바로 이전 달을 불러오도록 별도 처리한다.
       let touchStartY = null;
       scrollHost.addEventListener('touchstart', (e) => {
+        if (historyViewMode !== 'strategy') return;
         touchStartY = e.touches[0].clientY;
       }, { passive: true });
       scrollHost.addEventListener('touchend', (e) => {
+        if (historyViewMode !== 'strategy') return;
         if (touchStartY === null) return;
         const deltaY = touchStartY - e.changedTouches[0].clientY;
         touchStartY = null;
@@ -472,6 +477,7 @@ function renderDBTradeHistory() {
         }
       }, { passive: true });
       scrollHost.addEventListener('wheel', (e) => {
+        if (historyViewMode !== 'strategy') return;
         if (e.deltaY > 20 && scrollHost.scrollHeight <= scrollHost.clientHeight + 5) {
           historyMonthOffset += 1;
           renderDBTradeHistory();

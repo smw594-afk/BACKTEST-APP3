@@ -143,8 +143,29 @@
   function ingest(broker, data) {
     const rows = Array.isArray(data && data.executions) ? data.executions
       : (Array.isArray(data && data.rows) ? data.rows : []);
+    
+    // 1st pass: build symbol map from id / ord_no
+    const symByOrdId = new Map();
     rows.forEach(r => {
-      const symbol = normSymbol(r.symbol || r.ticker);
+      const sym = normSymbol(r.symbol || r.ticker || r.stk_cd || r.IsuNo || r.ShtnIsuNo);
+      if (sym) {
+        if (r.id) symByOrdId.set(String(r.id), sym);
+        if (r.ord_no) symByOrdId.set(String(r.ord_no), sym);
+        if (r.org_ord_no) symByOrdId.set(String(r.org_ord_no), sym);
+      }
+    });
+
+    let lastKnownSym = "";
+    rows.forEach(r => {
+      let symbol = normSymbol(r.symbol || r.ticker || r.stk_cd || r.IsuNo || r.ShtnIsuNo);
+      if (!symbol && r.id && symByOrdId.has(String(r.id))) symbol = symByOrdId.get(String(r.id));
+      if (!symbol && r.ord_no && symByOrdId.has(String(r.ord_no))) symbol = symByOrdId.get(String(r.ord_no));
+      if (!symbol && r.org_ord_no && symByOrdId.has(String(r.org_ord_no))) symbol = symByOrdId.get(String(r.org_ord_no));
+      if (symbol) lastKnownSym = symbol;
+      if (!symbol && lastKnownSym) symbol = lastKnownSym;
+      if (!symbol && typeof getSoleActiveTicker === 'function') symbol = normSymbol(getSoleActiveTicker());
+      if (!symbol) symbol = "SOXL"; // Fallback to primary SOXL if completely unidentified
+
       const date = normalizeMarketDate(r);
       const qty = Math.abs(Number(r.filledQty != null ? r.filledQty : r.qty) || 0);
       const price = Math.abs(Number(r.filledPrice != null ? r.filledPrice : r.price) || 0);

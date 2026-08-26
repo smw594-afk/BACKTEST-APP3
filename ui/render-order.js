@@ -1138,22 +1138,20 @@ window.submitSlotOrdersToBroker = async function (slotNum) {
   alert(`[${brokerLabel}] 슬롯${slotNum} 전송 결과\n\n` + results.join("\n"));
 };
 
-window.compareOrderBookManual = async function() {
+
+// ⭐️ [단일 진실 공급원 SSOT] 홈 화면과 수동 대조 모달이 100% 동일하게 공유하는 주문 대조 평가 엔진
+window.getCombinedOrderEvaluationData = function() {
   const cache = window.orderStatusCache || {};
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
   const isBrokerPhase = currentPhase === 'order' || currentPhase === 'closed';
   const isClosedPhase = currentPhase === 'closed';
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
-  const symbol = getSoleActiveTicker();
+  const symbol = getSoleActiveTicker() || 'SOXL';
   const compareDates = typeof brokerCompareDateSet === 'function' ? brokerCompareDateSet() : new Set();
   
   const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : (typeof combineOrders === 'function' ? combineOrders : null);
-  if (!tungFn) {
-    alert("퉁치기 알고리즘을 찾을 수 없습니다.");
-    return;
-  }
 
-  // Calculate dynamic KST offsets
+  // 1. KST Time offsets
   const now = new Date();
   const nowEtStr = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, hour: "2-digit" }).format(now);
   const nowKstStr = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour12: false, hour: "2-digit" }).format(now);
@@ -1164,7 +1162,7 @@ window.compareOrderBookManual = async function() {
   const kstClosedStr = `${fmtTime(16, 0)} ~ ${fmtTime(17, 0)}`;
   const kstReservedStr = `${fmtTime(17, 0)} ~ ${fmtTime(9, 20)}`;
 
-  // 1. App Orders (앱 통합 주문표)
+  // 2. App Orders (앱 통합 주문표)
   let appRaw = [];
   let appCombined = [];
   if (typeof collectCurrentCombinedOrders === 'function') {
@@ -1175,7 +1173,7 @@ window.compareOrderBookManual = async function() {
         if (c[2] !== undefined && c[2] !== '' && !isNaN(c[2])) c[2] = Math.round(parseFloat(c[2]) * 100) / 100;
         return c;
       });
-      appCombined = tungFn(sanitizedApp);
+      appCombined = tungFn ? tungFn(sanitizedApp) : sanitizedApp;
     } catch(e) {
       appCombined = appRaw;
     }
@@ -1188,7 +1186,7 @@ window.compareOrderBookManual = async function() {
     appMap[`${s}|${t}|${p}`] = (appMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
   });
 
-  // 2. VM Orders
+  // 3. VM Orders (VM 통합 주문표)
   const vmRawOrders = (Array.isArray(cache.vmOrders) ? cache.vmOrders : []).filter(v => {
     if (!v) return false;
     const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? 'kiwoom' : 'ls');
@@ -1202,7 +1200,7 @@ window.compareOrderBookManual = async function() {
       (row && row.price !== undefined) ? row.price : (row ? row[2] : 0),
       (row && row.qty !== undefined) ? row.qty : (row ? row[3] : 0)
     ]);
-    vmCombined = tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; }));
+    vmCombined = tungFn ? tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; })) : rawTuples;
   } catch(e) {
     vmCombined = vmRawOrders.map(row => [
       normalizeOrderSide(row?.side || row?.orderSide || row[0]) === 'buy' ? '매수' : '매도',
@@ -1211,7 +1209,6 @@ window.compareOrderBookManual = async function() {
       (row && row.qty !== undefined) ? row.qty : (row ? row[3] : 0)
     ]);
   }
-  
   const vmMap = {};
   (vmCombined || []).forEach(o => {
     const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
@@ -1220,7 +1217,7 @@ window.compareOrderBookManual = async function() {
     vmMap[`${s}|${t}|${p}`] = (vmMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
   });
 
-  // 3. Broker Orders
+  // 4. Broker Orders (증권사 주문/체결)
   const unfilled = Array.isArray(cache.unfilledOrders) ? cache.unfilledOrders : [];
   const fills = Array.isArray(cache.filledOrders) ? cache.filledOrders : [];
   const filterRow = (row) => {
@@ -1234,7 +1231,6 @@ window.compareOrderBookManual = async function() {
   };
   const activeUnfilled = unfilled.filter(filterRow);
   const activeFilled = fills.filter(filterRow);
-  
   const filledBuyQty = activeFilled.reduce((sum, f) => {
     const s = String(f.side || "").toUpperCase();
     return sum + (s.includes("BUY") || s.includes("매수") ? (Number(f.filledQty || f.qty) || 0) : 0);
@@ -1247,17 +1243,13 @@ window.compareOrderBookManual = async function() {
   const brMap = {};
   if (isBrokerPhase) {
     if (isClosedPhase) {
-      // ⭐️ 체결시간대에는 실제 체결이 발생한 항목만 매핑
       (appCombined || []).forEach(o => {
         const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
         const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
         const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
         const k = `${s}|${t}|${p}`;
-        if (s === 'buy' && filledBuyQty > 0) {
-          brMap[k] = filledBuyQty;
-        } else if (s === 'sell' && filledSellQty > 0) {
-          brMap[k] = filledSellQty;
-        }
+        if (s === 'buy' && filledBuyQty > 0) brMap[k] = filledBuyQty;
+        else if (s === 'sell' && filledSellQty > 0) brMap[k] = filledSellQty;
       });
     } else {
       const allBrokerOrders = [...activeUnfilled, ...activeFilled];
@@ -1279,24 +1271,64 @@ window.compareOrderBookManual = async function() {
     }
   }
 
-  // ⭐️ 체결시간대(isClosedPhase)에는 "실제 체결이 발생한 체결 항목만" 비교 목록에 포함
+  // 5. Keys & Match Evaluation
   let allKeys = [];
   if (isClosedPhase) {
     allKeys = Object.keys(brMap);
   } else {
     allKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap), ...(isBrokerPhase ? Object.keys(brMap) : [])]));
   }
-  
-  // Sort keys descending by price
-  allKeys.sort((a, b) => {
-    const pA = Number(a.split('|')[2]);
-    const pB = Number(b.split('|')[2]);
-    return pB - pA;
-  });
+
+  let isAllMatched = true;
+  if (allKeys.length === 0 && !isClosedPhase) {
+    isAllMatched = false;
+  } else {
+    allKeys.forEach(k => {
+      const vQty = vmMap[k] || 0;
+      const aQty = appMap[k] || 0;
+      const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
+      const matched = isBrokerPhase ? ((vQty === aQty) && (aQty === bQty)) : (vQty === aQty);
+      if (!matched) isAllMatched = false;
+    });
+  }
+
+  return {
+    cache,
+    currentPhase,
+    isBrokerPhase,
+    isClosedPhase,
+    activeBr,
+    symbol,
+    kstOrderStr,
+    kstClosedStr,
+    kstReservedStr,
+    appMap,
+    vmMap,
+    brMap,
+    allKeys,
+    isAllMatched
+  };
+};
+
+
+window.compareOrderBookManual = async function() {
+  const evalData = window.getCombinedOrderEvaluationData();
+  const {
+    cache,
+    currentPhase,
+    isBrokerPhase,
+    isClosedPhase,
+    kstOrderStr,
+    kstClosedStr,
+    kstReservedStr,
+    appMap,
+    vmMap,
+    brMap,
+    allKeys,
+    isAllMatched
+  } = evalData;
 
   let tbodyHtml = '';
-  let allMatched = true;
-
   if (allKeys.length === 0) {
     if (isClosedPhase) {
       tbodyHtml = '<tr><td colspan="5" style="padding:16px; color:var(--text-muted, #94a3b8); font-size:12px; text-align:center;">당일 체결 내역이 없습니다 (전량 목표가 미도달로 미체결 마감)</td></tr>';
@@ -1314,8 +1346,7 @@ window.compareOrderBookManual = async function() {
       const aQty = appMap[k] || 0;
       const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
       
-      let matched = (vQty === aQty) && (aQty === bQty);
-      if (!matched) allMatched = false;
+      const matched = isBrokerPhase ? ((vQty === aQty) && (aQty === bQty)) : (vQty === aQty);
 
       tbodyHtml += `
         <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.07)); height:32px;">
@@ -1345,7 +1376,7 @@ window.compareOrderBookManual = async function() {
     brokerColTitle = '<span style="color:var(--text-muted); font-weight:normal;">증권사 (-)</span>';
   }
 
-  // Inject Modal (Original Clean HTML Structure)
+  // Inject Modal
   const modalId = 'orderCompareManualModal';
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
@@ -1418,7 +1449,6 @@ window.compareOrderBookManual = async function() {
   `;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
-
 
 window.openSheetVerificationModal = async function() {
   const modalId = 'sheetVerificationModal';
@@ -1834,11 +1864,6 @@ function updateCombinedOrderMatchStatus() {
   const cache = window.orderStatusCache || {};
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
   const isBrokerPhase = currentPhase === 'order' || currentPhase === 'closed';
-  const isClosedPhase = currentPhase === 'closed';
-  const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
-  const symbol = getSoleActiveTicker() || 'SOXL';
-  const compareDates = typeof brokerCompareDateSet === 'function' ? brokerCompareDateSet() : new Set();
-  const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : (typeof combineOrders === 'function' ? combineOrders : null);
 
   // ⭐️ 1. 첫 실행 시(이전 판정 결과가 전혀 없는 상태): [⏳ 확인중] 보류 상태 표시
   const hasEverChecked = cache.lastVerdict !== undefined && cache.lastVerdict !== null;
@@ -1876,136 +1901,9 @@ function updateCombinedOrderMatchStatus() {
     return;
   }
 
-  // ⭐️ 3. 최종 결과 도착 시 (VM, 앱, 증권사 최신 데이터로 최종 판정 및 UI 갱신)
-  // 1. App Orders
-  let appRaw = [];
-  let appCombined = [];
-  if (typeof collectCurrentCombinedOrders === 'function') {
-    appRaw = collectCurrentCombinedOrders().orders || [];
-    try {
-      const sanitizedApp = appRaw.map(o => {
-        const c = [...o];
-        if (c[2] !== undefined && c[2] !== '' && !isNaN(c[2])) c[2] = Math.round(parseFloat(c[2]) * 100) / 100;
-        return c;
-      });
-      appCombined = tungFn ? tungFn(sanitizedApp) : sanitizedApp;
-    } catch(e) {
-      appCombined = appRaw;
-    }
-  }
-  const appMap = {};
-  (appCombined || []).forEach(o => {
-    const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-    const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-    const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
-    appMap[`${s}|${t}|${p}`] = (appMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
-  });
-
-  // 2. VM Orders
-  const vmRawOrders = (Array.isArray(cache.vmOrders) ? cache.vmOrders : []).filter(v => {
-    if (!v) return false;
-    const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? 'kiwoom' : 'ls');
-    return b === activeBr;
-  });
-  let vmCombined = [];
-  try {
-    const rawTuples = vmRawOrders.map(row => [
-      normalizeOrderSide(row?.side || row?.orderSide || row[0]) === 'buy' ? '매수' : '매도',
-      normalizeOrderType(row?.ordType || row?.orderType || row[1]) === 'MOC' ? 'MOC' : 'LOC',
-      (row && row.price !== undefined) ? row.price : (row ? row[2] : 0),
-      (row && row.qty !== undefined) ? row.qty : (row ? row[3] : 0)
-    ]);
-    vmCombined = tungFn ? tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; })) : rawTuples;
-  } catch(e) {
-    vmCombined = vmRawOrders.map(row => [
-      normalizeOrderSide(row?.side || row?.orderSide || row[0]) === 'buy' ? '매수' : '매도',
-      normalizeOrderType(row?.ordType || row?.orderType || row[1]) === 'MOC' ? 'MOC' : 'LOC',
-      (row && row.price !== undefined) ? row.price : (row ? row[2] : 0),
-      (row && row.qty !== undefined) ? row.qty : (row ? row[3] : 0)
-    ]);
-  }
-  const vmMap = {};
-  (vmCombined || []).forEach(o => {
-    const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-    const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-    const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
-    vmMap[`${s}|${t}|${p}`] = (vmMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
-  });
-
-  // 3. Broker Orders
-  const unfilled = Array.isArray(cache.unfilledOrders) ? cache.unfilledOrders : [];
-  const fills = Array.isArray(cache.filledOrders) ? cache.filledOrders : [];
-  const filterRow = (row) => {
-    if (!row) return false;
-    if (row.broker && String(row.broker).toLowerCase() !== activeBr) return false;
-    const rowSym = brokerOrderSymbol(row);
-    if (symbol && rowSym && rowSym !== symbol) return false;
-    const rowDate = normalizeBrokerOrderDate(row);
-    if (rowDate && compareDates.size > 0 && !compareDates.has(rowDate)) return false;
-    return true;
-  };
-  const activeUnfilled = unfilled.filter(filterRow);
-  const activeFilled = fills.filter(filterRow);
-  const filledBuyQty = activeFilled.reduce((sum, f) => {
-    const s = String(f.side || "").toUpperCase();
-    return sum + (s.includes("BUY") || s.includes("매수") ? (Number(f.filledQty || f.qty) || 0) : 0);
-  }, 0);
-  const filledSellQty = activeFilled.reduce((sum, f) => {
-    const s = String(f.side || "").toUpperCase();
-    return sum + (s.includes("SELL") || s.includes("매도") ? (Number(f.filledQty || f.qty) || 0) : 0);
-  }, 0);
-
-  const brMap = {};
-  if (isBrokerPhase) {
-    if (isClosedPhase) {
-      (appCombined || []).forEach(o => {
-        const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-        const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-        const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
-        const k = `${s}|${t}|${p}`;
-        if (s === 'buy' && filledBuyQty > 0) brMap[k] = filledBuyQty;
-        else if (s === 'sell' && filledSellQty > 0) brMap[k] = filledSellQty;
-      });
-    } else {
-      const allBrokerOrders = [...activeUnfilled, ...activeFilled];
-      try {
-        const rawTuples = allBrokerOrders.map(row => [
-          normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
-          normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode) === 'MOC' ? 'MOC' : 'LOC',
-          brokerOrderPrice(row),
-          brokerOrderQty(row)
-        ]);
-        const brokerCombined = tungFn ? tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; })) : rawTuples;
-        (brokerCombined || []).forEach(o => {
-          const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-          const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-          const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
-          brMap[`${s}|${t}|${p}`] = (brMap[`${s}|${t}|${p}`] || 0) + Number(o[3]);
-        });
-      } catch(e) {}
-    }
-  }
-
-  // Evaluate All Keys
-  let allKeys = [];
-  if (isClosedPhase) {
-    allKeys = Object.keys(brMap);
-  } else {
-    allKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap), ...(isBrokerPhase ? Object.keys(brMap) : [])]));
-  }
-
-  let isAllMatched = true;
-  if (allKeys.length === 0 && !isClosedPhase) {
-    isAllMatched = false;
-  } else {
-    allKeys.forEach(k => {
-      const vQty = vmMap[k] || 0;
-      const aQty = appMap[k] || 0;
-      const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
-      let matched = isBrokerPhase ? ((vQty === aQty) && (aQty === bQty)) : (vQty === aQty);
-      if (!matched) isAllMatched = false;
-    });
-  }
+  // ⭐️ 3. SSOT 공통 평가 함수로부터 정확한 일치 여부 획득
+  const evalData = window.getCombinedOrderEvaluationData();
+  const isAllMatched = evalData.isAllMatched;
 
   // Save Final Verdict
   cache.lastVerdict = isAllMatched ? 'matched' : 'mismatched';
@@ -2030,4 +1928,3 @@ function updateCombinedOrderMatchStatus() {
   }
 }
 window.updateCombinedOrderMatchStatus = updateCombinedOrderMatchStatus;
-
