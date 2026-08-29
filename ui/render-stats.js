@@ -160,7 +160,7 @@ function refreshStatsTable() {
   //   화면: 💼 자산현황(파이차트) ↔ 📡 계좌 정보(해외계좌 실잔고)
   //   ※ 실시간 운영현황 절대 없음
   // ══════════════════════════════════════════════════════
-  if (grid && grid.classList.contains('perf-metrics-layout')) {
+  if ((grid && grid.classList.contains('perf-metrics-layout')) || window.isStatsMode) {
     if (statsTitle) statsTitle.innerHTML = statsDisplayMode === 'chart' ? '💼 자산현황' : (`📡 계좌 정보` + (window.lastAccountNo ? ` (${window.lastAccountNo})` : ''));
     if (statsDisplayMode === 'chart') {
       if (tableContainer) tableContainer.style.display = 'none';
@@ -367,7 +367,7 @@ function getDisplayStatusData(res, slotNum) {
     let firstActiveDate = null;
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
-        const d = localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`);
+        const d = localStorage.getItem(`vtotal3_sheet_last_date_${i}_${myUserId}`) || localStorage.getItem(`vtotal_sheet_last_date_${i}_${myUserId}`);
         if (d && d !== "-" && d !== "1900-01-01") {
           firstActiveDate = d;
           break;
@@ -379,23 +379,22 @@ function getDisplayStatusData(res, slotNum) {
     sheetDate = getDisplaySheetDate(slotNum, res, slotConfigs[slotNum]);
   }
 
-  let displayTotal = s.totalAssets !== undefined ? s.totalAssets : (s.total_assets || 0);
-  let displayBase = s.base !== undefined ? s.base : (s.base_principal || 0);
-  let displayPrincipal = s.realPrincipal !== undefined ? s.realPrincipal : (s.base || 0);
-  let displayCash = s.cash !== undefined ? s.cash : 0;
-  let displayEval = s.evalVal !== undefined ? s.evalVal : 0;
-  let displayQty = s.qty !== undefined ? s.qty : 0;
-  let displayCurrentMdd = s.currentMdd !== undefined ? s.currentMdd : 0;
-  let displayMdd = s.mdd !== undefined ? s.mdd : displayCurrentMdd;
+  let displayTotal = Number(s.totalAssets !== undefined ? s.totalAssets : (s.total_assets || 0));
+  let displayBase = Number(s.base !== undefined ? s.base : (s.base_principal || 0));
+  let displayPrincipal = Number(s.realPrincipal !== undefined ? s.realPrincipal : (s.base || displayBase || 0));
+  let displayCash = Number(s.cash !== undefined ? s.cash : 0);
+  let displayEval = Number(s.evalVal !== undefined ? s.evalVal : 0);
+  let displayQty = Number(s.qty !== undefined ? s.qty : 0);
+  let displayCurrentMdd = Number(s.currentMdd !== undefined ? s.currentMdd : 0);
+  let displayMdd = Number(s.mdd !== undefined ? s.mdd : displayCurrentMdd);
   let displayYield = displayPrincipal > 0 ? (displayTotal - displayPrincipal) / displayPrincipal : 0;
-  let displayEvalReturn = s.evalReturn !== undefined ? s.evalReturn : 0;
-  let displayDepletion = s.depletion !== undefined ? s.depletion : 0;
-  let displayAvgPrice = s.avgPrice !== undefined ? s.avgPrice : 0;
-  let displayCagr = s.cagr !== undefined ? s.cagr : 0;
-  // engine.js reports calmar as |CAGR/MDD| — restore the standard sign
-  // convention here (calmar carries the sign of CAGR; MDD is a magnitude).
-  let displayCalmar = s.calmar !== undefined ? s.calmar : 0;
+  let displayEvalReturn = Number(s.evalReturn !== undefined ? s.evalReturn : 0);
+  let displayDepletion = Number(s.depletion !== undefined ? s.depletion : 0);
+  let displayAvgPrice = Number(s.avgPrice !== undefined ? s.avgPrice : 0);
+  let displayCagr = Number(s.cagr !== undefined ? s.cagr : 0);
+  let displayCalmar = Number(s.calmar !== undefined ? s.calmar : 0);
   if (displayCagr < 0) displayCalmar = -Math.abs(displayCalmar);
+
   const applyHoldingsFallback = (jsonData) => {
     const holdings = Array.isArray(jsonData?.holdings) ? jsonData.holdings : [];
     if (holdings.length === 0) return;
@@ -407,100 +406,64 @@ function getDisplayStatusData(res, slotNum) {
       hQty += q;
       hCost += cost;
     });
-    if (hQty > 0 && (!displayQty || displayQty <= 0)) displayQty = hQty;
-    if (hQty > 0 && (!displayAvgPrice || displayAvgPrice <= 0)) displayAvgPrice = hCost > 0 ? hCost / hQty : displayAvgPrice;
+    if (hQty > 0) displayQty = hQty;
+    if (hQty > 0 && hCost > 0) displayAvgPrice = hCost / hQty;
   };
 
-
+  // ⭐️ [시트 실제값 단일 진실 공급원] dailyStates가 있으면 최신 시트 행과 JSON을 기반으로 실제 계좌 값 반영
   if (slotNum !== 'Combined') {
-    if (res.isSynced) {
-      // sync
-    } else if (res.dailyStates && res.dailyStates.length > 0) {
+    if (res.dailyStates && res.dailyStates.length > 0) {
       const lastState = res.dailyStates[res.dailyStates.length - 1];
-      displayTotal = lastState.asset;
+      if (lastState && lastState.asset !== undefined) displayTotal = Number(lastState.asset || 0);
       try {
-        const lastJson = JSON.parse(lastState.json);
-        displayCash = lastJson.cash;
-        displayBase = lastJson.base_principal;
-        displayPrincipal = lastJson.realPrincipal || displayPrincipal;
-        displayEval = lastJson.evalVal !== undefined ? lastJson.evalVal : (displayTotal - displayCash);
-        displayQty = lastJson.qty !== undefined ? lastJson.qty : displayQty;
-        displayYield = displayPrincipal > 0 ? (displayTotal - displayPrincipal) / displayPrincipal : 0;
-        displayEvalReturn = lastJson.evalReturn !== undefined ? lastJson.evalReturn : displayEvalReturn;
-        displayDepletion = lastJson.depletion !== undefined ? lastJson.depletion : displayDepletion;
-        displayAvgPrice = lastJson.avgPrice !== undefined ? lastJson.avgPrice : displayAvgPrice;
+        const lastJson = JSON.parse(lastState.json || '{}');
+        if (lastJson.cash !== undefined) displayCash = Number(lastJson.cash || 0);
+        if (lastJson.base_principal !== undefined) displayBase = Number(lastJson.base_principal || 0);
+        else if (lastJson.base !== undefined) displayBase = Number(lastJson.base || 0);
+        
+        if (lastJson.realPrincipal !== undefined && Number(lastJson.realPrincipal) > 0) {
+          displayPrincipal = Number(lastJson.realPrincipal);
+        } else if (displayPrincipal <= 0) {
+          displayPrincipal = displayBase;
+        }
+
+        displayEval = lastJson.evalVal !== undefined ? Number(lastJson.evalVal || 0) : Math.max(0, displayTotal - displayCash);
+        displayQty = lastJson.qty !== undefined ? Number(lastJson.qty || 0) : displayQty;
+        displayEvalReturn = lastJson.evalReturn !== undefined ? Number(lastJson.evalReturn || 0) : displayEvalReturn;
+        displayDepletion = lastJson.depletion !== undefined ? Number(lastJson.depletion || 0) : (displayTotal > 0 ? displayEval / displayTotal : 0);
+        displayAvgPrice = lastJson.avgPrice !== undefined ? Number(lastJson.avgPrice || 0) : displayAvgPrice;
         applyHoldingsFallback(lastJson);
 
-        const assets = res.dailyStates.map(d => d.asset);
+        const assets = res.dailyStates.map(d => Number(d.asset || 0));
         const peak = assets.length > 0 ? Math.max(...assets) : 0;
         displayCurrentMdd = peak > 0 ? (displayTotal - peak) / peak : 0;
       } catch (e) {
-        displayEval = displayTotal - displayCash;
+        displayEval = Math.max(0, displayTotal - displayCash);
       }
     }
   } else {
-    displayEval = s.evalVal !== undefined ? s.evalVal : (displayTotal - displayCash);
+    displayEval = s.evalVal !== undefined ? Number(s.evalVal) : Math.max(0, displayTotal - displayCash);
   }
 
-  // A stale sheet snapshot can retain the old 1M capital after the slot was
-  // changed to 10M in the investment settings.  For an empty current slot,
-  // use the configured capital as the live account baseline.
-  if (slotNum !== 'Combined') {
-    const cfgBasics = slotConfigs?.[slotNum]?.basics || {};
-    const configuredInitial = Number(unformatComma(cfgBasics.initialCash)) || 0;
-    const configuredRenew = Number(unformatComma(cfgBasics.renewCash)) || configuredInitial;
-    const shownPrincipal = Number(displayPrincipal || displayBase || 0);
-    const hasCurrentHoldings = Array.isArray(res.inv) && res.inv.length > 0;
-    if (configuredInitial > 0 && shownPrincipal > 0 &&
-        configuredInitial >= shownPrincipal * 2 && !hasCurrentHoldings) {
-      displayTotal = configuredInitial;
-      displayBase = configuredRenew;
-      displayPrincipal = configuredInitial;
-      displayCash = configuredInitial;
-      displayEval = 0;
-      displayQty = 0;
-      displayYield = 0;
-      displayEvalReturn = 0;
-      displayDepletion = 0;
+  // 보유주식이 있는 경우 실시간 보유 목록 기반으로 수량/평단가 정밀 보정
+  if (Array.isArray(res.inv) && res.inv.length > 0) {
+    let invQty = 0;
+    let invCost = 0;
+    res.inv.forEach(h => {
+      const q = parseFloat(h.qty || 0) || 0;
+      const p = parseFloat(h.buy_price || h.buyPrice || h.price || 0) || 0;
+      invQty += q;
+      invCost += (q * p);
+    });
+    if (invQty > 0) {
+      displayQty = invQty;
+      displayAvgPrice = invCost > 0 ? invCost / invQty : displayAvgPrice;
     }
   }
 
-  const calcEvalProfit = (targetRes) => {
-    const summary = targetRes?.summary || targetRes || {};
-    const sEval = parseFloat(summary.evalVal || 0) || 0;
-    const sQty = parseFloat(summary.qty || 0) || 0;
-    const sAvg = parseFloat(summary.avgPrice || 0) || 0;
-    const currPrice = parseFloat(summary.currPrice || targetRes?.currPrice || 0) || 0;
-
-    if (targetRes?.inv && currPrice > 0) {
-      return targetRes.inv.reduce((sum, h) => {
-        const buyPrice = parseFloat(h.buy_price || h.buyPrice || 0) || 0;
-        const qty = parseFloat(h.qty || 0) || 0;
-        return sum + ((currPrice - buyPrice) * qty);
-      }, 0);
-    }
-
-    if (sEval > 0 && sQty > 0 && sAvg > 0) return sEval - (sQty * sAvg);
-    return null;
-  };
-
+  displayYield = displayPrincipal > 0 ? (displayTotal - displayPrincipal) / displayPrincipal : 0;
   let displayTotalProfit = displayTotal - displayPrincipal;
-  let displayEvalProfit = (displayEval > 0 && displayQty > 0 && displayAvgPrice > 0) ? (displayEval - (displayQty * displayAvgPrice)) : calcEvalProfit(res);
-  if (slotNum === 'Combined') {
-    displayEvalProfit = 0;
-    let hasHoldingsProfit = false;
-    for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (!isSlotActive(i)) continue;
-      if (window.BrokerService && !window.BrokerService.isSlotForBroker(i)) continue;
-      const p = calcEvalProfit(getBestResult(lastBTResults[i], i));
-      if (p !== null) {
-        displayEvalProfit += p;
-        hasHoldingsProfit = true;
-      }
-    }
-    if (!hasHoldingsProfit) displayEvalProfit = null;
-  }
-  if (displayEvalProfit === null) displayEvalProfit = 0;
+  let displayEvalProfit = (displayEval > 0 && displayQty > 0 && displayAvgPrice > 0) ? (displayEval - (displayQty * displayAvgPrice)) : (s.evalProfit || 0);
 
   return {
     date: sheetDate,
@@ -948,7 +911,7 @@ window.togglePerfView = togglePerfView;
 // 📌 statsTitle 클릭 시 현재 레이아웃에 맞는 토글만 실행
 function onStatsTitleClick() {
   const grid = document.getElementById('mainGrid');
-  if (grid && grid.classList.contains('perf-metrics-layout')) {
+  if ((grid && grid.classList.contains('perf-metrics-layout')) || window.isStatsMode) {
     // 내역모드: 💼 자산현황 ↔ 📡 계좌 정보
     statsDisplayMode = statsDisplayMode === 'chart' ? 'table' : 'chart';
   } else {

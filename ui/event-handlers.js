@@ -1,4 +1,4 @@
-// ui/event-handlers.js
+﻿// ui/event-handlers.js
 // UI 이벤트 핸들러 통합
 
 const eventHandlers = {

@@ -155,14 +155,55 @@ function getBestResult(currentRes, slotNum) {
 
 function calculateCombinedSummary() {
   const activeRes = [];
-  // ⚠️ 2026-07-31: "합산" 요약도 활성 브로커(키움 1~3 / LS 4~6)만 필터링한다(사용자 요청).
+  const activeDataList = [];
+  // ⚠️ 2026-07-31: "합산" 요약도 활성 브로커(키움 1~6 / LS 7~12)만 필터링한다(사용자 요청).
   for (let i = 1; i <= MAX_SLOTS; i++) {
     if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       const b = getBestResult(lastBTResults[i], i);
-      if (b) activeRes.push(b);
+      if (b) {
+        activeRes.push(b);
+        const st = (window.UI && window.UI.stats && window.UI.stats.getDisplayStatusData)
+          ? window.UI.stats.getDisplayStatusData(b, i) : b.summary;
+        if (st) activeDataList.push(st);
+      }
     }
   }
-  return calculateCombinedSummaryEngine(activeRes);
+
+  const combSummary = calculateCombinedSummaryEngine(activeRes);
+  if (!combSummary) return null;
+
+  // ⭐️ 시트 실계좌 데이터가 존재하면 실원금/실자산/예수금/평가액/수익금을 시트 기준으로 정확히 합산
+  if (activeDataList.length > 0) {
+    let tAssets = 0, evalVal = 0, totalProfit = 0, cash = 0, qty = 0;
+    let sumRealPrincipal = 0, sumBase = 0, evalProfit = 0;
+    let avgPriceSum = 0;
+
+    activeDataList.forEach(s => {
+      tAssets += Number(s.totalAssets || 0);
+      evalVal += Number(s.evalVal || 0);
+      sumRealPrincipal += Number(s.realPrincipal || 0);
+      sumBase += Number(s.base || 0);
+      cash += Number(s.cash || 0);
+      qty += Number(s.qty || 0);
+      totalProfit += Number(s.totalProfit !== undefined ? s.totalProfit : ((s.totalAssets || 0) - (s.realPrincipal || 0)));
+      evalProfit += Number(s.evalProfit || 0);
+      avgPriceSum += (Number(s.avgPrice || 0) * Number(s.qty || 0));
+    });
+
+    combSummary.totalAssets = tAssets;
+    combSummary.realPrincipal = sumRealPrincipal;
+    combSummary.base = sumBase;
+    combSummary.cash = cash;
+    combSummary.evalVal = evalVal;
+    combSummary.qty = qty;
+    combSummary.totalProfit = totalProfit;
+    combSummary.evalProfit = evalProfit;
+    combSummary.avgPrice = qty > 0 ? avgPriceSum / qty : 0;
+    combSummary.yield = sumRealPrincipal > 0 ? totalProfit / sumRealPrincipal : 0;
+    combSummary.depletion = tAssets > 0 ? (evalVal / tAssets) : 0;
+  }
+
+  return combSummary;
 }
 
 function setupDragScrollX(elementId) {

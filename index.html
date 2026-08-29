@@ -144,10 +144,10 @@
   <!-- Phase 3: UI Layer (layout, state, events) -->
   <script src="ui/layout-detector.js?v=cf_v1787732256753" defer></script>
   <script src="ui/state-manager.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/event-handlers.js?v=cf_v1787732256753" defer></script>
+  <script src="ui/event-handlers.js?v=cf_v1788012492560" defer></script>
   <!-- Phase 4, 5, 6: Business Logic Services (config, sync, stats) -->
-  <script src="services/broker-service.js?v=cf_v1787732256753" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v1787732256753" defer></script>
+  <script src="services/broker-service.js?v=cf_v1788010495621" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v1788012492560" defer></script>
   <script src="services/config-manager.js?v=cf_v1787732256753" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
   <script src="services/stats-config.js?v=cf_v1787732256753" defer></script>
@@ -344,6 +344,8 @@
           style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">📡 계좌 정보</button>
         <button type="button" class="btn-action btn-settings-grid" onclick="openStrategyParameterViewer()"
           style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">🧩 파라메타</button>
+        <button type="button" class="btn-action btn-settings-grid" id="btnGcpLogs" onclick="openGcpLogsModal()"
+          style="background:linear-gradient(135deg,#475569,#334155);">📜 로그</button>
       </div>
 
       <div
@@ -954,24 +956,26 @@
   <script src="engine/price_loader.js?v=cf_v1787732256753" defer></script>
   <script src="engine/strategies.js?v=cf_v1787732256753" defer></script>
   <script src="engine/engine.js?v=cf_v1787732256753" defer></script>
-  <script src="engine/core.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-order.js?v=cf_v1787732256753" defer></script>
+  <script src="engine/core.js?v=cf_v1787844589408" defer></script>
+  <script src="ui/render-order.js?v=cf_v1788012492560" defer></script>
   <script src="ui/render-holdings.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-performance.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-stats.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v1787732256753" defer></script>
+  <script src="ui/render-performance.js?v=cf_v1787844589408" defer></script>
+  <script src="ui/render-stats.js?v=cf_v1788012492560" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v1788012492560" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-toggles.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-helpers.js?v=cf_v1787732256753" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v1787844589408" defer></script>
   <script src="ui/render-notifications.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-misc.js?v=cf_v1787732256753" defer></script>
+  <script src="ui/render-misc.js?v=cf_v1788012492560" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v1787732256753" defer></script>
+  <script src="script.js?v=cf_v1787844589408" defer></script>
 
 
 </body>
 
 </html>
+
+
 
 

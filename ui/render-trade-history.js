@@ -1,4 +1,4 @@
-// ui/render-trade-history.js - 실전 매도내역 렌더링 (백업에서 복구됨)
+﻿// ui/render-trade-history.js - 실전 매도내역 렌더링 (백업에서 복구됨)
 
 let lastTradeHistoryRenderSignature = '';
 let historyMonthOffset = 0;
@@ -441,13 +441,23 @@ function renderDBTradeHistory() {
       return time >= monthStart && time < monthEnd;
     }) : allTrades;
     const isLightMode = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-    const signature = `${allTrades.length}|${historyMonthOffset}|${latestDate}|${allTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0)}|br:${reconcileState ? reconcileState.sell.size : 0}:${reconcileState ? reconcileState.ready : false}|theme:${isLightMode ? 'light' : 'dark'}`;
+    const activeBr = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
+    const signature = `${activeBr}|${allTrades.length}|${historyMonthOffset}|${latestDate}|${allTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0)}|br:${reconcileState ? (reconcileState.sell.size + ":" + reconcileState.coveredDates.size + ":" + reconcileState.rows.length) : 0}:${reconcileState ? reconcileState.ready : false}|theme:${isLightMode ? 'light' : 'dark'}`;
     if (signature === lastTradeHistoryRenderSignature && tbody.children.length > 0) return;
     lastTradeHistoryRenderSignature = signature;
 
     // fire-and-forget: 체결 데이터가 아직 없으면(로딩) 받아온 뒤 자기 자신을 한 번 다시 그린다.
-    if (BR && !BR.isReady()) {
-      BR.refreshFills(() => { if (historyViewMode === 'strategy') renderDBTradeHistory(); });
+    if (BR) {
+      const activeBrKey = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
+      const hasBrokerDates = Array.from(reconcileState ? reconcileState.coveredDates : []).some(k => k.startsWith(activeBrKey + '|'));
+      if (!BR.isReady() || !hasBrokerDates) {
+        BR.refreshFills(activeBrKey, () => {
+          if (historyViewMode === 'strategy') {
+            lastTradeHistoryRenderSignature = '';
+            renderDBTradeHistory();
+          }
+        });
+      }
     }
 
     const scrollHost = tbody.closest('.slim-scroll');
@@ -817,9 +827,12 @@ function syncHistoryViewModeToBroker() {
   const wantMode = broker === 'ls' ? 'ls' : 'kiwoom';
   if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
     historyViewMode = wantMode;
-    const title = document.getElementById('historyTitle');
+    const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
     if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매수·매도 내역' : '📋 키움 매수·매도 내역';
     renderBrokerFills(wantMode);
+  } else {
+    lastTradeHistoryRenderSignature = '';
+    renderDBTradeHistory();
   }
 }
 

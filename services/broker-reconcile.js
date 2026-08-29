@@ -1,4 +1,4 @@
-/**
+﻿/**
  * App 3 Broker Reconcile Service (ported from App1's Kiwoom reconciliation, adapted for US stocks).
  *
  * Provides the shared data layer for four features:
@@ -128,6 +128,12 @@
 
   function invalidate() {
     BROKERS.forEach(b => { fillsCache[b] = null; balanceCache[b] = null; });
+    state.ready = false;
+    state.failed = false;
+    state.rows = [];
+    state.buy.clear();
+    state.sell.clear();
+    state.coveredDates.clear();
   }
 
   // ─────────── fill maps ───────────
@@ -183,36 +189,48 @@
     });
   }
 
-  let refreshInFlight = false;
+  const onDoneCallbacks = [];
+  let refreshPromise = null;
   async function refreshFills(targetBroker, onDone) {
     if (typeof targetBroker === "function") {
       onDone = targetBroker;
       targetBroker = null;
     }
-    if (refreshInFlight) return;
-    if (!window.BrokerService) return;
-
-    // ⚠️ 키움 모드일 땐 키움 체결내역만, LS 모드일 땐 LS 체결내역만 조회한다. (불필요한 타 증권사 호출 제거)
-    const activeBr = targetBroker || (window.BrokerService && window.BrokerService.activeBroker) || "kiwoom";
-    refreshInFlight = true;
-    try {
-      const d = await getFills(activeBr).catch(e => null);
-      state.rows = state.rows.filter(r => r.broker !== activeBr);
-      for (const [k] of state.buy) { if (k.startsWith(`${activeBr}|`)) state.buy.delete(k); }
-      for (const [k] of state.sell) { if (k.startsWith(`${activeBr}|`)) state.sell.delete(k); }
-      for (const dKey of state.coveredDates) { if (dKey.startsWith(`${activeBr}|`)) state.coveredDates.delete(dKey); }
-
-      let anyOk = false;
-      if (d && d.success !== false) {
-        ingest(activeBr, d);
-        anyOk = true;
+    if (typeof onDone === "function") onDoneCallbacks.push(onDone);
+    if (refreshPromise) return await refreshPromise;
+    if (!window.BrokerService) {
+      while (onDoneCallbacks.length > 0) {
+        const cb = onDoneCallbacks.shift();
+        try { cb(); } catch (e) {}
       }
-      state.ready = true;
-      state.failed = !anyOk;
-      if (typeof onDone === "function") onDone();
-    } finally {
-      refreshInFlight = false;
+      return;
     }
+
+    const activeBr = targetBroker || (window.BrokerService && window.BrokerService.activeBroker) || "kiwoom";
+    refreshPromise = (async () => {
+      try {
+        const d = await getFills(activeBr).catch(e => null);
+        state.rows = state.rows.filter(r => r.broker !== activeBr);
+        for (const [k] of state.buy) { if (k.startsWith(activeBr + "|")) state.buy.delete(k); }
+        for (const [k] of state.sell) { if (k.startsWith(activeBr + "|")) state.sell.delete(k); }
+        for (const dKey of state.coveredDates) { if (dKey.startsWith(activeBr + "|")) state.coveredDates.delete(dKey); }
+
+        let anyOk = false;
+        if (d && d.success !== false) {
+          ingest(activeBr, d);
+          anyOk = true;
+        }
+        state.ready = true;
+        state.failed = !anyOk;
+      } finally {
+        refreshPromise = null;
+        while (onDoneCallbacks.length > 0) {
+          const cb = onDoneCallbacks.shift();
+          try { cb(); } catch (e) {}
+        }
+      }
+    })();
+    return await refreshPromise;
   }
 
   // ─────────── reconcile status ───────────

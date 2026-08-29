@@ -1,4 +1,4 @@
-// ui/render-misc.js - 기타 UI 함수들 (최종 분리 - 마지막 단계)
+﻿// ui/render-misc.js - 기타 UI 함수들 (최종 분리 - 마지막 단계)
 // 2024년 분리된 대형 UI 함수 모음
 
 // 🔧 폴리필: script.js가 로드되기 전에 호출되는 함수들 보호
@@ -454,24 +454,39 @@ function showStatsView() {
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
   // 데이터가 정상적으로 있으면 종합 데이터 및 차트만 리렌더링
-  window.UI.performance.calculateCombinedPeriodData();
-  renderChartAll();
-  if (typeof updateChartRatesDisplay === 'function') updateChartRatesDisplay();
-  (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
+  try {
+    if (window.UI?.performance?.calculateCombinedPeriodData) {
+      window.UI.performance.calculateCombinedPeriodData();
+    }
+  } catch (e) { console.warn("[showStatsView] calculateCombinedPeriodData err:", e); }
 
-  if (window.UI.tradeHistory.resetToStrategyHistory) {
-    window.UI.tradeHistory.resetToStrategyHistory();
-  } else {
-    window.UI.tradeHistory.renderDBTradeHistory();
-  }
+  try {
+    if (typeof renderChartAll === 'function') renderChartAll();
+    if (typeof updateChartRatesDisplay === 'function') updateChartRatesDisplay();
+  } catch (e) { console.warn("[showStatsView] renderChart err:", e); }
 
-  // 매도 내역 요약 업데이트
-  updateHistorySummary();
+  try {
+    (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
+  } catch (e) { console.warn("[showStatsView] refreshStatsTable err:", e); }
 
-  // 내역모드에서 자산현황, 통합 보유현황, 실전 매도 내역이 항상 보이도록 가시성 및 UI 새로고침
-  updateSlotsVisibility();
-  window.UI.order.refreshOrderViewUI();
-  updateOrderHeaderUI();
+  try {
+    if (window.UI?.tradeHistory?.resetToStrategyHistory) {
+      window.UI.tradeHistory.resetToStrategyHistory();
+    } else if (window.UI?.tradeHistory?.renderDBTradeHistory) {
+      window.UI.tradeHistory.renderDBTradeHistory();
+    }
+  } catch (e) { console.warn("[showStatsView] tradeHistory err:", e); }
+
+  // 매도 내역 요약 및 통합 보유현황 렌더링
+  try {
+    updateHistorySummary();
+    updateSlotsVisibility();
+    if (window.UI?.holdings?.renderCombinedHoldings) {
+      window.UI.holdings.renderCombinedHoldings();
+    }
+    if (window.UI?.order?.refreshOrderViewUI) window.UI.order.refreshOrderViewUI();
+    if (typeof updateOrderHeaderUI === 'function') updateOrderHeaderUI();
+  } catch (e) { console.warn("[showStatsView] ui refresh err:", e); }
 }
 
 function updateHistorySummary() {
@@ -1478,21 +1493,25 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     updateSlotsVisibility();
     renderChartAll();
 
-    isStatsMode = false;
-    window.isStatsMode = false;
-    isOrderView = true;
-    window.isOrderView = true;
-    const grid = document.getElementById('mainGrid');
-    if (grid) {
-      grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout');
+    if (!window.isStatsMode) {
+      isStatsMode = false;
+      window.isStatsMode = false;
+      isOrderView = true;
+      window.isOrderView = true;
+      const grid = document.getElementById('mainGrid');
+      if (grid) {
+        grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout');
+      }
+      const btnStats = document.getElementById('btnStatsShow');
+      if (btnStats) btnStats.classList.remove('active');
+      const btnPerf = document.getElementById('btnPerfShow');
+      if (btnPerf) btnPerf.classList.remove('active');
+      const btnInstant = document.getElementById('btnInstant');
+      if (btnInstant) btnInstant.classList.add('active');
+      window.UI.order.refreshOrderViewUI();
+    } else {
+      if (typeof showStatsView === 'function') showStatsView();
     }
-    const btnStats = document.getElementById('btnStatsShow');
-    if (btnStats) btnStats.classList.remove('active');
-    const btnPerf = document.getElementById('btnPerfShow');
-    if (btnPerf) btnPerf.classList.remove('active');
-    const btnInstant = document.getElementById('btnInstant');
-    if (btnInstant) btnInstant.classList.add('active');
-    window.UI.order.refreshOrderViewUI();
     // ⭐️ 서버 동기화(track2Promise)가 끝나기 전, 로컬 엔진 결과/캐시로 요약을 먼저 채워 즉시 노출
     updatePerformanceSummary();
 
@@ -1811,6 +1830,9 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     updateSettingsTabButtons();
 
     if (dataInit.hasSheet && !skipAutoSave) checkAndRunAutoSave();
+    if (window.isStatsMode && typeof showStatsView === "function") {
+      showStatsView();
+    }
 
   } catch (e) {
     console.error("초기 통신 에러 (엔진 결과로 폴백):", e);
@@ -2303,6 +2325,9 @@ window.UI.misc.generateDynamicDOM = generateDynamicDOM;
 window.UI.misc.showOrderView = showOrderView;
 window.UI.misc.showStatsView = showStatsView;
 window.UI.misc.showPerfView = showPerfView;
+window.showOrderView = showOrderView;
+window.showStatsView = showStatsView;
+window.showPerfView = showPerfView;
 window.UI.misc.updateHistorySummary = updateHistorySummary;
 window.UI.misc.updateSlotsVisibility = updateSlotsVisibility;
 window.UI.misc.handleLogin = handleLogin;
@@ -2321,3 +2346,80 @@ window.updateSlotsVisibility = updateSlotsVisibility;
 
 // 📌 GET_ALL_INIT은 enterAppDirectly()에서 시작됨
 // (안정성 확보)
+
+
+// ── GCP 자동주문 및 실행 로그 모달 (App3) ──
+window.openGcpLogsModal = function() {
+  let ov = document.getElementById("gcpLogsOverlay");
+  if (ov) ov.remove();
+
+  ov = document.createElement("div");
+  ov.id = "gcpLogsOverlay";
+  ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;";
+  ov.innerHTML = `
+    <div style="background:var(--card,#1e293b);color:var(--text,#e2e8f0);border:1px solid rgba(255,255,255,0.12);border-radius:14px;width:min(94vw,700px);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);font-size:13px;overflow:hidden;">
+      <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.2);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;font-weight:700;">📜 GCP 자동주문 & 실행 로그</span>
+          <span id="gcpLogStatusBadge" style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.1);color:var(--text-muted,#94a3b8);">조회 중...</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button id="gcpLogRefreshBtn" style="border:none;background:rgba(255,255,255,0.1);color:var(--text,#e2e8f0);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;">🔄 새로고침</button>
+          <button id="gcpLogCloseBtn" style="border:none;background:transparent;color:var(--text,#e2e8f0);font-size:18px;cursor:pointer;padding:0 4px;">✕</button>
+        </div>
+      </div>
+
+      <div id="gcpLogContent" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;">
+        <div style="text-align:center;padding:30px;color:var(--text-muted,#94a3b8);">로딩 중...</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+
+  const contentEl = ov.querySelector("#gcpLogContent");
+  const badgeEl = ov.querySelector("#gcpLogStatusBadge");
+
+  ov.querySelector("#gcpLogCloseBtn").onclick = () => ov.remove();
+  ov.addEventListener("click", (e) => { if (e.target === ov) ov.remove(); });
+  ov.querySelector("#gcpLogRefreshBtn").onclick = () => loadLogs();
+
+  async function loadLogs() {
+    contentEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted,#94a3b8);">⏳ 데이터 조회 중...</div>`;
+    const userId = window.myUserId || "smw594";
+
+    try {
+      let data = null;
+      if (window.BrokerService && typeof window.BrokerService.getLogs === 'function') {
+        data = await window.BrokerService.getLogs(userId, 7);
+      } else {
+        const base = typeof getProxyBase === 'function' ? getProxyBase() : (window.BROKER3_PROXY_BASE || "http://136.118.250.225:8080");
+        const res = await fetch(`${base}/api/orders/logs?userId=${encodeURIComponent(userId)}&days=7`, {
+          headers: { 'x-app-key': window.BROKER_APP_KEY || '', 'x-proxy-token': window.BROKER_PROXY_TOKEN || '' }
+        });
+        data = await res.json();
+      }
+      
+      if (!data || data.error || data.success === false) {
+        throw new Error((data && data.error) || "로그 조회 실패");
+      }
+
+      badgeEl.textContent = "조회 완료";
+      badgeEl.style.color = "#10b981";
+
+      contentEl.innerHTML = `
+        <pre style="margin:0;padding:12px;background:#090d16;color:#38bdf8;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:65vh;overflow-y:auto;">${data.log || "로그가 없습니다."}</pre>
+      `;
+    } catch (e) {
+      badgeEl.textContent = "오류";
+      badgeEl.style.color = "#ef4444";
+      contentEl.innerHTML = `
+        <div style="text-align:center;padding:30px;color:#ef4444;">
+          <div style="font-weight:700;margin-bottom:6px;">❌ 로그를 불러올 수 없습니다</div>
+          <div style="font-size:12px;opacity:0.8;">${e.message}</div>
+        </div>
+      `;
+    }
+  }
+
+  loadLogs();
+};

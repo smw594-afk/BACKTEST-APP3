@@ -4,34 +4,41 @@ window.orderStatusCache = window.orderStatusCache || {
   vmOrders: [],
   unfilledOrders: [],
   filledOrders: [],
+  vmOrdersChecked: false,
   brokerOrdersChecked: false,
+  isLoading: false,
+  lastVerdict: null,
   lastUpdated: 0
 };
 
 let _roscInFlight = null;
+let _roscReqSeq = 0;
 async function refreshOrderStatusCache(force = false) {
   if (force && window.orderStatusCache) {
     window.orderStatusCache.lastUpdated = 0;
+    window.orderStatusCache.vmOrdersChecked = false;
+    window.orderStatusCache.brokerOrdersChecked = false;
+    window.orderStatusCache.isLoading = true;
+    window.orderStatusCache.lastVerdict = 'loading';
+    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
+    _roscInFlight = null;
   }
   // ⚠️ 30초 이내 재호출 시 네트워크 요청 없이 반환 (pending/unfilled 중복 방지)
   const now = Date.now();
   if (!force && window.orderStatusCache.lastUpdated && now - window.orderStatusCache.lastUpdated < 30000) {
     return;
   }
-  // inflight 중복 방지: 이미 진행 중이면 그 Promise를 공유
-  if (_roscInFlight) return _roscInFlight;
-  _roscInFlight = _refreshOrderStatusCacheInner(force);
-  try { await _roscInFlight; } finally { _roscInFlight = null; }
+  // inflight 중복 방지: 이미 진행 중이면 그 Promise를 공유 (단, force인 경우 새로 시작)
+  if (_roscInFlight && !force) return _roscInFlight;
+
+  const thisSeq = ++_roscReqSeq;
+  _roscInFlight = _refreshOrderStatusCacheInner(force, thisSeq);
+  try { await _roscInFlight; } finally { if (_roscReqSeq === thisSeq) _roscInFlight = null; }
 }
-async function _refreshOrderStatusCacheInner(force) {
+async function _refreshOrderStatusCacheInner(force, reqSeq) {
   try {
     const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
     if (!userId) return;
-
-    window.orderStatusCache.lastUpdated = Date.now();
-   if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
-    window.orderStatusCache.brokerOrdersChecked = false;
-    window.__forceOrderViewReRender = true;
 
     const BS = window.BrokerService;
     const BR = window.BrokerReconcile;
@@ -39,18 +46,29 @@ async function _refreshOrderStatusCacheInner(force) {
     const phase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
     const shouldCheckBroker = phase === 'order' || phase === 'closed' || force;
 
+    window.orderStatusCache.lastUpdated = Date.now();
+    window.orderStatusCache.vmOrdersChecked = false;
+    window.orderStatusCache.brokerOrdersChecked = false;
+    window.orderStatusCache.isLoading = true;
+    window.orderStatusCache.lastVerdict = 'loading';
+    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
+    window.__forceOrderViewReRender = true;
+
     // 1. VM 예약 주문 (가장 먼저 가볍게 조회)
     if (BS && typeof BS.fetchPendingOrders === 'function') {
       try {
         const resP = await BS.fetchPendingOrders();
+        if (reqSeq !== _roscReqSeq) return;
         if (resP && resP.ok) {
           window.orderStatusCache.vmOrders = Array.isArray(resP.orders) ? resP.orders : [];
           window.orderStatusCache.vmSaved = window.orderStatusCache.vmOrders.length > 0;
           window.orderStatusCache.vmOverdue = !!(resP.backtest && resP.backtest.overdue);
-          if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
         }
       } catch (e) {}
     }
+    if (reqSeq !== _roscReqSeq) return;
+    window.orderStatusCache.vmOrdersChecked = true;
+    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
 
     // 2. 증권사 데이터 조회 (예약 시간대에는 불필요한 미체결/체결 조회를 생략하여 네트워크 낭비 및 지연 방지)
     const brokerTasks = [];
@@ -59,6 +77,7 @@ async function _refreshOrderStatusCacheInner(force) {
       if (BS && typeof BS.fetchUnfilledOrders === 'function') {
         brokerTasks.push(
           BS.fetchUnfilledOrders(activeBr).then(res1 => {
+            if (reqSeq !== _roscReqSeq) return;
             if (res1 && res1.success && Array.isArray(res1.unfilled)) {
               window.orderStatusCache.unfilledOrders = res1.unfilled;
             }
@@ -70,6 +89,7 @@ async function _refreshOrderStatusCacheInner(force) {
         let resFills = null;
         if (BR && typeof BR.getFills === 'function') resFills = await BR.getFills(activeBr);
         else if (BS && typeof BS.fetchOverseasFills === 'function') resFills = await BS.fetchOverseasFills(activeBr);
+        if (reqSeq !== _roscReqSeq) return;
         if (resFills && resFills.success !== false) {
           const list = Array.isArray(resFills.executions) ? resFills.executions : (Array.isArray(resFills.rows) ? resFills.rows : []);
           if (list) window.orderStatusCache.filledOrders = list;
@@ -83,6 +103,7 @@ async function _refreshOrderStatusCacheInner(force) {
       let resBal = null;
       if (BR && typeof BR.getBalance === 'function') resBal = await BR.getBalance(activeBr);
       else if (BS && typeof BS.fetchOverseasBalance === 'function') resBal = await BS.fetchOverseasBalance(activeBr);
+      if (reqSeq !== _roscReqSeq) return;
       if (resBal && resBal.success !== false) {
         window.orderStatusCache.balance = resBal;
         if (typeof window.UI !== 'undefined' && window.UI.stats && typeof window.UI.stats.refreshStatsTable === 'function') {
@@ -95,12 +116,19 @@ async function _refreshOrderStatusCacheInner(force) {
     if (brokerTasks.length > 0) {
       await Promise.all(brokerTasks);
     }
+    if (reqSeq !== _roscReqSeq) return;
 
     window.orderStatusCache.brokerOrdersChecked = true;
+    window.orderStatusCache.isLoading = false;
     window.orderStatusCache.lastPhase = phase;
+    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
     if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
 
-  } catch(e) {}
+  } catch(e) {
+    if (window.orderStatusCache && reqSeq === _roscReqSeq) {
+      window.orderStatusCache.isLoading = false;
+    }
+  }
 }
 window.refreshOrderStatusCache = refreshOrderStatusCache;
 
@@ -137,8 +165,20 @@ function orderTableDateStr() {
 
 function nyMarketPhaseForOrderCompare() {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit"
+    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit"
   }).formatToParts(new Date());
+
+  // 주말(토/일) 및 미국 공휴일 체크: 장이 열리지 않는 날은 항상 reserved (주문/체결시간 진입 차단)
+  const wd = (parts.find(p => p.type === "weekday") || {}).value || "";
+  if (wd === "Sat" || wd === "Sun") return "reserved";
+
+  const y = (parts.find(p => p.type === "year") || {}).value || "";
+  const m = (parts.find(p => p.type === "month") || {}).value || "";
+  const d = (parts.find(p => p.type === "day") || {}).value || "";
+  const ymd = y + "-" + m + "-" + d;
+  const isHol = typeof window.isUSMarketHoliday === "function" ? window.isUSMarketHoliday(ymd) : (typeof isUSMarketHoliday === "function" ? isUSMarketHoliday(ymd) : false);
+  if (isHol) return "reserved";
+
   const hh = Number((parts.find(p => p.type === "hour") || {}).value || 0) % 24;
   const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
   const mins = hh * 60 + mm;
@@ -211,8 +251,8 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
   const cache = window.orderStatusCache || {};
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'unknown';
   
-  if (!cache.lastPhase) {
-    return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="최초 데이터 조회 중">확인중</span>';
+  if (!cache.lastPhase || !cache.brokerOrdersChecked) {
+    return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="증권사 데이터 조회 중">확인중</span>';
   }
 
   const side = normalizeOrderSide(order[0]); // "buy" | "sell"
@@ -323,8 +363,8 @@ function getVmMatchMarkup(order, slotNum) {
   const cache = window.orderStatusCache || {};
   let rawVm = Array.isArray(cache.vmOrders) ? cache.vmOrders : null;
   
-  if (!cache.lastUpdated || cache.lastUpdated === 0) {
-    return '<span style="color:#64748b; font-size:9px;">-</span>';
+  if (!cache.vmOrdersChecked) {
+    return '<span style="color:#f59e0b; font-size:9px; font-weight:800;" title="GCP 주문표 조회 중">확인중</span>';
   }
   
   if (!rawVm || rawVm.length === 0) {
@@ -1231,25 +1271,58 @@ window.getCombinedOrderEvaluationData = function() {
   };
   const activeUnfilled = unfilled.filter(filterRow);
   const activeFilled = fills.filter(filterRow);
-  const filledBuyQty = activeFilled.reduce((sum, f) => {
-    const s = String(f.side || "").toUpperCase();
-    return sum + (s.includes("BUY") || s.includes("매수") ? (Number(f.filledQty || f.qty) || 0) : 0);
-  }, 0);
-  const filledSellQty = activeFilled.reduce((sum, f) => {
-    const s = String(f.side || "").toUpperCase();
-    return sum + (s.includes("SELL") || s.includes("매도") ? (Number(f.filledQty || f.qty) || 0) : 0);
-  }, 0);
 
+  const fillPriceMap = {};
+  const fillQtyMap = {};
   const brMap = {};
+
   if (isBrokerPhase) {
     if (isClosedPhase) {
-      (appCombined || []).forEach(o => {
-        const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
-        const t = String(o[1] || '').toUpperCase() === 'MOC' ? 'MOC' : 'LOC';
-        const p = t === 'MOC' ? '0.00' : Number(o[2]).toFixed(2);
-        const k = `${s}|${t}|${p}`;
-        if (s === 'buy' && filledBuyQty > 0) brMap[k] = filledBuyQty;
-        else if (s === 'sell' && filledSellQty > 0) brMap[k] = filledSellQty;
+      // ⭐️ 장마감 체결시간대: 실제 체결 데이터와 매칭
+      const filledBuys = activeFilled.filter(f => {
+        const s = normalizeOrderSide(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
+        return s === 'buy';
+      });
+      const filledSells = activeFilled.filter(f => {
+        const s = normalizeOrderSide(f.side || f.orderSide || f.ordSide || f.bsnTp || f.OrdPtnCode);
+        return s === 'sell';
+      });
+
+      let remainingBuyFills = [...filledBuys];
+      let remainingSellFills = [...filledSells];
+
+      const allOrderKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap)]));
+      allOrderKeys.forEach(k => {
+        const parts = k.split('|');
+        const side = parts[0];
+        const ordType = parts[1];
+        const orderPrc = parseFloat(parts[2]) || 0;
+        const targetQty = Math.max(appMap[k] || 0, vmMap[k] || 0);
+
+        if (side === 'buy') {
+          if (remainingBuyFills.length > 0) {
+            // 체결내역에서 매칭
+            const f = remainingBuyFills[0];
+            const fQty = Number(f.filledQty || f.qty) || 0;
+            const fPrice = parseFloat(f.price || f.cntr_price || f.ord_uv) || 0;
+            if (fQty > 0) {
+              fillQtyMap[k] = fQty;
+              fillPriceMap[k] = fPrice;
+              brMap[k] = fQty;
+            }
+          }
+        } else if (side === 'sell') {
+          if (remainingSellFills.length > 0) {
+            const f = remainingSellFills[0];
+            const fQty = Number(f.filledQty || f.qty) || 0;
+            const fPrice = parseFloat(f.price || f.cntr_price || f.ord_uv) || 0;
+            if (fQty > 0) {
+              fillQtyMap[k] = fQty;
+              fillPriceMap[k] = fPrice;
+              brMap[k] = fQty;
+            }
+          }
+        }
       });
     } else {
       const allBrokerOrders = [...activeUnfilled, ...activeFilled];
@@ -1272,23 +1345,26 @@ window.getCombinedOrderEvaluationData = function() {
   }
 
   // 5. Keys & Match Evaluation
-  let allKeys = [];
-  if (isClosedPhase) {
-    allKeys = Object.keys(brMap);
-  } else {
-    allKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap), ...(isBrokerPhase ? Object.keys(brMap) : [])]));
-  }
-
+  const allKeys = Array.from(new Set([...Object.keys(appMap), ...Object.keys(vmMap), ...(isBrokerPhase && !isClosedPhase ? Object.keys(brMap) : [])]));
   let isAllMatched = true;
-  if (allKeys.length === 0 && !isClosedPhase) {
-    isAllMatched = false;
+
+  if (allKeys.length === 0) {
+    isAllMatched = true;
   } else {
     allKeys.forEach(k => {
       const vQty = vmMap[k] || 0;
       const aQty = appMap[k] || 0;
-      const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
-      const matched = isBrokerPhase ? ((vQty === aQty) && (aQty === bQty)) : (vQty === aQty);
-      if (!matched) isAllMatched = false;
+      if (isClosedPhase) {
+        // 체결시간대: VM과 앱 주문표가 같으면 일치 (LOC 체결여부는 보유현황/매도내역에서 증명)
+        if (vQty !== aQty) isAllMatched = false;
+      } else if (isBrokerPhase) {
+        // 장중: VM == 앱 == 증권사호가창
+        const bQty = brMap[k] || 0;
+        if (vQty !== aQty || aQty !== bQty) isAllMatched = false;
+      } else {
+        // 예약시간: VM == 앱
+        if (vQty !== aQty) isAllMatched = false;
+      }
     });
   }
 
@@ -1305,11 +1381,12 @@ window.getCombinedOrderEvaluationData = function() {
     appMap,
     vmMap,
     brMap,
+    fillPriceMap,
+    fillQtyMap,
     allKeys,
     isAllMatched
   };
 };
-
 
 window.compareOrderBookManual = async function() {
   const evalData = window.getCombinedOrderEvaluationData();
@@ -1324,17 +1401,23 @@ window.compareOrderBookManual = async function() {
     appMap,
     vmMap,
     brMap,
+    fillPriceMap,
+    fillQtyMap,
     allKeys,
     isAllMatched
   } = evalData;
 
+  const isVmReady = !!cache.vmOrdersChecked;
+  const isBrokerReady = isBrokerPhase ? !!cache.brokerOrdersChecked : true;
+  const isDataReady = isVmReady && isBrokerReady && !cache.isLoading;
+
   let tbodyHtml = '';
-  if (allKeys.length === 0) {
-    if (isClosedPhase) {
-      tbodyHtml = '<tr><td colspan="5" style="padding:16px; color:var(--text-muted, #94a3b8); font-size:12px; text-align:center;">당일 체결 내역이 없습니다 (전량 목표가 미도달로 미체결 마감)</td></tr>';
-    } else {
-      tbodyHtml = '<tr><td colspan="5" style="padding:10px; color:var(--text-muted, #94a3b8);">비교할 주문 내역이 없습니다.</td></tr>';
-    }
+  const colSpanCount = isClosedPhase ? 6 : 5;
+
+  if (!isDataReady) {
+    tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:#f59e0b; font-size:12px; text-align:center; font-weight:bold;">⏳ 증권사/VM 데이터를 확인 중입니다... (잠시 후 자동 갱신됩니다)</td></tr>`;
+  } else if (allKeys.length === 0) {
+    tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:var(--text-muted, #94a3b8); font-size:12px; text-align:center;">비교할 주문 내역이 없습니다.</td></tr>`;
   } else {
     allKeys.forEach(k => {
       const parts = k.split('|');
@@ -1344,39 +1427,107 @@ window.compareOrderBookManual = async function() {
       
       const vQty = vmMap[k] || 0;
       const aQty = appMap[k] || 0;
-      const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
-      
-      const matched = isBrokerPhase ? ((vQty === aQty) && (aQty === bQty)) : (vQty === aQty);
 
-      tbodyHtml += `
-        <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.07)); height:32px;">
-          <td style="text-align:left; padding-left:12px;">${label}</td>
-          <td style="font-weight:bold; color:${vQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${vQty}</td>
-          <td style="font-weight:bold; color:${aQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${aQty}</td>
-          ${isBrokerPhase ? `<td style="font-weight:bold; color:${bQty > 0 ? '#10b981' : 'var(--text-muted)'}">${bQty}</td>` : '<td style="color:var(--text-muted); font-size:11px;">-</td>'}
-          <td>
-            ${matched ? '<span style="color:#10b981; font-weight:bold;">일치</span>' : '<span style="color:#ef4444; font-weight:bold;">불일치</span>'}
-          </td>
-        </tr>
-      `;
+      if (isClosedPhase) {
+        // ⭐️ [체결시간대] 6열 레이아웃: 주문 | 체결가 | VM | 앱 | 증권사(체결) | 결과
+        const bFillQty = (fillQtyMap && fillQtyMap[k]) || 0;
+        const bFillPrice = (fillPriceMap && fillPriceMap[k]) || 0;
+        const isMatched = (vQty === aQty);
+
+        let fillPriceHtml = '<span style="color:var(--text-muted);">-</span>';
+        let brokerFillHtml = '<span style="color:var(--text-muted);">0주</span>';
+        let resultBadgeHtml = '';
+
+        if (bFillQty > 0) {
+          fillPriceHtml = bFillPrice > 0 ? `<span style="color:#10b981; font-weight:bold;">$${bFillPrice.toFixed(2)}</span>` : `<span style="color:#10b981; font-weight:bold;">체결</span>`;
+          brokerFillHtml = `<span style="color:#10b981; font-weight:bold;">${bFillQty}주</span>`;
+          resultBadgeHtml = isMatched ? '<span style="color:#10b981; font-weight:bold;">✅ 체결일치</span>' : '<span style="color:#ef4444; font-weight:bold;">불일치</span>';
+        } else {
+          resultBadgeHtml = isMatched ? '<span style="color:#10b981; font-size:11px; font-weight:bold;">✅ 정상 미체결</span>' : '<span style="color:#ef4444; font-weight:bold;">불일치</span>';
+        }
+
+        tbodyHtml += `
+          <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.07)); height:32px;">
+            <td style="text-align:left; padding-left:12px;">${label}</td>
+            <td>${fillPriceHtml}</td>
+            <td style="font-weight:bold; color:${vQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${vQty}</td>
+            <td style="font-weight:bold; color:${aQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${aQty}</td>
+            <td>${brokerFillHtml}</td>
+            <td>${resultBadgeHtml}</td>
+          </tr>
+        `;
+      } else {
+        // ⭐️ [장중 / 예약시간대] 5열 레이아웃: 주문 | VM | 앱 | 증권사 | 결과
+        const bQty = isBrokerPhase ? (brMap[k] || 0) : 0;
+        const matched = isBrokerPhase ? ((vQty === aQty) && (aQty === bQty)) : (vQty === aQty);
+
+        tbodyHtml += `
+          <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.07)); height:32px;">
+            <td style="text-align:left; padding-left:12px;">${label}</td>
+            <td style="font-weight:bold; color:${vQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${vQty}</td>
+            <td style="font-weight:bold; color:${aQty > 0 ? 'var(--text)' : 'var(--text-muted)'}">${aQty}</td>
+            ${isBrokerPhase ? `<td style="font-weight:bold; color:${bQty > 0 ? '#10b981' : 'var(--text-muted)'}">${bQty}</td>` : '<td style="color:var(--text-muted); font-size:11px;">-</td>'}
+            <td>
+              ${matched ? '<span style="color:#10b981; font-weight:bold;">일치</span>' : '<span style="color:#ef4444; font-weight:bold;">불일치</span>'}
+            </td>
+          </tr>
+        `;
+      }
     });
   }
 
-  // Phase Badge & Broker Column Title
+  // Phase Badge & Table Headers
   let phaseBadge = '';
-  let brokerColTitle = '증권사';
-  if (currentPhase === 'closed') {
+  let theadHtml = '';
+
+  if (!isDataReady) {
+    phaseBadge = '<span style="font-size:11px; background:#64748b; color:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">⏳ 데이터 확인중</span>';
+    theadHtml = `
+      <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
+        <th style="width:30%; text-align:left; padding-left:12px;">주문</th>
+        <th style="width:15%;">VM</th>
+        <th style="width:15%;">앱</th>
+        <th style="width:20%;">증권사</th>
+        <th style="width:20%;">결과</th>
+      </tr>
+    `;
+  } else if (isClosedPhase) {
     phaseBadge = '<span style="font-size:11px; background:#10b981; color:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">체결확인 (VM/앱/증권사체결)</span>';
-    brokerColTitle = '증권사(체결)';
+    theadHtml = `
+      <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
+        <th style="width:26%; text-align:left; padding-left:12px;">주문</th>
+        <th style="width:16%;">체결가</th>
+        <th style="width:12%;">VM</th>
+        <th style="width:12%;">앱</th>
+        <th style="width:16%;">증권사(체결)</th>
+        <th style="width:18%;">결과</th>
+      </tr>
+    `;
   } else if (currentPhase === 'order') {
     phaseBadge = '<span style="font-size:11px; background:#0ea5e9; color:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">주문중 (VM/앱/증권사)</span>';
-    brokerColTitle = '증권사';
+    theadHtml = `
+      <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
+        <th style="width:30%; text-align:left; padding-left:12px;">주문</th>
+        <th style="width:15%;">VM</th>
+        <th style="width:15%;">앱</th>
+        <th style="width:20%;">증권사</th>
+        <th style="width:20%;">결과</th>
+      </tr>
+    `;
   } else {
     phaseBadge = '<span style="font-size:11px; background:#f59e0b; color:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">예약중 (VM/앱)</span>';
-    brokerColTitle = '<span style="color:var(--text-muted); font-weight:normal;">증권사 (-)</span>';
+    theadHtml = `
+      <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
+        <th style="width:30%; text-align:left; padding-left:12px;">주문</th>
+        <th style="width:15%;">VM</th>
+        <th style="width:15%;">앱</th>
+        <th style="width:20%;"><span style="color:var(--text-muted); font-weight:normal;">증권사 (-)</span></th>
+        <th style="width:20%;">결과</th>
+      </tr>
+    `;
   }
 
-  // Inject Modal
+    // Inject Modal
   const modalId = 'orderCompareManualModal';
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
@@ -1423,15 +1574,7 @@ window.compareOrderBookManual = async function() {
 
         <div style="padding:8px 16px 0 16px; overflow-y:auto; flex:1;">
           <table style="width:100%; border-collapse:collapse; text-align:center; font-size:12px;">
-            <thead style="background:var(--bg, #020617); position:sticky; top:0;">
-              <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
-                <th style="width:30%; text-align:left; padding-left:12px;">주문</th>
-                <th style="width:15%;">VM</th>
-                <th style="width:15%;">앱</th>
-                <th style="width:20%;">${brokerColTitle}</th>
-                <th style="width:20%;">결과</th>
-              </tr>
-            </thead>
+            <thead style="background:var(--bg, #020617); position:sticky; top:0;">\n              ${theadHtml}\n            </thead>
             <tbody>
               ${tbodyHtml}
             </tbody>
@@ -1865,11 +2008,15 @@ function updateCombinedOrderMatchStatus() {
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
   const isBrokerPhase = currentPhase === 'order' || currentPhase === 'closed';
 
-  // ⭐️ 1. 첫 실행 시(이전 판정 결과가 전혀 없는 상태): [⏳ 확인중] 보류 상태 표시
-  const hasEverChecked = cache.lastVerdict !== undefined && cache.lastVerdict !== null;
-  const isFreshChecking = (!cache.lastUpdated || cache.lastUpdated === 0 || (!cache.brokerOrdersChecked && isBrokerPhase));
+  // ⭐️ 데이터 로딩 완료 여부 확인
+  // 예약 시간대: VM 데이터(vmOrdersChecked) 필요
+  // 장중/체결시간대: VM 데이터(vmOrdersChecked) + 증권사 데이터(brokerOrdersChecked) 필요
+  const isVmReady = !!cache.vmOrdersChecked;
+  const isBrokerReady = isBrokerPhase ? !!cache.brokerOrdersChecked : true;
+  const isDataReady = isVmReady && isBrokerReady && !cache.isLoading;
 
-  if (!hasEverChecked && isFreshChecking) {
+  // 데이터가 아직 준비되지 않은 경우 무조건 [⏳ 확인중] 표시
+  if (!isDataReady) {
     if (btn) {
       btn.innerHTML = '⏳ 확인중';
       btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
@@ -1880,33 +2027,53 @@ function updateCombinedOrderMatchStatus() {
     return;
   }
 
-  // ⭐️ 2. 그 이후 재조회 중인 경우: 최종 결과가 도착하기 전까지는 이전의 기존 일치/불일치 상태 유지
-  if (hasEverChecked && isFreshChecking) {
-    if (btn) {
-      if (cache.lastVerdict === 'matched') {
-        btn.innerHTML = '✅ 일치확인';
-        btn.style.background = 'linear-gradient(135deg, #10b981, #047857)';
-      } else {
-        btn.innerHTML = '❌ 불일치';
-        btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
-      }
-    }
-    if (titleEl) {
-      if (cache.lastVerdict === 'matched') {
-        titleEl.innerHTML = '통합 주문표 <span style="color:#10b981; font-size:11px; font-weight:800;">(일치)</span>';
-      } else {
-        titleEl.innerHTML = '통합 주문표 <span style="color:#ef4444; font-size:11px; font-weight:800;">(불일치)</span>';
-      }
-    }
-    return;
-  }
-
-  // ⭐️ 3. SSOT 공통 평가 함수로부터 정확한 일치 여부 획득
+  // ⭐️ SSOT 공통 평가 함수로부터 정확한 일치 여부 획득
   const evalData = window.getCombinedOrderEvaluationData();
   const isAllMatched = evalData.isAllMatched;
 
   // Save Final Verdict
   cache.lastVerdict = isAllMatched ? 'matched' : 'mismatched';
+    
+    try {
+      const evalDataForLog = evalData;
+      const cacheForLog = cache;
+      const symbolLog = evalData.symbol;
+      const isBrokerPhaseLog = evalData.isBrokerPhase;
+      const isDataReadyLog = isDataReady;
+      
+      // --- 대조 결과 로깅 (VM으로 전송) ---
+      if (isDataReadyLog && isBrokerPhaseLog) {
+        const mismatches = [];
+        evalDataForLog.allKeys.forEach(k => {
+          const vQty = evalDataForLog.vmMap[k] || 0;
+          const aQty = evalDataForLog.appMap[k] || 0;
+          const bQty = evalDataForLog.brMap[k] || 0;
+          
+          if (vQty > 0 && bQty === 0) {
+            const [side, type, price] = k.split('|');
+            const sStr = side === 'buy' ? '매수' : '매도';
+            mismatches.push(`❌ 발주 실패: 주문 취소됨 또는 증권사 거부 (${vQty}주 누락) [${symbolLog} ${sStr} @${price} ${type}]`);
+          } else if (vQty > 0 && bQty > 0 && vQty !== bQty) {
+            const [side, type, price] = k.split('|');
+            const sStr = side === 'buy' ? '매수' : '매도';
+            mismatches.push(`❌ 수량 불일치: VM ${vQty}주 vs 증권사 ${bQty}주 [${symbolLog} ${sStr} @${price} ${type}]`);
+          }
+        });
+        
+        const logHash = mismatches.join(';');
+        if (mismatches.length > 0 && cacheForLog.lastLogHash !== logHash) {
+          cacheForLog.lastLogHash = logHash;
+          const userId = window.myUserId || "smw594";
+          const base = typeof getProxyBase === 'function' ? getProxyBase() : (window.BROKER3_PROXY_BASE || "http://136.118.250.225:8080");
+          
+          mismatches.forEach(msg => {
+            if (window.BrokerService && typeof window.BrokerService.pushLog === 'function') {
+              window.BrokerService.pushLog(userId, msg).catch(e => {});
+            }
+          });
+        }
+      }
+    } catch(e) { console.error("Log eval error", e); }
 
   // Update UI Elements
   if (btn) {

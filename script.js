@@ -409,10 +409,13 @@ function generatePeriodTableDOM(containerId, suffix, viewState) {
       </table>
     </div>`;
 
-  // 2) 개별 투자법 슬롯들 배치하며 일반 3개 컬럼 적용
+  // 2) 개별 투자법 슬롯들 배치하며 일반 3개 컬럼 적용 (현재 브로커에 해당하는 슬롯만 표시)
   for (let i = 1; i <= MAX_SLOTS; i++) {
+    const active = typeof isSlotActive === 'function' ? isSlotActive(i) : true;
+    const isForBroker = (!window.BrokerService || typeof window.BrokerService.isSlotForBroker !== 'function') ? true : window.BrokerService.isSlotForBroker(i);
+    const displayStyle = (active && isForBroker) ? 'block' : 'none';
     tableHtml += `
-      <div id="monthlySlot${i}${suffix}" class="monthly-slot-item">
+      <div id="monthlySlot${i}${suffix}" class="monthly-slot-item" style="display:${displayStyle};">
         <div class="slot-title swipe-handler" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};" id="slot${i}TableName${suffix}">A-QUANT 2-${i}</div>
         <table class="data-table" id="periodTable${i}${suffix}">
           <thead><tr id="periodTableHead${i}${suffix}">${headDataStr}</tr></thead>
@@ -422,6 +425,9 @@ function generatePeriodTableDOM(containerId, suffix, viewState) {
   }
 
   tableContainer.innerHTML = tableHtml;
+  if (typeof updateSlotsVisibility === 'function') {
+    updateSlotsVisibility();
+  }
 }
 
 
@@ -2868,9 +2874,11 @@ function updateChartRatesDisplay() {
 window.updateChartRatesDisplay = updateChartRatesDisplay;
 
 // renderChart를 래핑해서 updateChartRatesDisplay 호출 추가
-const originalRenderChart = window.renderChart || function() {};
+const _origRenderChart = (typeof renderChart === 'function' ? renderChart : (window.renderChart || function() {}));
 window.renderChart = function() {
-  originalRenderChart.apply(this, arguments);
+  if (typeof _origRenderChart === 'function') {
+    _origRenderChart.apply(this, arguments);
+  }
   if (typeof updateChartRatesDisplay === 'function') {
     updateChartRatesDisplay();
   }

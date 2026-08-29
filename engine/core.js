@@ -112,7 +112,18 @@ function renderPeriodBarChartRaw(canvasIdOverride, viewStateOverride) {
     }
   }
   const sortedPeriods = [...allPeriods].sort().reverse();
-  if (sortedPeriods.length === 0) return;
+  if (sortedPeriods.length === 0) {
+    if (targetCanvasId === 'periodBarChart') {
+      if (periodBarChartInstance) { periodBarChartInstance.destroy(); periodBarChartInstance = null; }
+    } else {
+      if (window.barChartInstances && window.barChartInstances[targetCanvasId]) {
+        window.barChartInstances[targetCanvasId].destroy();
+        window.barChartInstances[targetCanvasId] = null;
+      }
+    }
+    if (wrapper) wrapper.innerHTML = '<canvas id="' + targetCanvasId + '"></canvas>';
+    return;
+  }
 
   const labels = sortedPeriods.map(p => {
     if (targetViewState === 2 && p.includes('-')) {
@@ -532,7 +543,8 @@ function renderChart(resultsArray) {
   // ⭐️ 안전 보정: 만약 개별 투자법 뷰 모드인데 해당 슬롯이 비활성화되어 있다면 합산(0)으로 자동 리셋
   if (chartViewMode >= 2 && chartViewMode <= MAX_SLOTS + 1) {
     const slotIdx = chartViewMode - 1;
-    if (typeof isSlotActive === 'function' && !isSlotActive(slotIdx)) {
+    const slotOk = typeof isSlotActive === 'function' && isSlotActive(slotIdx) && (!window.BrokerService || window.BrokerService.isSlotForBroker(slotIdx));
+    if (!slotOk) {
       chartViewMode = 0;
       try { localStorage.setItem(`vtotal3_chart_view_mode_${myUserId}`, chartViewMode); } catch (e) { }
     }
@@ -541,6 +553,11 @@ function renderChart(resultsArray) {
   if (validRes.length === 0) {
     if (myChart) { myChart.destroy(); myChart = null; }
     window.currentChartSignature = "";
+    const box = document.getElementById('chartBox');
+    if (box) box.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted); font-size:12px;">데이터가 없습니다.</div>';
+    const cTitle = document.getElementById('chartTitle');
+    if (cTitle) cTitle.innerHTML = '📈 성과추이';
+    if (typeof updateChartRatesDisplay === 'function') updateChartRatesDisplay();
     return;
   }
 
@@ -887,3 +904,9 @@ function exportTradeHistoryToCSV() {
 
 // 통화/환율은 script.js에서 관리됨
 // isCurrencyKRW, currentFXRate, updateCurrentFXRate()
+
+// Global exports for core.js
+window.renderChart = renderChart;
+window.renderChartAll = renderChartAll;
+window.renderPeriodBarChart = renderPeriodBarChart;
+window.renderPeriodBarChartRaw = renderPeriodBarChartRaw;

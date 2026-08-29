@@ -17,14 +17,16 @@ function calculateCombinedPeriodData() {
     globalCombinedMonthlyData = [];
     globalCombinedYearlyData = [];
     globalCombinedDailyData = [];
+    window.lastMonthlySig = null;
     return;
   }
 
+  const activeBroker = (window.BrokerService && window.BrokerService.activeBroker) || 'kiwoom';
   const sigs = results.map(r => {
     const fDates = r.chartDatesFull || r.chartDates || [];
     return r.summary ? `${r.currentStrat}_${r.summary.totalAssets}_${fDates.length}` : "null";
   });
-  const newSig = sigs.join('|') + "|" + isCurrencyKRW;
+  const newSig = sigs.join('|') + "|" + isCurrencyKRW + "|" + activeBroker;
   // ⭐️ 강제 갱신 지원
   if (!window.__forcePerfRender && window.lastMonthlySig === newSig) return;
   window.__forcePerfRender = false;

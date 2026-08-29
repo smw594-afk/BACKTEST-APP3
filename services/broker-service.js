@@ -140,7 +140,15 @@ window.BrokerService = {
       if (window.orderStatusCache) {
         window.orderStatusCache.unfilledOrders = [];
         window.orderStatusCache.filledOrders = [];
+        window.orderStatusCache.vmOrders = [];
+        window.orderStatusCache.vmOrdersChecked = false;
+        window.orderStatusCache.brokerOrdersChecked = false;
+        window.orderStatusCache.isLoading = true;
+        window.orderStatusCache.lastVerdict = 'loading';
         window.orderStatusCache.lastUpdated = 0;
+      }
+      if (typeof window.updateCombinedOrderMatchStatus === "function") {
+        window.updateCombinedOrderMatchStatus();
       }
     } catch (e) { console.warn("[BrokerService] invalidate error:", e); }
 
@@ -161,8 +169,48 @@ window.BrokerService = {
       if (window.UI && window.UI.tradeHistory && typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
         window.UI.tradeHistory.syncHistoryViewModeToBroker();
       }
+      if (window.BrokerReconcile && typeof window.BrokerReconcile.refreshFills === "function") {
+        window.BrokerReconcile.refreshFills(broker, () => {
+          if (window.UI?.tradeHistory?.renderDBTradeHistory) window.UI.tradeHistory.renderDBTradeHistory();
+          if (window.UI?.holdings?.renderCombinedHoldings) window.UI.holdings.renderCombinedHoldings();
+        });
+      }
       if (typeof window.updateStatsPieChart === "function") {
         window.updateStatsPieChart();
+      }
+      // 성과추이(Period Table / Bar Chart / Line Chart) 활성 브로커 기준으로 즉시 재계산 및 렌더링
+      window.__forcePerfRender = true;
+      if (window.barChartSignatures) window.barChartSignatures = {};
+      window.lastMonthlySig = null;
+      window.currentChartSignature = "";
+      window.chartRatesData = null;
+      if (window.UI && window.UI.performance) {
+        if (typeof window.UI.performance.calculateCombinedPeriodData === "function") {
+          window.UI.performance.calculateCombinedPeriodData();
+        }
+        if (typeof window.UI.performance.renderPerfTables === "function") {
+          window.UI.performance.renderPerfTables();
+        }
+        if (typeof window.UI.performance.renderAnalysisView === "function") {
+          window.UI.performance.renderAnalysisView();
+        }
+      }
+      if (typeof window.renderPeriodBarChart === "function") {
+        window.renderPeriodBarChart();
+      } else if (typeof renderPeriodBarChart === "function") {
+        renderPeriodBarChart();
+      }
+      // 📈 메인 성과추이 꺾은선 차트 (myChart / balanceChart)
+      if (typeof window.renderChartAll === "function") {
+        window.renderChartAll();
+      } else if (typeof renderChartAll === "function") {
+        renderChartAll();
+      }
+      // 📈 성과추이 우측 상단 Y/M/D 수익률 뱃지 갱신
+      if (typeof window.updateChartRatesDisplay === "function") {
+        window.updateChartRatesDisplay();
+      } else if (typeof updateChartRatesDisplay === "function") {
+        updateChartRatesDisplay();
       }
       if (typeof window.refreshOrderStatusCache === "function") {
         window.refreshOrderStatusCache(true);
@@ -246,6 +294,15 @@ window.BrokerService = {
     if (!(slotNum >= 1 && slotNum <= max)) return false;
     if (broker === "kiwoom" || broker === "ls") return this.brokerForSlot(slotNum) === broker;
     return true;
+  },
+
+    async getLogs(userId, days = 7) {
+    const uid = userId || this.getUserId();
+    return await this.brokerFetch(`/api/orders/logs?userId=${encodeURIComponent(uid)}&days=${days}`, "GET", null, 10000);
+  },
+  async pushLog(userId, msg) {
+    const uid = userId || this.getUserId();
+    return await this.brokerFetch(`/api/orders/logs`, "POST", { userId: uid, msg }, 5000);
   },
 
   async brokerFetch(endpoint, method = "GET", payload = null, timeoutMs = 3500) {
