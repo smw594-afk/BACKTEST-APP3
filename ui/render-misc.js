@@ -1688,28 +1688,27 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
             }
           }
 
-          // ⭐️ [근본 원인 해결] 엔진이 생성한 dailyStates JSON의 과거값을 보정합니다.
+          // ⭐️ [근본 원인 해결] 엔진이 생성한 dailyStates JSON의 실전 원금 보정 및 예수금 리셋 방어
           if (mergedSnap.dailyStates && mergedSnap.dailyStates.length > 0) {
-            mergedSnap.dailyStates = mergedSnap.dailyStates.map((state, idx, arr) => {
+            mergedSnap.dailyStates = mergedSnap.dailyStates.map((state) => {
               try {
                 let parsed = JSON.parse(state.json);
                 parsed.realPrincipal = trueRealPrincipal;
 
-                // ⭐️ [증액 누락 차단 로직 개선]
-                // 마지막 데이터(오늘)에 대해, 시트에 이미 기록된 날짜라면 시트 값을 우선하되,
-                // 시트에 아직 없는 '오늘'의 계산값이라면 엔진의 값을 보존합니다.
-                if (idx === arr.length - 1) {
-                  const sheetLastDate = normalizeSheetStateDate(localStorage.getItem(`vtotal3_sheet_last_date_${slotNum}_${myUserId}`));
-                  if (normalizeSheetStateDate(state.date) <= sheetLastDate) {
-                    // 시트에 이미 저장된 날짜인 경우에만 시트 값으로 동기화 (박제)
-                    state.asset = realData.summary.totalAssets;
-                    parsed.cash = realData.summary.cash;
-                    parsed.base_principal = realData.summary.base;
-                    parsed.base = realData.summary.base;
-                  } else {
-                    // 시트에 아직 없는 최신 날짜(오늘)라면 엔진의 계산값(매수 후 예수금 등)을 유지
-                    // 단, 원금 정보 등은 시트 기준 정보를 따름
-                    parsed.realPrincipal = trueRealPrincipal;
+                // 🛡️ [예수금 리셋 방어 가드]
+                // 주식을 보유 중인데 예수금이 원금(realPrincipal)과 같거나, 자산이 예수금과 동일하게 잡히는 왜곡 방지
+                const holdings = Array.isArray(parsed.holdings) ? parsed.holdings : [];
+                let totalStockCost = 0;
+                holdings.forEach(h => {
+                  const q = Number(h.qty || 0);
+                  const p = Number(h.buy_price || h.price || 0);
+                  totalStockCost += (q * p);
+                });
+
+                // 주식이 있는데 cash가 원금 전체로 잡혀있는 비정상 상태 교정
+                if (holdings.length > 0 && totalStockCost > 0) {
+                  if (parsed.cash >= trueRealPrincipal && trueRealPrincipal > totalStockCost) {
+                    parsed.cash = Math.max(0, Math.round((trueRealPrincipal - totalStockCost) * 100) / 100);
                   }
                 }
 

@@ -1230,6 +1230,13 @@ function checkAndRunAutoSave() {
         if (date > nyToday) return; // 미래 불가
         if (date === nyToday && !isMarketClosedVal) return; // 장중 박제 금지
 
+        // 🛡️ [VM 전담 시간대 앱 쓰기 제외] 16:50 ET ~ 18:20 ET
+        // VM 백테스트 스케줄러(17:00 ET 시작, 최대 70분 윈도우)가 종가를 수집하고 시트에 저장하는 시간대에는
+        // 앱의 자동 저장을 건너뛰어 동시 쓰기 충돌을 원천 차단합니다.
+        const nyMinutes = nyTime.getHours() * 60 + nyTime.getMinutes();
+        const isVmWindow = nyMinutes >= (16 * 60 + 50) && nyMinutes <= (18 * 60 + 20);
+        if (isVmWindow) return;
+
         if (!isFuture && !isMissing) return;
 
       if (!combinedMap[date]) {
@@ -1237,10 +1244,31 @@ function checkAndRunAutoSave() {
         for (let i = 1; i <= MAX_SLOTS; i++) baseObj[`s${i}`] = null;
         combinedMap[date] = baseObj;
       }
+      // 🛡️ [저장 전 정합성 검증 가드] 주식 보유 중 예수금 리셋 상태 자동 교정
+      let stateAsset = state.asset;
+      let stateJsonStr = state.json;
+      try {
+        const parsed = JSON.parse(state.json || "{}");
+        const holdings = Array.isArray(parsed.holdings) ? parsed.holdings : [];
+        let totalStockCost = 0;
+        holdings.forEach(h => {
+          const q = Number(h.qty || 0);
+          const p = Number(h.buy_price || h.price || 0);
+          totalStockCost += (q * p);
+        });
+        const realPrinc = Number(parsed.realPrincipal || 0);
+        if (holdings.length > 0 && totalStockCost > 0 && realPrinc > totalStockCost) {
+          if (Number(parsed.cash || 0) >= realPrinc) {
+            parsed.cash = Math.max(0, Math.round((realPrinc - totalStockCost) * 100) / 100);
+            stateJsonStr = JSON.stringify(parsed);
+          }
+        }
+      } catch (e) {}
+
       combinedMap[date][slotKey] = {
-        asset: state.asset,
+        asset: stateAsset,
         inout: state.inout,
-        json: state.json
+        json: stateJsonStr
       };
     });
   };

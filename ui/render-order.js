@@ -1761,21 +1761,34 @@ window.openSheetVerificationModal = async function() {
       const isKiwoom = slot <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6);
       const brokerTag = isKiwoom ? `<span style="background:rgba(16,185,129,0.2); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">키움</span>` : `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">LS</span>`;
 
-      const holdingsMatch = isHoldingsMatch(app.holdings, vm.holdings);
+      // ⭐️ [N-1일 기반 독립 순수 계산값 vs 시트 실제 기록값 대조]
+      const pure = vm.pureCalculated || null;
+      const sheet = vm.sheetActual || {
+        date: vm.date,
+        asset: vm.asset,
+        inout: vm.inout,
+        cash: vm.cash,
+        base: vm.base,
+        realPrincipal: vm.realPrincipal,
+        holdings: vm.holdings
+      };
 
-      // 11대 검증 항목 정의
+      const compareCalc = pure || app;
+      const holdingsMatch = isHoldingsMatch(compareCalc.holdings, sheet.holdings);
+
+      // 11대 검증 항목 정의 (N-1일 독립 계산값 vs 시트 실제 장부값)
       const items = [
-        { label: "1. 기준 거래일자 (시트 상태일)", appVal: app.date || "-", vmVal: vm.date || "-", match: isExactMatch(app.date, vm.date), format: v => v },
-        { label: "2. 총자산 ($)", appVal: app.asset, vmVal: vm.asset, match: isMoneyMatch(app.asset, vm.asset), format: fmtMoney },
-        { label: "3. 누적 입출금 ($)", appVal: app.inout, vmVal: vm.inout, match: isMoneyMatch(app.inout, vm.inout), format: fmtMoney },
-        { label: "4. 예수금 / 현금 ($)", appVal: app.cash, vmVal: vm.cash, match: isMoneyMatch(app.cash, vm.cash), format: fmtMoney },
-        { label: "5. 갱신금 / 갱신원금 ($)", appVal: app.base, vmVal: vm.base, match: isMoneyMatch(app.base, vm.base), format: fmtMoney },
-        { label: "6. 실전 투입원금 ($)", appVal: app.realPrincipal, vmVal: vm.realPrincipal, match: isMoneyMatch(app.realPrincipal, vm.realPrincipal), format: fmtMoney },
+        { label: "1. 기준 거래일자 (시트 상태일)", appVal: compareCalc.date || "-", vmVal: sheet.date || "-", match: isExactMatch(compareCalc.date, sheet.date), format: v => v },
+        { label: "2. 총자산 ($)", appVal: compareCalc.asset, vmVal: sheet.asset, match: isMoneyMatch(compareCalc.asset, sheet.asset), format: fmtMoney },
+        { label: "3. 누적 입출금 ($)", appVal: compareCalc.inout, vmVal: sheet.inout, match: isMoneyMatch(compareCalc.inout, sheet.inout), format: fmtMoney },
+        { label: "4. 예수금 / 현금 ($)", appVal: compareCalc.cash, vmVal: sheet.cash, match: isMoneyMatch(compareCalc.cash, sheet.cash), format: fmtMoney },
+        { label: "5. 갱신금 / 갱신원금 ($)", appVal: compareCalc.base, vmVal: sheet.base, match: isMoneyMatch(compareCalc.base, sheet.base), format: fmtMoney },
+        { label: "6. 실전 투입원금 ($)", appVal: compareCalc.realPrincipal, vmVal: sheet.realPrincipal, match: isMoneyMatch(compareCalc.realPrincipal, sheet.realPrincipal), format: fmtMoney },
         { label: "7. 진입 모드 (Mode)", appVal: app.mode, vmVal: vm.mode, match: isExactMatch(app.mode, vm.mode), format: v => v },
         { label: "8. 매수 티어 (Tier)", appVal: app.tier, vmVal: vm.tier, match: isExactMatch(app.tier, vm.tier), format: v => v },
         { label: "9. 금일 매수예정 수량", appVal: app.buyQty, vmVal: vm.buyQty, match: Number(app.buyQty) === Number(vm.buyQty), format: v => `${v}주` },
         { label: "10. 금일 매수예정 단가", appVal: app.buyPrice, vmVal: vm.buyPrice, match: isMoneyMatch(app.buyPrice, vm.buyPrice), format: fmtMoney },
-        { label: "11. 보유 내역", appVal: app.holdings, vmVal: vm.holdings, match: holdingsMatch, isCustom: true }
+        { label: "11. 보유 내역 (Holdings)", appVal: compareCalc.holdings, vmVal: sheet.holdings, match: holdingsMatch, isCustom: true }
       ];
 
       const slotAllMatch = items.every(it => it.match);
