@@ -1042,6 +1042,12 @@ function loadQuickConfigFromLocal() {
   if (document.getElementById('qStrat4')) document.getElementById('qStrat4').value = '2M3D1-1P';
   if (document.getElementById('qStrat5')) document.getElementById('qStrat5').value = '2M3D2(2.0)';
   if (document.getElementById('qStrat6')) document.getElementById('qStrat6').value = '2M3D2(2.1)';
+  if (document.getElementById('qStrat7')) document.getElementById('qStrat7').value = '2M3D2(2.2)';
+  if (document.getElementById('qStrat8')) document.getElementById('qStrat8').value = '3M-R';
+  if (document.getElementById('qStrat9')) document.getElementById('qStrat9').value = '3M3D1-R';
+  if (document.getElementById('qStrat10')) document.getElementById('qStrat10').value = '3M3D3-R';
+  if (document.getElementById('qStrat11')) document.getElementById('qStrat11').value = '';
+  if (document.getElementById('qStrat12')) document.getElementById('qStrat12').value = '';
 
   document.getElementById('qTicker').value = 'SOXL';
   document.getElementById('qStartDate').value = '2026-01-01';

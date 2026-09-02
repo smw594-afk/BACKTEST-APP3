@@ -1642,7 +1642,12 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
           let mergedSnap = {
             ...realData,
             currentStrat: confData.basics.strategy,
-            summary: isEngineNewer ? { ...pureEngineRes.summary, realPrincipal: realData.summary.realPrincipal } : realData.summary,
+            summary: isEngineNewer ? {
+              ...pureEngineRes.summary,
+              realPrincipal: realData.summary.realPrincipal,
+              totalProfit: pureEngineRes.summary.totalAssets - (realData.summary.realPrincipal || 0),
+              yield: (realData.summary.realPrincipal > 0) ? (pureEngineRes.summary.totalAssets - realData.summary.realPrincipal) / realData.summary.realPrincipal : 0
+            } : realData.summary,
             inv: isEngineNewer ? pureEngineRes.inv : realData.inv,
             trades: sheetTrades,
             tradesFromSheet: true,

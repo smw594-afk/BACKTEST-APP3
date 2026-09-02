@@ -153,7 +153,7 @@
   <script src="services/stats-config.js?v=cf_v1787732256753" defer></script>
   <!-- UI Helpers (Performance icons, analysis) -->
   <script src="ui/helpers/performance-icons.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-performance-analysis.js?v=cf_v1787732256753" defer></script>
+  <script src="ui/render-performance-analysis.js?v=cf_v1788348354155" defer></script>
 </head>
 
 <body style="background-color: #020617; background: radial-gradient(circle at top right, #1e1b4b, #020617 60%); background-attachment: fixed; color: #f8fafc; margin: 0; padding: 4px;">
@@ -237,14 +237,16 @@
               <option value="정지">정지</option>
               <option value="1M">1M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
             </select>
           </div>
         </div>
@@ -652,7 +654,7 @@
       <h3 style="margin-bottom:15px;">🚀 백테스트 통합 설정</h3>
       <div id="quickConfigForm" style="display:flex; flex-direction:column; gap:8px;">
         <div
-          style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; margin-bottom:4px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(255,255,255,0.05); max-height:180px; overflow-y:auto;"
+          style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; margin-bottom:4px; display:grid; grid-template-columns: 1fr 1fr; gap:6px; border:1px solid rgba(255,255,255,0.05); max-height:220px; overflow-y:auto;"
           class="slim-scroll">
           <div class="input-group"><label>투자법 1</label>
             <select id="qStrat1" style="border-color:#6366f1;" onchange="saveQuickConfigToLocal()">
@@ -660,14 +662,16 @@
               <option value="정지">정지</option>
               <option value="1M" selected>1M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
             </select>
           </div>
           <div class="input-group"><label>투자법 2</label>
@@ -676,14 +680,16 @@
               <option value="정지">정지</option>
               <option value="1M">1M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)" selected>2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
             </select>
           </div>
           <div class="input-group"><label>투자법 3</label>
@@ -692,14 +698,16 @@
               <option value="정지">정지</option>
               <option value="1M">1M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)" selected>2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
             </select>
           </div>
           <div class="input-group"><label>투자법 4</label>
@@ -708,14 +716,16 @@
               <option value="정지">정지</option>
               <option value="1M">1M</option>
               <option value="2M3D1-1P" selected>2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
             </select>
           </div>
           <div class="input-group"><label>투자법 5</label>
@@ -724,14 +734,16 @@
               <option value="정지">정지</option>
               <option value="1M">1M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)" selected>2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
             </select>
           </div>
           <div class="input-group"><label>투자법 6</label>
@@ -740,14 +752,124 @@
               <option value="정지">정지</option>
               <option value="1M">1M</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
               <option value="2M3D2(1.2)">2M3D2(1.2)</option>
               <option value="2M3D2(2.0)">2M3D2(2.0)</option>
-              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
               <option value="2M3D2(2.1)" selected>2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
               <option value="3M3D1-R">3M3D1-R</option>
               <option value="3M3D3-R">3M3D3-R</option>
-                <option value="3M-R">3M-R</option>
+            </select>
+          </div>
+          <div class="input-group"><label>투자법 7</label>
+            <select id="qStrat7" style="border-color:#eab308;" onchange="saveQuickConfigToLocal()">
+              <option value="">없음</option>
+              <option value="정지">정지</option>
+              <option value="1M">1M</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)" selected>2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
+              <option value="3M3D1-R">3M3D1-R</option>
+              <option value="3M3D3-R">3M3D3-R</option>
+            </select>
+          </div>
+          <div class="input-group"><label>투자법 8</label>
+            <select id="qStrat8" style="border-color:#6366f1;" onchange="saveQuickConfigToLocal()">
+              <option value="">없음</option>
+              <option value="정지">정지</option>
+              <option value="1M">1M</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R" selected>3M-R</option>
+              <option value="3M3D1-R">3M3D1-R</option>
+              <option value="3M3D3-R">3M3D3-R</option>
+            </select>
+          </div>
+          <div class="input-group"><label>투자법 9</label>
+            <select id="qStrat9" style="border-color:#10b981;" onchange="saveQuickConfigToLocal()">
+              <option value="">없음</option>
+              <option value="정지">정지</option>
+              <option value="1M">1M</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
+              <option value="3M3D1-R" selected>3M3D1-R</option>
+              <option value="3M3D3-R">3M3D3-R</option>
+            </select>
+          </div>
+          <div class="input-group"><label>투자법 10</label>
+            <select id="qStrat10" style="border-color:#fbbf24;" onchange="saveQuickConfigToLocal()">
+              <option value="">없음</option>
+              <option value="정지">정지</option>
+              <option value="1M">1M</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
+              <option value="3M3D1-R">3M3D1-R</option>
+              <option value="3M3D3-R" selected>3M3D3-R</option>
+            </select>
+          </div>
+          <div class="input-group"><label>투자법 11</label>
+            <select id="qStrat11" style="border-color:#f43f5e;" onchange="saveQuickConfigToLocal()">
+              <option value="" selected>없음</option>
+              <option value="정지">정지</option>
+              <option value="1M">1M</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
+              <option value="3M3D1-R">3M3D1-R</option>
+              <option value="3M3D3-R">3M3D3-R</option>
+            </select>
+          </div>
+          <div class="input-group"><label>투자법 12</label>
+            <select id="qStrat12" style="border-color:#8b5cf6;" onchange="saveQuickConfigToLocal()">
+              <option value="" selected>없음</option>
+              <option value="정지">정지</option>
+              <option value="1M">1M</option>
+              <option value="2M3D1-1P">2M3D1-1P</option>
+              <option value="1M3D1(1.0)">1M3D1(1.0)</option>
+              <option value="2M3D2(1.0)">2M3D2(1.0)</option>
+              <option value="2M3D2(1.2)">2M3D2(1.2)</option>
+              <option value="2M3D2(2.0)">2M3D2(2.0)</option>
+              <option value="2M3D2(2.1)">2M3D2(2.1)</option>
+              <option value="2M3D2(2.2)">2M3D2(2.2)</option>
+              <option value="3M-R(1.0)">3M-R(1.0)</option>
+              <option value="3M-R">3M-R</option>
+              <option value="3M3D1-R">3M3D1-R</option>
+              <option value="3M3D3-R">3M3D3-R</option>
             </select>
           </div>
         </div>
@@ -954,22 +1076,22 @@
   </script>
 
   <script src="engine/price_loader.js?v=cf_v1787732256753" defer></script>
-  <script src="engine/strategies.js?v=cf_v1787732256753" defer></script>
+  <script src="engine/strategies.js?v=cf_v1788353130946" defer></script>
   <script src="engine/engine.js?v=cf_v1787732256753" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
   <script src="ui/render-order.js?v=cf_v1788218827764" defer></script>
   <script src="ui/render-holdings.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-performance.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-stats.js?v=cf_v1788012492560" defer></script>
+  <script src="ui/render-stats.js?v=cf_v1788348354155" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v1788012492560" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-toggles.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-helpers.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-notifications.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-misc.js?v=cf_v1788216813937" defer></script>
+  <script src="ui/render-notifications.js?v=cf_v1788352903828" defer></script>
+  <script src="ui/render-misc.js?v=cf_v1788348354155" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v1788217354311" defer></script>
+  <script src="script.js?v=cf_v1788352903828" defer></script>
 
 
 </body>

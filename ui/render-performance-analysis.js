@@ -68,9 +68,17 @@ function getAnalysisSeries(kind) {
       let basis = 0; // 합계 수익률 분모용: 전기말 총잔고 (= 기간행.asset - profit) / 총원금
 
       if (kind === 'total') {
-        profit = totalProfit;
-        basis = realPrincipal; // 총 수익률 분모 = 총원금
-        rate = basis > 0 ? profit / basis : 0;
+        if (Array.isArray(snap.yearlyData) && snap.yearlyData.length > 0) {
+          const sumYearlyProfit = snap.yearlyData.reduce((sum, r) => sum + Number(r.profit || 0), 0);
+          profit = sumYearlyProfit;
+          basis = totalAssets - sumYearlyProfit;
+          if (basis <= 0 && realPrincipal > 0) basis = realPrincipal;
+          rate = basis > 0 ? profit / basis : 0;
+        } else {
+          profit = totalProfit;
+          basis = realPrincipal; // 총 수익률 분모 = 총원금
+          rate = basis > 0 ? profit / basis : 0;
+        }
       } else {
         // 년/월/일 수익: 스냅샷의 실제 기간별 집계값 사용 (운영현황과 동일한 데이터)
         const row = getLatestSnapPeriodRow(snap, kind);

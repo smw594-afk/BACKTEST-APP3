@@ -396,8 +396,8 @@ function openRankingModal(mode = 'backtest') {
     const list = [];
     if (mode === 'backtest') {
       for (let i = 1; i <= MAX_SLOTS; i++) {
-        // 🔒 백테스트 결과는 lastManualBTResults에서만 가져옴 (실전 데이터로 덮어씌워지지 않음)
-        const res = window.lastManualBTResults?.[i] || lastBTResults[i];
+        // 🔒 백테스트 결과는 lastManualBTResults에서만 가져옴 (실전 데이터 참조 금지)
+        const res = window.lastManualBTResults?.[i];
         if (!res || !res.summary) continue;
         const s = res.summary; // 항상 summary 사용 (실전 데이터와 섞이지 않도록)
 

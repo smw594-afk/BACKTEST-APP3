@@ -461,8 +461,18 @@ function getDisplayStatusData(res, slotNum) {
     }
   }
 
-  displayYield = displayPrincipal > 0 ? (displayTotal - displayPrincipal) / displayPrincipal : 0;
   let displayTotalProfit = displayTotal - displayPrincipal;
+  // ⭐️ [년수익-총수익 일관성 보장] 실전 데이터에 yearlyData가 있으면,
+  // 실제 기간별 수익 집계(startingAsset + inout 기준)를 기반으로 총수익 및 실전 원금을 정합성 있게 도출
+  if (slotNum !== 'Combined' && Array.isArray(res.yearlyData) && res.yearlyData.length > 0) {
+    const sumYearlyProfit = res.yearlyData.reduce((sum, y) => sum + Number(y.profit || 0), 0);
+    displayTotalProfit = sumYearlyProfit;
+    const calcPrinc = displayTotal - sumYearlyProfit;
+    if (calcPrinc > 0) {
+      displayPrincipal = calcPrinc;
+    }
+  }
+  displayYield = displayPrincipal > 0 ? (displayTotalProfit / displayPrincipal) : 0;
   let displayEvalProfit = (displayEval > 0 && displayQty > 0 && displayAvgPrice > 0) ? (displayEval - (displayQty * displayAvgPrice)) : (s.evalProfit || 0);
 
   return {
