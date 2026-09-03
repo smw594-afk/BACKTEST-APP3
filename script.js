@@ -1,4 +1,4 @@
-﻿
+
 // 🛡️ Chart.js DOM detach 시 ownerDocument null 예외 안전 방어 래퍼
 function safeChartResize(chartInstance) {
   if (!chartInstance || typeof chartInstance.resize !== 'function') return;
@@ -1485,6 +1485,18 @@ async function handleSave() {
 
     if (btn) btn.innerText = '저장 중...';
 
+    // ⭐️ [원금 자동 보존 공식] 기존 장부가 있는 슬롯은 최초 자산 + 전체 입출금 누적액을 realPrincipal로 강제 보존
+    const truePrincipalForSave = existingSnap?.summary?.realPrincipal;
+    if (truePrincipalForSave && truePrincipalForSave > 0 && newLogs.length > 0) {
+      newLogs = newLogs.map(s => {
+        try {
+          const p = JSON.parse(s.json || "{}");
+          p.realPrincipal = truePrincipalForSave;
+          return { ...s, json: JSON.stringify(p) };
+        } catch (e) { return s; }
+      });
+    }
+
     if (navigator.onLine) {
       await saveSlotToSheet(targetSlot, slotConfigs[targetSlot], newLogs);
       rememberSheetConfigSnapshot(targetSlot, slotConfigs[targetSlot]);
@@ -2112,8 +2124,12 @@ function handleDeposit() {
     method: 'POST', mode: 'no-cors',
     body: JSON.stringify({ action: "ADD_FUNDS", id: myUserId, slot: activeSettingsTab, amount: amount })
   }).then(async () => { // ⭐️ async 추가
-    showToast(`$${amount.toLocaleString()} 처리 완료! 데이터를 다시 불러옵니다.`, "💰");
+    showToast(`$${amount.toLocaleString()} 처리 완료! 데이터를 동기화합니다...`, "💰");
     if (btn) btn.innerHTML = orgText;
+    // ⚠️ [버그 수정] GAS(doPost)의 시트 쓰기가 Sheets API REST 조회에 반영되기까지 
+    // 수 초의 지연(Eventual Consistency)이 발생할 수 있음.
+    // 곧바로 조회하면 이전 상태를 읽어와 방금 한 증액이 UI와 GCP 자동저장에서 롤백되는 문제(Race Condition) 방지.
+    await new Promise(r => setTimeout(r, 4000));
     await window.UI.misc.checkAndSyncWithServer(false, true); // 시트 데이터 강제 다시 불러오기
 
     // ⚠️ 2026-08-06: handleSave()와 달리 이 함수는 GAS에 직접 ADD_FUNDS를 써서 시트만

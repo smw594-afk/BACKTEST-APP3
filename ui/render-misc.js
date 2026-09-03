@@ -1,4 +1,4 @@
-﻿// ui/render-misc.js - 기타 UI 함수들 (최종 분리 - 마지막 단계)
+// ui/render-misc.js - 기타 UI 함수들 (최종 분리 - 마지막 단계)
 // 2024년 분리된 대형 UI 함수 모음
 
 // 🔧 폴리필: script.js가 로드되기 전에 호출되는 함수들 보호
@@ -1589,7 +1589,22 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
           const realJsonBase = realData.summary.base;
 
           // ⭐️ [원금 원천 방지] 시트의 실전 원금 데이터(입출금 포함) 추출
-          const trueRealPrincipal = realData.summary.realPrincipal;
+          // ⭐️ [원금 자동 보존 공식] 시트의 최초 자산 + 전체 입출금 누적액
+          let trueRealPrincipal = 0;
+          if (perfSlotData && Array.isArray(perfSlotData.logs) && perfSlotData.logs.length > 0) {
+            const firstAsset = parseFloat(String(perfSlotData.logs[0][1] || 0).replace(/[^0-9.-]+/g, "")) || 0;
+            let totalInout = 0;
+            for (let li = 0; li < perfSlotData.logs.length; li++) {
+              totalInout += (parseFloat(String(perfSlotData.logs[li][2] || 0).replace(/[^0-9.-]+/g, "")) || 0);
+            }
+            if (firstAsset > 0) {
+              trueRealPrincipal = Math.round((firstAsset + totalInout) * 100) / 100;
+            }
+          }
+          if (!trueRealPrincipal || trueRealPrincipal <= 0) {
+            trueRealPrincipal = realData.summary.realPrincipal || Number(confData.basics.initialCash) || 0;
+          }
+          realData.summary.realPrincipal = trueRealPrincipal;
 
           // 1. 설정 꾸러미(conf) 업데이트 및 저장
           localStorage.setItem(`vtotal3_conf${slotNum}_${myUserId}`, JSON.stringify({ basics: confData.basics }));
