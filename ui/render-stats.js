@@ -813,7 +813,8 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     });
 
     let cashAsset = usdCash;
-    if (buyingPower > usdCash) {
+    // ⚠️ LS는 외화 RP 95% 담보가 적용되므로 95% 역산, 키움은 RP가 없으므로 최종 정산예수금 그대로 사용
+    if (broker === "ls" && buyingPower > usdCash) {
       const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
       cashAsset = wonCollateralUsd + usdCash;
     }
@@ -825,7 +826,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     // 앱1 가로 요약 바 그대로 적용 ($ 달러)
     html += `
       <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
-        <div>${(broker === "ls" ? "RP+예수금(D+2)" : "예수금(D+2)")}: <strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong></div>
+        <div>${(broker === "ls" ? "RP+정산 예수금" : "정산 예수금")}: <strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong></div>
         <div>주문 가능금액: <strong style="color:var(--text, #fff);">${usd(buyingPower)}</strong></div>
         <div>평가금액: <strong style="color:var(--text, #fff);">${usd(evalAmt)}</strong></div>
         <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>

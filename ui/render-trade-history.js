@@ -1,8 +1,13 @@
-﻿// ui/render-trade-history.js - 실전 매도내역 렌더링 (백업에서 복구됨)
+// ui/render-trade-history.js - 실전 매도내역 렌더링 (백업에서 복구됨)
 
 let lastTradeHistoryRenderSignature = '';
 let historyMonthOffset = 0;
 let historyScrollBound = false;
+let historyDisplayLimit = 20; // ⭐️ 첫 화면 20개 표시, 스와이프/스크롤 시 20개씩 점진적 로딩
+let totalTradesCount = 0;
+let brokerFillsDisplayLimit = 20; // ⭐️ 키움/LS 체결내역도 첫 화면 20개 표시
+let lastBrokerFillsRows = [];
+let lastBrokerFillsBroker = '';
 let historyViewMode = 'strategy'; // 기본은 실전 매도내역 (내역모드 진입 시 항상 이 화면)
 
 // 실전 매도내역(strategy) 표의 thead (index.html 정적 헤더와 동일: 일치 컬럼 포함 10열)
@@ -42,6 +47,7 @@ function kiwoomHistoryTheadHtml() {
 function resetToStrategyHistory() {
   historyViewMode = 'strategy';
   historyMonthOffset = 0;
+  historyDisplayLimit = 20;
   lastTradeHistoryRenderSignature = '';
   const title = document.getElementById('historyTitle');
   if (title) title.textContent = '📜 실전 매도 내역';
@@ -83,8 +89,97 @@ async function toggleView() {
 
   // 'strategy' 모드 복귀 시: 헤더를 실전매도내역(10열)으로 원복하고 DB 거래내역 재렌더링
   lastTradeHistoryRenderSignature = '';
+  historyDisplayLimit = 20;
   if (thead) thead.innerHTML = strategyHistoryTheadHtml();
   renderDBTradeHistory();
+}
+
+function bindHistoryScrollListener(tbody) {
+  if (!tbody) return;
+  const scrollHost = tbody.closest('.slim-scroll');
+  if (scrollHost && !historyScrollBound) {
+    historyScrollBound = true;
+
+    scrollHost.addEventListener('scroll', () => {
+      if (scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 40) {
+        loadMoreTradeHistory();
+      }
+    }, { passive: true });
+
+    let touchStartY = null;
+    scrollHost.addEventListener('touchstart', (e) => {
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    scrollHost.addEventListener('touchend', (e) => {
+      if (touchStartY === null) return;
+      const deltaY = touchStartY - e.changedTouches[0].clientY;
+      touchStartY = null;
+      if (deltaY > 30) { // 위로 스와이프 = 아래로 스크롤하여 더 보기 의도
+        loadMoreTradeHistory();
+      }
+    }, { passive: true });
+    scrollHost.addEventListener('wheel', (e) => {
+      if (e.deltaY > 20 && (scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 40 || scrollHost.scrollHeight <= scrollHost.clientHeight + 10)) {
+        loadMoreTradeHistory();
+      }
+    }, { passive: true });
+  }
+}
+
+function renderBrokerFillsRowsHtml(broker, rows) {
+  const tbody = document.getElementById('historyTableBody');
+  if (!tbody) return;
+  const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+  const textColor = isLight ? '#0f172a' : '#f8fafc';
+  const textMuted = isLight ? '#64748b' : '#94a3b8';
+  const symbolColor = isLight ? '#be123c' : '#fda4af';
+  const buyColor = isLight ? '#b91c1c' : '#f43f5e';
+  const sellColor = isLight ? '#15803d' : '#10b981';
+  const borderCol = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+
+  const visibleRows = rows.slice(0, brokerFillsDisplayLimit);
+
+  let html = visibleRows.map(r => {
+    const sideStr = String(r.side || r.io_tp_nm || '').toUpperCase();
+    const isBuy = sideStr.includes('BUY') || sideStr.includes('매수');
+    const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
+    const buyPric = Number(r.ord_pric || r.price) || 0;
+    const cntrPric = Number(r.cntr_pric || r.price) || 0;
+    let statusStr = r.ord_stt || r.status || '체결완료';
+    if (statusStr === '접수완료' || statusStr === '체결') statusStr = '체결완료';
+    const timePart = r.time || r.cntr_tm || r.ord_tm || '-';
+    const feeVal = Number(r.tdy_trde_cmsn || r.fee) || 0;
+    const pnlVal = Number(r.rlzt_pl || r.pnl) || 0;
+
+    const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pnlColor = pnlVal >= 0 ? sellColor : buyColor;
+    const profitCell = !isBuy
+      ? (pnlVal !== 0 ? `<td style="text-align:center; color:${pnlColor}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="text-align:center; color:${textMuted};">-</td>`)
+      : `<td style="text-align:center; color:${textMuted};">-</td>`;
+
+    return `<tr style="text-align:center; color:${textColor}; border-bottom:1px solid ${borderCol};">
+      <td style="text-align:center; font-weight:700; color:${symbolColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
+      <td style="text-align:center; color:${isBuy ? buyColor : sellColor}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
+      <td style="text-align:center; color:${textColor};">$${buyPric.toFixed(2)}</td>
+      <td style="text-align:center; color:${textColor};">$${cntrPric.toFixed(2)}</td>
+      <td style="text-align:center; color:${textColor};">${qty.toLocaleString()}주</td>
+      <td style="text-align:center; color:${textColor};">${statusStr}</td>
+      <td style="text-align:center; color:${textMuted};">${timePart}</td>
+      <td style="text-align:center; color:${textColor};">${feeVal > 0 ? usd(feeVal) : '-'}</td>
+      ${profitCell}
+    </tr>`;
+  }).join('');
+
+  if (visibleRows.length < rows.length) {
+    html += `<tr style="border-bottom: 1px dashed ${borderCol};">
+      <td colspan="9" style="text-align:center; padding:8px 0; color:${textMuted}; font-size:10px; cursor:pointer;" onclick="if(window.UI && window.UI.tradeHistory && window.UI.tradeHistory.loadMore) window.UI.tradeHistory.loadMore();">
+        ⬇ 더 보기 (${visibleRows.length} / ${rows.length}) — 스와이프 또는 터치 시 +20개
+      </td>
+    </tr>`;
+  }
+
+  tbody.innerHTML = html;
+  bindHistoryScrollListener(tbody);
 }
 
 // ⚠️ 2026-07-31: 이 함수가 파일에 완전히 동일하게 두 번 정의돼 있던 것을 정리했다
@@ -93,6 +188,8 @@ async function renderBrokerFills(broker) {
   const tbody = document.getElementById('historyTableBody');
   const thead = document.querySelector('#historyTable thead');
   if (!tbody) return;
+  bindHistoryScrollListener(tbody);
+  brokerFillsDisplayLimit = 20; // ⭐️ 조회 시 20개로 초기화
   const label = broker === 'ls' ? 'LS증권' : '키움';
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
   const textColor = isLight ? '#0f172a' : '#f8fafc';
@@ -133,41 +230,15 @@ async function renderBrokerFills(broker) {
 
     const rows = Array.isArray(data.executions) ? data.executions : (Array.isArray(data.rows) ? data.rows : []);
     if (!rows.length) {
+      lastBrokerFillsRows = [];
       tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:${textMuted};">${label} 해외주식 체결내역이 없습니다</td></tr>`;
       return;
     }
 
     const sortKey = (r) => `${String(r.marketDate || r.date || "")} ${String(r.timeKst || r.time || "")}`;
-    tbody.innerHTML = rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a))).map(r => {
-      const sideStr = String(r.side || r.io_tp_nm || '').toUpperCase();
-      const isBuy = sideStr.includes('BUY') || sideStr.includes('매수');
-      const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
-      const buyPric = Number(r.ord_pric || r.price) || 0;
-      const cntrPric = Number(r.cntr_pric || r.price) || 0;
-      let statusStr = r.ord_stt || r.status || '체결완료';
-      if (statusStr === '접수완료' || statusStr === '체결') statusStr = '체결완료';
-      const timePart = r.time || r.cntr_tm || r.ord_tm || '-';
-      const feeVal = Number(r.tdy_trde_cmsn || r.fee) || 0;
-      const pnlVal = Number(r.rlzt_pl || r.pnl) || 0;
-
-      const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const pnlColor = pnlVal >= 0 ? sellColor : buyColor;
-      const profitCell = !isBuy
-        ? (pnlVal !== 0 ? `<td style="text-align:center; color:${pnlColor}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="text-align:center; color:${textMuted};">-</td>`)
-        : `<td style="text-align:center; color:${textMuted};">-</td>`;
-
-      return `<tr style="text-align:center; color:${textColor}; border-bottom:1px solid ${borderCol};">
-        <td style="text-align:center; font-weight:700; color:${symbolColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
-        <td style="text-align:center; color:${isBuy ? buyColor : sellColor}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
-        <td style="text-align:center; color:${textColor};">$${buyPric.toFixed(2)}</td>
-        <td style="text-align:center; color:${textColor};">$${cntrPric.toFixed(2)}</td>
-        <td style="text-align:center; color:${textColor};">${qty.toLocaleString()}주</td>
-        <td style="text-align:center; color:${textColor};">${statusStr}</td>
-        <td style="text-align:center; color:${textMuted};">${timePart}</td>
-        <td style="text-align:center; color:${textColor};">${feeVal > 0 ? usd(feeVal) : '-'}</td>
-        ${profitCell}
-      </tr>`;
-    }).join('');
+    lastBrokerFillsRows = rows.slice().sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+    lastBrokerFillsBroker = broker;
+    renderBrokerFillsRowsHtml(broker, lastBrokerFillsRows);
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${label} 해외주식 체결내역 연동 실패<br/><span style="font-size:9.5px;opacity:0.8;">${e.message}</span></td></tr>`;
   }
@@ -426,23 +497,28 @@ function renderDBTradeHistory() {
       }
     });
 
-    const latestDate = allTrades.reduce((latest, trade) => {
-      const value = String(trade.sellDate || trade.sell_date || '');
-      const normalized = normalizeDateKey(value);
-      return normalized > latest ? normalized : latest;
-    }, '');
-    const latestParts = latestDate.split('-').map(Number);
-    const latestMonth = latestParts.length === 3 && latestParts[1] > 0 ? new Date(Date.UTC(latestParts[0], latestParts[1] - 1 - historyMonthOffset, 1)) : null;
-    const monthStart = latestMonth ? latestMonth.getTime() : -Infinity;
-    const monthEnd = latestParts.length === 3 && latestParts[1] > 0 ? Date.UTC(latestParts[0], latestParts[1], 1) : Infinity;
-    const visibleTrades = latestMonth ? allTrades.filter(trade => {
-      const value = String(trade.sellDate || trade.sell_date || '');
-      const time = Date.parse(`${value}T00:00:00Z`);
-      return time >= monthStart && time < monthEnd;
-    }) : allTrades;
+    totalTradesCount = allTrades.length;
+
+    // ⭐️ 전체 거래 내역을 청산일 최신순으로 정렬
+    allTrades.sort((a, b) => {
+      const sellA = String(a.sellDate || a.sell_date || "");
+      const sellB = String(b.sellDate || b.sell_date || "");
+      if (sellA !== sellB) {
+        return sellB.localeCompare(sellA);
+      }
+      const buyA = String(a.buyDate || a.buy_date || "");
+      const buyB = String(b.buyDate || b.buy_date || "");
+      return buyB.localeCompare(buyA);
+    });
+
+    const latestDate = allTrades.length > 0 ? normalizeDateKey(String(allTrades[0].sellDate || allTrades[0].sell_date || '')) : '';
+    
+    // ⭐️ [2026-09-04]: 첫 화면에는 최근 20개만 표시하고, 스크롤/위로 스와이프 시 20개씩 추가 로딩
+    const visibleTrades = allTrades.slice(0, historyDisplayLimit);
+
     const isLightMode = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
     const activeBr = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
-    const signature = `${activeBr}|${allTrades.length}|${historyMonthOffset}|${latestDate}|${allTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0)}|br:${reconcileState ? (reconcileState.sell.size + ":" + reconcileState.coveredDates.size + ":" + reconcileState.rows.length) : 0}:${reconcileState ? reconcileState.ready : false}|theme:${isLightMode ? 'light' : 'dark'}`;
+    const signature = `${activeBr}|${allTrades.length}|${historyDisplayLimit}|${latestDate}|${visibleTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0)}|br:${reconcileState ? (reconcileState.sell.size + ":" + reconcileState.coveredDates.size + ":" + reconcileState.rows.length) : 0}:${reconcileState ? reconcileState.ready : false}|theme:${isLightMode ? 'light' : 'dark'}`;
     if (signature === lastTradeHistoryRenderSignature && tbody.children.length > 0) return;
     lastTradeHistoryRenderSignature = signature;
 
@@ -460,67 +536,11 @@ function renderDBTradeHistory() {
       }
     }
 
-    const scrollHost = tbody.closest('.slim-scroll');
-    if (scrollHost && !historyScrollBound) {
-      historyScrollBound = true;
-      scrollHost.addEventListener('scroll', () => {
-        if (historyViewMode !== 'strategy') return;
-        if (scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 40) {
-          historyMonthOffset += 1;
-          renderDBTradeHistory();
-        }
-      }, { passive: true });
-
-      let touchStartY = null;
-      scrollHost.addEventListener('touchstart', (e) => {
-        if (historyViewMode !== 'strategy') return;
-        touchStartY = e.touches[0].clientY;
-      }, { passive: true });
-      scrollHost.addEventListener('touchend', (e) => {
-        if (historyViewMode !== 'strategy') return;
-        if (touchStartY === null) return;
-        const deltaY = touchStartY - e.changedTouches[0].clientY;
-        touchStartY = null;
-        if (deltaY > 40) { // 위로 스와이프 = 아래로 스크롤 의도
-          historyMonthOffset += 1;
-          renderDBTradeHistory();
-        }
-      }, { passive: true });
-      scrollHost.addEventListener('wheel', (e) => {
-        if (historyViewMode !== 'strategy') return;
-        if (e.deltaY > 20 && scrollHost.scrollHeight <= scrollHost.clientHeight + 5) {
-          historyMonthOffset += 1;
-          renderDBTradeHistory();
-        }
-      }, { passive: true });
-    }
-
-    allTrades.sort((a, b) => {
-      const sellA = String(a.sellDate || a.sell_date || "");
-      const sellB = String(b.sellDate || b.sell_date || "");
-      if (sellA !== sellB) {
-        return sellB.localeCompare(sellA);
-      }
-      const buyA = String(a.buyDate || a.buy_date || "");
-      const buyB = String(b.buyDate || b.buy_date || "");
-      return buyB.localeCompare(buyA);
-    });
+    bindHistoryScrollListener(tbody);
 
     const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
 
-    // ⚠️ 정렬은 실제로 렌더되는 visibleTrades에 적용해야 한다(과거엔 allTrades만 정렬해
-    //    필터로 새 배열이 된 visibleTrades에는 반영되지 않아 정렬이 무효였다).
-    //    청산일 최신 → 위, 과거 → 아래.
-    visibleTrades.sort((a, b) => {
-      const sellA = String(a.sellDate || a.sell_date || "");
-      const sellB = String(b.sellDate || b.sell_date || "");
-      if (sellA !== sellB) return sellB.localeCompare(sellA);
-      const buyA = String(a.buyDate || a.buy_date || "");
-      const buyB = String(b.buyDate || b.buy_date || "");
-      return buyB.localeCompare(buyA);
-    });
-
-    tbody.innerHTML = visibleTrades.map(t => {
+    let html = visibleTrades.map(t => {
       const slot = t.slotNum;
       // ⚠️ 2026-07-31: parseDateStr()은 문자열 끝의 "-"를 malformed 날짜 구분자로 보고
       // 잘라내는 로직이 있어서(예: "2026-07-" → "2026-07"), 여기서처럼 "데이터 없음" 표시용으로
@@ -651,6 +671,19 @@ function renderDBTradeHistory() {
         <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; white-space:nowrap; color:${profitColor} !important; font-weight:700;" class="${profitClass}">${profitStr}</td>
       </tr>`;
     }).join('');
+
+    if (visibleTrades.length < allTrades.length) {
+      const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+      const textMuted = isLight ? '#64748b' : '#94a3b8';
+      const borderCol = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)';
+      html += `<tr style="border-bottom: 1px dashed ${borderCol};">
+        <td colspan="10" style="text-align:center; padding:8px 0; color:${textMuted}; font-size:10px; cursor:pointer;" onclick="if(window.UI && window.UI.tradeHistory && window.UI.tradeHistory.loadMore) window.UI.tradeHistory.loadMore();">
+          ⬇ 더 보기 (${visibleTrades.length} / ${allTrades.length}) — 스와이프 또는 터치 시 +20개
+        </td>
+      </tr>`;
+    }
+
+    tbody.innerHTML = html;
     applyPrimaryDateHighlight();
     refreshSellReconcileFills(); // fire-and-forget; 체결 대조 데이터 갱신 후 재렌더
   } catch (e) {
@@ -836,6 +869,20 @@ function syncHistoryViewModeToBroker() {
   }
 }
 
+function loadMoreTradeHistory() {
+  if (historyViewMode === 'strategy') {
+    if (historyDisplayLimit < totalTradesCount) {
+      historyDisplayLimit = Math.min(historyDisplayLimit + 20, totalTradesCount);
+      renderDBTradeHistory();
+    }
+  } else if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
+    if (brokerFillsDisplayLimit < lastBrokerFillsRows.length) {
+      brokerFillsDisplayLimit = Math.min(brokerFillsDisplayLimit + 20, lastBrokerFillsRows.length);
+      renderBrokerFillsRowsHtml(historyViewMode, lastBrokerFillsRows);
+    }
+  }
+}
+
 if (!window.UI) window.UI = {};
 if (!window.UI.tradeHistory) window.UI.tradeHistory = {};
 window.UI.tradeHistory.renderDBTradeHistory = renderDBTradeHistory;
@@ -844,13 +891,8 @@ window.UI.tradeHistory.syncHistoryViewModeToBroker = syncHistoryViewModeToBroker
 window.UI.tradeHistory.resetToStrategyHistory = resetToStrategyHistory;
 window.UI.tradeHistory.buildTradeLogsFromDailyStates = buildTradeLogsFromDailyStates;
 window.UI.tradeHistory.reconstructRealTrades = reconstructRealTrades;
+window.UI.tradeHistory.loadMore = loadMoreTradeHistory;
 
 window.toggleView = toggleView;
 window.toggleTradeHistoryView = toggleView;
-
-window.toggleView = toggleView;
-window.UI.tradeHistory.toggleView = toggleView;
 window.UI.tradeHistory.toggleHistoryView = toggleView;
-
-window.toggleView = toggleView;
-window.UI.tradeHistory.toggleView = toggleView;

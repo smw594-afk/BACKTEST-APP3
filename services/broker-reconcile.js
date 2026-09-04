@@ -317,7 +317,8 @@
     });
 
     let cashAsset = usdCash;
-    if (buyingPower > usdCash) {
+    // ⚠️ LS는 외화 RP 95% 담보가 적용되므로 95% 역산, 키움은 RP가 없으므로 최종 정산예수금 그대로 사용
+    if (broker === "ls" && buyingPower > usdCash) {
       const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
       cashAsset = wonCollateralUsd + usdCash;
     }
@@ -353,7 +354,7 @@
 
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:14px; background:rgba(148,163,184,0.1); padding:12px; border-radius:8px;">
           <div>
-            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">외화 예수금</div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">${broker === 'ls' ? 'RP+정산 예수금' : '정산 예수금'}</div>
             <div style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">${usd(usdCash)}</div>
           </div>
           <div>

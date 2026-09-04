@@ -307,8 +307,8 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
   }
 
   // ⭐️ 2. 장중 시간대 (09:20 ~ 16:00 ET):
-  // 미체결 주문 + 체결 주문 퉁치기 대조
-  const allBrokerOrders = [...activeUnfilled, ...activeFilled];
+  // 주문시간에는 미체결 주문내역만 대조 (체결된 건 제외)
+  const allBrokerOrders = [...activeUnfilled];
   const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : null;
   
   let combinedBroker = [];
@@ -1325,7 +1325,8 @@ window.getCombinedOrderEvaluationData = function() {
         }
       });
     } else {
-      const allBrokerOrders = [...activeUnfilled, ...activeFilled];
+      // ⭐️ 주문시간에는 미체결 주문내역만 대조 (체결된 건 제외)
+      const allBrokerOrders = [...activeUnfilled];
       try {
         const rawTuples = allBrokerOrders.map(row => [
           normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
