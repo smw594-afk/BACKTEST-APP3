@@ -1,4 +1,4 @@
-﻿// ── 주문표 실시간 증권사/VM 예약 상태 관리 ──
+// ── 주문표 실시간 증권사/VM 예약 상태 관리 ──
 window.orderStatusCache = window.orderStatusCache || {
   vmSaved: false,
   vmOrders: [],
@@ -63,6 +63,8 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
           window.orderStatusCache.vmOrders = Array.isArray(resP.orders) ? resP.orders : [];
           window.orderStatusCache.vmSaved = window.orderStatusCache.vmOrders.length > 0;
           window.orderStatusCache.vmOverdue = !!(resP.backtest && resP.backtest.overdue);
+          window.orderStatusCache.vmRanToday = !!(resP.backtest && resP.backtest.ranToday);
+          window.orderStatusCache.vmSavedAt = resP.savedAt || 0;
         }
       } catch (e) {}
     }
@@ -186,10 +188,10 @@ function nyMarketPhaseForOrderCompare() {
   // 1. 주문/장중 시간: VM 주문 후 ~ 장 마감 전 (09:20 ~ 16:00 ET)
   if (mins >= 9 * 60 + 20 && mins < 16 * 60) return "order";
 
-  // 2. 장마감 후 ~ 주문표 생성 전 공백기 (16:00 ~ 17:00 ET): 체결 대조
-  if (mins >= 16 * 60 && mins < 17 * 60) return "closed";
+  // 2. 장마감 후 ~ VM 주문표 생성/정산 시간 (16:00 ~ 17:20 ET): 체결/정산 대조
+  if (mins >= 16 * 60 && mins < 17 * 60 + 20) return "closed";
 
-  // 3. 예약 시간: VM 주문표 생성 후 ~ VM 주문 전 (17:00 ~ 익일 09:20 ET)
+  // 3. 예약 시간: VM 주문표 생성 완료 후 ~ VM 주문 전 (17:20 ~ 익일 09:20 ET)
   return "reserved";
 }
 
@@ -1199,8 +1201,8 @@ window.getCombinedOrderEvaluationData = function() {
 
   const fmtTime = (h, m) => `${String((h + diffHours) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   const kstOrderStr = `${fmtTime(9, 20)} ~ ${fmtTime(16, 0)}`;
-  const kstClosedStr = `${fmtTime(16, 0)} ~ ${fmtTime(17, 0)}`;
-  const kstReservedStr = `${fmtTime(17, 0)} ~ ${fmtTime(9, 20)}`;
+  const kstClosedStr = `${fmtTime(16, 0)} ~ ${fmtTime(17, 20)}`;
+  const kstReservedStr = `${fmtTime(17, 20)} ~ ${fmtTime(9, 20)}`;
 
   // 2. App Orders (앱 통합 주문표)
   let appRaw = [];
@@ -1408,7 +1410,7 @@ window.compareOrderBookManual = async function() {
     isAllMatched
   } = evalData;
 
-  const isVmReady = !!cache.vmOrdersChecked;
+  const isVmReady = !!cache.vmOrdersChecked && (isBrokerPhase || cache.vmRanToday !== false);
   const isBrokerReady = isBrokerPhase ? !!cache.brokerOrdersChecked : true;
   const isDataReady = isVmReady && isBrokerReady && !cache.isLoading;
 
@@ -1416,7 +1418,10 @@ window.compareOrderBookManual = async function() {
   const colSpanCount = isClosedPhase ? 6 : 5;
 
   if (!isDataReady) {
-    tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:#f59e0b; font-size:12px; text-align:center; font-weight:bold;">⏳ 증권사/VM 데이터를 확인 중입니다... (잠시 후 자동 갱신됩니다)</td></tr>`;
+    const loadingMsg = (!isClosedPhase && !isBrokerPhase && cache.vmOrdersChecked && cache.vmRanToday === false)
+      ? "⏳ VM이 오늘자 신규 주문표를 생성 중입니다... (잠시 후 자동 갱신됩니다)"
+      : "⏳ 증권사/VM 데이터를 확인 중입니다... (잠시 후 자동 갱신됩니다)";
+    tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:#f59e0b; font-size:12px; text-align:center; font-weight:bold;">${loadingMsg}</td></tr>`;
   } else if (allKeys.length === 0) {
     tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:var(--text-muted, #94a3b8); font-size:12px; text-align:center;">비교할 주문 내역이 없습니다.</td></tr>`;
   } else {
@@ -1493,7 +1498,7 @@ window.compareOrderBookManual = async function() {
       </tr>
     `;
   } else if (isClosedPhase) {
-    phaseBadge = '<span style="font-size:11px; background:#10b981; color:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">체결확인 (VM/앱/증권사체결)</span>';
+    phaseBadge = '<span style="font-size:11px; background:#10b981; color:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">체결/정산확인 (VM/앱/증권사)</span>';
     theadHtml = `
       <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
         <th style="width:26%; text-align:left; padding-left:12px;">주문</th>
@@ -1560,13 +1565,13 @@ window.compareOrderBookManual = async function() {
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstOrderStr})</div>
               </div>
               <div style="background:${currentPhase === 'closed' ? 'rgba(16,185,129,0.15)' : 'transparent'}; border:1px solid ${currentPhase === 'closed' ? '#10b981' : 'var(--card-border, rgba(255,255,255,0.07))'}; border-radius:6px; padding:5px 2px;">
-                <div style="font-weight:bold; color:#10b981; font-size:11px;">2. 체결시간</div>
-                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">16:00 ~ 17:00 ET</div>
+                <div style="font-weight:bold; color:#10b981; font-size:11px;">2. 체결/정산시간</div>
+                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">16:00 ~ 17:20 ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstClosedStr})</div>
               </div>
               <div style="background:${currentPhase === 'reserved' ? 'rgba(245,158,11,0.15)' : 'transparent'}; border:1px solid ${currentPhase === 'reserved' ? '#f59e0b' : 'var(--card-border, rgba(255,255,255,0.07))'}; border-radius:6px; padding:5px 2px;">
                 <div style="font-weight:bold; color:#f59e0b; font-size:11px;">3. 예약시간</div>
-                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">17:00 ~ 09:20 ET</div>
+                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">17:20 ~ 09:20 ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstReservedStr})</div>
               </div>
             </div>

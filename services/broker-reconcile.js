@@ -1,4 +1,4 @@
-﻿/**
+/**
  * App 3 Broker Reconcile Service (ported from App1's Kiwoom reconciliation, adapted for US stocks).
  *
  * Provides the shared data layer for four features:
@@ -355,7 +355,7 @@
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:14px; background:rgba(148,163,184,0.1); padding:12px; border-radius:8px;">
           <div>
             <div style="font-size:11px; color:var(--text-muted, #94a3b8);">${broker === 'ls' ? 'RP+정산 예수금' : '정산 예수금'}</div>
-            <div style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">${usd(usdCash)}</div>
+            <div style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">${usd(broker === 'ls' ? cashAsset : usdCash)}</div>
           </div>
           <div>
             <div style="font-size:11px; color:var(--text-muted, #94a3b8);">주문 가능 금액</div>

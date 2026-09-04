@@ -2958,6 +2958,13 @@ async function pushTodayOrders(freshBySlot) {
       console.log("[OrderSync] 주문표 수정 마감(09:15 ET, 개장 15분 전)이 지나 갱신을 건너뜁니다.");
       return { ok: false, reason: "주문표 수정 마감(09:15~09:50 ET, 개장 직전) 시간대라 GCP에는 반영되지 않았습니다. 이 시간대가 지나면 자동으로 정상 반영됩니다." };
     }
+    // 🛡️ [VM 백테스트 및 시트 정산 전담 시간대 앱 푸시 차단] 16:50 ET ~ 18:20 ET (한국 05:50 ~ 07:20 KST)
+    // 장 마감 후 VM이 종가를 수집하고 정산 백테스트를 수행하는 시간대에는
+    // 앱이 과거 스냅샷이나 미완성 주문표로 VM을 덮어쓰지 않도록 전송을 차단합니다.
+    if (nyMins >= 16 * 60 + 50 && nyMins <= 18 * 60 + 20) {
+      console.log("[OrderSync] VM 백테스트 및 정산 전담 시간대(16:50~18:20 ET)이므로 앱 주문표 저장을 건너뜁니다.");
+      return { ok: false, reason: "VM 백테스트 및 정산 전담 시간대(16:50~18:20 ET)입니다." };
+    }
     if (!myUserId) return { ok: false, reason: "userId 없음" };
 
     // ⭐️ [통합 주문표 단일 발주] 개별 슬롯별로 따로 발주하지 않고,
@@ -2970,13 +2977,18 @@ async function pushTodayOrders(freshBySlot) {
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
       const res = (freshBySlot && freshBySlot[i]) || getBestResult(lastBTResults[i], i);
-      if (!res || !res.orders) continue;
+      if (!res) continue;
       const symbol = String(getSlotConfig(i)?.basics?.ticker || "").toUpperCase();
       const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "kiwoom" : "ls");
       if (symbol) tickerByBroker[broker] = symbol;
       if (!repSlotByBroker[broker]) repSlotByBroker[broker] = i;
 
-      res.orders.forEach(o => {
+      // ⭐️ [버그 수정] res.orders는 개별 슬롯 퉁치기 후라 매수가 사라졌을 수 있으므로 res.rawOrders 우선 사용
+      const ordersToCollect = (Array.isArray(res.rawOrders) && res.rawOrders.length > 0)
+        ? res.rawOrders
+        : (Array.isArray(res.orders) ? res.orders : []);
+
+      ordersToCollect.forEach(o => {
         if (Array.isArray(o) && o.length >= 4) {
           rawOrdersByBroker[broker].push(o);
         }
