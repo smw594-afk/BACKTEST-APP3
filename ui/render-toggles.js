@@ -187,7 +187,7 @@ function toggleOrderView(dir) {
 function updateOrderHeaderUI() {
   const titleEl = document.getElementById('orderTitle');
   const statusEl = document.getElementById('orderStatusText');
-  const rankingLiveBtn = document.getElementById('btnOrderRankingLive');
+  const sheetVerifyBtn = document.getElementById('btnSheetVerify');
   const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
 
@@ -205,7 +205,7 @@ function updateOrderHeaderUI() {
   
   let titleText = '⚡ 주문표';
   let statusText = '';
-  // ⭐️ 랭킹 버튼은 오직 '주문표' 상태(!window.isStatsMode && window.isOrderView)일 때만 표시되고,
+  // ⭐️ 버튼은 오직 '주문표' 상태(!window.isStatsMode && window.isOrderView)일 때만 표시되고,
   // '통합 보유현황'이나 '투자법 N 보유현황' 등 보유현황 상태일 때는 절대 노출되지 않음
   let showRankingBtns = (!window.isStatsMode && !!window.isOrderView);
 
@@ -232,7 +232,7 @@ function updateOrderHeaderUI() {
   titleEl.innerHTML = titleText + dateText;
   statusEl.innerHTML = statusText;
 
-  if (rankingLiveBtn) rankingLiveBtn.style.display = showRankingBtns ? 'flex' : 'none';
+  if (sheetVerifyBtn) sheetVerifyBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (rankingBTBtn) rankingBTBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (settingsBtn) settingsBtn.style.display = (!window.isStatsMode && window.isOrderView) ? 'flex' : 'none';
 

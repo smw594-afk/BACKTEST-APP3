@@ -1918,6 +1918,9 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     const isPriceLoaded = currentSOXLCheck && currentSOXLCheck.dates && currentSOXLCheck.dates.length > 0;
     setLED(isPriceLoaded ? 'on' : 'error');
     window.isServerSyncing = false;
+    if (typeof window.checkSheetVerificationStatus === 'function') {
+      setTimeout(() => window.checkSheetVerificationStatus(), 100);
+    }
   }
 }
 

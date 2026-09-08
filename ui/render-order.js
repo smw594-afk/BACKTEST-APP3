@@ -1460,6 +1460,9 @@ window.getCombinedOrderEvaluationData = function() {
 };
 
 window.compareOrderBookManual = async function() {
+  if (typeof window.checkSheetVerificationStatus === 'function') {
+    window.checkSheetVerificationStatus();
+  }
   const evalData = window.getCombinedOrderEvaluationData();
   const {
     cache,
@@ -1619,7 +1622,7 @@ window.compareOrderBookManual = async function() {
     `;
   }
 
-    // Inject Modal
+  // Inject Modal
   const modalId = 'orderCompareManualModal';
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
@@ -1629,10 +1632,7 @@ window.compareOrderBookManual = async function() {
       <div style="background:var(--card, #1e293b); color:var(--text, #fff); width:100%; max-width:600px; max-height:90vh; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.5); overflow:hidden; border:1px solid var(--card-border, rgba(255,255,255,0.1));">
         <div style="padding:14px 20px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:8px;">
-            <h3 style="margin:0; font-size:16px; color:var(--primary, #8b5cf6);">✅ 일치확인 (수동 대조)</h3>
-            <button onclick="window.openSheetVerificationModal && window.openSheetVerificationModal()" style="background:linear-gradient(135deg, #6366f1, #4338ca); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 5px rgba(0,0,0,0.3);">
-              📊 시트 1:1 검증
-            </button>
+            <h3 style="margin:0; font-size:16px; color:var(--primary, #8b5cf6);">주문표 일치 확인 (수동 대조)</h3>
           </div>
           ${phaseBadge}
         </div>
@@ -1685,13 +1685,427 @@ window.compareOrderBookManual = async function() {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-window.openSheetVerificationModal = async function() {
+// 📊 시트 검증 버튼 상태 관리 ('시트확인중', '시트일치', '시트불일치')
+window.updateSheetVerifyButton = function(status, reason) {
+  const btn = document.getElementById('btnSheetVerify');
+  if (!btn) return;
+  if (status === 'checking') {
+    btn.innerHTML = '시트확인중';
+    btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+    btn.title = '구글 시트와 앱의 데이터를 검증 중입니다...';
+  } else if (status === 'matched') {
+    btn.innerHTML = '시트일치';
+    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+    btn.title = '모든 활성 슬롯의 시트 데이터가 앱과 100% 일치합니다.';
+  } else if (status === 'mismatched') {
+    btn.innerHTML = '시트불일치';
+    btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+    btn.title = reason ? `시트 데이터 불일치 (${reason})` : '시트 데이터와 앱의 데이터가 일치하지 않는 슬롯이 있습니다.';
+  }
+};
+
+window.isHoldingsMatchForVerification = function(arr1, arr2) {
+  if (!Array.isArray(arr1) || !Array.isArray(arr2)) return false;
+  if (arr1.length !== arr2.length) return false;
+  for (let idx = 0; idx < arr1.length; idx++) {
+    const h1 = arr1[idx];
+    const h2 = arr2[idx];
+    if (String(h1.mode) !== String(h2.mode)) return false;
+    if (String(h1.tier) !== String(h2.tier)) return false;
+    if (Number(h1.qty) !== Number(h2.qty)) return false;
+    if (Math.abs(Number(h1.buy_price) - Number(h2.buy_price)) >= 0.05) return false;
+  }
+  return true;
+};
+
+window.collectAppStatesForVerification = function() {
+  const appStates = [];
+  for (let i = 1; i <= (window.MAX_SLOTS || 12); i++) {
+    const isActive = typeof window.isSlotActive === "function" ? window.isSlotActive(i) : true;
+    const conf = window.slotConfigs ? window.slotConfigs[i] : null;
+    if (!isActive || !conf || !conf.basics || conf.basics.strategy === "정지" || conf.basics.strategy === "-- 선택 안 함 --") {
+      appStates.push({ slot: i, active: false, ticker: conf?.basics?.ticker || "-", strategy: "정지", holdings: [] });
+      continue;
+    }
+    const res = typeof window.getBestResult === "function" ? window.getBestResult(window.lastBTResults?.[i], i) : window.lastBTResults?.[i];
+    const dailyStates = Array.isArray(res?.dailyStates) ? res.dailyStates : [];
+    const lastState = dailyStates.length > 0 ? dailyStates[dailyStates.length - 1] : null;
+    let parsed = {};
+    if (lastState?.json) {
+      try { parsed = JSON.parse(lastState.json); } catch(e){}
+    }
+    const rawOrders = Array.isArray(res?.rawOrders) ? res.rawOrders : (Array.isArray(res?.orders) ? res.orders : []);
+    const buyOrder = rawOrders.find(o => {
+      const s = String(o[0] || o.side || "").toLowerCase();
+      return s.includes("매수") || s.includes("buy");
+    });
+    const noi = res?.nextOrderInfo;
+    
+    const sheetLastDate = typeof window.normalizeSheetStateDate === "function" 
+      ? window.normalizeSheetStateDate(localStorage.getItem(`vtotal3_sheet_last_date_${i}_${window.myUserId}`)) 
+      : (localStorage.getItem(`vtotal3_sheet_last_date_${i}_${window.myUserId}`) || "");
+    const slotDate = (lastState?.date ? String(lastState.date).slice(0, 10) : "") || (sheetLastDate !== "1900-01-01" ? sheetLastDate : "") || (res?.summary?.date || "");
+
+    const activeHoldings = (Array.isArray(res?.inv) && res.inv.length > 0)
+      ? res.inv
+      : (Array.isArray(parsed.holdings) && parsed.holdings.length > 0 ? parsed.holdings : []);
+
+    const normalizedHoldings = activeHoldings.map(h => ({
+      mode: h.mode || "-",
+      tier: h.tier !== undefined ? h.tier : "-",
+      qty: Number(h.qty || 0),
+      buy_price: Number(h.buy_price || h.price || 0),
+      buyDate: h.buyDate || ""
+    }));
+
+    appStates.push({
+      slot: i,
+      active: true,
+      ticker: String(conf.basics.ticker || "").toUpperCase(),
+      strategy: String(res?.currentStrat || conf.basics.strategy || ""),
+      date: slotDate,
+      asset: res?.isSynced && res?.summary?.totalAssets ? Number(res.summary.totalAssets) : (lastState ? Number(lastState.asset || 0) : Number(res?.summary?.totalAssets || 0)),
+      inout: res?.isSynced && res?.summary?.inout !== undefined ? Number(res.summary.inout) : (lastState ? Number(lastState.inout || 0) : Number(res?.summary?.inout || 0)),
+      cash: res?.isSynced && res?.summary?.cash !== undefined ? Number(res.summary.cash) : Number(parsed.cash ?? res?.summary?.cash ?? 0),
+      base: res?.isSynced && res?.summary?.base !== undefined ? Number(res.summary.base) : Number(parsed.base_principal ?? parsed.base ?? res?.summary?.base ?? 0),
+      realPrincipal: res?.isSynced && res?.summary?.realPrincipal !== undefined ? Number(res.summary.realPrincipal) : Number(parsed.realPrincipal ?? res?.summary?.realPrincipal ?? 0),
+      mode: noi?.mode || res?.currentM || "-",
+      tier: (noi?.tier !== undefined && noi?.tier !== null) ? noi.tier : (res?.currentT || "-"),
+      weight: noi?.weight ? (String(noi.weight).replace('%', '') + '%') : "-",
+      buyQty: buyOrder ? Number(buyOrder[3] || buyOrder.qty || 0) : 0,
+      buyPrice: buyOrder ? Number(buyOrder[2] || buyOrder.price || 0) : 0,
+      orders: rawOrders,
+      holdings: normalizedHoldings,
+      rawJson: lastState?.json || ""
+    });
+  }
+  return appStates;
+};
+
+// 🔄 백그라운드 시트 1:1 대조 자동 검증 함수
+window.checkSheetVerificationStatus = async function() {
+  window.updateSheetVerifyButton('checking');
+  try {
+    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification() : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()));
+    
+    if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
+      window.updateSheetVerifyButton('mismatched', vmRes?.reason || 'VM 응답 오류');
+      return false;
+    }
+
+    // ⭐️ 캐시 저장: 이미 확인한 결과는 모달 클릭 시 0ms 즉각 표시
+    window.__lastSheetVerificationVmRes = vmRes;
+    window.__lastSheetVerificationTime = Date.now();
+
+    const appStates = window.collectAppStatesForVerification ? window.collectAppStatesForVerification() : [];
+    let allMatched = true;
+
+    for (let slot = 1; slot <= (window.MAX_SLOTS || 12); slot++) {
+      const app = appStates[slot - 1];
+      const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
+      if (!app?.active && !vm?.active) continue;
+
+      const sheet = vm.sheetActual || {
+        date: vm.date,
+        asset: vm.asset,
+        inout: vm.inout,
+        cash: vm.cash,
+        base: vm.base,
+        realPrincipal: vm.realPrincipal,
+        holdings: vm.holdings
+      };
+
+      const hMatch = window.isHoldingsMatchForVerification ? window.isHoldingsMatchForVerification(app.holdings, sheet.holdings) : true;
+      const d1 = String(app.date || '').replace(/[^0-9]/g, '');
+      const d2 = String(sheet.date || '').replace(/[^0-9]/g, '');
+      const isDateMatch = d1 === d2;
+      const isAssetMatch = Math.abs(Number(app.asset || 0) - Number(sheet.asset || 0)) < 0.05;
+      const isCashMatch = Math.abs(Number(app.cash || 0) - Number(sheet.cash || 0)) < 0.05;
+      const isBaseMatch = Math.abs(Number(app.base || 0) - Number(sheet.base || 0)) < 0.05;
+      const isPrincipalMatch = Math.abs(Number(app.realPrincipal || 0) - Number(sheet.realPrincipal || 0)) < 0.05;
+      const isModeMatch = String(app.mode ?? '').trim() === String(vm.mode ?? '').trim();
+      const isTierMatch = String(app.tier ?? '').trim() === String(vm.tier ?? '').trim();
+      const isQtyMatch = Number(app.buyQty || 0) === Number(vm.buyQty || 0);
+      const isPriceMatch = Math.abs(Number(app.buyPrice || 0) - Number(vm.buyPrice || 0)) < 0.05;
+
+      if (!isDateMatch || !isAssetMatch || !isCashMatch || !isBaseMatch || !isPrincipalMatch || !isModeMatch || !isTierMatch || !isQtyMatch || !isPriceMatch || !hMatch) {
+        allMatched = false;
+        break;
+      }
+    }
+
+    if (allMatched) {
+      window.updateSheetVerifyButton('matched');
+      return true;
+    } else {
+      window.updateSheetVerifyButton('mismatched');
+      return false;
+    }
+  } catch (err) {
+    window.updateSheetVerifyButton('mismatched', err.message);
+    return false;
+  }
+};
+
+
+// ⭐️ 시트 데이터 검증 모달 내용 생성 함수 (캐시된 vmRes로 즉시 렌더링)
+function buildSheetVerificationBodyContent(vmRes) {
+  const appStates = window.collectAppStatesForVerification ? window.collectAppStatesForVerification() : [];
+  let overallAllMatched = true;
+  let activeSlotsHtml = "";
+  let activeCount = 0;
+
+  const fmtMoney = (v) => `${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const isMoneyMatch = (a, b) => Math.abs(Number(a || 0) - Number(b || 0)) < 0.05;
+  const isExactMatch = (a, b) => String(a ?? "").trim() === String(b ?? "").trim();
+  const normDateStr = (d) => {
+    if (!d || d === "-") return "-";
+    const s = String(d).trim();
+    const p = s.replace(/[^0-9.\-\s\/]/g, "").replace(/[.\s\/]+/g, "-").split("-").filter(Boolean);
+    if (p.length >= 3) {
+      const y = p[0].length === 2 ? "20" + p[0] : (p[0].length === 4 ? p[0] : p[0]);
+      const m = p[1].padStart(2, "0");
+      const d = p[2].padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    return s.slice(0, 10);
+  };
+
+  const formatHoldingsHtml = (hList) => {
+    if (!Array.isArray(hList) || hList.length === 0) {
+      return '<span style="color:var(--text-muted, #94a3b8); font-size:11px;">(보유 없음)</span>';
+    }
+    const totalQty = hList.reduce((s, h) => s + Number(h.qty || 0), 0);
+    const itemsHtml = hList.map(h => {
+      const d = h.buyDate ? String(h.buyDate).slice(5) : '';
+      return `
+      <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:2px 6px; margin:2px 0; font-size:11px; white-space:nowrap; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:700; color:var(--primary, #a78bfa);">${h.mode} ${h.tier}T ${h.qty}주</span>
+        <span style="font-weight:700; color:var(--text, #fff); margin-left:6px;">${Number(h.buy_price || 0).toFixed(2)} ${d}</span>
+      </div>
+    `;
+    }).join('');
+
+    return `
+      <div style="text-align:left;">
+        <div style="font-weight:800; color:var(--text, #fff); font-size:11.5px; margin-bottom:2px;">총 ${totalQty}주 (${hList.length}건)</div>
+        <div style="max-height:80px; overflow-y:auto; padding-right:2px;">${itemsHtml}</div>
+      </div>
+    `;
+  };
+
+  for (let slot = 1; slot <= (window.MAX_SLOTS || 12); slot++) {
+    const app = appStates[slot - 1];
+    const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
+    if (!app?.active && !vm?.active) continue;
+
+    activeCount++;
+    const isKiwoom = window.BrokerService ? window.BrokerService.brokerForSlot(slot) === 'kiwoom' : slot <= 6;
+    const brokerTag = isKiwoom
+      ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">키움</span>'
+      : '<span style="background:rgba(168,85,247,0.2); color:#a855f7; border:1px solid #a855f7; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">LS</span>';
+
+    const sheet = vm.sheetActual || {
+      date: vm.date,
+      asset: vm.asset,
+      inout: vm.inout,
+      cash: vm.cash,
+      base: vm.base,
+      realPrincipal: vm.realPrincipal,
+      holdings: vm.holdings
+    };
+
+    const items = [
+      {
+        label: "1. 기준 거래일자",
+        appVal: app.date || "-",
+        vmVal: sheet.date || "-",
+        format: (v) => normDateStr(v),
+        match: (a, b) => normDateStr(a) === normDateStr(b)
+      },
+      {
+        label: "2. 총자산 ($)",
+        appVal: app.asset,
+        vmVal: sheet.asset,
+        format: (v) => `$${fmtMoney(v)}`,
+        match: isMoneyMatch
+      },
+      {
+        label: "3. 누적 입출금 ($)",
+        appVal: app.inout,
+        vmVal: sheet.inout,
+        format: (v) => `$${fmtMoney(v)}`,
+        match: isMoneyMatch
+      },
+      {
+        label: "4. 예수금 / 현금 ($)",
+        appVal: app.cash,
+        vmVal: sheet.cash,
+        format: (v) => `$${fmtMoney(v)}`,
+        match: isMoneyMatch
+      },
+      {
+        label: "5. 기준 갱신금 ($)",
+        appVal: app.base,
+        vmVal: sheet.base,
+        format: (v) => `$${fmtMoney(v)}`,
+        match: isMoneyMatch
+      },
+      {
+        label: "6. 설정 원금 ($)",
+        appVal: app.realPrincipal,
+        vmVal: sheet.realPrincipal,
+        format: (v) => `$${fmtMoney(v)}`,
+        match: isMoneyMatch
+      },
+      {
+        label: "7. 다음 매수모드",
+        appVal: app.mode,
+        vmVal: vm.mode,
+        format: (v) => String(v || "-"),
+        match: isExactMatch
+      },
+      {
+        label: "8. 다음 매수티어",
+        appVal: app.tier,
+        vmVal: vm.tier,
+        format: (v) => String(v ?? "-"),
+        match: isExactMatch
+      },
+      {
+        label: "9. 매수 주문수량",
+        appVal: app.buyQty,
+        vmVal: vm.buyQty,
+        format: (v) => `${v || 0}주`,
+        match: (a, b) => Number(a || 0) === Number(b || 0)
+      },
+      {
+        label: "10. 매수 주문가격",
+        appVal: app.buyPrice,
+        vmVal: vm.buyPrice,
+        format: (v) => Number(v) > 0 ? `$${fmtMoney(v)}` : "-",
+        match: isMoneyMatch
+      },
+      {
+        label: "11. 보유 주식 내역 (JSON)",
+        appVal: app.holdings,
+        vmVal: sheet.holdings,
+        isCustom: true,
+        renderApp: () => formatHoldingsHtml(app.holdings),
+        renderVm: () => formatHoldingsHtml(sheet.holdings),
+        match: () => window.isHoldingsMatchForVerification ? window.isHoldingsMatchForVerification(app.holdings, sheet.holdings) : true
+      }
+    ];
+
+    let slotAllMatch = true;
+    const rowsHtml = items.map(it => {
+      const isMatched = it.match(it.appVal, it.vmVal);
+      if (!isMatched) {
+        slotAllMatch = false;
+        overallAllMatched = false;
+      }
+      const badge = isMatched
+        ? `<span style="color:#10b981; font-weight:800; font-size:11px;">✓ 일치</span>`
+        : `<span style="color:#ef4444; font-weight:800; font-size:11px;">❌ 불일치</span>`;
+      const rowBg = isMatched ? "" : "background:rgba(239,68,68,0.08);";
+
+      if (it.isCustom) {
+        return `
+          <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); ${rowBg}">
+            <td style="text-align:left; padding-left:12px; font-weight:600; color:var(--text-muted, #94a3b8); font-size:11.5px; vertical-align:middle;">${it.label}</td>
+            <td style="padding:6px; vertical-align:top;">${it.renderApp()}</td>
+            <td style="padding:6px; vertical-align:top;">${it.renderVm()}</td>
+            <td style="text-align:center; vertical-align:middle;">${badge}</td>
+          </tr>
+        `;
+      }
+
+      const appDisplay = it.format(it.appVal);
+      const vmDisplay = it.format(it.vmVal);
+
+      return `
+        <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); height:30px; ${rowBg}">
+          <td style="text-align:left; padding-left:12px; font-weight:600; color:var(--text-muted, #94a3b8); font-size:11.5px;">${it.label}</td>
+          <td style="font-weight:700; color:var(--text, #fff); font-size:12px;">${appDisplay}</td>
+          <td style="font-weight:700; color:var(--text, #fff); font-size:12px;">${vmDisplay}</td>
+          <td style="text-align:center;">${badge}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const slotBadge = slotAllMatch
+      ? `<span style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">✓ 11개 항목 모두 일치</span>`
+      : `<span style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#ef4444; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">⚠️ 불일치 발생</span>`;
+
+    activeSlotsHtml += `
+      <div style="background:var(--bg, #0f172a); border:1px solid ${slotAllMatch ? 'var(--card-border, rgba(255,255,255,0.1))' : 'rgba(239,68,68,0.5)'}; border-radius:10px; margin-bottom:16px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+        <div style="padding:10px 14px; background:rgba(255,255,255,0.03); border-bottom:1px solid var(--card-border, rgba(255,255,255,0.08)); display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${brokerTag}
+            <span style="font-weight:800; font-size:13px; color:var(--text, #fff);">슬롯 #${slot}</span>
+            <span style="font-size:12px; color:var(--primary, #8b5cf6); font-weight:700;">${app.ticker || vm.ticker}</span>
+            <span style="font-size:11px; color:var(--text-muted, #94a3b8);">(${app.strategy || vm.strategy})</span>
+          </div>
+          ${slotBadge}
+        </div>
+        <table style="width:100%; border-collapse:collapse; text-align:center;">
+          <thead>
+            <tr style="height:28px; background:rgba(0,0,0,0.2); border-bottom:1px solid var(--card-border, rgba(255,255,255,0.08)); color:var(--text-muted, #94a3b8); font-size:10.5px; font-weight:700;">
+              <th style="width:34%; text-align:left; padding-left:12px;">검증 항목</th>
+              <th style="width:23%;">앱 (브라우저)</th>
+              <th style="width:23%;">VM (GCP 서버)</th>
+              <th style="width:20%;">판정</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // 일치 판정에 따라 상단 버튼 상태 갱신
+  if (typeof window.updateSheetVerifyButton === 'function') {
+    window.updateSheetVerifyButton(overallAllMatched ? 'matched' : 'mismatched');
+  }
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 2px;">
+      <div style="font-size:12px; color:var(--text, #fff); font-weight:700;">
+        총 <span style="color:var(--primary, #8b5cf6); font-weight:800;">${activeCount}</span>개 활성 슬롯 정밀 대조 결과:
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${overallAllMatched 
+          ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800;">🎉 모든 활성 슬롯 100% 일치</span>'
+          : '<span style="background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800;">⚠️ 불일치 항목 확인 필요</span>'
+        }
+        <button onclick="window.openSheetVerificationModal(true)" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.2)); border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer;">🔄 다시 검증</button>
+      </div>
+    </div>
+    ${activeSlotsHtml || '<div style="text-align:center; padding:30px; color:var(--text-muted);">활성화된 슬롯이 없습니다.</div>'}
+  `;
+}
+
+window.openSheetVerificationModal = async function(forceReload = false) {
   const modalId = 'sheetVerificationModal';
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
 
-  // Create loading modal
-  const initialModalHtml = `
+  // ⭐️ 캐시된 검증 데이터가 있고 강제 새로고침이 아닌 경우 로딩창 없이 0ms 즉시 오픈!
+  const hasFreshCache = !forceReload && window.__lastSheetVerificationVmRes && (Date.now() - (window.__lastSheetVerificationTime || 0) < 120000);
+
+  const initialBodyHtml = hasFreshCache 
+    ? buildSheetVerificationBodyContent(window.__lastSheetVerificationVmRes)
+    : `
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px;">
+        <div style="width:36px; height:36px; border:3px solid rgba(99,102,241,0.2); border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite;"></div>
+        <div style="font-size:13px; font-weight:700; color:var(--text, #fff);">VM 백엔드에서 시트 최신 계산 및 JSON 꾸러미 데이터를 수집 중입니다...</div>
+        <div style="font-size:11px; color:var(--text-muted, #94a3b8);">시트 전날 데이터 기준 금일 10대 항목 + 매수티어별 JSON 1:1 대조</div>
+      </div>
+    `;
+
+  const modalHtml = `
     <div id="${modalId}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:999999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px);">
       <div style="background:var(--card, #1e293b); color:var(--text, #fff); width:100%; max-width:860px; max-height:92vh; border-radius:14px; display:flex; flex-direction:column; box-shadow:0 12px 30px rgba(0,0,0,0.6); overflow:hidden; border:1px solid var(--card-border, rgba(255,255,255,0.12)); font-family:inherit;">
         <!-- Header -->
@@ -1705,11 +2119,7 @@ window.openSheetVerificationModal = async function() {
 
         <!-- Body -->
         <div id="${modalId}_body" style="padding:20px; overflow-y:auto; flex:1;">
-          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px;">
-            <div style="width:36px; height:36px; border:3px solid rgba(99,102,241,0.2); border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite;"></div>
-            <div style="font-size:13px; font-weight:700; color:var(--text, #fff);">VM 백엔드에서 시트 최신 계산 및 JSON 꾸러미 데이터를 수집 중입니다...</div>
-            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">시트 전날 데이터 기준 금일 10대 항목 + 매수티어별 JSON 1:1 대조</div>
-          </div>
+          ${initialBodyHtml}
         </div>
 
         <!-- Footer -->
@@ -1722,259 +2132,29 @@ window.openSheetVerificationModal = async function() {
       </div>
     </div>
   `;
-  document.body.insertAdjacentHTML('beforeend', initialModalHtml);
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // 캐시가 유효하면 즉시 리턴 (네트워크 지연/로딩 없음!)
+  if (hasFreshCache) {
+    return;
+  }
 
   // Fetch VM Data and Render Content
   try {
     const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification() : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()));
-    
+
     if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
       throw new Error(vmRes?.reason || vmRes?.error || "VM 응답 데이터 형식이 올바르지 않습니다.");
     }
 
-    // Extract App States
-    const appStates = [];
-    for (let i = 1; i <= (window.MAX_SLOTS || 12); i++) {
-      const isActive = typeof window.isSlotActive === "function" ? window.isSlotActive(i) : true;
-      const conf = window.slotConfigs ? window.slotConfigs[i] : null;
-      if (!isActive || !conf || !conf.basics || conf.basics.strategy === "정지" || conf.basics.strategy === "-- 선택 안 함 --") {
-        appStates.push({ slot: i, active: false, ticker: conf?.basics?.ticker || "-", strategy: "정지", holdings: [] });
-        continue;
-      }
-      const res = typeof window.getBestResult === "function" ? window.getBestResult(window.lastBTResults?.[i], i) : window.lastBTResults?.[i];
-      const dailyStates = Array.isArray(res?.dailyStates) ? res.dailyStates : [];
-      const lastState = dailyStates.length > 0 ? dailyStates[dailyStates.length - 1] : null;
-      let parsed = {};
-      if (lastState?.json) {
-        try { parsed = JSON.parse(lastState.json); } catch(e){}
-      }
-      const rawOrders = Array.isArray(res?.rawOrders) ? res.rawOrders : (Array.isArray(res?.orders) ? res.orders : []);
-      const buyOrder = rawOrders.find(o => {
-        const s = String(o[0] || o.side || "").toLowerCase();
-        return s.includes("매수") || s.includes("buy");
-      });
-      const noi = res?.nextOrderInfo;
-      
-      const sheetLastDate = typeof window.normalizeSheetStateDate === "function" 
-        ? window.normalizeSheetStateDate(localStorage.getItem(`vtotal3_sheet_last_date_${i}_${window.myUserId}`)) 
-        : (localStorage.getItem(`vtotal3_sheet_last_date_${i}_${window.myUserId}`) || "");
-      const slotDate = (lastState?.date ? String(lastState.date).slice(0, 10) : "") || (sheetLastDate !== "1900-01-01" ? sheetLastDate : "") || (res?.summary?.date || "");
+    // 캐시 저장
+    window.__lastSheetVerificationVmRes = vmRes;
+    window.__lastSheetVerificationTime = Date.now();
 
-      const activeHoldings = (Array.isArray(res?.inv) && res.inv.length > 0)
-        ? res.inv
-        : (Array.isArray(parsed.holdings) && parsed.holdings.length > 0 ? parsed.holdings : []);
-
-      const normalizedHoldings = activeHoldings.map(h => ({
-        mode: h.mode || "-",
-        tier: h.tier !== undefined ? h.tier : "-",
-        qty: Number(h.qty || 0),
-        buy_price: Number(h.buy_price || h.price || 0),
-        buyDate: h.buyDate || ""
-      }));
-
-      appStates.push({
-        slot: i,
-        active: true,
-        ticker: String(conf.basics.ticker || "").toUpperCase(),
-        strategy: String(res?.currentStrat || conf.basics.strategy || ""),
-        date: slotDate,
-        asset: res?.isSynced && res?.summary?.totalAssets ? Number(res.summary.totalAssets) : (lastState ? Number(lastState.asset || 0) : Number(res?.summary?.totalAssets || 0)),
-        inout: res?.isSynced && res?.summary?.inout !== undefined ? Number(res.summary.inout) : (lastState ? Number(lastState.inout || 0) : Number(res?.summary?.inout || 0)),
-        cash: res?.isSynced && res?.summary?.cash !== undefined ? Number(res.summary.cash) : Number(parsed.cash ?? res?.summary?.cash ?? 0),
-        base: res?.isSynced && res?.summary?.base !== undefined ? Number(res.summary.base) : Number(parsed.base_principal ?? parsed.base ?? res?.summary?.base ?? 0),
-        realPrincipal: res?.isSynced && res?.summary?.realPrincipal !== undefined ? Number(res.summary.realPrincipal) : Number(parsed.realPrincipal ?? res?.summary?.realPrincipal ?? 0),
-        mode: noi?.mode || res?.currentM || "-",
-        tier: (noi?.tier !== undefined && noi?.tier !== null) ? noi.tier : (res?.currentT || "-"),
-        weight: noi?.weight ? (String(noi.weight).replace('%', '') + '%') : "-",
-        buyQty: buyOrder ? Number(buyOrder[3] || buyOrder.qty || 0) : 0,
-        buyPrice: buyOrder ? Number(buyOrder[2] || buyOrder.price || 0) : 0,
-        orders: rawOrders,
-        holdings: normalizedHoldings,
-        rawJson: lastState?.json || ""
-      });
-    }
-
-    // Render Slots Comparison
     const bodyEl = document.getElementById(`${modalId}_body`);
-    if (!bodyEl) return;
-
-    let overallAllMatched = true;
-    let activeSlotsHtml = "";
-    let activeCount = 0;
-
-    const fmtMoney = (v) => `${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const isMoneyMatch = (a, b) => Math.abs(Number(a || 0) - Number(b || 0)) < 0.05;
-    const isExactMatch = (a, b) => String(a ?? "").trim() === String(b ?? "").trim();
-    const normDateStr = (d) => {
-      if (!d || d === "-") return "-";
-      const s = String(d).trim();
-      const p = s.replace(/[^0-9.\-\s\/]/g, "").replace(/[.\s\/]+/g, "-").split("-").filter(Boolean);
-      if (p.length >= 3) {
-        const y = p[0].length === 2 ? "20" + p[0] : (p[0].length === 4 ? p[0] : p[0]);
-        const m = p[1].padStart(2, "0");
-        const d = p[2].padStart(2, "0");
-        return `${y}-${m}-${d}`;
-      }
-      return s.slice(0, 10);
-    };
-
-    const formatHoldingsHtml = (hList) => {
-      if (!Array.isArray(hList) || hList.length === 0) {
-        return '<span style="color:var(--text-muted, #94a3b8); font-size:11px;">(보유 없음)</span>';
-      }
-      const totalQty = hList.reduce((s, h) => s + Number(h.qty || 0), 0);
-      const itemsHtml = hList.map(h => {
-        const d = h.buyDate ? String(h.buyDate).slice(5) : '';
-        return `
-        <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:2px 6px; margin:2px 0; font-size:11px; white-space:nowrap; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-weight:700; color:var(--primary, #a78bfa);">${h.mode} ${h.tier}T ${h.qty}주</span>
-          <span style="font-weight:700; color:var(--text, #fff); margin-left:6px;">${Number(h.buy_price || 0).toFixed(2)} ${d}</span>
-        </div>
-      `;
-      }).join('');
-
-      return `
-        <div style="text-align:left;">
-          <div style="font-weight:800; color:var(--text, #fff); font-size:11.5px; margin-bottom:2px;">총 ${totalQty}주 (${hList.length}건)</div>
-          ${itemsHtml}
-        </div>
-      `;
-    };
-
-    const isHoldingsMatch = (arr1, arr2) => {
-      if (!Array.isArray(arr1) || !Array.isArray(arr2)) return false;
-      if (arr1.length !== arr2.length) return false;
-      for (let idx = 0; idx < arr1.length; idx++) {
-        const h1 = arr1[idx];
-        const h2 = arr2[idx];
-        if (String(h1.mode) !== String(h2.mode)) return false;
-        if (String(h1.tier) !== String(h2.tier)) return false;
-        if (Number(h1.qty) !== Number(h2.qty)) return false;
-        if (Math.abs(Number(h1.buy_price) - Number(h2.buy_price)) >= 0.05) return false;
-      }
-      return true;
-    };
-
-    for (let slot = 1; slot <= (window.MAX_SLOTS || 12); slot++) {
-      const app = appStates[slot - 1];
-      const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
-
-      if (!app.active && !vm.active) continue;
-      activeCount++;
-
-      const isKiwoom = slot <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6);
-      const brokerTag = isKiwoom ? `<span style="background:rgba(16,185,129,0.2); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">키움</span>` : `<span style="background:rgba(168,85,247,0.2); color:#c084fc; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">LS</span>`;
-
-      const sheet = vm.sheetActual || {
-        date: vm.date,
-        asset: vm.asset,
-        inout: vm.inout,
-        cash: vm.cash,
-        base: vm.base,
-        realPrincipal: vm.realPrincipal,
-        holdings: vm.holdings
-      };
-
-      const holdingsMatch = isHoldingsMatch(app.holdings, sheet.holdings);
-
-      // 11대 검증 항목 정의 (진짜 앱 브라우저 상태 vs VM 시트 실제 기록값)
-      const items = [
-        { label: "1. 기준 거래일자 (시트 상태일)", appVal: app.date || "-", vmVal: sheet.date || "-", match: isExactMatch(normDateStr(app.date), normDateStr(sheet.date)), format: normDateStr },
-        { label: "2. 총자산 ($)", appVal: app.asset, vmVal: sheet.asset, match: isMoneyMatch(app.asset, sheet.asset), format: fmtMoney },
-        { label: "3. 누적 입출금 ($)", appVal: app.inout, vmVal: sheet.inout, match: isMoneyMatch(app.inout, sheet.inout), format: fmtMoney },
-        { label: "4. 예수금 / 현금 ($)", appVal: app.cash, vmVal: sheet.cash, match: isMoneyMatch(app.cash, sheet.cash), format: fmtMoney },
-        { label: "5. 갱신금 / 갱신원금 ($)", appVal: app.base, vmVal: sheet.base, match: isMoneyMatch(app.base, sheet.base), format: fmtMoney },
-        { label: "6. 실전 투입원금 ($)", appVal: app.realPrincipal, vmVal: sheet.realPrincipal, match: isMoneyMatch(app.realPrincipal, sheet.realPrincipal), format: fmtMoney },
-        { label: "7. 진입 모드 (Mode)", appVal: app.mode, vmVal: vm.mode, match: isExactMatch(app.mode, vm.mode), format: v => v },
-        { label: "8. 매수 티어 (Tier)", appVal: app.tier, vmVal: vm.tier, match: isExactMatch(app.tier, vm.tier), format: v => v },
-        { label: "9. 금일 매수예정 수량", appVal: app.buyQty, vmVal: vm.buyQty, match: Number(app.buyQty) === Number(vm.buyQty), format: v => `${v}주` },
-        { label: "10. 금일 매수예정 단가", appVal: app.buyPrice, vmVal: vm.buyPrice, match: isMoneyMatch(app.buyPrice, vm.buyPrice), format: fmtMoney },
-        { label: "11. 보유 내역 (Holdings)", appVal: app.holdings, vmVal: sheet.holdings, match: holdingsMatch, isCustom: true }
-      ];
-
-      const slotAllMatch = items.every(it => it.match);
-      if (!slotAllMatch) overallAllMatched = false;
-
-      const rowsHtml = items.map(it => {
-        const badge = it.match 
-          ? `<span style="color:#10b981; font-weight:800; font-size:11px;">✓ 일치</span>`
-          : `<span style="color:#ef4444; font-weight:800; font-size:11px; background:rgba(239,68,68,0.15); padding:2px 6px; border-radius:4px;">✗ 불일치</span>`;
-        const rowBg = it.match ? "transparent" : "background:rgba(239,68,68,0.08);";
-
-        if (it.isCustom) {
-          const appHoldingsHtml = formatHoldingsHtml(it.appVal);
-          const vmHoldingsHtml = formatHoldingsHtml(it.vmVal);
-          return `
-            <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); ${rowBg}">
-              <td style="text-align:left; padding:8px 12px; font-weight:700; color:var(--text, #fff); font-size:11.5px; vertical-align:top;">${it.label}</td>
-              <td style="padding:6px 8px; vertical-align:top;">${appHoldingsHtml}</td>
-              <td style="padding:6px 8px; vertical-align:top;">${vmHoldingsHtml}</td>
-              <td style="text-align:center; vertical-align:top; padding-top:8px;">${badge}</td>
-            </tr>
-          `;
-        }
-
-        const appDisplay = it.format(it.appVal);
-        const vmDisplay = it.format(it.vmVal);
-
-        return `
-          <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); height:30px; ${rowBg}">
-            <td style="text-align:left; padding-left:12px; font-weight:600; color:var(--text-muted, #94a3b8); font-size:11.5px;">${it.label}</td>
-            <td style="font-weight:700; color:var(--text, #fff); font-size:12px;">${appDisplay}</td>
-            <td style="font-weight:700; color:var(--text, #fff); font-size:12px;">${vmDisplay}</td>
-            <td style="text-align:center;">${badge}</td>
-          </tr>
-        `;
-      }).join('');
-
-      const slotBadge = slotAllMatch
-        ? `<span style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">✓ 11개 항목 모두 일치</span>`
-        : `<span style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#ef4444; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">⚠️ 불일치 발생</span>`;
-
-      activeSlotsHtml += `
-        <div style="background:var(--bg, #0f172a); border:1px solid ${slotAllMatch ? 'var(--card-border, rgba(255,255,255,0.1))' : 'rgba(239,68,68,0.5)'}; border-radius:10px; margin-bottom:16px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
-          <div style="padding:10px 14px; background:rgba(255,255,255,0.03); border-bottom:1px solid var(--card-border, rgba(255,255,255,0.08)); display:flex; justify-content:space-between; align-items:center;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              ${brokerTag}
-              <span style="font-weight:800; font-size:13px; color:var(--text, #fff);">슬롯 #${slot}</span>
-              <span style="font-size:12px; color:var(--primary, #8b5cf6); font-weight:700;">${app.ticker || vm.ticker}</span>
-              <span style="font-size:11px; color:var(--text-muted, #94a3b8);">(${app.strategy || vm.strategy})</span>
-            </div>
-            ${slotBadge}
-          </div>
-          <table style="width:100%; border-collapse:collapse; text-align:center;">
-            <thead>
-              <tr style="height:28px; background:rgba(0,0,0,0.2); border-bottom:1px solid var(--card-border, rgba(255,255,255,0.08)); color:var(--text-muted, #94a3b8); font-size:10.5px; font-weight:700;">
-                <th style="width:34%; text-align:left; padding-left:12px;">검증 항목</th>
-                <th style="width:23%;">앱 (브라우저)</th>
-                <th style="width:23%;">VM (GCP 서버)</th>
-                <th style="width:20%;">판정</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-        </div>
-      `;
+    if (bodyEl) {
+      bodyEl.innerHTML = buildSheetVerificationBodyContent(vmRes);
     }
-
-    bodyEl.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 2px;">
-        <div style="font-size:12px; color:var(--text, #fff); font-weight:700;">
-          총 <span style="color:var(--primary, #8b5cf6); font-weight:800;">${activeCount}</span>개 활성 슬롯 정밀 대조 결과:
-        </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          ${overallAllMatched 
-            ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800;">🎉 모든 활성 슬롯 100% 일치</span>'
-            : '<span style="background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800;">⚠️ 불일치 항목 확인 필요</span>'
-          }
-          <button onclick="window.openSheetVerificationModal()" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.2)); border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer;">🔄 다시 검증</button>
-        </div>
-      </div>
-      ${activeSlotsHtml || '<div style="text-align:center; padding:30px; color:var(--text-muted);">활성화된 슬롯이 없습니다.</div>'}
-    `;
-
   } catch (err) {
     const bodyEl = document.getElementById(`${modalId}_body`);
     if (bodyEl) {
@@ -1983,13 +2163,12 @@ window.openSheetVerificationModal = async function() {
           <div style="font-size:28px; margin-bottom:10px;">⚠️</div>
           <div style="font-weight:800; font-size:14px; margin-bottom:6px;">시트 검증 데이터 수집 실패</div>
           <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">${err.message}</div>
-          <button onclick="window.openSheetVerificationModal()" style="background:var(--primary, #6366f1); color:#fff; border:none; border-radius:6px; padding:6px 16px; font-weight:700; cursor:pointer;">🔄 재시도</button>
+          <button onclick="window.openSheetVerificationModal(true)" style="background:var(--primary, #6366f1); color:#fff; border:none; border-radius:6px; padding:6px 16px; font-weight:700; cursor:pointer;">🔄 재시도</button>
         </div>
       `;
     }
   }
 };
-
 
 // 📤 App3: 통합 주문표의 전체 통합 주문을 활성 브로커(키움/LS)로 일괄 전송
 window.submitCombinedOrdersToBroker = async function() {
@@ -2136,7 +2315,7 @@ function updateCombinedOrderMatchStatus(opts = {}) {
       return;
     }
     if (btn) {
-      btn.innerHTML = '⏳ 확인중';
+      btn.innerHTML = '확인중';
       btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
     }
     if (titleEl) {
@@ -2151,7 +2330,7 @@ function updateCombinedOrderMatchStatus(opts = {}) {
   // 앱 슬롯별 백테스트 계산이 진행 중인 경우 불일치가 아닌 계산중으로 표시
   if (evalData.isPendingCalculation) {
     if (btn) {
-      btn.innerHTML = '⏳ 계산중';
+      btn.innerHTML = '계산중';
       btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
     }
     if (titleEl) {
@@ -2211,10 +2390,10 @@ function updateCombinedOrderMatchStatus(opts = {}) {
   // Update UI Elements
   if (btn) {
     if (isAllMatched) {
-      btn.innerHTML = isHoliday ? '🏖️ 일치확인(휴장)' : '✅ 일치확인';
+      btn.innerHTML = isHoliday ? '주문표일치(휴장)' : '주문표일치';
       btn.style.background = isHoliday ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)' : 'linear-gradient(135deg, #10b981, #047857)';
     } else {
-      btn.innerHTML = '❌ 불일치';
+      btn.innerHTML = '주문표불일치';
       btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
     }
   }
