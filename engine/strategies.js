@@ -248,7 +248,7 @@ const MASTER_STRATEGIES = {
       }
     }
   },
-  "2M3D2F(2.2)": {
+  "2M3D2F": {
     config: {compR: 0.939,lossR: 0.699,dLimit: -0.048,cDn3: 0,cDn2: 0.008,cDn1: 0,tierMethod: '보유',useMid1: true,useMid2: false,useMid3: true},
     modes: {
       SF: {
@@ -572,23 +572,5 @@ const MASTER_STRATEGIES = {
     }
   }
 };
-
-// 하위 호환성 별칭 (이전 저장된 설정 및 시트 데이터 연동 — 열거 대상에서 제외하여 UI 중복 노출 방지)
-[
-  ["3M3D3-R", "3M3D3F-R"],
-  ["3M-R(1.5)", "3MF-R(1.0)"],
-  ["3M3D1-R", "3M3D1F-R"],
-  ["1M3D1(1.0)", "1M3D1F"],
-  ["2M3D2(2.2)", "2M3D2F(2.2)"]
-].forEach(([alias, target]) => {
-  if (MASTER_STRATEGIES[target]) {
-    Object.defineProperty(MASTER_STRATEGIES, alias, {
-      value: MASTER_STRATEGIES[target],
-      enumerable: false,
-      writable: true,
-      configurable: true
-    });
-  }
-});
 
 window.MASTER_STRATEGIES = MASTER_STRATEGIES;

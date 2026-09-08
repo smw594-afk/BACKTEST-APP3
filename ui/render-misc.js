@@ -1006,20 +1006,7 @@ async function enterAppDirectly() {
     const savedStr = localStorage.getItem(`vtotal3_conf${i}_${myUserId}`);
     if (savedStr) {
       try {
-        let parsed = JSON.parse(savedStr);
-        if (parsed && parsed.basics) {
-          const s = parsed.basics.strategy;
-          if (s === 'RSI 3M' || s === '3M3D1-R') parsed.basics.strategy = '3M3D1F-R';
-          else if (s === '3M3D3-R') parsed.basics.strategy = '3M3D3F-R';
-          else if (s === '3M-R(1.0)') parsed.basics.strategy = '3MF-R';
-          else if (s === '3M-R(1.5)') parsed.basics.strategy = '3MF-R(1.0)';
-          else if (s === '1M3D1(1.0)') parsed.basics.strategy = '1M3D1F';
-          else if (s === '2M3D2(2.2)') parsed.basics.strategy = '2M3D2F(2.2)';
-          if (s !== parsed.basics.strategy) {
-            localStorage.setItem(`vtotal3_conf${i}_${myUserId}`, JSON.stringify(parsed));
-          }
-        }
-        slotConfigs[i] = parsed;
+        slotConfigs[i] = JSON.parse(savedStr);
       } catch (e) { }
     }
 
