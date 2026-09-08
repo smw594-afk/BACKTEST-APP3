@@ -230,6 +230,10 @@ const priceLoader = {
     if (this._loadAllPricesPromise) {
       return this._loadAllPricesPromise;
     }
+    // 이미 메모리에 온전한 기본 주가 데이터(SOXL/QQQ 등)가 캐시되어 있다면 즉시 반환
+    if (!neededStartDate && this.priceDataCache && this.priceDataCache["SOXL"] && Array.isArray(this.priceDataCache["SOXL"].close) && this.priceDataCache["SOXL"].close.length > 0 && this.priceDataCache["QQQ"] && this.priceDataCache["QQQ"].close?.length > 0) {
+      return this.priceDataCache;
+    }
     this._loadAllPricesPromise = this._loadAllSheetPricesInner(false);
     try {
       return await this._loadAllPricesPromise;

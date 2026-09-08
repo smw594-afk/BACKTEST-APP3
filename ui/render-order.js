@@ -7,33 +7,55 @@ window.orderStatusCache = window.orderStatusCache || {
   vmOrdersChecked: false,
   brokerOrdersChecked: false,
   isLoading: false,
+  hasEverLoaded: false,
   lastVerdict: null,
-  lastUpdated: 0
+  lastUpdated: 0,
+  lastLoadedAt: 0
 };
 
 let _roscInFlight = null;
 let _roscReqSeq = 0;
-async function refreshOrderStatusCache(force = false) {
-  if (force && window.orderStatusCache) {
-    window.orderStatusCache.lastUpdated = 0;
-    window.orderStatusCache.vmOrdersChecked = false;
-    window.orderStatusCache.brokerOrdersChecked = false;
-    window.orderStatusCache.isLoading = true;
-    window.orderStatusCache.lastVerdict = 'loading';
-    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
-    _roscInFlight = null;
-  }
-  // ⚠️ 30초 이내 재호출 시 네트워크 요청 없이 반환 (pending/unfilled 중복 방지)
+async function refreshOrderStatusCache(force = false, isManual = false) {
+  const cache = window.orderStatusCache;
   const now = Date.now();
-  if (!force && window.orderStatusCache.lastUpdated && now - window.orderStatusCache.lastUpdated < 30000) {
+
+  // 1. 방금 조회가 완료되었는데(1.5초 이내) 백그라운드에서 재호출된 경우 중복 실행 방지 (디바운스/쓰로틀)
+  if (!isManual && cache && cache.lastLoadedAt && (now - cache.lastLoadedAt < 1500)) {
     return;
   }
-  // inflight 중복 방지: 이미 진행 중이면 그 Promise를 공유 (단, force인 경우 새로 시작)
-  if (_roscInFlight && !force) return _roscInFlight;
+
+  // 2. 30초 이내 일반 재호출 시 네트워크 요청 없이 반환
+  if (!force && !isManual && cache && cache.lastUpdated && (now - cache.lastUpdated < 30000)) {
+    return;
+  }
+
+  // 3. 이미 비동기 요청이 진행 중인 경우 중복 네트워크 방지
+  if (_roscInFlight) {
+    if (!isManual) {
+      return _roscInFlight;
+    }
+  }
+
+  if (cache) {
+    cache.lastUpdated = now;
+    cache.isLoading = true;
+    // ⭐️ [깜빡임 방지] 이미 이전에 로드된 결과(hasEverLoaded)가 있고 수동 강제 조회가 아니라면,
+    // 화면 버튼을 '⏳ 확인중'으로 되돌려 깜빡거리게 하지 않고 백그라운드에서 조용히 갱신한다.
+    if (!cache.hasEverLoaded || isManual) {
+      cache.lastVerdict = 'loading';
+      if (typeof updateCombinedOrderMatchStatus === 'function') {
+        updateCombinedOrderMatchStatus({ forceLoadingUi: true });
+      }
+    }
+  }
 
   const thisSeq = ++_roscReqSeq;
   _roscInFlight = _refreshOrderStatusCacheInner(force, thisSeq);
-  try { await _roscInFlight; } finally { if (_roscReqSeq === thisSeq) _roscInFlight = null; }
+  try {
+    await _roscInFlight;
+  } finally {
+    if (_roscReqSeq === thisSeq) _roscInFlight = null;
+  }
 }
 async function _refreshOrderStatusCacheInner(force, reqSeq) {
   try {
@@ -46,12 +68,9 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
     const phase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
     const shouldCheckBroker = phase === 'order' || phase === 'closed' || force;
 
-    window.orderStatusCache.lastUpdated = Date.now();
     window.orderStatusCache.vmOrdersChecked = false;
     window.orderStatusCache.brokerOrdersChecked = false;
     window.orderStatusCache.isLoading = true;
-    window.orderStatusCache.lastVerdict = 'loading';
-    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
     window.__forceOrderViewReRender = true;
 
     // 1. VM 예약 주문 (가장 먼저 가볍게 조회)
@@ -70,7 +89,6 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
     }
     if (reqSeq !== _roscReqSeq) return;
     window.orderStatusCache.vmOrdersChecked = true;
-    if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
 
     // 2. 증권사 데이터 조회 (예약 시간대에는 불필요한 미체결/체결 조회를 생략하여 네트워크 낭비 및 지연 방지)
     const brokerTasks = [];
@@ -122,6 +140,8 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
 
     window.orderStatusCache.brokerOrdersChecked = true;
     window.orderStatusCache.isLoading = false;
+    window.orderStatusCache.hasEverLoaded = true;
+    window.orderStatusCache.lastLoadedAt = Date.now();
     window.orderStatusCache.lastPhase = phase;
     if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
     if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
@@ -165,21 +185,48 @@ function orderTableDateStr() {
   return cand;
 }
 
-function nyMarketPhaseForOrderCompare() {
+function isUSMarketClosedToday() {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit"
+    timeZone: "America/New_York", hour12: false, weekday: "short", year: "numeric", month: "2-digit", day: "2-digit"
   }).formatToParts(new Date());
-
-  // 주말(토/일) 및 미국 공휴일 체크: 장이 열리지 않는 날은 항상 reserved (주문/체결시간 진입 차단)
   const wd = (parts.find(p => p.type === "weekday") || {}).value || "";
-  if (wd === "Sat" || wd === "Sun") return "reserved";
+  if (wd === "Sat" || wd === "Sun") return { isClosed: true, reason: wd === "Sat" ? "주말(토)" : "주말(일)" };
 
   const y = (parts.find(p => p.type === "year") || {}).value || "";
   const m = (parts.find(p => p.type === "month") || {}).value || "";
   const d = (parts.find(p => p.type === "day") || {}).value || "";
   const ymd = y + "-" + m + "-" + d;
   const isHol = typeof window.isUSMarketHoliday === "function" ? window.isUSMarketHoliday(ymd) : (typeof isUSMarketHoliday === "function" ? isUSMarketHoliday(ymd) : false);
-  if (isHol) return "reserved";
+  if (isHol) return { isClosed: true, reason: "미국 공휴일(휴장)" };
+
+  return { isClosed: false, reason: "" };
+}
+
+// ⭐️ 주문표 기준 미국 증시 휴장 여부 판정: 현재 시각이 아닌 주문표 대상 거래일(orderTableDateStr) 기준
+function isUSMarketClosedForOrder(targetDateStr) {
+  const rawDate = targetDateStr || orderTableDateStr() || window.currentOrderDate;
+  if (rawDate) {
+    const status = typeof getUSMarketDateStatus === 'function' 
+      ? getUSMarketDateStatus(rawDate) 
+      : (window.dateHelpers && typeof window.dateHelpers.getUSMarketDateStatus === 'function' ? window.dateHelpers.getUSMarketDateStatus(rawDate) : null);
+    if (status && status.dateKey) {
+      return {
+        isClosed: !!status.isClosed,
+        reason: status.isWeekend ? (status.label || "주말") : (status.isHoliday ? "미국 공휴일(휴장)" : "")
+      };
+    }
+  }
+  return isUSMarketClosedToday();
+}
+
+function nyMarketPhaseForOrderCompare() {
+  // 주말(토/일) 및 미국 공휴일 체크: 장이 열리지 않는 날은 항상 reserved (주문/체결시간 진입 차단)
+  const holidayCheck = isUSMarketClosedToday();
+  if (holidayCheck.isClosed) return "reserved";
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit"
+  }).formatToParts(new Date());
 
   const hh = Number((parts.find(p => p.type === "hour") || {}).value || 0) % 24;
   const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
@@ -1204,10 +1251,23 @@ window.getCombinedOrderEvaluationData = function() {
   const kstClosedStr = `${fmtTime(16, 0)} ~ ${fmtTime(17, 20)}`;
   const kstReservedStr = `${fmtTime(17, 20)} ~ ${fmtTime(9, 20)}`;
 
+  // ⭐️ [앱 초기 로딩 가드] 모든 활성 슬롯의 백테스트가 완료되었는지 확인
+  let anyActiveSlotPending = false;
+  for (let s = 1; s <= (window.MAX_SLOTS || 12); s++) {
+    const isActive = typeof window.isSlotActive === "function" ? window.isSlotActive(s) : true;
+    const conf = window.slotConfigs ? window.slotConfigs[s] : null;
+    if (isActive && conf && conf.basics && conf.basics.strategy && conf.basics.strategy !== "정지" && conf.basics.strategy !== "-- 선택 안 함 --") {
+      if (!window.lastBTResults || !window.lastBTResults[s]) {
+        anyActiveSlotPending = true;
+        break;
+      }
+    }
+  }
+
   // 2. App Orders (앱 통합 주문표)
   let appRaw = [];
   let appCombined = [];
-  if (typeof collectCurrentCombinedOrders === 'function') {
+  if (!anyActiveSlotPending && typeof collectCurrentCombinedOrders === 'function') {
     appRaw = collectCurrentCombinedOrders().orders || [];
     try {
       const sanitizedApp = appRaw.map(o => {
@@ -1371,6 +1431,11 @@ window.getCombinedOrderEvaluationData = function() {
     });
   }
 
+  // ⭐️ 주문표 기준 휴장일 판정: "현재 시각"이 아니라 "주문표 대상 거래일(orderTableDateStr)"을 기준으로 휴장 여부를 판정한다.
+  const targetOrderDate = orderTableDateStr();
+  const holidayInfo = isUSMarketClosedForOrder(targetOrderDate);
+  const isHoliday = holidayInfo.isClosed;
+
   return {
     cache,
     currentPhase,
@@ -1387,7 +1452,10 @@ window.getCombinedOrderEvaluationData = function() {
     fillPriceMap,
     fillQtyMap,
     allKeys,
-    isAllMatched
+    isAllMatched,
+    holidayInfo,
+    isHoliday,
+    isPendingCalculation: anyActiveSlotPending
   };
 };
 
@@ -1407,20 +1475,27 @@ window.compareOrderBookManual = async function() {
     fillPriceMap,
     fillQtyMap,
     allKeys,
-    isAllMatched
+    isAllMatched,
+    holidayInfo,
+    isHoliday,
+    isPendingCalculation
   } = evalData;
 
-  const isVmReady = !!cache.vmOrdersChecked && (isBrokerPhase || cache.vmRanToday !== false);
-  const isBrokerReady = isBrokerPhase ? !!cache.brokerOrdersChecked : true;
-  const isDataReady = isVmReady && isBrokerReady && !cache.isLoading;
+  // 휴장일(주말/공휴일) 또는 이미 VM 주문이 저장되어 있는 경우 vmRanToday 체크를 건너뛰고 기존 저장된 예약 주문표를 사용한다.
+  const isVmReady = !!cache.vmOrdersChecked && (isHoliday || isBrokerPhase || cache.vmSaved || cache.vmRanToday !== false);
+  const isBrokerReady = (isHoliday || !isBrokerPhase) ? true : !!cache.brokerOrdersChecked;
+  const isDataReady = isVmReady && isBrokerReady && !cache.isLoading && !isPendingCalculation;
 
   let tbodyHtml = '';
   const colSpanCount = isClosedPhase ? 6 : 5;
 
   if (!isDataReady) {
-    const loadingMsg = (!isClosedPhase && !isBrokerPhase && cache.vmOrdersChecked && cache.vmRanToday === false)
-      ? "⏳ VM이 오늘자 신규 주문표를 생성 중입니다... (잠시 후 자동 갱신됩니다)"
-      : "⏳ 증권사/VM 데이터를 확인 중입니다... (잠시 후 자동 갱신됩니다)";
+    let loadingMsg = "⏳ 증권사/VM 데이터를 확인 중입니다... (잠시 후 자동 갱신됩니다)";
+    if (isPendingCalculation) {
+      loadingMsg = "⏳ 앱에서 슬롯별 주문표를 계산 중입니다... (잠시 후 자동 갱신됩니다)";
+    } else if (!isClosedPhase && !isBrokerPhase && !isHoliday && cache.vmOrdersChecked && !cache.vmSaved && cache.vmRanToday === false) {
+      loadingMsg = "⏳ VM이 오늘자 신규 주문표를 생성 중입니다... (잠시 후 자동 갱신됩니다)";
+    }
     tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:#f59e0b; font-size:12px; text-align:center; font-weight:bold;">${loadingMsg}</td></tr>`;
   } else if (allKeys.length === 0) {
     tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:var(--text-muted, #94a3b8); font-size:12px; text-align:center;">비교할 주문 내역이 없습니다.</td></tr>`;
@@ -1517,6 +1592,17 @@ window.compareOrderBookManual = async function() {
         <th style="width:15%;">VM</th>
         <th style="width:15%;">앱</th>
         <th style="width:20%;">증권사</th>
+        <th style="width:20%;">결과</th>
+      </tr>
+    `;
+  } else if (isHoliday) {
+    phaseBadge = `<span style="font-size:11px; background:#8b5cf6; color:#fff; padding:2px 8px; border-radius:4px; font-weight:600;">🏖️ 미국 휴장일 (${holidayInfo.reason}) — 다음 거래일 예약</span>`;
+    theadHtml = `
+      <tr style="height:36px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1));">
+        <th style="width:30%; text-align:left; padding-left:12px;">주문</th>
+        <th style="width:15%;">VM</th>
+        <th style="width:15%;">앱</th>
+        <th style="width:20%;"><span style="color:var(--text-muted); font-weight:normal;">증권사 (휴장)</span></th>
         <th style="width:20%;">결과</th>
       </tr>
     `;
@@ -2020,7 +2106,7 @@ window.submitCombinedOrdersToBroker = async function() {
 
 
 // ⭐️ [단일 일치 판정] 통합 주문표 헤더 제목 및 [일치확인] 버튼 상태를 VM/앱/증권사 대조 결과에 따라 일괄 동기화
-function updateCombinedOrderMatchStatus() {
+function updateCombinedOrderMatchStatus(opts = {}) {
   const btn = document.getElementById('btnOrderCompare');
   const titleEl = document.getElementById('combinedOrderPanelTitle');
   const cache = window.orderStatusCache || {};
@@ -2034,8 +2120,12 @@ function updateCombinedOrderMatchStatus() {
   const isBrokerReady = isBrokerPhase ? !!cache.brokerOrdersChecked : true;
   const isDataReady = isVmReady && isBrokerReady && !cache.isLoading;
 
-  // 데이터가 아직 준비되지 않은 경우 무조건 [⏳ 확인중] 표시
+  // 데이터가 아직 준비되지 않은 경우
   if (!isDataReady) {
+    // ⭐️ [깜빡임 방지] 이미 이전에 결과가 표시되었고(hasEverLoaded) 수동 강제 로딩 UI 요청이 아니라면 기존 상태 유지!
+    if (cache.hasEverLoaded && !opts.forceLoadingUi) {
+      return;
+    }
     if (btn) {
       btn.innerHTML = '⏳ 확인중';
       btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
@@ -2048,9 +2138,24 @@ function updateCombinedOrderMatchStatus() {
 
   // ⭐️ SSOT 공통 평가 함수로부터 정확한 일치 여부 획득
   const evalData = window.getCombinedOrderEvaluationData();
-  const isAllMatched = evalData.isAllMatched;
 
-  // Save Final Verdict
+  // 앱 슬롯별 백테스트 계산이 진행 중인 경우 불일치가 아닌 계산중으로 표시
+  if (evalData.isPendingCalculation) {
+    if (btn) {
+      btn.innerHTML = '⏳ 계산중';
+      btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
+    }
+    if (titleEl) {
+      titleEl.innerHTML = '통합 주문표 <span style="color:#94a3b8; font-size:11px; font-weight:700;">(계산중)</span>';
+    }
+    return;
+  }
+
+  const isAllMatched = evalData.isAllMatched;
+  const isHoliday = evalData.isHoliday;
+
+  // Save Final Verdict & Mark as loaded
+  cache.hasEverLoaded = true;
   cache.lastVerdict = isAllMatched ? 'matched' : 'mismatched';
     
     try {
@@ -2097,8 +2202,8 @@ function updateCombinedOrderMatchStatus() {
   // Update UI Elements
   if (btn) {
     if (isAllMatched) {
-      btn.innerHTML = '✅ 일치확인';
-      btn.style.background = 'linear-gradient(135deg, #10b981, #047857)';
+      btn.innerHTML = isHoliday ? '🏖️ 일치확인(휴장)' : '✅ 일치확인';
+      btn.style.background = isHoliday ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)' : 'linear-gradient(135deg, #10b981, #047857)';
     } else {
       btn.innerHTML = '❌ 불일치';
       btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
@@ -2106,10 +2211,18 @@ function updateCombinedOrderMatchStatus() {
   }
 
   if (titleEl) {
-    if (isAllMatched) {
-      titleEl.innerHTML = '통합 주문표 <span style="color:#10b981; font-size:11px; font-weight:800;">(일치)</span>';
+    if (isHoliday) {
+      if (isAllMatched) {
+        titleEl.innerHTML = '통합 주문표 <span style="color:#8b5cf6; font-size:11px; font-weight:800;">(휴장일·일치)</span>';
+      } else {
+        titleEl.innerHTML = '통합 주문표 <span style="color:#ef4444; font-size:11px; font-weight:800;">(휴장일·불일치)</span>';
+      }
     } else {
-      titleEl.innerHTML = '통합 주문표 <span style="color:#ef4444; font-size:11px; font-weight:800;">(불일치)</span>';
+      if (isAllMatched) {
+        titleEl.innerHTML = '통합 주문표 <span style="color:#10b981; font-size:11px; font-weight:800;">(일치)</span>';
+      } else {
+        titleEl.innerHTML = '통합 주문표 <span style="color:#ef4444; font-size:11px; font-weight:800;">(불일치)</span>';
+      }
     }
   }
 }

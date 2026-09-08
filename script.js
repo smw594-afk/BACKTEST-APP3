@@ -832,7 +832,11 @@ function saveCurrentFormToSlot(slotNum) {
 
 function applySheetConfigToSlot(slotNum, confData) {
   if (!confData || !confData.basics) return;
-  if (confData.basics.strategy === 'RSI 3M') confData.basics.strategy = '3M3D1-R';
+  if (confData.basics.strategy === 'RSI 3M' || confData.basics.strategy === '3M3D1-R') confData.basics.strategy = '3M3D1F-R';
+  else if (confData.basics.strategy === '3M3D3-R') confData.basics.strategy = '3M3D3F-R';
+  else if (confData.basics.strategy === '3M-R(1.5)') confData.basics.strategy = '3MF-R(1.0)';
+  else if (confData.basics.strategy === '1M3D1(1.0)') confData.basics.strategy = '1M3D1F';
+  else if (confData.basics.strategy === '2M3D2(2.2)') confData.basics.strategy = '2M3D2F(2.2)';
 
   slotConfigs[slotNum] = { basics: { ...confData.basics } };
   localStorage.setItem(`vtotal3_conf${slotNum}_${myUserId}`, JSON.stringify(slotConfigs[slotNum]));
@@ -1042,10 +1046,10 @@ function loadQuickConfigFromLocal() {
   if (document.getElementById('qStrat4')) document.getElementById('qStrat4').value = '2M3D1-1P';
   if (document.getElementById('qStrat5')) document.getElementById('qStrat5').value = '2M3D2(2.0)';
   if (document.getElementById('qStrat6')) document.getElementById('qStrat6').value = '2M3D2(2.1)';
-  if (document.getElementById('qStrat7')) document.getElementById('qStrat7').value = '2M3D2(2.2)';
+  if (document.getElementById('qStrat7')) document.getElementById('qStrat7').value = '2M3D2F(2.2)';
   if (document.getElementById('qStrat8')) document.getElementById('qStrat8').value = '3M-R';
-  if (document.getElementById('qStrat9')) document.getElementById('qStrat9').value = '3M3D1-R';
-  if (document.getElementById('qStrat10')) document.getElementById('qStrat10').value = '3M3D3-R';
+  if (document.getElementById('qStrat9')) document.getElementById('qStrat9').value = '3M3D1F-R';
+  if (document.getElementById('qStrat10')) document.getElementById('qStrat10').value = '3M3D3F-R';
   if (document.getElementById('qStrat11')) document.getElementById('qStrat11').value = '';
   if (document.getElementById('qStrat12')) document.getElementById('qStrat12').value = '';
 

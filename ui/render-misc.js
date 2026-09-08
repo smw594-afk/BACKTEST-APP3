@@ -1007,9 +1007,17 @@ async function enterAppDirectly() {
     if (savedStr) {
       try {
         let parsed = JSON.parse(savedStr);
-        if (parsed && parsed.basics && parsed.basics.strategy === 'RSI 3M') {
-          parsed.basics.strategy = '3M3D1-R';
-          localStorage.setItem(`vtotal3_conf${i}_${myUserId}`, JSON.stringify(parsed));
+        if (parsed && parsed.basics) {
+          const s = parsed.basics.strategy;
+          if (s === 'RSI 3M' || s === '3M3D1-R') parsed.basics.strategy = '3M3D1F-R';
+          else if (s === '3M3D3-R') parsed.basics.strategy = '3M3D3F-R';
+          else if (s === '3M-R(1.0)') parsed.basics.strategy = '3MF-R';
+          else if (s === '3M-R(1.5)') parsed.basics.strategy = '3MF-R(1.0)';
+          else if (s === '1M3D1(1.0)') parsed.basics.strategy = '1M3D1F';
+          else if (s === '2M3D2(2.2)') parsed.basics.strategy = '2M3D2F(2.2)';
+          if (s !== parsed.basics.strategy) {
+            localStorage.setItem(`vtotal3_conf${i}_${myUserId}`, JSON.stringify(parsed));
+          }
         }
         slotConfigs[i] = parsed;
       } catch (e) { }
@@ -1352,9 +1360,25 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
       return merged;
     };
 
+    const hasValidPriceData = (pd, ticker = 'SOXL') => {
+      if (!pd || typeof pd !== 'object') return false;
+      const main = pd[ticker];
+      const qqq = pd['QQQ'];
+      return !!(main && qqq && Array.isArray(main.close) && main.close.length > 0 && Array.isArray(qqq.close) && qqq.close.length > 0);
+    };
+
     const runFastEngine = async (cfg, isActive, slotNum, priceData) => {
       if (!isActive) return null;
-      const res = await runBacktestMemory(cfg, priceData, slotNum);
+      const ticker = cfg?.basics?.ticker || 'SOXL';
+      let effectivePriceData = priceData;
+      if (!hasValidPriceData(effectivePriceData, ticker) && window.priceLoader && hasValidPriceData(window.priceLoader.priceDataCache, ticker)) {
+        effectivePriceData = window.priceLoader.priceDataCache;
+      }
+      if (!hasValidPriceData(effectivePriceData, ticker)) {
+        console.warn(`[runFastEngine] 슬롯 ${slotNum}: ${ticker}/QQQ 주가 데이터가 준비되지 않아 빠른 계산을 건너뜁니다 (기존 스냅샷 유지).`);
+        return null;
+      }
+      const res = await runBacktestMemory(cfg, effectivePriceData, slotNum);
       if (res && res.status !== "error") {
         window.UI.updates.updateUIWithResult(res, cfg, slotNum, true);
         return res;
@@ -1433,8 +1457,23 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
         priceData = await window.priceLoader.loadAllSheetPrices();
         console.log("✅ 초기화: 주가 데이터 로드 완료", priceData);
       } catch (err) {
-        console.warn("⚠️ 초기화: 주가 데이터 로드 실패:", err.message);
-        console.warn("⚠️ 스택:", err.stack);
+        console.warn("⚠️ 초기화: 1차 주가 데이터 로드 실패:", err.message);
+      }
+
+      // 주가 데이터가 비어있거나 불완전한 경우 캐시 확인 및 1회 재시도
+      if (!hasValidPriceData(priceData)) {
+        if (hasValidPriceData(window.priceLoader.priceDataCache)) {
+          console.log("ℹ️ 기존 주가 캐시(priceDataCache) 재사용");
+          priceData = window.priceLoader.priceDataCache;
+        } else {
+          try {
+            console.log("🔄 주가 데이터 재시도 중...");
+            window.priceLoader._loadAllPricesPromise = null;
+            priceData = await window.priceLoader.loadAllSheetPrices();
+          } catch (retryErr) {
+            console.warn("⚠️ 주가 데이터 재시도 실패:", retryErr.message);
+          }
+        }
       }
     }
 
@@ -1581,8 +1620,18 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
 
         if (realData) {
           realData.currentStrat = confData.basics.strategy;
-          // 163주 튕김 방지 및 최신 증액/출금 내역을 엔진에 반영하기 위해 realData 기반으로 이어서 계산
-          const pureEngineRes = await runBacktestMemory(confData, priceData, slotNum, realData);
+          const ticker = confData.basics.ticker || 'SOXL';
+          let effectivePriceData = priceData;
+          if (!hasValidPriceData(effectivePriceData, ticker) && window.priceLoader && hasValidPriceData(window.priceLoader.priceDataCache, ticker)) {
+            effectivePriceData = window.priceLoader.priceDataCache;
+          }
+          let pureEngineRes = null;
+          if (hasValidPriceData(effectivePriceData, ticker)) {
+            // 163주 튕김 방지 및 최신 증액/출금 내역을 엔진에 반영하기 위해 realData 기반으로 이어서 계산
+            pureEngineRes = await runBacktestMemory(confData, effectivePriceData, slotNum, realData);
+          } else {
+            console.warn(`[syncSlotWithSheet] 슬롯 ${slotNum}: ${ticker}/QQQ 주가 데이터 부재로 실데이터 기반 엔진 재계산 건너뜀.`);
+          }
           const isEngOk = (pureEngineRes && pureEngineRes.summary);
 
           // ⭐️ 엔진의 가상 계산값을 버리고, 시트 꾸러미(JSON)의 진짜 갱신금을 추출
@@ -1754,13 +1803,22 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
         // ⭐️ [신규 슬롯 자동저장 지원] 시트에 기록이 없는 슬롯도 엔진을 돌려서 dailyStates를 생성
         // 이렇게 해야 checkAndRunAutoSave에서 해당 슬롯 데이터가 자동으로 시트에 저장됨
         if (confData.basics.ticker && confData.basics.startDate) {
-          const newSlotRes = await runBacktestMemory(confData, priceData, slotNum);
-          if (newSlotRes && newSlotRes.status !== "error") {
-            // ⭐️ [첫 기록 보장] 스냅샷을 localStorage에 저장하여 checkAndRunAutoSave가 찾을 수 있게 함
-            const normalizedNew = normalizeSnapAmounts(newSlotRes);
-            saveSnapshot(normalizedNew, slotNum, myUserId); // 📦 최적화된 저장 (필요필드만)
-            lastBTResults[slotNum] = normalizedNew;
-            window.UI.updates.updateUIWithResult(newSlotRes, confData, slotNum, false);
+          const ticker = confData.basics.ticker || 'SOXL';
+          let effectivePriceData = priceData;
+          if (!hasValidPriceData(effectivePriceData, ticker) && window.priceLoader && hasValidPriceData(window.priceLoader.priceDataCache, ticker)) {
+            effectivePriceData = window.priceLoader.priceDataCache;
+          }
+          if (hasValidPriceData(effectivePriceData, ticker)) {
+            const newSlotRes = await runBacktestMemory(confData, effectivePriceData, slotNum);
+            if (newSlotRes && newSlotRes.status !== "error") {
+              // ⭐️ [첫 기록 보장] 스냅샷을 localStorage에 저장하여 checkAndRunAutoSave가 찾을 수 있게 함
+              const normalizedNew = normalizeSnapAmounts(newSlotRes);
+              saveSnapshot(normalizedNew, slotNum, myUserId); // 📦 최적화된 저장 (필요필드만)
+              lastBTResults[slotNum] = normalizedNew;
+              window.UI.updates.updateUIWithResult(newSlotRes, confData, slotNum, false);
+            }
+          } else {
+            console.warn(`[syncSlotWithSheet] 신규 슬롯 ${slotNum}: ${ticker}/QQQ 주가 데이터 부재로 엔진 계산 건너뜀.`);
           }
         }
       }

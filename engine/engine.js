@@ -181,7 +181,7 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
     let useMid1 = cfg.useMid1, useMid2 = cfg.useMid2, useMid3 = cfg.useMid3;
     let rsi_up = cfg.rsi_up !== undefined ? cfg.rsi_up : 65.2;
     let rsi_dn = cfg.rsi_dn !== undefined ? cfg.rsi_dn : 45.6;
-    let isRsiStrat = cfg.rsi_up !== undefined || (curStrat.startsWith('3M3D1-R') || curStrat.startsWith('3M3D3-R'));
+    let isRsiStrat = cfg.rsi_up !== undefined || (curStrat.startsWith('3M3D1') || curStrat.startsWith('3M3D3'));
 
     // 주입받은 priceData에서 티커와 QQQ 가격 데이터 로딩
     let mainDataAll = priceData[ticker];
@@ -316,7 +316,7 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
         if (rsi_m === 'SF' && useMid1) applied_m = 'Middle';
         else if (rsi_m === 'AG' && useMid3) applied_m = 'Middle3';
         else if (rsi_m === 'DEF' && isRsiStrat) {
-          applied_m = (useMid1 || useMid2 || useMid3) ? ((!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle') : null;
+          applied_m = (useMid1 || useMid2 || useMid3) ? ((!useMid2 && !curStrat.startsWith('3M3D1')) ? 'Middle2' : 'Middle') : null;
         }
       }
       if (!applied_m && isPlunge && useMid2) {
@@ -488,7 +488,7 @@ function runBacktestMemory(params, priceData, slotNum = null, overrideSnap = nul
           if (today_m === 'SF' && useMid1) applied_m_t = 'Middle';
           else if (today_m === 'AG' && useMid3) applied_m_t = 'Middle3';
           else if (today_m === 'DEF' && isRsiStrat) {
-            applied_m_t = (useMid1 || useMid2 || useMid3) ? ((!useMid2 && curStrat !== '3M3D1-R') ? 'Middle2' : 'Middle') : null;
+            applied_m_t = (useMid1 || useMid2 || useMid3) ? ((!useMid2 && !curStrat.startsWith('3M3D1')) ? 'Middle2' : 'Middle') : null;
           }
         }
         if (!applied_m_t && isPlunge_t && useMid2) {
