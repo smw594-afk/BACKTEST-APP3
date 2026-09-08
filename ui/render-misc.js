@@ -1705,8 +1705,8 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
             orders: finalSyncedOrders.length > 0 ? finalSyncedOrders : (pureEngineRes.orders || []),
             rawOrders: combinedForTung,
             nextOrderInfo: syncedNextInfo,
-            orderDateStr: isEngOk ? pureEngineRes.orderDateStr : realData.orderDateStr,
-            dailyStates: isEngOk ? pureEngineRes.dailyStates : realData.dailyStates,
+            orderDateStr: isEngineNewer ? pureEngineRes.orderDateStr : realData.orderDateStr,
+            dailyStates: isEngineNewer ? pureEngineRes.dailyStates : (realData.dailyStates || []),
             chartDates: realData.chartDates,
             chartBalances: realData.chartBalances,
             chartMdd: realData.chartMdd,
@@ -1729,6 +1729,12 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
               mergedSnap.chartDates = realData.chartDates.concat(newIndices.map(i => pureEngineRes.chartDates[i]));
               mergedSnap.chartBalances = realData.chartBalances.concat(newIndices.map(i => pureEngineRes.chartBalances[i]));
               mergedSnap.chartInout = realData.chartInout.concat(newIndices.map(i => pureEngineRes.chartInout[i] || 0));
+
+              // dailyStates 스마트 병합: 시트 실제 기록 뒤에 엔진의 새 날짜분만 추가
+              if (Array.isArray(realData.dailyStates) && realData.dailyStates.length > 0) {
+                const newerDaily = (pureEngineRes.dailyStates || []).filter(ds => ds.date > lastRealDate);
+                mergedSnap.dailyStates = realData.dailyStates.concat(newerDaily);
+              }
 
               // MDD 전체 재계산 (Peak 추적 일관성 유지)
               let peak = -Infinity;
