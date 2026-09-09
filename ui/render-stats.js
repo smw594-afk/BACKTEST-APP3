@@ -795,10 +795,25 @@ function buildBalanceHtml(result, broker) {
   });
 
   let cashAsset = usdCash;
-  // ⚠️ LS는 외화 RP 95% 담보가 적용되므로 95% 역산, 키움은 RP가 없으므로 최종 정산예수금 그대로 사용
-  if (broker === "ls" && buyingPower > usdCash) {
-    const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
-    cashAsset = wonCollateralUsd + usdCash;
+  // ⚠️ LS는 외화 RP 95% 담보가 적용되므로 95% 역산, 키움은 RP가 없으므로 최종 정산예수금 그대로 사용.
+  //    미체결 매수 주문이 있는 경우 buyingPower(주문가능금액)에서 이미 차감되어 있으므로
+  //    프록시의 totalCashAsset을 우선 사용하거나, 미체결 매수 금액을 buyingPower에 복원하여 역산한다.
+  if (broker === "ls") {
+    if (result.totalCashAsset !== undefined && Number(result.totalCashAsset) > 0) {
+      cashAsset = Number(result.totalCashAsset);
+    } else {
+      let unfilledBuyAmt = Number(result.unfilledBuyUsd || 0);
+      if (!unfilledBuyAmt && window.orderStatusCache && Array.isArray(window.orderStatusCache.unfilledOrders)) {
+        unfilledBuyAmt = window.orderStatusCache.unfilledOrders
+          .filter(o => String(o.side || '').toUpperCase() === 'BUY')
+          .reduce((sum, o) => sum + (Number(o.qty || 0) * Number(o.price || 0)), 0);
+      }
+      const effectiveBuyingPower = buyingPower + unfilledBuyAmt;
+      if (effectiveBuyingPower > usdCash) {
+        const wonCollateralUsd = (effectiveBuyingPower - usdCash) / 0.95;
+        cashAsset = wonCollateralUsd + usdCash;
+      }
+    }
   }
   const totalAsset = cashAsset + evalAmt;
   const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

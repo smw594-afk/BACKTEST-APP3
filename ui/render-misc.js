@@ -1481,17 +1481,15 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
       }
     }
     saveCombinedOrderSnapshot();
-    // ⭐️ [자동 동기화] 로컬 계산이 완료되면 GCP 자동주문 서버에도 최신 주문표를 자동 전송하여 화면과 GCP 간 일치 유도
-    if (typeof window.pushTodayOrders === 'function') {
-      window.pushTodayOrders(window.lastBTResults).then(() => {
-        if (typeof window.refreshOrderStatusCache === 'function') {
-          window.refreshOrderStatusCache(false).then(() => {
-            if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
-              window.UI.order.refreshOrderViewUI();
-            }
-          });
+    // ⭐️ [버그 원천 차단] 로그인/새로고침 시 앱이 불완전한 계산값으로 VM 주문표를 자동 덮어쓰는(pushTodayOrders) 행위 전면 제거!
+    // VM은 매일 장마감 후(17:00 ET) 시트 기반으로 독립 생성한 주문표를 보존하고,
+    // 앱은 시트 데이터를 기반으로 화면에 렌더링하여 VM 주문표와 대조/검증만 수행합니다.
+    if (typeof window.refreshOrderStatusCache === 'function') {
+      window.refreshOrderStatusCache(false).then(() => {
+        if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
+          window.UI.order.refreshOrderViewUI();
         }
-      }).catch(e => console.warn('GCP 자동 주문 전송 실패:', e));
+      }).catch(e => console.warn('주문 상태 캐시 갱신 실패:', e));
     }
     // ⭐️ [버그 수정] 모든 슬롯 동기화가 완전히 끝난 시점에 통합 주문표를 최신 데이터로 강제 최종 갱신
     if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {

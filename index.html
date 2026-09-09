@@ -400,9 +400,8 @@
         </div>
         <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
           <span id="orderStatusText" style="font-size:11px; color:var(--text-muted); font-weight:600; min-width:60px; text-align:right;"></span>
-          <div id="combinedHoldingsSummary" style="display:none; gap:6px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text);"></div>
-          <button id="btnOrderCompare" onclick="window.compareOrderBookManual && window.compareOrderBookManual()" title="VM/앱/증권사 주문표 강제 대조" style="background:linear-gradient(135deg, #10b981, #047857); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">✅ 일치확인</button>
-          <button id="btnOrderRankingLive" onclick="showLiveRankingModal()" title="실전 투자법 랭킹" style="background:linear-gradient(135deg, #0ea5e9, #0369a1); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:none; align-items:center; justify-content:center; white-space:nowrap;">📡 실전랭킹</button>
+          <button id="btnOrderCompare" onclick="window.compareOrderBookManual && window.compareOrderBookManual()" title="VM/앱/증권사 주문표 강제 대조" style="background:linear-gradient(135deg, #10b981, #047857); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">주문표일치</button>
+          <button id="btnSheetVerify" onclick="window.openSheetVerificationModal && window.openSheetVerificationModal()" title="구글 시트 vs 앱 데이터 일치 검증" style="background:linear-gradient(135deg, #10b981, #059669); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; white-space:nowrap;">시트일치</button>
           <button id="btnOrderRankingBacktest" onclick="showBacktestRankingModal()" title="BT랭킹" style="background:linear-gradient(135deg, #fbbf24, #d97706); border:none; border-radius:6px; padding:4px 8px; color:white; font-size:10px; font-weight:700; height:24px; cursor:pointer; display:none; align-items:center; justify-content:center; white-space:nowrap;">🏆 BT랭킹</button>
           <button id="btnExpandOrder" onclick="toggleOrderExpansion()" class="btn-icon-sub btn-order-expand" title="주문표 세로 확장" style="display: none !important;">
             <svg width="20" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -1116,19 +1115,19 @@
   <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v1788884000000" defer></script>
+  <script src="ui/render-order.js?v=cf_v1788962600000" defer></script>
   <script src="ui/render-holdings.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-performance.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-stats.js?v=cf_v1788958100000" defer></script>
+  <script src="ui/render-stats.js?v=cf_v1788962500000" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v1788958300000" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v1788879600000" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v1788962600000" defer></script>
   <script src="ui/render-helpers.js?v=cf_v1787844589408" defer></script>
   <script src="ui/render-notifications.js?v=cf_v1788352903828" defer></script>
-  <script src="ui/render-misc.js?v=cf_v1788958100000" defer></script>
+  <script src="ui/render-misc.js?v=cf_v1788969300000" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v1788958100000" defer></script>
+  <script src="script.js?v=cf_v1788969200000" defer></script>
 
 
 </body>

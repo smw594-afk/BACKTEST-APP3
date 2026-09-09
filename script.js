@@ -2953,16 +2953,12 @@ async function pushTodayOrders(freshBySlot) {
     const nyHh = Number((nyNow.find(p => p.type === "hour") || {}).value || 0) % 24;
     const nyMm = Number((nyNow.find(p => p.type === "minute") || {}).value || 0);
     const nyMins = nyHh * 60 + nyMm;
-    if (nyMins >= 9 * 60 + 15 && nyMins <= 9 * 60 + 50) {
-      console.log("[OrderSync] 주문표 수정 마감(09:15 ET, 개장 15분 전)이 지나 갱신을 건너뜁니다.");
-      return { ok: false, reason: "주문표 수정 마감(09:15~09:50 ET, 개장 직전) 시간대라 GCP에는 반영되지 않았습니다. 이 시간대가 지나면 자동으로 정상 반영됩니다." };
-    }
-    // 🛡️ [VM 백테스트 및 시트 정산 전담 시간대 앱 푸시 차단] 16:50 ET ~ 18:20 ET (한국 05:50 ~ 07:20 KST)
-    // 장 마감 후 VM이 종가를 수집하고 정산 백테스트를 수행하는 시간대에는
-    // 앱이 과거 스냅샷이나 미완성 주문표로 VM을 덮어쓰지 않도록 전송을 차단합니다.
-    if (nyMins >= 16 * 60 + 50 && nyMins <= 18 * 60 + 20) {
-      console.log("[OrderSync] VM 백테스트 및 정산 전담 시간대(16:50~18:20 ET)이므로 앱 주문표 저장을 건너뜁니다.");
-      return { ok: false, reason: "VM 백테스트 및 정산 전담 시간대(16:50~18:20 ET)입니다." };
+    // 🛡️ [장중 주문시간대 및 정산시간대 앱 푸시 전면 차단] 09:15 ET ~ 17:20 ET (한국 22:15 ~ 06:20 KST)
+    // 09:20 ET에 이미 VM 자동주문 스케줄러가 오늘 주문표를 가져가 증권사에 실전 발주를 완료했으므로,
+    // 장중(09:20~16:00 ET) 및 정산(16:00~17:20 ET) 시간대에는 앱이 임의로 VM의 당일 주문표를 덮어쓰지 못하도록 차단합니다.
+    if (nyMins >= 9 * 60 + 15 && nyMins < 17 * 60 + 20) {
+      console.log(`[OrderSync] 주문 및 정산 시간대(09:15~17:20 ET, 현재 ET ${nyHh}:${String(nyMm).padStart(2, "0")})이므로 당일 주문표 유지를 위해 저장을 건너뜁니다.`);
+      return { ok: false, reason: "주문 및 장마감 정산 시간대(09:15~17:20 ET)에는 당일 발주 주문표가 보존되므로 덮어쓰지 않습니다." };
     }
     if (!myUserId) return { ok: false, reason: "userId 없음" };
 
@@ -2975,7 +2971,8 @@ async function pushTodayOrders(freshBySlot) {
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
-      const res = (freshBySlot && freshBySlot[i]) || getBestResult(lastBTResults[i], i);
+      const rawRes = (freshBySlot && freshBySlot[i]) || (window.lastBTResults && window.lastBTResults[i]);
+      const res = (typeof getBestResult === 'function') ? getBestResult(rawRes, i) : rawRes;
       if (!res) continue;
       const symbol = String(getSlotConfig(i)?.basics?.ticker || "").toUpperCase();
       const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "kiwoom" : "ls");
