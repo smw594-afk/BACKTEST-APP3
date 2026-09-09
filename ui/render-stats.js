@@ -760,12 +760,138 @@ function kisBalanceToKiwoomShape(kis) {
   };
 }
 
+function updateStatsTitleAccountNo(result) {
+  const acctNo = result?.accountNo || result?.cano || result?.acnt_no || "";
+  if (acctNo) {
+    window.lastAccountNo = acctNo;
+  }
+  const statsTitle = document.getElementById('statsTitle');
+  const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : "";
+  if (statsTitle && statsDisplayMode === 'table') {
+    statsTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+  }
+}
+
+function buildBalanceHtml(result, broker) {
+  const usdCash = Number(result.usdCash || result.deposit || 0);
+  const buyingPower = Number(result.buyingPowerUsd || usdCash);
+  const holdingsRaw = result.holdings || result.acnt_evlt_remn_indv_tot || [];
+  const holdings = Array.isArray(holdingsRaw) ? holdingsRaw : [];
+
+  let evalAmt = 0;
+  let evalProfit = 0;
+
+  const normalizedHoldings = holdings.map(h => {
+    const symbol = h.symbol || (h.stk_cd ? h.stk_cd.replace(/^A/, '') : '') || h.ticker || h.stk_nm || '-';
+    const qty = Math.round(Number(h.qty || h.rmnd_qty || h.cqty || 0));
+    const avgPrice = Number(h.avgPrice || h.pur_pric || h.pavg || 0);
+    const currPrice = Number(h.currentPrice || h.cur_prc || h.price || 0);
+    const pnlVal = Number(h.evalPnlUsd || h.evltv_prft || h.pnl || 0);
+    const valuation = qty * currPrice;
+    evalAmt += valuation;
+    evalProfit += pnlVal;
+
+    return { symbol, qty, avgPrice, currPrice, pnlVal, valuation };
+  });
+
+  let cashAsset = usdCash;
+  // ⚠️ LS는 외화 RP 95% 담보가 적용되므로 95% 역산, 키움은 RP가 없으므로 최종 정산예수금 그대로 사용
+  if (broker === "ls" && buyingPower > usdCash) {
+    const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
+    cashAsset = wonCollateralUsd + usdCash;
+  }
+  const totalAsset = cashAsset + evalAmt;
+  const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  let html = '<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%;">';
+
+  // 앱1 가로 요약 바 그대로 적용 ($ 달러)
+  html += `
+    <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
+      <div>${(broker === "ls" ? "RP+정산 예수금" : "정산 예수금")}: <strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong></div>
+      <div>주문 가능금액: <strong style="color:var(--text, #fff);">${usd(buyingPower)}</strong></div>
+      <div>평가금액: <strong style="color:var(--text, #fff);">${usd(evalAmt)}</strong></div>
+      <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>
+      <div>총 자산: <strong style="color:#fbbf24;">${usd(totalAsset)}</strong></div>
+    </div>
+  `;
+
+  // 앱1 헤더 정의 (stats-header-row)
+  html += '<div class="stats-header-row" style="display:flex; align-items:center; gap:1px; padding:2px 3px; box-sizing:border-box; line-height:1; height:18px; width:100%;">';
+  html += '<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text-muted, #94a3b8); display:flex; align-items:center;">종목명</div>';
+
+  const columns = [
+    { label: '평단가', width: '56px' },
+    { label: '현재가', width: '56px' },
+    { label: '수량', width: '48px' },
+    { label: '평가금', width: '64px' },
+    { label: '수익률', width: '50px' },
+    { label: '평가손익', width: '64px' }
+  ];
+
+  columns.forEach(c => {
+    html += `<div style="flex:1; min-width:${c.width}; font-size:10px; font-weight:700; letter-spacing:-0.2px; display:flex; align-items:center; justify-content:center; color:var(--text-muted, #94a3b8);">${c.label}</div>`;
+  });
+  html += '</div>';
+
+  if (normalizedHoldings.length === 0) {
+    html += `<div style="text-align:center; padding:20px; color:#64748b; font-size:10.5px;">보유 주식이 없습니다.</div>`;
+  } else {
+    normalizedHoldings.forEach(h => {
+      const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+      const profitRate = (h.avgPrice > 0 && h.qty > 0) ? ((h.currPrice - h.avgPrice) / h.avgPrice * 100) : 0;
+      const isPlus = profitRate >= 0;
+      const color = isPlus ? (isLight ? '#1d4ed8' : '#10b981') : (isLight ? '#b91c1c' : '#f43f5e');
+      const prefix = isPlus ? '+' : '';
+
+      html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:1px 3px; box-sizing:border-box; min-height:18px; width:100%; border-bottom:1px solid rgba(255,255,255,0.05);">`;
+      html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text, #fda4af); display:flex; align-items:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}</div>`;
+
+      const rowVals = [
+        `$${h.avgPrice.toFixed(2)}`,
+        `$${h.currPrice.toFixed(2)}`,
+        `${h.qty.toLocaleString()}주`,
+        `$${h.valuation.toFixed(2)}`,
+        `${prefix}${profitRate.toFixed(1)}%`,
+        // 평가손익은 음수일 때만 부호를 붙인다(+ 기호 없음).
+        `${h.pnlVal < 0 ? '-' : ''}$${Math.abs(h.pnlVal).toFixed(2)}`
+      ];
+
+      rowVals.forEach((val, idx) => {
+        const w = columns[idx].width;
+        const isProfitCol = (idx === 4 || idx === 5);
+        const isPurpleCol = (idx === 0 || idx === 2); // ⭐️ 평단가(idx 0) 및 수량(idx 2)은 통합보유현황 진입가/수량과 동일한 보라색(#8b5cf6)
+        const valColor = isProfitCol ? color : (isPurpleCol ? '#8b5cf6' : 'var(--text, #fff)');
+        const valWeight = (isProfitCol || isPurpleCol) ? '700' : '400';
+        html += `<div style="flex:1; min-width:${w}; font-size:10px; font-weight:${valWeight}; color:${valColor}; display:flex; align-items:center; justify-content:center;">${val}</div>`;
+      });
+
+      html += '</div>';
+    });
+  }
+
+  html += '</div>';
+  return html;
+}
+
 async function renderKiwoomBalanceOnStatsTable(table) {
   if (!table) return;
   const broker = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
   const brokerLabel = broker === "ls" ? "LS" : "키움";
 
-  table.innerHTML = `<div style="padding:20px; color:#64748b; text-align:center; font-size:11px;">${brokerLabel} 증권사 실전 잔고 정보를 조회 중...</div>`;
+  // 1) 캐시된 데이터가 있거나 이미 화면에 현재 브로커 데이터가 출력되어 있다면
+  //    빈 화면('조회 중...')으로 덮어쓰지 않고 즉시 표시 또는 기존 화면을 유지(Stale-While-Revalidate)
+  const cached = window.BrokerReconcile?.getCachedBalance ? window.BrokerReconcile.getCachedBalance(broker) : null;
+  const alreadyRenderedSameBroker = (table.dataset?.broker === broker && table.querySelector('.stats-balance-summary-card'));
+
+  if (cached && cached.success !== false) {
+    table.innerHTML = buildBalanceHtml(cached, broker);
+    if (!table.dataset) table.dataset = {};
+    table.dataset.broker = broker;
+    updateStatsTitleAccountNo(cached);
+  } else if (!alreadyRenderedSameBroker) {
+    table.innerHTML = `<div style="padding:20px; color:#64748b; text-align:center; font-size:11px;">${brokerLabel} 증권사 실전 잔고 정보를 조회 중...</div>`;
+  }
 
   try {
     let result = null;
@@ -775,124 +901,28 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       result = await window.BrokerService.fetchOverseasBalance(broker);
     }
 
+    const currentBroker = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
+    if (currentBroker !== broker) return; // 중간에 브로커가 변경되었으면 무시
+
     if (!result || result.success === false) {
+      if (table.querySelector('.stats-balance-summary-card')) {
+        console.warn(`[${brokerLabel} 잔고 갱신 실패 (기존 화면 유지)]:`, result?.error);
+        return;
+      }
       const errMsg = (result && result.error) || "계좌 데이터를 가져오지 못했습니다.";
       table.innerHTML = `<div style="padding:20px; color:#f43f5e; text-align:center; font-size:11px;">${brokerLabel} API 연동 실패<br/><span style="font-size:9.5px; opacity:0.8;">사유: ${errMsg}</span></div>`;
       return;
     }
 
-    const usdCash = Number(result.usdCash || result.deposit || 0);
-// 📡 계좌번호를 타이틀(statsTitle)에 (계좌번호)로 추가
-    const acctNo = result.accountNo || result.cano || result.acnt_no || "";
-    if (acctNo) {
-      window.lastAccountNo = acctNo;
-    }
-    const statsTitle = document.getElementById('statsTitle');
-    const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : "";
-    if (statsTitle && statsDisplayMode === 'table') {
-      statsTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
-    }
-    const buyingPower = Number(result.buyingPowerUsd || usdCash);
-    const holdingsRaw = result.holdings || result.acnt_evlt_remn_indv_tot || [];
-    const holdings = Array.isArray(holdingsRaw) ? holdingsRaw : [];
-
-    let evalAmt = 0;
-    let evalProfit = 0;
-
-    const normalizedHoldings = holdings.map(h => {
-      const symbol = h.symbol || (h.stk_cd ? h.stk_cd.replace(/^A/, '') : '') || h.ticker || h.stk_nm || '-';
-      const qty = Math.round(Number(h.qty || h.rmnd_qty || h.cqty || 0));
-      const avgPrice = Number(h.avgPrice || h.pur_pric || h.pavg || 0);
-      const currPrice = Number(h.currentPrice || h.cur_prc || h.price || 0);
-      const pnlVal = Number(h.evalPnlUsd || h.evltv_prft || h.pnl || 0);
-      const valuation = qty * currPrice;
-      evalAmt += valuation;
-      evalProfit += pnlVal;
-
-      return { symbol, qty, avgPrice, currPrice, pnlVal, valuation };
-    });
-
-    let cashAsset = usdCash;
-    // ⚠️ LS는 외화 RP 95% 담보가 적용되므로 95% 역산, 키움은 RP가 없으므로 최종 정산예수금 그대로 사용
-    if (broker === "ls" && buyingPower > usdCash) {
-      const wonCollateralUsd = (buyingPower - usdCash) / 0.95;
-      cashAsset = wonCollateralUsd + usdCash;
-    }
-    const totalAsset = cashAsset + evalAmt;
-    const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    let html = '<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%;">';
-
-    // 앱1 가로 요약 바 그대로 적용 ($ 달러)
-    html += `
-      <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
-        <div>${(broker === "ls" ? "RP+정산 예수금" : "정산 예수금")}: <strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong></div>
-        <div>주문 가능금액: <strong style="color:var(--text, #fff);">${usd(buyingPower)}</strong></div>
-        <div>평가금액: <strong style="color:var(--text, #fff);">${usd(evalAmt)}</strong></div>
-        <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>
-        <div>총 자산: <strong style="color:#fbbf24;">${usd(totalAsset)}</strong></div>
-      </div>
-    `;
-
-    // 앱1 헤더 정의 (stats-header-row)
-    html += '<div class="stats-header-row" style="display:flex; align-items:center; gap:1px; padding:2px 3px; box-sizing:border-box; line-height:1; height:18px; width:100%;">';
-    html += '<div style="font-size:11px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text-muted, #94a3b8); display:flex; align-items:center;">종목명</div>';
-
-    const columns = [
-      { label: '평단가', width: '56px' },
-      { label: '현재가', width: '56px' },
-      { label: '수량', width: '48px' },
-      { label: '평가금', width: '64px' },
-      { label: '수익률', width: '50px' },
-      { label: '평가손익', width: '64px' }
-    ];
-
-    columns.forEach(c => {
-      html += `<div style="flex:1; min-width:${c.width}; font-size:10px; font-weight:700; letter-spacing:-0.2px; display:flex; align-items:center; justify-content:center; color:var(--text-muted, #94a3b8);">${c.label}</div>`;
-    });
-    html += '</div>';
-
-    if (normalizedHoldings.length === 0) {
-      html += `<div style="text-align:center; padding:20px; color:#64748b; font-size:10.5px;">보유 주식이 없습니다.</div>`;
-    } else {
-      normalizedHoldings.forEach(h => {
-        const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-        const profitRate = (h.avgPrice > 0 && h.qty > 0) ? ((h.currPrice - h.avgPrice) / h.avgPrice * 100) : 0;
-        const isPlus = profitRate >= 0;
-        const color = isPlus ? (isLight ? '#1d4ed8' : '#10b981') : (isLight ? '#b91c1c' : '#f43f5e');
-        const prefix = isPlus ? '+' : '';
-
-        html += `<div class="stats-row" style="display:flex; align-items:center; gap:1px; border-radius:3px; padding:1px 3px; box-sizing:border-box; min-height:18px; width:100%; border-bottom:1px solid rgba(255,255,255,0.05);">`;
-        html += `<div style="font-size:10.5px; font-weight:700; letter-spacing:-0.2px; width:75px; min-width:75px; flex-shrink:0; color:var(--text, #fda4af); display:flex; align-items:center; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.symbol}</div>`;
-
-        const rowVals = [
-          `$${h.avgPrice.toFixed(2)}`,
-          `$${h.currPrice.toFixed(2)}`,
-          `${h.qty.toLocaleString()}주`,
-          `$${h.valuation.toFixed(2)}`,
-          `${prefix}${profitRate.toFixed(1)}%`,
-          // 평가손익은 음수일 때만 부호를 붙인다(+ 기호 없음).
-          `${h.pnlVal < 0 ? '-' : ''}$${Math.abs(h.pnlVal).toFixed(2)}`
-        ];
-
-        rowVals.forEach((val, idx) => {
-          const w = columns[idx].width;
-          const isProfitCol = (idx === 4 || idx === 5);
-          const isPurpleCol = (idx === 0 || idx === 2); // ⭐️ 평단가(idx 0) 및 수량(idx 2)은 통합보유현황 진입가/수량과 동일한 보라색(#8b5cf6)
-          const valColor = isProfitCol ? color : (isPurpleCol ? '#8b5cf6' : 'var(--text, #fff)');
-          const valWeight = (isProfitCol || isPurpleCol) ? '700' : '400';
-          html += `<div style="flex:1; min-width:${w}; font-size:10px; font-weight:${valWeight}; color:${valColor}; display:flex; align-items:center; justify-content:center;">${val}</div>`;
-        });
-
-        html += '</div>';
-      });
-    }
-
-    html += '</div>';
-    table.innerHTML = html;
+    table.innerHTML = buildBalanceHtml(result, broker);
+    if (!table.dataset) table.dataset = {};
+    table.dataset.broker = broker;
+    updateStatsTitleAccountNo(result);
   } catch (e) {
     console.error(`${brokerLabel} 잔고 로드 실패:`, e);
-    table.innerHTML = `<div style="padding:20px; color:#f43f5e; text-align:center; font-size:11px;">${brokerLabel} API 연동 실패<br/><span style="font-size:9.5px; opacity:0.8;">사유: ${e.message}</span></div>`;
+    if (!table.querySelector('.stats-balance-summary-card')) {
+      table.innerHTML = `<div style="padding:20px; color:#f43f5e; text-align:center; font-size:11px;">${brokerLabel} API 연동 실패<br/><span style="font-size:9.5px; opacity:0.8;">사유: ${e.message}</span></div>`;
+    }
   }
 }
 

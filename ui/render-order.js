@@ -425,7 +425,7 @@ function getVmMatchMarkup(order, slotNum) {
 
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
   const vm = rawVm.filter(v => {
-    const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? 'kiwoom' : 'ls');
+    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? 'kiwoom' : 'ls'));
     if (b !== activeBr) return false;
     if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
     return true;
@@ -512,7 +512,7 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
   if (currentPhase === 'reserved') {
     if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
       const activeVmOrders = cache.vmOrders.filter(v => {
-        const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? "kiwoom" : "ls");
+        const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? "kiwoom" : "ls"));
         if (b !== activeBr) return false;
         if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
         return true;
@@ -1291,7 +1291,7 @@ window.getCombinedOrderEvaluationData = function() {
   // 3. VM Orders (VM 통합 주문표)
   const vmRawOrders = (Array.isArray(cache.vmOrders) ? cache.vmOrders : []).filter(v => {
     if (!v) return false;
-    const b = v.broker || (Number(v.slot) <= (window.BrokerService?.KIWOOM_MAX_SLOT || 6) ? 'kiwoom' : 'ls');
+    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? 'kiwoom' : 'ls'));
     return b === activeBr;
   });
   let vmCombined = [];

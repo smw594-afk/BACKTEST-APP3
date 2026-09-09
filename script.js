@@ -2140,7 +2140,7 @@ function handleDeposit() {
     // 인자 없이 호출해도 pushTodayOrders 내부의 getBestResult(lastBTResults[i], i)가
     // 최신값을 집는다.
     if (typeof pushTodayOrders === 'function') {
-      const pushResult = await pushTodayOrders();
+      const pushResult = await pushTodayOrders(window.lastBTResults);
       if (pushResult && pushResult.ok === false) {
         showToast(`⚠️ GCP 자동주문 서버 반영 실패: ${pushResult.reason}`, "⚠️");
       }

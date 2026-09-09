@@ -18,7 +18,7 @@
 (function () {
   "use strict";
 
-  const CACHE_MS = 30000;
+  const CACHE_MS = 60000; // 1분 캐시 (키움·LS 공통 1분 주기 갱신)
   const BROKERS = ["kiwoom", "ls"];
   const BROKER_LABEL = { kiwoom: "🟢 키움", ls: "🟣 LS증권" };
 
@@ -26,6 +26,12 @@
   const fillsPromise = {};
   const balanceCache = {}; // broker → { at, data }
   const balancePromise = {};
+
+  function getCachedBalance(broker) {
+    const target = broker || (window.BrokerService ? window.BrokerService.activeBroker : "kiwoom");
+    const c = balanceCache[target];
+    return c && c.data ? c.data : null;
+  }
 
   // ─────────── date helpers (US market date, not KST calendar date) ───────────
   // A fill at 05:00 KST belongs to the PREVIOUS New York trading day, so a naive
@@ -503,7 +509,7 @@
 
     BROKERS, BROKER_LABEL,
     normalizeMarketDate, normalizeDateKey, normSymbol, brokerForSlot,
-    getFills, getBalance, invalidate, refreshFills,
+    getFills, getBalance, getCachedBalance, invalidate, refreshFills,
     state,
     holdingStatus, sellStatus, badge, badgeTitle, cellHtml, escapeHtml,
     openAccountInfoModal, refreshAccountInfo, renderBrokerAccountTable,

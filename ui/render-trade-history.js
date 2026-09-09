@@ -866,6 +866,8 @@ function syncHistoryViewModeToBroker() {
   } else {
     lastTradeHistoryRenderSignature = '';
     renderDBTradeHistory();
+    if (typeof window.updateHistorySummary === 'function') window.updateHistorySummary();
+    else if (window.UI?.misc?.updateHistorySummary) window.UI.misc.updateHistorySummary();
   }
 }
 

@@ -1483,7 +1483,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     saveCombinedOrderSnapshot();
     // ⭐️ [자동 동기화] 로컬 계산이 완료되면 GCP 자동주문 서버에도 최신 주문표를 자동 전송하여 화면과 GCP 간 일치 유도
     if (typeof window.pushTodayOrders === 'function') {
-      window.pushTodayOrders().then(() => {
+      window.pushTodayOrders(window.lastBTResults).then(() => {
         if (typeof window.refreshOrderStatusCache === 'function') {
           window.refreshOrderStatusCache(false).then(() => {
             if (typeof window.UI?.order?.refreshOrderViewUI === 'function') {
@@ -2416,6 +2416,7 @@ window.UI.misc.handleInstantOrder = handleInstantOrder;
 
 // 직접 window에도 할당 (다른 UI 모듈에서 쉽게 접근하도록)
 window.updateSlotsVisibility = updateSlotsVisibility;
+window.updateHistorySummary = updateHistorySummary;
 
 // 📌 GET_ALL_INIT은 enterAppDirectly()에서 시작됨
 // (안정성 확보)

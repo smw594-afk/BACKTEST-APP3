@@ -169,6 +169,11 @@ window.BrokerService = {
       if (window.UI && window.UI.tradeHistory && typeof window.UI.tradeHistory.syncHistoryViewModeToBroker === "function") {
         window.UI.tradeHistory.syncHistoryViewModeToBroker();
       }
+      if (typeof window.updateHistorySummary === "function") {
+        window.updateHistorySummary();
+      } else if (window.UI?.misc?.updateHistorySummary) {
+        window.UI.misc.updateHistorySummary();
+      }
       if (window.BrokerReconcile && typeof window.BrokerReconcile.refreshFills === "function") {
         window.BrokerReconcile.refreshFills(broker, () => {
           if (window.UI?.tradeHistory?.renderDBTradeHistory) window.UI.tradeHistory.renderDBTradeHistory();
