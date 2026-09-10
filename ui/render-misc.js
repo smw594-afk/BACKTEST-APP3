@@ -105,8 +105,8 @@ function generateDynamicDOM() {
           <div id="combinedHoldingsView" class="view-pane-hidden">
             <div class="slot-title slot-title-sm" style="color:#fbbf24;">통합 보유 현황</div>
             <table class="data-table">
-              <thead><tr><th style="width:52px;">일치</th><th>투자법</th><th>진입일</th><th>청산일</th><th>모드/T</th><th>진입가</th><th>청산가</th><th>수량</th><th>T수익금</th></tr></thead>
-              <tbody id="combinedHoldingsBody"><tr><td colspan="9" class="table-empty-cell">보유 없음</td></tr></tbody>
+              <thead><tr><th>투자법</th><th>진입일</th><th>청산일</th><th>모드/T</th><th>진입가</th><th>청산가</th><th>수량</th><th>T수익금</th></tr></thead>
+              <tbody id="combinedHoldingsBody"><tr><td colspan="8" class="table-empty-cell">보유 없음</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -486,6 +486,7 @@ function showStatsView() {
     }
     if (window.UI?.order?.refreshOrderViewUI) window.UI.order.refreshOrderViewUI();
     if (typeof updateOrderHeaderUI === 'function') updateOrderHeaderUI();
+    if (window.UI?.holdings?.updateCombinedHoldingsSummary) window.UI.holdings.updateCombinedHoldingsSummary();
   } catch (e) { console.warn("[showStatsView] ui refresh err:", e); }
 }
 

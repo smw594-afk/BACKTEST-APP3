@@ -187,9 +187,11 @@ function toggleOrderView(dir) {
 function updateOrderHeaderUI() {
   const titleEl = document.getElementById('orderTitle');
   const statusEl = document.getElementById('orderStatusText');
+  const orderCompareBtn = document.getElementById('btnOrderCompare');
   const sheetVerifyBtn = document.getElementById('btnSheetVerify');
   const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
+  const holdingSummaryEl = document.getElementById('combinedHoldingsSummary');
 
   if (!titleEl || !statusEl) return;
 
@@ -232,9 +234,21 @@ function updateOrderHeaderUI() {
   titleEl.innerHTML = titleText + dateText;
   statusEl.innerHTML = statusText;
 
+  if (orderCompareBtn) orderCompareBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (sheetVerifyBtn) sheetVerifyBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (rankingBTBtn) rankingBTBtn.style.display = showRankingBtns ? 'flex' : 'none';
   if (settingsBtn) settingsBtn.style.display = (!window.isStatsMode && window.isOrderView) ? 'flex' : 'none';
+
+  // ⭐️ 통합 보유현황 요약 배지(우측 상단) 제어: 통합 보유현황 모드(!window.isOrderView && !window.showIndividualHoldings)일 때 표시
+  if (holdingSummaryEl) {
+    const isCombinedHoldingsShowing = (!window.isOrderView && !window.showIndividualHoldings);
+    holdingSummaryEl.style.display = isCombinedHoldingsShowing ? 'flex' : 'none';
+    if (isCombinedHoldingsShowing) {
+      if (typeof window.UI?.holdings?.updateCombinedHoldingsSummary === 'function') {
+        window.UI.holdings.updateCombinedHoldingsSummary();
+      }
+    }
+  }
 
   // ⭐️ 보유현황일 때는 우측 상단의 확대 아이콘 숨김
   const btnExpand = document.getElementById('btnExpandOrder');

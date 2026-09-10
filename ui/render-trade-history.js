@@ -13,35 +13,35 @@ let historyViewMode = 'strategy'; // 기본은 실전 매도내역 (내역모드
 // 실전 매도내역(strategy) 표의 thead (index.html 정적 헤더와 동일: 일치 컬럼 포함 10열)
 function strategyHistoryTheadHtml() {
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-  const borderCol = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const borderCol = isLight ? 'rgba(15, 23, 42, 0.1)' : 'rgba(255, 255, 255, 0.07)';
   const textMuted = isLight ? '#64748b' : '#94a3b8';
   return `<tr style="border-bottom:1px solid ${borderCol}; color:${textMuted}; font-weight:700;">`
-    + '<th style="width:9%; padding:2px 1px; text-align:center;">일치</th>'
-    + '<th style="width:9%; padding:2px 1px; text-align:center;">투자법</th>'
-    + '<th style="width:10%; padding:2px 1px; text-align:center;">종목</th>'
-    + '<th style="width:11%; padding:2px 1px; text-align:center;">진입일</th>'
-    + '<th style="width:11%; padding:2px 1px; text-align:center;">청산일</th>'
-    + '<th style="width:9%; padding:2px 1px; text-align:center;">모드/T</th>'
-    + '<th style="width:10%; padding:2px 1px; text-align:center;">진입가</th>'
-    + '<th style="width:10%; padding:2px 1px; text-align:center;">청산가</th>'
-    + '<th style="width:7%; padding:2px 1px; text-align:center;">수량</th>'
-    + '<th style="width:14%; padding:2px 1px; text-align:center; white-space:nowrap;">수익금</th></tr>';
+    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">일치</th>'
+    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">슬롯</th>'
+    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">종목</th>'
+    + '<th style="width:11%; padding:2px 1px; text-align:center; font-size:11px;">진입일</th>'
+    + '<th style="width:11%; padding:2px 1px; text-align:center; font-size:11px;">청산일</th>'
+    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">모드/T</th>'
+    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">진입가</th>'
+    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">청산가</th>'
+    + '<th style="width:7%; padding:2px 1px; text-align:center; font-size:11px;">수량</th>'
+    + '<th style="width:14%; padding:2px 1px; text-align:center; font-size:11px; white-space:nowrap;">수익금</th></tr>';
 }
 
 function kiwoomHistoryTheadHtml() {
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-  const borderCol = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const borderCol = isLight ? 'rgba(15, 23, 42, 0.1)' : 'rgba(255, 255, 255, 0.07)';
   const textMuted = isLight ? '#64748b' : '#94a3b8';
   return `<tr style="border-bottom:1px solid ${borderCol}; color:${textMuted}; font-weight:700;">`
-    + '<th style="padding:4px 2px; text-align:center;">종목</th>'
-    + '<th style="padding:4px 2px; text-align:center;">구분</th>'
-    + '<th style="padding:4px 2px; text-align:center;">주문가</th>'
-    + '<th style="padding:4px 2px; text-align:center;">체결가</th>'
-    + '<th style="padding:4px 2px; text-align:center;">수량</th>'
-    + '<th style="padding:4px 2px; text-align:center;">상태</th>'
-    + '<th style="padding:4px 2px; text-align:center;">시간</th>'
-    + '<th style="padding:4px 2px; text-align:center;">수수료</th>'
-    + '<th style="padding:4px 2px; text-align:center;">수익금</th></tr>';
+    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">상태</th>'
+    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">구분</th>'
+    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">종목</th>'
+    + '<th style="width:13%; padding:2px 1px; text-align:center; font-size:11px;">시간</th>'
+    + '<th style="width:11%; padding:2px 1px; text-align:center; font-size:11px;">주문가</th>'
+    + '<th style="width:11%; padding:2px 1px; text-align:center; font-size:11px;">체결가</th>'
+    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">수량</th>'
+    + '<th style="width:14%; padding:2px 1px; text-align:center; font-size:11px; white-space:nowrap;">수익금</th>'
+    + '<th style="width:13%; padding:2px 1px; text-align:center; font-size:11px;">수수료</th></tr>';
 }
 
 function resetToStrategyHistory() {
@@ -132,10 +132,9 @@ function renderBrokerFillsRowsHtml(broker, rows) {
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
   const textColor = isLight ? '#0f172a' : '#f8fafc';
   const textMuted = isLight ? '#64748b' : '#94a3b8';
-  const symbolColor = isLight ? '#be123c' : '#fda4af';
-  const buyColor = isLight ? '#b91c1c' : '#f43f5e';
-  const sellColor = isLight ? '#15803d' : '#10b981';
-  const borderCol = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  const buyColor = '#8b5cf6'; // 통합 보유현황 진입일 보라색
+  const sellColor = 'var(--success, #10b981)'; // 실전 매도내역 청산일 녹색
+  const borderCol = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)';
 
   const visibleRows = rows.slice(0, brokerFillsDisplayLimit);
 
@@ -145,28 +144,42 @@ function renderBrokerFillsRowsHtml(broker, rows) {
     const qty = Math.abs(Number(r.qty || r.cntr_qty || r.ord_qty) || 0);
     const buyPric = Number(r.ord_pric || r.price) || 0;
     const cntrPric = Number(r.cntr_pric || r.price) || 0;
-    let statusStr = r.ord_stt || r.status || '체결완료';
-    if (statusStr === '접수완료' || statusStr === '체결') statusStr = '체결완료';
+    let statusStr = r.ord_stt || r.status || '체결';
+    if (statusStr.includes('체결') || statusStr.includes('완료') || statusStr.includes('부분') || statusStr === '접수완료') {
+      statusStr = '체결';
+    }
+
+    // ⭐️ 상태 색상 (체결: 파란색 통일)
+    let statusColor = textMuted;
+    if (statusStr === '체결') {
+      statusColor = isLight ? '#1d4ed8' : '#3b82f6';
+    } else if (statusStr.includes('취소')) {
+      statusColor = '#ef4444'; // 불일치/취소와 동일한 빨간색
+    }
+
     const timePart = r.time || r.cntr_tm || r.ord_tm || '-';
     const feeVal = Number(r.tdy_trde_cmsn || r.fee) || 0;
     const pnlVal = Number(r.rlzt_pl || r.pnl) || 0;
 
     const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const pnlColor = pnlVal >= 0 ? sellColor : buyColor;
+    const pnlClass = pnlVal > 0 ? "profit-plus" : (pnlVal < 0 ? "profit-minus" : "");
     const profitCell = !isBuy
-      ? (pnlVal !== 0 ? `<td style="text-align:center; color:${pnlColor}; font-weight:700;">${pnlVal >= 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="text-align:center; color:${textMuted};">-</td>`)
-      : `<td style="text-align:center; color:${textMuted};">-</td>`;
+      ? (pnlVal !== 0 ? `<td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; white-space:nowrap;" class="${pnlClass}">${pnlVal > 0 ? '+' : ''}${usd(pnlVal)}</td>` : `<td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; color:${textMuted};">-</td>`)
+      : `<td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; color:${textMuted};">-</td>`;
 
-    return `<tr style="text-align:center; color:${textColor}; border-bottom:1px solid ${borderCol};">
-      <td style="text-align:center; font-weight:700; color:${symbolColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
-      <td style="text-align:center; color:${isBuy ? buyColor : sellColor}; font-weight:700;">${isBuy ? '매수' : '매도'}</td>
-      <td style="text-align:center; color:${textColor};">$${buyPric.toFixed(2)}</td>
-      <td style="text-align:center; color:${textColor};">$${cntrPric.toFixed(2)}</td>
-      <td style="text-align:center; color:${textColor};">${qty.toLocaleString()}주</td>
-      <td style="text-align:center; color:${textColor};">${statusStr}</td>
-      <td style="text-align:center; color:${textMuted};">${timePart}</td>
-      <td style="text-align:center; color:${textColor};">${feeVal > 0 ? usd(feeVal) : '-'}</td>
+    // ⭐️ 구분별(매수: 보라색 #8b5cf6, 매도: 녹색 var(--success)) 체결가 및 수량 색상 동기화
+    const tradeColor = isBuy ? buyColor : sellColor;
+
+    return `<tr data-market-date="${r.marketDate || r.date || ''}" style="border-bottom:1px solid ${borderCol};">
+      <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${statusColor}; white-space:nowrap;">${statusStr}</td>
+      <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor}; white-space:nowrap;">${isBuy ? '매수' : '매도'}</td>
+      <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
+      <td style="width:13%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor}; white-space:nowrap;">${timePart}</td>
+      <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">$${buyPric.toFixed(2)}</td>
+      <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor};">$${cntrPric.toFixed(2)}</td>
+      <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor};">${qty.toLocaleString()}주</td>
       ${profitCell}
+      <td style="width:13%; padding:2px 1px; text-align:center; font-size:10px;">${feeVal > 0 ? usd(feeVal) : '-'}</td>
     </tr>`;
   }).join('');
 
@@ -180,10 +193,9 @@ function renderBrokerFillsRowsHtml(broker, rows) {
 
   tbody.innerHTML = html;
   bindHistoryScrollListener(tbody);
+  applyPrimaryDateHighlight();
 }
 
-// ⚠️ 2026-07-31: 이 함수가 파일에 완전히 동일하게 두 번 정의돼 있던 것을 정리했다
-// (JS는 나중 선언이 실제 적용되므로 앞쪽은 죽은 코드였다).
 async function renderBrokerFills(broker) {
   const tbody = document.getElementById('historyTableBody');
   const thead = document.querySelector('#historyTable thead');
@@ -192,24 +204,11 @@ async function renderBrokerFills(broker) {
   brokerFillsDisplayLimit = 20; // ⭐️ 조회 시 20개로 초기화
   const label = broker === 'ls' ? 'LS증권' : '키움';
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-  const textColor = isLight ? '#0f172a' : '#f8fafc';
   const textMuted = isLight ? '#64748b' : '#94a3b8';
-  const symbolColor = isLight ? '#be123c' : '#fda4af';
-  const buyColor = isLight ? '#b91c1c' : '#f43f5e';
-  const sellColor = isLight ? '#15803d' : '#10b981';
-  const borderCol = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  const theadBorderCol = isLight ? 'rgba(15, 23, 42, 0.1)' : 'rgba(255, 255, 255, 0.07)';
 
   if (thead) {
-    thead.innerHTML = `<tr style="border-bottom:1px solid ${borderCol}; color:${textMuted}; font-weight:700;">`
-      + '<th style="padding:4px 2px;text-align:center;">종목</th>'
-      + '<th style="padding:4px 2px;text-align:center;">구분</th>'
-      + '<th style="padding:4px 2px;text-align:center;">주문가</th>'
-      + '<th style="padding:4px 2px;text-align:center;">체결가</th>'
-      + '<th style="padding:4px 2px;text-align:center;">수량</th>'
-      + '<th style="padding:4px 2px;text-align:center;">상태</th>'
-      + '<th style="padding:4px 2px;text-align:center;">시간</th>'
-      + '<th style="padding:4px 2px;text-align:center;">수수료</th>'
-      + '<th style="padding:4px 2px;text-align:center;">수익금</th></tr>';
+    thead.innerHTML = kiwoomHistoryTheadHtml();
   }
 
   tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:${textMuted};">${label} 해외주식 체결내역 조회 중...</td></tr>`;
@@ -596,7 +595,7 @@ function renderDBTradeHistory() {
       const rowStatus = rowStatusObj.status;
       const mismatchQty = rowStatusObj.mismatchQty || 0;
       const isOversold = rowStatus === 'oversold';
-      const isMismatch = rowStatus === 'mismatch' || isOversold;
+      const isMismatch = (rowStatus === 'mismatch' || isOversold) && rowStatus !== 'loading' && rowStatus !== 'unknown';
       const mmStyle = isMismatch ? "color:#ef4444; font-weight:700;" : "";
       const mmTitle = isOversold
         ? `title="${rowBrokerLabel}에서 예상보다 많이 매도됨 — 앱 예상 ${Math.round(rowStatusObj.appQty || 0)}주 / ${rowBrokerLabel} 실제 ${Math.round(rowStatusObj.liveQty || 0)}주"`
@@ -606,25 +605,26 @@ function renderDBTradeHistory() {
       const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
       const textColor = isLight ? '#0f172a' : '#f8fafc';
       const textMuted = isLight ? '#64748b' : '#94a3b8';
-      const borderCol = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)';
+      const borderCol = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)';
 
       let reconcile, rowBg;
       if (rowStatus === 'match') {
         reconcile = { text: '일치', icon: '✓', color: isLight ? '#1d4ed8' : '#3b82f6' };
-        rowBg = isLight ? 'background:rgba(59,130,246,0.08);' : 'background:rgba(59,130,246,0.10);';
+        rowBg = 'background:transparent;'; // ⭐️ 과거 일치 건에 전체 음영을 주지 않는다 (당일 청산 건만 강조)
       } else if (isOversold) {
         reconcile = { text: `${Math.round(rowStatusObj.overQty || 0)}과매도`, icon: '', color: '#f59e0b' };
-        rowBg = isLight ? 'background:rgba(245,158,11,0.08);' : 'background:rgba(245,158,11,0.12);';
-      } else if (rowStatus === 'mismatch') {
-        const mismatchText = mismatchQty > 0 ? `${Math.round(mismatchQty)}매도X` : `${Math.round(t.qty || 0)}미체결`;
-        reconcile = { text: mismatchText, icon: '', color: isLight ? '#b91c1c' : '#ef4444' };
-        rowBg = isLight ? 'background:rgba(239,68,68,0.08);' : 'background:rgba(239,68,68,0.12);';
-      } else {
+        rowBg = 'background:transparent;';
+      } else if (rowStatus === 'pending' || rowStatus === 'loading' || rowStatus === 'unknown') {
         reconcile = { text: '보류', icon: '△', color: textMuted };
-        rowBg = isLight ? 'background:transparent;' : 'background:rgba(255,255,255,0.03);';
+        rowBg = 'background:transparent;';
+      } else {
+        // ⭐️ 일치 아닐경우는 모두 글자색상 빨간색(#ef4444) 통일
+        const mismatchText = mismatchQty > 0 ? `${Math.round(mismatchQty)}매도X` : `${Math.round(t.qty || 0)}미체결`;
+        reconcile = { text: mismatchText, icon: '', color: '#ef4444' };
+        rowBg = 'background:transparent;';
       }
       const reconcileTitle = isMismatch ? mmTitle
-        : (rowStatus === 'pending' ? `title="${rowBrokerLabel} 체결 대조 대기 — 최근 체결내역에 없음"`
+        : (rowStatus === 'pending' || rowStatus === 'loading' || rowStatus === 'unknown' ? `title="${rowBrokerLabel} 체결 대조 대기 — 최근 체결내역에 없음"`
           : (rowStatus === 'match' ? `title="${rowBrokerLabel} 체결과 일치"` : `title="${rowBrokerLabel} 체결내역 확인 중"`));
 
       const mode = modeMap[t.mode] || t.mode || "-";
@@ -658,17 +658,17 @@ function renderDBTradeHistory() {
       const stockName = t.ticker || "-";
       const mismatchCellColor = isMismatch ? (isLight ? '#b91c1c' : '#ef4444') : textColor;
 
-      return `<tr style="border-bottom: 1px solid ${borderCol}; color:${textColor}; ${rowBg}">
-        <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:9px; font-weight:800; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
+      return `<tr style="border-bottom: 1px solid ${borderCol};">
+        <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:10px; font-weight:700; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
         <td style="width:9%; padding:2px 1px; text-align:center; color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; font-size:10px;">#${slot}</td>
-        <td style="width:10%; padding:2px 1px; text-align:center; font-size:9.5px; color:${textColor};">${stockName}</td>
-        <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">${buyDate}</td>
-        <td class="sell-price" style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${mismatchCellColor}; ${mmStyle}" ${mmTitle}>${sellDate}</td>
-        <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">${mode}/T${tier}</td>
-        <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">${buyPriceStr}</td>
-        <td class="sell-price" style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${mismatchCellColor}; ${mmStyle}" ${mmTitle}>${sellPriceStr}</td>
-        <td style="width:7%; padding:2px 1px; text-align:center; font-size:10px; color:${mismatchCellColor}; ${mmStyle}" ${mmTitle}>${qty}</td>
-        <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; white-space:nowrap; color:${profitColor} !important; font-weight:700;" class="${profitClass}">${profitStr}</td>
+        <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${stockName}</td>
+        <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px;">${buyDate}</td>
+        <td class="sell-price" style="width:11%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${sellDate}</td>
+        <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px;">${mode}/T${tier}</td>
+        <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${buyPriceStr}</td>
+        <td class="sell-price" style="width:10%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${sellPriceStr}</td>
+        <td style="width:7%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${qty}</td>
+        <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; white-space:nowrap;" class="${profitClass}">${profitStr}</td>
       </tr>`;
     }).join('');
 

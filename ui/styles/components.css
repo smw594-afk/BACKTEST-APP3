@@ -447,7 +447,9 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.data-table td {
+.data-table td,
+#historyTable td {
+  color: var(--text);
   background: rgba(255, 255, 255, 0.02) !important;
   padding: 2px 0.5px;
   text-align: center;
@@ -688,7 +690,7 @@ h2:hover {
 [id^="holdingsBody"] .date-sync-highlight-row > .profit-minus,
 #historyTableBody .date-sync-highlight-row > .profit-plus,
 #historyTableBody .date-sync-highlight-row > .profit-minus {
-  font-weight: 800 !important;
+  font-weight: 700 !important;
 }
 
 /* 토스트 알림 */
@@ -960,12 +962,12 @@ h2:hover {
 
 #historyTableBody td,
 .stats-row div {
-  font-size: var(--app-font-size, 10.5px) !important;
+  font-size: 10px !important;
 }
 
 .date-sync-highlight,
 .date-sync-highlight-row > td {
-  font-weight: 800 !important;
+  font-weight: 700 !important;
 }
 
 /* 기준일에 실제 매수·매도된 행은 셀 배경색으로도 구분한다. */
@@ -992,6 +994,7 @@ h2:hover {
 }
 
 #combinedHoldingsView .data-table td {
+  color: var(--text);
   border: none !important;
   background: rgba(255, 255, 255, 0.02) !important;
   font-size: var(--app-font-size, 10.5px) !important;
@@ -1007,6 +1010,7 @@ h2:hover {
 
 /* 개별 보유현황 */
 [id^="holdingsView"] .data-table td {
+  color: var(--text);
   background: rgba(255, 255, 255, 0.02) !important;
   border: none !important;
   font-size: var(--app-font-size, 10.5px) !important;

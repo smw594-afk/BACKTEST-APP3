@@ -397,9 +397,10 @@ window.BrokerService = {
     return await this._dedupFetch(`pending_${userId}`, () => this.brokerFetch(`/api/orders/pending?userId=${encodeURIComponent(userId)}`, "GET", null, 10000));
   },
 
-  async fetchSheetVerification() {
+  async fetchSheetVerification(force = false) {
     const userId = this.getUserId();
-    return await this.brokerFetch(`/api/orders/verify-sheet?userId=${encodeURIComponent(userId)}`, "GET", null, 30000);
+    const q = force ? "&force=1" : "";
+    return await this.brokerFetch(`/api/orders/verify-sheet?userId=${encodeURIComponent(userId)}${q}`, "GET", null, 30000);
   },
 
   // ─────────── 키 상태 / 자동주문 on-off ───────────

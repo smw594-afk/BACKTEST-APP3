@@ -314,26 +314,25 @@ function savePerfStatsMode() {
 }
 
 function applyPrimaryDateHighlight() {
-  const primaryDate = getPrimaryStrategyDisplayDate();
+  const primaryDate = typeof getPrimaryStrategyDisplayDate === 'function' ? getPrimaryStrategyDisplayDate() : '';
   if (!primaryDate) return;
-  // 기존 하이라이트 클래스 초기화
-  document.querySelectorAll('#combinedHoldingsBody tr, [id^="holdingsBody"] tr, #historyTableBody tr').forEach(row => {
-    row.classList.remove('date-sync-highlight-row');
-  });
-  // 각 표의 날짜 컬럼 지정 (통합보유: 3열(진입일), 개별보유: 2열(진입일), 매도내역: 5열(청산일) 및 4열(진입일))
+
   const selectors = [
-    '#combinedHoldingsBody tr td:nth-child(3)',
+    '#combinedHoldingsBody tr td:nth-child(2)',
     '[id^="holdingsBody"] tr td:nth-child(2)',
-    '#historyTableBody tr td:nth-child(5)',
-    '#historyTableBody tr td:nth-child(4)'
+    '#historyTableBody tr:not([data-market-date]) td:nth-child(5)'
   ];
   document.querySelectorAll(selectors.join(',')).forEach((cell) => {
     const row = cell.closest('tr');
-    if (row && !row.classList.contains('date-sync-highlight-row')) {
-      if (normalizeHighlightDate(cell.textContent) === primaryDate) {
-        row.classList.add('date-sync-highlight-row');
-      }
+    if (row) {
+      row.classList.toggle('date-sync-highlight-row', normalizeHighlightDate(cell.textContent) === primaryDate);
     }
+  });
+
+  // 브로커 뷰(키움/LS) 체결내역
+  document.querySelectorAll('#historyTableBody tr[data-market-date]').forEach(row => {
+    const mDate = normalizeHighlightDate(row.getAttribute('data-market-date'));
+    row.classList.toggle('date-sync-highlight-row', mDate === primaryDate);
   });
 }
 

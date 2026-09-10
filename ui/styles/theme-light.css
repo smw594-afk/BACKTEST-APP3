@@ -99,6 +99,16 @@ body.light-mode .section-header {
   border-bottom: 1px solid rgba(15, 23, 42, 0.15) !important;
 }
 
+body.light-mode .login-title,
+body.light-mode h2,
+body.light-mode .settings-modal h3,
+body.light-mode .slot-title,
+body.light-mode #combinedHoldingsView .slot-title,
+body.light-mode #combinedOrderPanelTitle,
+body.light-mode #chartTitle {
+  color: var(--primary) !important;
+}
+
 body.light-mode .slot-title {
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
 }
@@ -111,12 +121,57 @@ body.light-mode [id^="monthlySlotCombined"] > .slot-title {
   color: rgba(168, 85, 247, 0.9) !important;
 }
 
-/* 기준일 매수·매도 행 강조 */
-/* 기준일 매수·매도 행 강조: 라이트 모드에서 선명하고 자연스러운 음영 */
+body.light-mode #historyTable th {
+  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode #historyTable td {
+  border: none !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light-mode #combinedHoldingsView .data-table th {
+  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode #combinedHoldingsView .data-table td {
+  border: none !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light-mode [id^="holdingsView"] .data-table td {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border: none !important;
+}
+
+body.light-mode [id^="holdingsView"] .data-table th {
+  border: none !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light-mode .profit-plus {
+  color: #1d4ed8 !important;
+}
+
+body.light-mode .profit-minus {
+  color: #b91c1c !important;
+}
+
+body.light-mode .val-plus {
+  color: #1d4ed8 !important;
+}
+
+body.light-mode .val-minus {
+  color: #b91c1c !important;
+}
+
+/* 기준일 매수·매도 행 강조: 라이트 모드 기본 셀 배경보다 우선 적용 (App2와 100% 일치) */
 body.light-mode #combinedHoldingsView #combinedHoldingsBody .date-sync-highlight-row > td,
 body.light-mode #dualOrderContainer [id^="holdingsBody"] .date-sync-highlight-row > td,
 body.light-mode #historyTable #historyTableBody .date-sync-highlight-row > td {
-  background: rgba(30, 41, 59, 0.08) !important;
+  background: rgba(100, 116, 139, 0.12) !important;
 }
 
 /* 계좌 정보 라이트 모드 */

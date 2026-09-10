@@ -7,27 +7,98 @@ function formatStrategyNameWithSmallParentheses(name) {
   if (!name) return '';
   return name.replace(/\(([^)]+)\)/g, '<span class="stats-profit-rate">($1)</span>');
 }
+window.formatStrategyNameWithSmallParentheses = formatStrategyNameWithSmallParentheses;
 
 function normalizeHighlightDate(dateValue) {
   if (!dateValue || dateValue === "-") return "";
-  const normalized = parseDateStr(dateValue);
+  const normalized = typeof parseDateStr === 'function' ? parseDateStr(dateValue) : String(dateValue).trim();
   if (!normalized || normalized === "-") return "";
   return normalized.length === 10 ? normalized.substring(2) : normalized;
 }
+window.normalizeHighlightDate = normalizeHighlightDate;
 
 function getPrimaryStrategyDisplayDate() {
-  const res = getBestResult(lastBTResults[1], 1);
-  const rawDate = getDisplaySheetDate(1, res, slotConfigs[1]);
-  return normalizeHighlightDate(rawDate);
+  for (let i = 1; i <= (window.MAX_SLOTS || 12); i++) {
+    if (typeof window.isSlotActive === 'function' ? window.isSlotActive(i) : (window.slotConfigs && window.slotConfigs[i])) {
+      const res = typeof getBestResult === 'function' ? getBestResult(window.lastBTResults ? window.lastBTResults[i] : null, i) : null;
+      const rawDate = typeof getDisplaySheetDate === 'function' ? getDisplaySheetDate(i, res, window.slotConfigs ? window.slotConfigs[i] : null) : "";
+      if (rawDate && rawDate !== "-") {
+        return normalizeHighlightDate(rawDate);
+      }
+    }
+  }
+  return "";
 }
+window.getPrimaryStrategyDisplayDate = getPrimaryStrategyDisplayDate;
+
+function isTargetHighlightDate(rawVal) {
+  if (!rawVal || rawVal === "-") return false;
+  const s = String(rawVal).trim();
+  const targets = new Set();
+
+  // 1) Primary Strategy Date from sheet
+  const primary = typeof getPrimaryStrategyDisplayDate === 'function' ? getPrimaryStrategyDisplayDate() : '';
+  if (primary) {
+    targets.add(primary); // "26-09-09"
+    targets.add("20" + primary); // "2026-09-09"
+    const parts = primary.split('-');
+    if (parts.length === 3) targets.add(`${parts[1]}/${parts[2]}`); // "09/09"
+  }
+
+  // 2) Latest date from globalMainData (chart prices)
+  const mainData = window.globalMainDataSlot?.[1] || window.globalMainData;
+  if (mainData && Array.isArray(mainData.dates) && mainData.dates.length > 0) {
+    const lastDate = mainData.dates[mainData.dates.length - 1];
+    const ny = window.formatDateNY ? window.formatDateNY(lastDate) : String(lastDate);
+    if (ny) {
+      targets.add(ny);
+      const norm = normalizeHighlightDate(ny);
+      if (norm) {
+        targets.add(norm);
+        const parts = norm.split('-');
+        if (parts.length === 3) targets.add(`${parts[1]}/${parts[2]}`);
+      }
+    }
+  }
+
+  // 3) Today NY
+  if (typeof formatDateNY === 'function') {
+    const todayNY = formatDateNY(new Date());
+    targets.add(todayNY);
+    const norm = normalizeHighlightDate(todayNY);
+    if (norm) {
+      targets.add(norm);
+      const parts = norm.split('-');
+      if (parts.length === 3) targets.add(`${parts[1]}/${parts[2]}`);
+    }
+  }
+
+  // 4) Today KST
+  const now = new Date();
+  const kstY = now.getFullYear();
+  const kstM = String(now.getMonth() + 1).padStart(2, '0');
+  const kstD = String(now.getDate()).padStart(2, '0');
+  targets.add(`${kstY}-${kstM}-${kstD}`);
+  targets.add(`${String(kstY).slice(-2)}-${kstM}-${kstD}`);
+  targets.add(`${kstM}/${kstD}`);
+
+  const normVal = normalizeHighlightDate(s);
+  if (normVal && targets.has(normVal)) return true;
+
+  for (const t of targets) {
+    if (!t) continue;
+    if (s === t || s.startsWith(t) || s.includes(t)) return true;
+  }
+  return false;
+}
+window.isTargetHighlightDate = isTargetHighlightDate;
 
 function isPrimaryStrategyDate(dateValue) {
-  const primaryDate = getPrimaryStrategyDisplayDate();
-  return primaryDate && normalizeHighlightDate(dateValue) === primaryDate;
+  return isTargetHighlightDate(dateValue);
 }
 
 function getDateHighlightClass(dateValue) {
-  return isPrimaryStrategyDate(dateValue) ? ' class="date-sync-highlight"' : '';
+  return isTargetHighlightDate(dateValue) ? ' class="date-sync-highlight"' : '';
 }
 
 function updateStatsTitleByMode() {

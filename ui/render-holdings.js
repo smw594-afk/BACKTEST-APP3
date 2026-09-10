@@ -190,12 +190,7 @@ function renderCombinedHoldings() {
       );
     }
 
-    const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-    const textColor = isLight ? '#0f172a' : '#f8fafc';
-    const textMuted = isLight ? '#64748b' : '#94a3b8';
-    const profitColor = (profit !== null && profit > 0) ? (isLight ? '#15803d' : '#10b981') : ((profit !== null && profit < 0) ? (isLight ? '#b91c1c' : '#f43f5e') : textMuted);
-
-    return `<tr style="color:${textColor};">${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td style="color:${textColor};">${stopDateStr}</td><td style="color:${textColor};">${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover" style="color:${textColor};">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}" style="color:${profitColor} !important; font-weight:700;">${profitStr}</td></tr>`;
+    return `<tr><td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 
   container.innerHTML = tableRows;
@@ -205,6 +200,7 @@ function renderCombinedHoldings() {
     window.BrokerReconcile.refreshFills(() => renderCombinedHoldings());
   }
   if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();
+  if (typeof updateCombinedHoldingsSummary === 'function') updateCombinedHoldingsSummary();
 }
 
 function renderTableSlot(inv, stratName, slotNum) {
@@ -302,12 +298,7 @@ function renderTableSlot(inv, stratName, slotNum) {
       buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
-    const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
-    const textColor = isLight ? '#0f172a' : '#f8fafc';
-    const textMuted = isLight ? '#64748b' : '#94a3b8';
-    const profitColor = (profit !== null && profit > 0) ? (isLight ? '#15803d' : '#10b981') : ((profit !== null && profit < 0) ? (isLight ? '#b91c1c' : '#f43f5e') : textMuted);
-
-    return `<tr style="color:${textColor};"><td style="color:${window.SLOT_COLORS[(slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td style="color:${textColor};">${stopDateStr}</td><td style="color:${textColor};">${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover" style="color:${textColor};">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}" style="color:${profitColor} !important; font-weight:700;">${profitStr}</td></tr>`;
+    return `<tr><td style="color:${window.SLOT_COLORS[(slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 
   if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();
@@ -356,29 +347,41 @@ function updateCombinedHoldingsSummary() {
 
   // 기준 날짜: 주가 데이터의 마지막 날짜 (미장 종가 기준)
   let summaryBaseDate = '';
-  const mainData = window.globalMainDataSlot?.[1] || window.globalMainData;
-  if (mainData && mainData.dates && mainData.dates.length > 0) {
-    const lastDate = mainData.dates[mainData.dates.length - 1];
-    if (lastDate && window.formatDateNY) {
-      summaryBaseDate = window.formatDateNY(lastDate);
+  if (typeof window.getPrimaryStrategyDisplayDate === 'function') {
+    summaryBaseDate = window.getPrimaryStrategyDisplayDate();
+  }
+  if (!summaryBaseDate) {
+    for (let i = 1; i <= window.MAX_SLOTS; i++) {
+      const d = window.globalMainDataSlot?.[i] || (i === 1 ? window.globalMainData : null);
+      if (d && d.dates && d.dates.length > 0) {
+        const lastDate = d.dates[d.dates.length - 1];
+        if (lastDate && window.formatDateNY) {
+          summaryBaseDate = window.formatDateNY(lastDate);
+          if (summaryBaseDate) break;
+        }
+      }
     }
   }
 
   if (!summaryBaseDate) {
-    summaryEl.innerHTML = '';
-    return;
+    summaryBaseDate = window.currentOrderDate || (window.lastBTResults?.[1]?.orderDateStr ? String(window.lastBTResults[1].orderDateStr).replace(/\s*\(동기화됨\)\s*$/, '') : '');
+  }
+  if (!summaryBaseDate && allHoldings.length > 0) {
+    const sortedDates = allHoldings.map(h => String(h.buyDate || h.buy_date || '')).filter(Boolean).sort();
+    if (sortedDates.length > 0) summaryBaseDate = sortedDates[sortedDates.length - 1];
   }
 
   // 해당 날짜의 매수 수량과 전체 수량 계산
-  const matchedHoldings = allHoldings.filter(h => {
+  const matchedHoldings = summaryBaseDate ? allHoldings.filter(h => {
     const hDate = String(h.buyDate || h.buy_date || '');
     return hDate === summaryBaseDate;
-  });
+  }) : [];
 
   const buyQty = matchedHoldings.reduce((sum, h) => sum + (parseFloat(h.qty) || 0), 0);
   const totalQty = allHoldings.reduce((sum, h) => sum + (parseFloat(h.qty) || 0), 0);
 
-  summaryEl.innerHTML = `${createSummaryBadge(`${formatSummaryDate(summaryBaseDate)} 매수`, `${Math.round(buyQty).toLocaleString()}개`, '#fbbf24')} ${createSummaryBadge('총 잔고', `${Math.round(totalQty).toLocaleString()}개`, '#10b981')}`;
+  const buyLabel = summaryBaseDate ? `${formatSummaryDate(summaryBaseDate)} 매수` : '당일 매수';
+  summaryEl.innerHTML = `${createSummaryBadge(buyLabel, `${Math.round(buyQty).toLocaleString()}개`, '#fbbf24')} ${createSummaryBadge('총 잔고', `${Math.round(totalQty).toLocaleString()}개`, '#10b981')}`;
 }
 
 // 글로벌 window.UI에 등록

@@ -1001,6 +1001,16 @@ function refreshOrderViewUI() {
     }
   }
 
+  // 주문표일치 / 시트일치 버튼 제어: 주문표 모드(isOrderView && !isStatsMode)일 때만 표시
+  const btnOrderCompare = document.getElementById('btnOrderCompare');
+  if (btnOrderCompare) {
+    btnOrderCompare.style.display = (window.isOrderView && !window.isStatsMode) ? 'flex' : 'none';
+  }
+  const btnSheetVerify = document.getElementById('btnSheetVerify');
+  if (btnSheetVerify) {
+    btnSheetVerify.style.display = (window.isOrderView && !window.isStatsMode) ? 'flex' : 'none';
+  }
+
   // 확대 아이콘 제어: 보유현황 모드(!window.isOrderView)일 때는 전체적으로 숨김
   const btnExpand = document.getElementById('btnExpandOrder');
   if (btnExpand) {
@@ -1820,15 +1830,12 @@ window.checkSheetVerificationStatus = async function() {
       const d2 = String(sheet.date || '').replace(/[^0-9]/g, '');
       const isDateMatch = d1 === d2;
       const isAssetMatch = Math.abs(Number(app.asset || 0) - Number(sheet.asset || 0)) < 0.05;
+      const isInoutMatch = Math.abs(Number(app.inout || 0) - Number(sheet.inout || 0)) < 0.05;
       const isCashMatch = Math.abs(Number(app.cash || 0) - Number(sheet.cash || 0)) < 0.05;
       const isBaseMatch = Math.abs(Number(app.base || 0) - Number(sheet.base || 0)) < 0.05;
       const isPrincipalMatch = Math.abs(Number(app.realPrincipal || 0) - Number(sheet.realPrincipal || 0)) < 0.05;
-      const isModeMatch = String(app.mode ?? '').trim() === String(vm.mode ?? '').trim();
-      const isTierMatch = String(app.tier ?? '').trim() === String(vm.tier ?? '').trim();
-      const isQtyMatch = Number(app.buyQty || 0) === Number(vm.buyQty || 0);
-      const isPriceMatch = Math.abs(Number(app.buyPrice || 0) - Number(vm.buyPrice || 0)) < 0.05;
 
-      if (!isDateMatch || !isAssetMatch || !isCashMatch || !isBaseMatch || !isPrincipalMatch || !isModeMatch || !isTierMatch || !isQtyMatch || !isPriceMatch || !hMatch) {
+      if (!isDateMatch || !isAssetMatch || !isInoutMatch || !isCashMatch || !isBaseMatch || !isPrincipalMatch || !hMatch) {
         allMatched = false;
         break;
       }
@@ -1873,13 +1880,13 @@ function buildSheetVerificationBodyContent(vmRes) {
 
   const formatHoldingsHtml = (hList) => {
     if (!Array.isArray(hList) || hList.length === 0) {
-      return '<span style="color:var(--text-muted, #94a3b8); font-size:11px;">(보유 없음)</span>';
+      return '<div style="text-align:center; color:var(--text-muted, #94a3b8); font-size:11px;">(보유 없음)</div>';
     }
     const totalQty = hList.reduce((s, h) => s + Number(h.qty || 0), 0);
     const itemsHtml = hList.map(h => {
       const d = h.buyDate ? String(h.buyDate).slice(5) : '';
       return `
-      <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:2px 6px; margin:2px 0; font-size:11px; white-space:nowrap; display:flex; justify-content:space-between; align-items:center;">
+      <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:2px 6px; margin:2px auto; font-size:11px; white-space:nowrap; display:flex; justify-content:space-between; align-items:center; max-width:200px;">
         <span style="font-weight:700; color:var(--primary, #a78bfa);">${h.mode} ${h.tier}T ${h.qty}주</span>
         <span style="font-weight:700; color:var(--text, #fff); margin-left:6px;">${Number(h.buy_price || 0).toFixed(2)} ${d}</span>
       </div>
@@ -1887,9 +1894,9 @@ function buildSheetVerificationBodyContent(vmRes) {
     }).join('');
 
     return `
-      <div style="text-align:left;">
-        <div style="font-weight:800; color:var(--text, #fff); font-size:11.5px; margin-bottom:2px;">총 ${totalQty}주 (${hList.length}건)</div>
-        <div style="max-height:80px; overflow-y:auto; padding-right:2px;">${itemsHtml}</div>
+      <div style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+        <div style="font-weight:800; color:var(--text, #fff); font-size:11.5px; margin-bottom:2px; text-align:center;">총 ${totalQty}주 (${hList.length}건)</div>
+        <div style="max-height:80px; overflow-y:auto; padding:0 2px; width:100%; display:flex; flex-direction:column; align-items:center;">${itemsHtml}</div>
       </div>
     `;
   };
@@ -1959,35 +1966,7 @@ function buildSheetVerificationBodyContent(vmRes) {
         match: isMoneyMatch
       },
       {
-        label: "7. 다음 매수모드",
-        appVal: app.mode,
-        vmVal: vm.mode,
-        format: (v) => String(v || "-"),
-        match: isExactMatch
-      },
-      {
-        label: "8. 다음 매수티어",
-        appVal: app.tier,
-        vmVal: vm.tier,
-        format: (v) => String(v ?? "-"),
-        match: isExactMatch
-      },
-      {
-        label: "9. 매수 주문수량",
-        appVal: app.buyQty,
-        vmVal: vm.buyQty,
-        format: (v) => `${v || 0}주`,
-        match: (a, b) => Number(a || 0) === Number(b || 0)
-      },
-      {
-        label: "10. 매수 주문가격",
-        appVal: app.buyPrice,
-        vmVal: vm.buyPrice,
-        format: (v) => Number(v) > 0 ? `$${fmtMoney(v)}` : "-",
-        match: isMoneyMatch
-      },
-      {
-        label: "11. 보유 주식 내역 (JSON)",
+        label: "7. 보유 주식 내역 (JSON)",
         appVal: app.holdings,
         vmVal: sheet.holdings,
         isCustom: true,
@@ -2013,8 +1992,8 @@ function buildSheetVerificationBodyContent(vmRes) {
         return `
           <tr style="border-bottom:1px solid var(--card-border, rgba(255,255,255,0.06)); ${rowBg}">
             <td style="text-align:left; padding-left:12px; font-weight:600; color:var(--text-muted, #94a3b8); font-size:11.5px; vertical-align:middle;">${it.label}</td>
-            <td style="padding:6px; vertical-align:top;">${it.renderApp()}</td>
-            <td style="padding:6px; vertical-align:top;">${it.renderVm()}</td>
+            <td style="padding:6px; text-align:center; vertical-align:middle;">${it.renderApp()}</td>
+            <td style="padding:6px; text-align:center; vertical-align:middle;">${it.renderVm()}</td>
             <td style="text-align:center; vertical-align:middle;">${badge}</td>
           </tr>
         `;
@@ -2034,7 +2013,7 @@ function buildSheetVerificationBodyContent(vmRes) {
     }).join('');
 
     const slotBadge = slotAllMatch
-      ? `<span style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">✓ 11개 항목 모두 일치</span>`
+      ? `<span style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">✓ 7개 시트 데이터 항목 모두 일치</span>`
       : `<span style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#ef4444; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">⚠️ 불일치 발생</span>`;
 
     activeSlotsHtml += `
@@ -2141,7 +2120,7 @@ window.openSheetVerificationModal = async function(forceReload = false) {
 
   // Fetch VM Data and Render Content
   try {
-    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification() : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()));
+    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceReload) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceReload ? '&force=1' : ''}`).then(r => r.json()));
 
     if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
       throw new Error(vmRes?.reason || vmRes?.error || "VM 응답 데이터 형식이 올바르지 않습니다.");
@@ -2297,6 +2276,9 @@ window.submitCombinedOrdersToBroker = async function() {
 function updateCombinedOrderMatchStatus(opts = {}) {
   const btn = document.getElementById('btnOrderCompare');
   const titleEl = document.getElementById('combinedOrderPanelTitle');
+  if (btn && (!window.isOrderView || window.isStatsMode)) {
+    btn.style.display = 'none';
+  }
   const cache = window.orderStatusCache || {};
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
   const isBrokerPhase = currentPhase === 'order' || currentPhase === 'closed';

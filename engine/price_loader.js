@@ -15,12 +15,27 @@ const priceLoader = {
       // ⚡ index.html에서 HTML 파싱 직후 미리 쏴둔 주가 요청을 재사용
       // (단, 수동 백테스트 필요 기간 조회가 아닐 때만 프리페치 활용)
       let data = null;
+      const hasValidChartData = (d) => {
+        if (!d || !d.result) return false;
+        return Object.keys(d.result).some(sym => d.result[sym]?.chart?.result?.[0]?.timestamp?.length > 0);
+      };
+
       if (!neededStartDate) {
         if (window.__ultraEarlyFetch && window.__ultraEarlyFetch.pricePromise) {
-          data = await window.__ultraEarlyFetch.pricePromise;
+          try {
+            const prefetchData = await window.__ultraEarlyFetch.pricePromise;
+            if (hasValidChartData(prefetchData)) {
+              data = prefetchData;
+            }
+          } catch (e) {}
           window.__ultraEarlyFetch.pricePromise = null;
         } else if (window.__earlyFetch && window.__earlyFetch.pricePromise) {
-          data = await window.__earlyFetch.pricePromise;
+          try {
+            const prefetchData = await window.__earlyFetch.pricePromise;
+            if (hasValidChartData(prefetchData)) {
+              data = prefetchData;
+            }
+          } catch (e) {}
           window.__earlyFetch.pricePromise = null; // 1회 소비
         }
       }
@@ -56,9 +71,12 @@ const priceLoader = {
             if (!res.ok) {
               throw new Error(`HTTP ${res.status}: ${await res.text()}`);
             }
-            data = await res.json();
-            if (data && data.result) break;
-            throw new Error("주가 데이터 응답이 비어있습니다");
+            const fetchedJson = await res.json();
+            if (hasValidChartData(fetchedJson)) {
+              data = fetchedJson;
+              break;
+            }
+            throw new Error("주가 데이터 응답에 유효한 차트가 없습니다");
           } catch (fetchErr) {
             lastErr = fetchErr;
             console.warn(`⚠️ [주가 로드] 시도 ${attempt}/3 실패: ${fetchErr.message}`);
@@ -67,14 +85,30 @@ const priceLoader = {
             }
           }
         }
-        if (!data || !data.result) {
-          throw lastErr || new Error("주가 데이터 응답이 비어있습니다");
-        }
       }
 
-      if (!data || !data.result) {
-        throw new Error("주가 데이터 응답이 비어있습니다");
+      // Worker3 직접 호출 실패 시 localStorage 캐시 주가로 자동 복원
+      if (!hasValidChartData(data)) {
+        try {
+          const cachedRaw = localStorage.getItem("vtotal3_cached_prices_v1");
+          if (cachedRaw) {
+            const cachedData = JSON.parse(cachedRaw);
+            if (hasValidChartData(cachedData)) {
+              console.warn("⚠️ Worker3 주가 조회 실패로 localStorage 캐시 주가를 복원하여 사용합니다.");
+              data = cachedData;
+            }
+          }
+        } catch (e) {}
       }
+
+      if (!hasValidChartData(data)) {
+        throw new Error("주가 데이터 응답이 비어있거나 유효한 차트가 없습니다");
+      }
+
+      // 성공한 주가 데이터는 localStorage에 영구 캐시 (다음 오프라인/오류 시 즉각 복원용)
+      try {
+        localStorage.setItem("vtotal3_cached_prices_v1", JSON.stringify(data));
+      } catch (e) {}
 
       console.log("✅ Worker3 응답:", data);
       if (data.result) {
