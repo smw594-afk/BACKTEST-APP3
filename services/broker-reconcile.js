@@ -215,16 +215,19 @@
     const activeBr = targetBroker || (window.BrokerService && window.BrokerService.activeBroker) || "kiwoom";
     refreshPromise = (async () => {
       try {
-        const d = await getFills(activeBr).catch(e => null);
-        state.rows = state.rows.filter(r => r.broker !== activeBr);
-        for (const [k] of state.buy) { if (k.startsWith(activeBr + "|")) state.buy.delete(k); }
-        for (const [k] of state.sell) { if (k.startsWith(activeBr + "|")) state.sell.delete(k); }
-        for (const dKey of state.coveredDates) { if (dKey.startsWith(activeBr + "|")) state.coveredDates.delete(dKey); }
-
+        const brokersToFetch = targetBroker ? [targetBroker] : ["kiwoom", "ls"];
         let anyOk = false;
-        if (d && d.success !== false) {
-          ingest(activeBr, d);
-          anyOk = true;
+        for (const br of brokersToFetch) {
+          const d = await getFills(br).catch(e => null);
+          state.rows = state.rows.filter(r => r.broker !== br);
+          for (const [k] of state.buy) { if (k.startsWith(br + "|")) state.buy.delete(k); }
+          for (const [k] of state.sell) { if (k.startsWith(br + "|")) state.sell.delete(k); }
+          for (const dKey of state.coveredDates) { if (dKey.startsWith(br + "|")) state.coveredDates.delete(dKey); }
+
+          if (d && d.success !== false) {
+            ingest(br, d);
+            anyOk = true;
+          }
         }
         state.ready = true;
         state.failed = !anyOk;
@@ -268,12 +271,14 @@
   const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => statusFor(state.sell, broker, symbol, sellDate, appQty);
 
   function badge(st) {
+    const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+    const textMuted = isLight ? '#64748b' : '#94a3b8';
     switch (st && st.status) {
-      case "match": return { text: "일치", icon: "✓", color: "#3b82f6" };
+      case "match": return { text: "일치", icon: "✓", color: isLight ? "#1d4ed8" : "#3b82f6" };
       case "mismatch": return { text: "불일치", icon: "✕", color: "#ef4444" };
-      case "loading": return { text: "확인 중", icon: "…", color: "#f59e0b" };
-      case "pending": return { text: "보류", icon: "△", color: "#94a3b8" };
-      default: return { text: "미확인", icon: "△", color: "#94a3b8" };
+      case "loading": return { text: "보류", icon: "△", color: textMuted };
+      case "pending": return { text: "보류", icon: "△", color: textMuted };
+      default: return { text: "미확인", icon: "△", color: textMuted };
     }
   }
 
@@ -282,15 +287,15 @@
     if (st.status === "mismatch") {
       return `title="브로커 체결과 불일치 — 앱: ${Math.round(st.appQty || 0)}주 / 브로커: ${Math.round(st.liveQty || 0)}주 @ $${Number(st.livePrice || 0).toFixed(2)}"`;
     }
-    if (st.status === "pending") return 'title="브로커 체결 대조 대기 — 조회 범위에 해당 일자가 없습니다"';
+    if (st.status === "pending" || st.status === "loading") return 'title="브로커 체결 대조 대기 — 조회 범위에 해당 일자가 없습니다"';
     if (st.status === "match") return 'title="브로커 체결과 일치"';
-    if (st.status === "loading") return 'title="브로커 체결내역 조회 중"';
     return 'title="브로커 체결내역 미확인"';
   }
 
-  function cellHtml(st) {
+  function cellHtml(st, isHighlighted = false) {
     const b = badge(st);
-    return `<td style="color:${b.color}; font-size:9px; font-weight:800; white-space:nowrap; text-align:center;" ${badgeTitle(st)}>${b.icon} ${b.text}</td>`;
+    const weight = isHighlighted ? '700' : 'normal';
+    return `<td style="color:${b.color} !important; font-size:10px !important; font-weight:${weight} !important; white-space:nowrap; text-align:center; padding:2px 1px;" ${badgeTitle(st)}>${b.icon} ${b.text}</td>`;
   }
 
   // ─────────── 계좌 정보 modal ───────────

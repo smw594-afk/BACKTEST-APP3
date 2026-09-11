@@ -387,9 +387,11 @@ window.BrokerService = {
     return await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
   },
 
-  async fetchOverseasFills(broker = this.activeBroker) {
+  async fetchOverseasFills(broker = this.activeBroker, days = 30) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    return await this._dedupFetch(`fills_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/fills`, "GET", null, 30000));
+    const d = Number(days) || 30;
+    const timeout = broker === "ls" ? 60000 : 35000;
+    return await this._dedupFetch(`fills_${broker}_${d}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}`, "GET", null, timeout));
   },
 
   async fetchPendingOrders() {

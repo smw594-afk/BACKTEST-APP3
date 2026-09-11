@@ -90,6 +90,10 @@ function renderCombinedHoldings() {
     return pB - pA;
   });
 
+  const primaryDate = typeof window.getPrimaryStrategyDisplayDate === 'function'
+    ? window.getPrimaryStrategyDisplayDate()
+    : (typeof getPrimaryStrategyDisplayDate === 'function' ? getPrimaryStrategyDisplayDate() : '');
+
   const tableRows = allHoldings.map(o => {
     const currPrice = o.currPrice || 0;
     let sellPriceStr = "-";
@@ -161,14 +165,15 @@ function renderCombinedHoldings() {
       buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
-    // 📊 일치 컬럼: 브로커(키움 슬롯1~3 / LS 슬롯4~6) 매수 체결과 앱 보유수량 대조
-    // ⚠️ 슬롯의 실제 브로커를 명시해야 한다 — 안 그러면 키움/LS가 같은 종목을 같은 날
-    //    거래했을 때 서로의 체결과 섞여 대조된다(2026-07-30 실증).
-    // ⚠️ 2026-08-04: 당일 매수·매도가 있으면 순 수량(매수-매도)으로 비교한다.
-    //    예: 8/3 15주 매수, 2주 매도 → 순 수량 13주와 키움 13주 체결 비교
-    //    res.trades에서 같은 날짜의 매도 기록을 찾아 sellQtyToday를 계산한다.
+    // 📊 일치 컬럼: 브로커(키움 슬롯1~6 / LS 슬롯7~12) 매수 체결과 앱 보유수량 대조
+    // ⚠️ 모든 보유 행의 대조 상태를 정상 표시하되, 당일 강조(기준일) 행만 글자 굵기(font-weight:700)로 강조한다.
+    const buyDateNorm = typeof window.normalizeHighlightDate === 'function'
+      ? window.normalizeHighlightDate(buyDateStr || o.buyDate || o.buy_date)
+      : (typeof normalizeHighlightDate === 'function' ? normalizeHighlightDate(buyDateStr || o.buyDate || o.buy_date) : '');
+    const isPrimaryDate = Boolean(primaryDate && buyDateNorm && buyDateNorm === primaryDate);
+
     const symbol = window.slotConfigs?.[o.slotNum]?.basics?.ticker || o.ticker || "";
-    let reconcileCell = '<td style="text-align:center;color:#94a3b8;font-size:9px;">-</td>';
+    let reconcileCell = '<td style="text-align:center;color:#94a3b8;font-size:10px;">-</td>';
     if (window.BrokerReconcile) {
       const broker = window.BrokerReconcile.brokerForSlot(o.slotNum);
       const buyDate = o.buyDate || o.buy_date;
@@ -185,12 +190,11 @@ function renderCombinedHoldings() {
         }
       });
       
-      reconcileCell = window.BrokerReconcile.cellHtml(
-        window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay)
-      );
+      const st = window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay);
+      reconcileCell = window.BrokerReconcile.cellHtml(st, isPrimaryDate);
     }
 
-    return `<tr><td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
+    return `<tr>${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 
   container.innerHTML = tableRows;

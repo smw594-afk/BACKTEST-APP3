@@ -77,8 +77,8 @@ async function toggleView() {
 
   const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
   if (title) {
-    title.textContent = historyViewMode === 'ls' ? '📋 LS증권 매수·매도 내역'
-      : historyViewMode === 'kiwoom' ? '📋 키움 매수·매도 내역' : '📜 실전 매도 내역';
+    title.textContent = historyViewMode === 'ls' ? '📋 LS증권 매매내역'
+      : historyViewMode === 'kiwoom' ? '📋 키움증권 매매내역' : '📜 실전 매도 내역';
   }
 
   const thead = document.querySelector('#historyTable thead');
@@ -174,7 +174,7 @@ function renderBrokerFillsRowsHtml(broker, rows) {
       <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${statusColor}; white-space:nowrap;">${statusStr}</td>
       <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor}; white-space:nowrap;">${isBuy ? '매수' : '매도'}</td>
       <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
-      <td style="width:13%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor}; white-space:nowrap;">${timePart}</td>
+      <td style="width:13%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor}; white-space:nowrap;">${timePart}</td>
       <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">$${buyPric.toFixed(2)}</td>
       <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor};">$${cntrPric.toFixed(2)}</td>
       <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor};">${qty.toLocaleString()}주</td>
@@ -202,7 +202,7 @@ async function renderBrokerFills(broker) {
   if (!tbody) return;
   bindHistoryScrollListener(tbody);
   brokerFillsDisplayLimit = 20; // ⭐️ 조회 시 20개로 초기화
-  const label = broker === 'ls' ? 'LS증권' : '키움';
+  const label = broker === 'ls' ? 'LS증권' : '키움증권';
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
   const textMuted = isLight ? '#64748b' : '#94a3b8';
   const theadBorderCol = isLight ? 'rgba(15, 23, 42, 0.1)' : 'rgba(255, 255, 255, 0.07)';
@@ -320,13 +320,13 @@ async function refreshSellReconcileFills() {
 function renderDBTradeHistory() {
   if (historyViewMode === 'ls') {
     const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
-    if (title) title.textContent = '📋 LS증권 매수·매도 내역';
+    if (title) title.textContent = '📋 LS증권 매매내역';
     renderBrokerFills('ls');
     return;
   }
   if (historyViewMode === 'kiwoom') {
     const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
-    if (title) title.textContent = '📋 키움 매수·매도 내역';
+    if (title) title.textContent = '📋 키움증권 매매내역';
     renderBrokerFills('kiwoom');
     return;
   }
@@ -539,6 +539,10 @@ function renderDBTradeHistory() {
 
     const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
 
+    const primaryDate = typeof window.getPrimaryStrategyDisplayDate === 'function'
+      ? window.getPrimaryStrategyDisplayDate()
+      : (typeof getPrimaryStrategyDisplayDate === 'function' ? getPrimaryStrategyDisplayDate() : '');
+
     let html = visibleTrades.map(t => {
       const slot = t.slotNum;
       // ⚠️ 2026-07-31: parseDateStr()은 문자열 끝의 "-"를 malformed 날짜 구분자로 보고
@@ -596,10 +600,18 @@ function renderDBTradeHistory() {
       const mismatchQty = rowStatusObj.mismatchQty || 0;
       const isOversold = rowStatus === 'oversold';
       const isMismatch = (rowStatus === 'mismatch' || isOversold) && rowStatus !== 'loading' && rowStatus !== 'unknown';
-      const mmStyle = isMismatch ? "color:#ef4444; font-weight:700;" : "";
+      // ⚠️ 일치하지 않은 행의 값도 글자 굵기(font-weight:700) 강조하지 않는다 (색상만 빨간색 유지)
+      const mmStyle = isMismatch ? "color:#ef4444;" : "";
       const mmTitle = isOversold
         ? `title="${rowBrokerLabel}에서 예상보다 많이 매도됨 — 앱 예상 ${Math.round(rowStatusObj.appQty || 0)}주 / ${rowBrokerLabel} 실제 ${Math.round(rowStatusObj.liveQty || 0)}주"`
         : (isMismatch ? `title="이 행의 수량이 ${rowBrokerLabel} 체결내역과 부분 불일치"` : "");
+
+      // ⚠️ 당일 매도(청산일=기준일)된 행만 글자 굵기(font-weight:700)로 강조한다.
+      const sellDateNorm = typeof window.normalizeHighlightDate === 'function'
+        ? window.normalizeHighlightDate(sellDate)
+        : (typeof normalizeHighlightDate === 'function' ? normalizeHighlightDate(sellDate) : '');
+      const isTodaySell = Boolean(primaryDate && sellDateNorm && sellDateNorm === primaryDate);
+      const reconcileWeight = isTodaySell ? '700' : 'normal';
 
       // 일치 컬럼(보유현황과 동일 개념): 일치/과매도/불일치/보류. 팔린 내역 행은 배경색으로 강조.
       const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
@@ -659,7 +671,7 @@ function renderDBTradeHistory() {
       const mismatchCellColor = isMismatch ? (isLight ? '#b91c1c' : '#ef4444') : textColor;
 
       return `<tr style="border-bottom: 1px solid ${borderCol};">
-        <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:10px; font-weight:700; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
+        <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:10px; font-weight:${reconcileWeight}; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
         <td style="width:9%; padding:2px 1px; text-align:center; color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; font-size:10px;">#${slot}</td>
         <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${stockName}</td>
         <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px;">${buyDate}</td>
@@ -667,7 +679,7 @@ function renderDBTradeHistory() {
         <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px;">${mode}/T${tier}</td>
         <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${buyPriceStr}</td>
         <td class="sell-price" style="width:10%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${sellPriceStr}</td>
-        <td style="width:7%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${qty}</td>
+        <td class="sell-price" style="width:7%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${qty}</td>
         <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; white-space:nowrap;" class="${profitClass}">${profitStr}</td>
       </tr>`;
     }).join('');
@@ -861,7 +873,7 @@ function syncHistoryViewModeToBroker() {
   if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
     historyViewMode = wantMode;
     const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
-    if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매수·매도 내역' : '📋 키움 매수·매도 내역';
+    if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매매내역' : '📋 키움증권 매매내역';
     renderBrokerFills(wantMode);
   } else {
     lastTradeHistoryRenderSignature = '';

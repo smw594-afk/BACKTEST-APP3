@@ -318,7 +318,7 @@ function applyPrimaryDateHighlight() {
   if (!primaryDate) return;
 
   const selectors = [
-    '#combinedHoldingsBody tr td:nth-child(2)',
+    '#combinedHoldingsBody tr td:nth-child(3)',
     '[id^="holdingsBody"] tr td:nth-child(2)',
     '#historyTableBody tr:not([data-market-date]) td:nth-child(5)'
   ];
