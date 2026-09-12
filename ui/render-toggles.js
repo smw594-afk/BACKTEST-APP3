@@ -198,9 +198,12 @@ function updateOrderHeaderUI() {
   const currentMode = localStorage.getItem(`vtotal3_combined_mode_${myUserId}`) || 'combined';
   const orderDateRaw = lastBTResults[1]?.orderDateStr || window.currentOrderDate || '';
   const orderDate = String(orderDateRaw).replace(/\s*\(동기화됨\)\s*$/, '');
-  const marketDateHtml = window.dateHelpers?.formatOrderDateWithMarketStatus
-    ? window.dateHelpers.formatOrderDateWithMarketStatus(orderDate)
+  const targetOrderDate = window.dateHelpers?.getTargetOrderDate
+    ? window.dateHelpers.getTargetOrderDate(orderDate)
     : orderDate;
+  const marketDateHtml = window.dateHelpers?.formatOrderDateWithMarketStatus
+    ? window.dateHelpers.formatOrderDateWithMarketStatus(targetOrderDate)
+    : targetOrderDate;
   const marketBadgeHtml = window.dateHelpers?.getOrderHeaderMarketStatusBadge
     ? window.dateHelpers.getOrderHeaderMarketStatusBadge()
     : "";

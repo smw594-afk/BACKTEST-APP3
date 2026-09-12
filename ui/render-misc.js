@@ -845,7 +845,11 @@ async function handleLogin() {
     const res = await loginResp.json();
     if (res.result === "success") {
       localStorage.setItem('vtotal3_auth', 'true'); localStorage.setItem('vtotal3_id', id); if (typeof myUserId !== 'undefined') myUserId = id; window.myUserId = id;
-      enterAppDirectly();
+      try {
+        await enterAppDirectly();
+      } catch (initErr) {
+        console.error("앱 진입 초기화 중 오류 발생 (진행 유지):", initErr);
+      }
     }
     else { alert(res.msg); btn.innerText = "로그인"; btn.disabled = false; }
   } catch (e) { alert("서버 연결 실패. 네트워크를 확인하세요."); btn.innerText = "로그인"; btn.disabled = false; }
@@ -1204,6 +1208,8 @@ async function enterAppDirectly() {
     if (btnInstant) btnInstant.classList.add('active');
     if (btnStats) btnStats.classList.remove('active');
   }
+  console.log('[STEP-CHECK] K. appInitCompleted SET TO TRUE');
+  window.__appInitCompleted = true;
 }
 
 function applyQuickConfig() {
@@ -1624,16 +1630,25 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
           const realJsonBase = realData.summary.base;
 
           // ⭐️ [원금 원천 방지] 시트의 실전 원금 데이터(입출금 포함) 추출
-          // ⭐️ [원금 자동 보존 공식] 시트의 최초 자산 + 전체 입출금 누적액
+          // ⭐️ [원금 자동 보존 공식] 시트 첫 행 JSON의 realPrincipal(또는 최초 자산) + 전체 입출금 누적액 (첫날 수수료 단수 삭감 방지)
           let trueRealPrincipal = 0;
           if (perfSlotData && Array.isArray(perfSlotData.logs) && perfSlotData.logs.length > 0) {
-            const firstAsset = parseFloat(String(perfSlotData.logs[0][1] || 0).replace(/[^0-9.-]+/g, "")) || 0;
+            let firstPrincipal = 0;
+            if (perfSlotData.logs[0][3]) {
+              try {
+                const p0 = typeof perfSlotData.logs[0][3] === "string" ? JSON.parse(perfSlotData.logs[0][3]) : perfSlotData.logs[0][3];
+                firstPrincipal = Number(p0.realPrincipal ?? p0.base_principal ?? 0);
+              } catch (e) {}
+            }
+            if (!firstPrincipal || firstPrincipal <= 0) {
+              firstPrincipal = parseFloat(String(perfSlotData.logs[0][1] || 0).replace(/[^0-9.-]+/g, "")) || 0;
+            }
             let totalInout = 0;
             for (let li = 0; li < perfSlotData.logs.length; li++) {
               totalInout += (parseFloat(String(perfSlotData.logs[li][2] || 0).replace(/[^0-9.-]+/g, "")) || 0);
             }
-            if (firstAsset > 0) {
-              trueRealPrincipal = Math.round((firstAsset + totalInout) * 100) / 100;
+            if (firstPrincipal > 0) {
+              trueRealPrincipal = Math.round((firstPrincipal + totalInout) * 100) / 100;
             }
           }
           if (!trueRealPrincipal || trueRealPrincipal <= 0) {
@@ -1757,7 +1772,8 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
                 parsed.realPrincipal = trueRealPrincipal;
 
                 // 🛡️ [예수금 리셋 방어 가드]
-                // 주식을 보유 중인데 예수금이 원금(realPrincipal)과 같거나, 자산이 예수금과 동일하게 잡히는 왜곡 방지
+                // 주식을 보유 중인데 예수금이 총자산(asset) 전체로 잘못 잡혀있는 비정상 상태(이중 합산)만 안전하게 교정
+                // (누적 수익으로 현금이 원금보다 많은 정상 상태를 훼손하지 않도록 총자산 기준으로 판정)
                 const holdings = Array.isArray(parsed.holdings) ? parsed.holdings : [];
                 let totalStockCost = 0;
                 holdings.forEach(h => {
@@ -1766,10 +1782,10 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
                   totalStockCost += (q * p);
                 });
 
-                // 주식이 있는데 cash가 원금 전체로 잡혀있는 비정상 상태 교정
                 if (holdings.length > 0 && totalStockCost > 0) {
-                  if (parsed.cash >= trueRealPrincipal && trueRealPrincipal > totalStockCost) {
-                    parsed.cash = Math.max(0, Math.round((trueRealPrincipal - totalStockCost) * 100) / 100);
+                  const curAsset = Number(state.asset || 0);
+                  if (curAsset > totalStockCost && parsed.cash >= curAsset - 0.05) {
+                    parsed.cash = Math.max(0, Math.round((curAsset - totalStockCost) * 100) / 100);
                   }
                 }
 

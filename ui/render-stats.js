@@ -920,12 +920,30 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     if (currentBroker !== broker) return; // 중간에 브로커가 변경되었으면 무시
 
     if (!result || result.success === false) {
-      if (table.querySelector('.stats-balance-summary-card')) {
+      const errMsg = (result && result.error) || "계좌 데이터를 가져오지 못했습니다.";
+      const isMaint = window.BrokerService && typeof window.BrokerService.isMaintenanceError === 'function' && window.BrokerService.isMaintenanceError(errMsg);
+      if (isMaint) {
+        window.BrokerService.showMaintenancePopup(broker, errMsg);
+        table.innerHTML = `
+          <div style="padding:22px 16px; background:rgba(245,158,11,0.06); border:1px dashed rgba(245,158,11,0.4); border-radius:10px; color:#f59e0b; text-align:center; font-size:11.5px; margin:8px 0;">
+            <div style="font-size:20px; margin-bottom:4px;">🛠️</div>
+            <strong style="font-size:12.5px;">${brokerLabel} 시스템 점검 중</strong><br/>
+            <span style="font-size:10px; color:#cbd5e1; opacity:0.9; display:inline-block; margin-top:4px;">
+              현재 증권사 서버 전산 점검 시간입니다.<br/>
+              점검 중에는 계좌 조회가 제한되며, 점검 종료 후 정상화됩니다.
+            </span>
+          </div>`;
+        if (!table.dataset) table.dataset = {};
+        table.dataset.broker = broker;
+        return;
+      }
+      if (table.querySelector('.stats-balance-summary-card') && table.dataset && table.dataset.broker === broker) {
         console.warn(`[${brokerLabel} 잔고 갱신 실패 (기존 화면 유지)]:`, result?.error);
         return;
       }
-      const errMsg = (result && result.error) || "계좌 데이터를 가져오지 못했습니다.";
       table.innerHTML = `<div style="padding:20px; color:#f43f5e; text-align:center; font-size:11px;">${brokerLabel} API 연동 실패<br/><span style="font-size:9.5px; opacity:0.8;">사유: ${errMsg}</span></div>`;
+      if (!table.dataset) table.dataset = {};
+      table.dataset.broker = broker;
       return;
     }
 
@@ -935,8 +953,24 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     updateStatsTitleAccountNo(result);
   } catch (e) {
     console.error(`${brokerLabel} 잔고 로드 실패:`, e);
-    if (!table.querySelector('.stats-balance-summary-card')) {
+    const isMaint = window.BrokerService && typeof window.BrokerService.isMaintenanceError === 'function' && window.BrokerService.isMaintenanceError(e.message);
+    if (isMaint) {
+      window.BrokerService.showMaintenancePopup(broker, e.message);
+      table.innerHTML = `
+        <div style="padding:22px 16px; background:rgba(245,158,11,0.06); border:1px dashed rgba(245,158,11,0.4); border-radius:10px; color:#f59e0b; text-align:center; font-size:11.5px; margin:8px 0;">
+          <div style="font-size:20px; margin-bottom:4px;">🛠️</div>
+          <strong style="font-size:12.5px;">${brokerLabel} 시스템 점검 중</strong><br/>
+          <span style="font-size:10px; color:#cbd5e1; opacity:0.9; display:inline-block; margin-top:4px;">
+            현재 증권사 서버 전산 점검 시간입니다.<br/>
+            점검 중에는 계좌 조회가 제한되며, 점검 종료 후 정상화됩니다.
+          </span>
+        </div>`;
+      if (!table.dataset) table.dataset = {};
+      table.dataset.broker = broker;
+    } else if (!table.querySelector('.stats-balance-summary-card') || (table.dataset && table.dataset.broker !== broker)) {
       table.innerHTML = `<div style="padding:20px; color:#f43f5e; text-align:center; font-size:11px;">${brokerLabel} API 연동 실패<br/><span style="font-size:9.5px; opacity:0.8;">사유: ${e.message}</span></div>`;
+      if (!table.dataset) table.dataset = {};
+      table.dataset.broker = broker;
     }
   }
 }

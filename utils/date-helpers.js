@@ -146,6 +146,51 @@ function formatOrderDateWithMarketStatus(dateStr) {
   return `<span style="color:var(--danger); font-weight:700;">${cleanDate}${status.label ? ` (${status.label})` : ''}</span>`;
 }
 
+function getNextTradingDay(dateStr) {
+  const key = normalizeOrderDateKey(dateStr);
+  if (!key) return "";
+  const parts = key.split('-').map(Number);
+  const base = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+  for (let i = 1; i <= 10; i++) {
+    const next = new Date(base + i * 86400000);
+    const y = next.getUTCFullYear();
+    const m = String(next.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(next.getUTCDate()).padStart(2, '0');
+    const ymd = `${y}-${m}-${d}`;
+    const dow = next.getUTCDay();
+    if (dow !== 0 && dow !== 6 && !isUSMarketHoliday(ymd)) {
+      return ymd;
+    }
+  }
+  return key;
+}
+
+// 주문표 대상 거래일 도출:
+// 엔진 출력 날짜(dateStr)는 직전 종가 데이터 기준일(예: 금요일 9/11)입니다.
+// 장마감 후(16:00 ET~)나 주말/공휴일에는 주문이 다음 거래일(월요일 9/14)을 겨냥하므로
+// 주말과 휴장일을 건너뛴 다음 유효 거래일을 반환합니다.
+function getTargetOrderDate(dateStr) {
+  if (!dateStr) return "";
+  const clean = String(dateStr).replace(/\s*\(.*$/, "").trim();
+  const baseKey = normalizeOrderDateKey(clean);
+  if (!baseKey) return clean;
+
+  const now = new Date();
+  const nyTimeStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+  const nyDate = new Date(nyTimeStr);
+  const nyHour = nyDate.getHours();
+  const nyTodayYmd = formatDateNY(nyDate);
+
+  const isPast = baseKey < nyTodayYmd;
+  const isWeekendOrHoliday = getUSMarketDateStatus(nyTodayYmd).isClosed;
+  const isAfterClose = (baseKey === nyTodayYmd && nyHour >= 16);
+
+  if (isPast || isWeekendOrHoliday || isAfterClose) {
+    return getNextTradingDay(baseKey);
+  }
+  return baseKey;
+}
+
 function getOrderHeaderMarketStatusBadge() {
   const now = new Date();
   const nyTimeStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
@@ -159,7 +204,7 @@ function getOrderHeaderMarketStatusBadge() {
   const isWeekend = (nyDayStr === "Sat" || nyDayStr === "Sun");
 
   if (!isHoliday && !isWeekend) return "";
-  const statusText = isHoliday ? "[휴장일]" : "[주말]";
+  const statusText = isHoliday ? "[휴장일예약]" : "[주말예약]";
   return ` <span style="color:var(--danger); font-size:0.75em; font-weight:700; margin-left:8px;">${statusText}</span>`;
 }
 
@@ -172,5 +217,7 @@ window.dateHelpers = {
   normalizeOrderDateKey,
   getUSMarketDateStatus,
   formatOrderDateWithMarketStatus,
-  getOrderHeaderMarketStatusBadge
+  getOrderHeaderMarketStatusBadge,
+  getNextTradingDay,
+  getTargetOrderDate
 };

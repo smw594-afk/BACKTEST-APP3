@@ -464,10 +464,14 @@ async function forceUpdateApp() {
     } catch (e) {
       alert("초기화 중 일부 오류가 발생했습니다: " + e.message);
     }
-    const reloadUrl = new URL(window.location.href);
-    reloadUrl.searchParams.set('v', APP_VERSION);
-    reloadUrl.searchParams.set('reset', Date.now().toString());
-    window.location.replace(reloadUrl.toString());
+    if (window.location.protocol === 'file:') {
+      location.reload();
+    } else {
+      const reloadUrl = new URL(window.location.href);
+      reloadUrl.searchParams.set('v', APP_VERSION);
+      reloadUrl.searchParams.set('reset', Date.now().toString());
+      window.location.replace(reloadUrl.toString());
+    }
   }
 }
 
@@ -1249,6 +1253,7 @@ function checkAndRunAutoSave() {
         combinedMap[date] = baseObj;
       }
       // 🛡️ [저장 전 정합성 검증 가드] 주식 보유 중 예수금 리셋 상태 자동 교정
+      // (누적 수익으로 현금이 원금보다 많은 정상 상태를 훼손하지 않도록 총자산 기준으로 판정)
       let stateAsset = state.asset;
       let stateJsonStr = state.json;
       try {
@@ -1260,10 +1265,10 @@ function checkAndRunAutoSave() {
           const p = Number(h.buy_price || h.price || 0);
           totalStockCost += (q * p);
         });
-        const realPrinc = Number(parsed.realPrincipal || 0);
-        if (holdings.length > 0 && totalStockCost > 0 && realPrinc > totalStockCost) {
-          if (Number(parsed.cash || 0) >= realPrinc) {
-            parsed.cash = Math.max(0, Math.round((realPrinc - totalStockCost) * 100) / 100);
+        const curAsset = Number(stateAsset || 0);
+        if (holdings.length > 0 && totalStockCost > 0 && curAsset > totalStockCost) {
+          if (Number(parsed.cash || 0) >= curAsset - 0.05) {
+            parsed.cash = Math.max(0, Math.round((curAsset - totalStockCost) * 100) / 100);
             stateJsonStr = JSON.stringify(parsed);
           }
         }
@@ -1660,7 +1665,14 @@ function confirmLogout() {
   if (confirm("로그아웃 하시겠습니까?")) {
     localStorage.removeItem('vtotal3_auth');
     localStorage.removeItem('vtotal3_id');
-    location.reload();
+    try {
+      location.reload();
+    } catch (e) {
+      console.warn("로그아웃 후 reload 차단(file: 프로토콜 등): 인메모리 UI 리셋으로 전환", e);
+      document.getElementById('topBar')?.classList.add('hidden');
+      document.getElementById('mainGrid')?.classList.add('hidden');
+      document.getElementById('loginScreen')?.classList.remove('hidden');
+    }
   }
 }
 

@@ -521,18 +521,17 @@ function renderDBTradeHistory() {
     if (signature === lastTradeHistoryRenderSignature && tbody.children.length > 0) return;
     lastTradeHistoryRenderSignature = signature;
 
-    // fire-and-forget: 체결 데이터가 아직 없으면(로딩) 받아온 뒤 자기 자신을 한 번 다시 그린다.
-    if (BR) {
+    // fire-and-forget: 체결 데이터가 아직 준비되지 않았으면 1회 비동기 조회 후 재렌더링
+    if (BR && !BR.isReady() && !window.__isRefreshingHistoryFills) {
+      window.__isRefreshingHistoryFills = true;
       const activeBrKey = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
-      const hasBrokerDates = Array.from(reconcileState ? reconcileState.coveredDates : []).some(k => k.startsWith(activeBrKey + '|'));
-      if (!BR.isReady() || !hasBrokerDates) {
-        BR.refreshFills(activeBrKey, () => {
-          if (historyViewMode === 'strategy') {
-            lastTradeHistoryRenderSignature = '';
-            renderDBTradeHistory();
-          }
-        });
-      }
+      BR.refreshFills(activeBrKey, () => {
+        window.__isRefreshingHistoryFills = false;
+        if (historyViewMode === 'strategy') {
+          lastTradeHistoryRenderSignature = '';
+          renderDBTradeHistory();
+        }
+      });
     }
 
     bindHistoryScrollListener(tbody);

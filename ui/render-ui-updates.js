@@ -33,7 +33,7 @@ function getStopLossEstimatedDate(h, strategyName) {
   let targetDate = new Date(bDate);
   let addedDays = 0;
   // 주말을 제외하고 h_limit 영업일 후 날짜 계산
-  while (addedDays < h_limit) {
+  let safeLoop = 0; while (addedDays < h_limit && ++safeLoop < 500) {
     targetDate.setDate(targetDate.getDate() + 1);
     let dayOfWeek = targetDate.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {

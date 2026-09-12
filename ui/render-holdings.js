@@ -107,17 +107,18 @@ function renderCombinedHoldings() {
       } else {
         sellPriceStr = "$" + rawSellPrice.toLocaleString(undefined, { minimumFractionDigits: 2 });
       }
-      let holdLimit = modeData.hold[o.tier - 1] || modeData.hold[0];
-      if (o.buyDate && window.globalMainData && window.globalMainData.dates) {
+      let holdLimit = Number(modeData.hold[o.tier - 1] || modeData.hold[0]) || 0;
+      if (o.buyDate && window.globalMainData && window.globalMainData.dates && holdLimit > 0) {
         const bIdx = window.globalMainData.dates.findIndex(d => window.formatDateNY(d) === o.buyDate);
         if (bIdx !== -1) {
           let curr = new Date(window.globalMainData.dates[bIdx]);
           let dCount = 0;
-          while (dCount < holdLimit) {
+          let safeLoop = 0;
+          while (dCount < holdLimit && ++safeLoop < 365) {
             curr.setDate(curr.getDate() + 1);
             const dStr = window.formatDateNY(curr);
             const dow = curr.getDay();
-            if (dow !== 0 && dow !== 6 && !window.isUSMarketHoliday(dStr)) dCount++;
+            if (dow !== 0 && dow !== 6 && (!window.isUSMarketHoliday || !window.isUSMarketHoliday(dStr))) dCount++;
           }
           const yy = String(curr.getFullYear()).slice(-2);
           const mm = curr.getMonth() + 1;
@@ -200,8 +201,12 @@ function renderCombinedHoldings() {
   container.innerHTML = tableRows;
 
   // fire-and-forget: fills land async, then this re-renders itself once with real statuses
-  if (window.BrokerReconcile && !window.BrokerReconcile.isReady()) {
-    window.BrokerReconcile.refreshFills(() => renderCombinedHoldings());
+  if (window.BrokerReconcile && !window.BrokerReconcile.isReady() && !window.__isRefreshingCombinedHoldings) {
+    window.__isRefreshingCombinedHoldings = true;
+    window.BrokerReconcile.refreshFills(() => {
+      window.__isRefreshingCombinedHoldings = false;
+      renderCombinedHoldings();
+    });
   }
   if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();
   if (typeof updateCombinedHoldingsSummary === 'function') updateCombinedHoldingsSummary();
@@ -244,17 +249,18 @@ function renderTableSlot(inv, stratName, slotNum) {
       } else {
         sellPriceStr = "$" + rawSellPrice.toLocaleString(undefined, { minimumFractionDigits: 2 });
       }
-      let holdLimit = modeData.hold[o.tier - 1] || modeData.hold[0];
-      if (o.buyDate && window.globalMainData && window.globalMainData.dates) {
+      let holdLimit = Number(modeData.hold[o.tier - 1] || modeData.hold[0]) || 0;
+      if (o.buyDate && window.globalMainData && window.globalMainData.dates && holdLimit > 0) {
         const bIdx = window.globalMainData.dates.findIndex(d => window.formatDateNY(d) === o.buyDate);
         if (bIdx !== -1) {
           let curr = new Date(window.globalMainData.dates[bIdx]);
           let dCount = 0;
-          while (dCount < holdLimit) {
+          let safeLoop = 0;
+          while (dCount < holdLimit && ++safeLoop < 365) {
             curr.setDate(curr.getDate() + 1);
             const dStr = window.formatDateNY(curr);
             const dow = curr.getDay();
-            if (dow !== 0 && dow !== 6 && !window.isUSMarketHoliday(dStr)) dCount++;
+            if (dow !== 0 && dow !== 6 && (!window.isUSMarketHoliday || !window.isUSMarketHoliday(dStr))) dCount++;
           }
           const yy = String(curr.getFullYear()).slice(-2);
           const mm = curr.getMonth() + 1;

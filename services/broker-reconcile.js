@@ -205,8 +205,8 @@
     if (typeof onDone === "function") onDoneCallbacks.push(onDone);
     if (refreshPromise) return await refreshPromise;
     if (!window.BrokerService) {
-      while (onDoneCallbacks.length > 0) {
-        const cb = onDoneCallbacks.shift();
+      const cbs = onDoneCallbacks.splice(0, onDoneCallbacks.length);
+      for (const cb of cbs) {
         try { cb(); } catch (e) {}
       }
       return;
@@ -233,8 +233,8 @@
         state.failed = !anyOk;
       } finally {
         refreshPromise = null;
-        while (onDoneCallbacks.length > 0) {
-          const cb = onDoneCallbacks.shift();
+        const cbs = onDoneCallbacks.splice(0, onDoneCallbacks.length);
+        for (const cb of cbs) {
           try { cb(); } catch (e) {}
         }
       }

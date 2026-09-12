@@ -10,7 +10,6 @@
     window.BROKER_API_BASE = "https://autumn-limit-001e-3.smw594.workers.dev";
     // 로컬 프록시 베이스는 broker-service.js가 location.hostname으로 자동 판단 (8788)
   </script>
-  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -134,7 +133,7 @@
   <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v20260910_08">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
   <script src="utils/formatters.js?v=cf_v1787732256753" defer></script>
-  <script src="utils/date-helpers.js?v=cf_v1787732256753" defer></script>
+  <script src="utils/date-helpers.js?v=cf_v20260912_01" defer></script>
   <script src="utils/period-calculator.js?v=cf_v1787732256753" defer></script>
   <script src="utils/summary-calculator.js?v=cf_v1787732256753" defer></script>
   <!-- Phase 2: Services (currency, export, prefetch) -->
@@ -146,8 +145,8 @@
   <script src="ui/state-manager.js?v=cf_v1787732256753" defer></script>
   <script src="ui/event-handlers.js?v=cf_v1788012492560" defer></script>
   <!-- Phase 4, 5, 6: Business Logic Services (config, sync, stats) -->
-  <script src="services/broker-service.js?v=cf_v20260911_01" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v20260911_03" defer></script>
+  <script src="services/broker-service.js?v=cf_v20260912_07" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v20260912_05" defer></script>
   <script src="services/config-manager.js?v=cf_v1787732256753" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
   <script src="services/stats-config.js?v=cf_v1787732256753" defer></script>
@@ -637,7 +636,7 @@
       <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃" style="white-space:nowrap; overflow:hidden; text-overflow:clip; max-width:100%; display:inline-block;">로딩중...</div>
       <!-- 🟢 키움 / 🟣 LS 선택 버튼 (broker-service.js switchBrokerMode가 갱신) -->
       <button id="btnSingleBrokerNav" onclick="window.BrokerService && window.BrokerService.openBrokerSelectPopup()"
-        style="margin-left:6px; border:none; border-radius:6px; padding:3px 8px; font-weight:700; font-size:11px; cursor:pointer; background:linear-gradient(135deg,#10b981,#059669); color:#000; white-space:nowrap;">🟢 키움 <span style="font-size:9px;">▼</span></button>
+        style="margin-left:6px; border:none; border-radius:6px; padding:3px 8px; font-weight:700; font-size:11px; cursor:pointer; background:linear-gradient(135deg,#10b981,#059669); color:#000; white-space:nowrap; position:relative; z-index:10;">🟢 키움 <span style="font-size:9px;">▼</span></button>
     </div>
     <div class="top-right">
       <button id="btnInstant" class="top-icon-btn" title="홈 UI (길게 누르면 갱신)" onclick="showOrderView()"><span id="icoInstant">🏠</span></button>
@@ -1116,19 +1115,19 @@
   <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v20260910_07" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v20260911_03" defer></script>
+  <script src="ui/render-order.js?v=cf_v20260912_04" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v20260912_01" defer></script>
   <script src="ui/render-performance.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-stats.js?v=cf_v1788962500000" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v20260911_02" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20260912_02" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v20260912_01" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-ui-updates.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v20260910_07" defer></script>
+  <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v20260912_01" defer></script>
   <script src="ui/render-helpers.js?v=cf_v20260910_01" defer></script>
   <script src="ui/render-notifications.js?v=cf_v1788352903828" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20260911_01" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20260912_04" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20260911_01" defer></script>
+  <script src="script.js?v=cf_v20260912_02" defer></script>
 
 
 </body>

@@ -110,6 +110,7 @@ window.BrokerService = {
     const prevBroker = this.activeBroker;
     this.activeBroker = broker;
     localStorage.setItem("vtotal3_active_broker", broker);
+    if (this._lastMaintPopup) this._lastMaintPopup[broker] = 0;
 
     // 설정 화면 슬롯 탭도 이 브로커 것만 보이도록 갱신
     try { this.applySettingsTabVisibility(); } catch (e) { console.warn("[BrokerService] applySettingsTabVisibility error:", e); }
@@ -263,6 +264,95 @@ window.BrokerService = {
     `;
     document.body.appendChild(modal);
   },
+  _lastMaintPopup: {},
+  isMaintenanceError(msg) {
+    if (!msg) return false;
+    const s = String(msg);
+    return /IGW|GW라우팅|라우팅 중 오류|시스템\s*점검|정기\s*점검|전산\s*점검|서버\s*점검|서비스\s*점검|전산\s*작업|서비스\s*준비중|일시\s*중단|통신\s*장애|응답\s*없음/i.test(s)
+      || ((s.includes("500") || s.includes("502") || s.includes("503") || s.includes("504")) && /GW|게이트웨이|라우팅|점검|Bad Gateway|Gateway|Timeout/i.test(s))
+      || /502 Bad Gateway|relay failed|Timeout \(VM Proxy/i.test(s)
+      || /인증\s*실패:\s*\{\}|start\.html|비정상적\s*응답|서비스\s*중단|애프터마켓/i.test(s);
+  },
+
+  showMaintenancePopup(broker, errorMsg, force = false) {
+    const targetBroker = broker || this.activeBroker || "kiwoom";
+    const now = Date.now();
+    if (!force && this._lastMaintPopup && this._lastMaintPopup[targetBroker] && (now - this._lastMaintPopup[targetBroker] < 30000)) {
+      return;
+    }
+    if (!this._lastMaintPopup) this._lastMaintPopup = {};
+    this._lastMaintPopup[targetBroker] = now;
+
+    const old = document.getElementById("broker-maintenance-notice-modal");
+    if (old) old.remove();
+
+    const isLs = targetBroker === "ls";
+    const brokerName = isLs ? "LS증권" : "키움증권";
+    const brokerColor = isLs ? "#a855f7" : "#10b981";
+    const altBroker = isLs ? "kiwoom" : "ls";
+    const altBrokerName = isLs ? "🟢 키움증권" : "🟣 LS증권";
+    const altBrokerSlots = isLs ? "슬롯 1~6" : "슬롯 7~12";
+
+    // 점검 스케줄 상세 안내
+    const maintInfo = isLs ? {
+      title: "주말 정기 전산 시스템 점검",
+      duration: "토요일 전산 작업 진행 중",
+      estimatedDone: "작업 완료 후 순차 정상화 예정",
+      reason: "시스템 및 통신 게이트웨이 정기 점검"
+    } : {
+      title: "KRX 애프터마켓 이행 시스템 작업",
+      duration: "9/12(토) 08:30 ~ 20:00 KST",
+      estimatedDone: "오늘(9/12 토) 20:00 KST 이후 정상화 예정",
+      reason: "KRX 애프터마켓 시스템 작업 (MTS, HTS, API 전체 중단)"
+    };
+
+    const modal = document.createElement("div");
+    modal.id = "broker-maintenance-notice-modal";
+    modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.82); display:flex; align-items:center; justify-content:center; z-index:999999; backdrop-filter:blur(5px);";
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+      <div style="max-width:380px; width:90%; padding:22px 20px; background:#1e293b; color:#f8fafc; border-radius:14px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); border:1px solid #334155; text-align:center;" onclick="event.stopPropagation()">
+        <div style="font-size:36px; margin-bottom:6px;">🛠️</div>
+        <h3 style="margin:0 0 10px 0; font-size:16px; font-weight:700; color:#f8fafc;">
+          <span style="color:${brokerColor};">${brokerName}</span> 시스템 점검 안내
+        </h3>
+
+        <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px 12px; margin-bottom:14px; text-align:left; font-size:11.5px; line-height:1.5;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px; gap:8px;">
+            <span style="color:#94a3b8; flex-shrink:0;">점검 작업:</span>
+            <span style="color:#f8fafc; font-weight:600; text-align:right;">${maintInfo.title}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px; gap:8px;">
+            <span style="color:#94a3b8; flex-shrink:0;">점검 일시:</span>
+            <span style="color:#f59e0b; font-weight:700; text-align:right;">${maintInfo.duration}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; gap:8px;">
+            <span style="color:#94a3b8; flex-shrink:0;">정상화 예정:</span>
+            <span style="color:#38bdf8; font-weight:700; text-align:right;">${maintInfo.estimatedDone}</span>
+          </div>
+        </div>
+
+        <p style="font-size:11.5px; color:#cbd5e1; line-height:1.4; margin:0 0 12px 0;">
+          점검 중에는 실시간 계좌 잔고/미체결 조회 및 주문 연동이 일시 제한되며, 점검 완료 후 자동 정상화됩니다.
+        </p>
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:7px 10px; font-size:9.5px; color:#94a3b8; word-break:break-all; margin-bottom:14px; text-align:left; max-height:60px; overflow-y:auto;">
+          <strong style="color:#e2e8f0;">증권사 응답:</strong> ${String(errorMsg || "시스템 점검 중").slice(0, 160)}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button onclick="document.getElementById('broker-maintenance-notice-modal')?.remove(); window.BrokerService.switchBrokerMode('${altBroker}');"
+            style="padding:10px; border-radius:8px; background:${isLs ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #a855f7, #7e22ce)'}; color:${isLs ? '#000' : '#fff'}; border:none; font-size:12.5px; font-weight:700; cursor:pointer;">
+            ${altBrokerName} 모드로 전환 (${altBrokerSlots})
+          </button>
+          <button onclick="document.getElementById('broker-maintenance-notice-modal')?.remove();"
+            style="padding:9px; border-radius:8px; background:#334155; color:#cbd5e1; border:none; font-size:12px; font-weight:600; cursor:pointer;">
+            확인 (현재 모드 유지)
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  },
   activeBroker: "kiwoom",
 
   getApiBase() {
@@ -378,20 +468,32 @@ window.BrokerService = {
   async fetchUnfilledOrders(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const timeout = broker === "ls" ? 30000 : 15000;
-    return await this._dedupFetch(`unfilled_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout));
+    const res = await this._dedupFetch(`unfilled_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout));
+    if (res && res.success === false && this.isMaintenanceError(res.error)) {
+      this.showMaintenancePopup(broker, res.error);
+    }
+    return res;
   },
 
   async fetchOverseasBalance(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const timeout = broker === "ls" ? 30000 : 15000;
-    return await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
+    const res = await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
+    if (res && res.success === false && this.isMaintenanceError(res.error)) {
+      this.showMaintenancePopup(broker, res.error);
+    }
+    return res;
   },
 
   async fetchOverseasFills(broker = this.activeBroker, days = 30) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const d = Number(days) || 30;
     const timeout = broker === "ls" ? 60000 : 35000;
-    return await this._dedupFetch(`fills_${broker}_${d}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}`, "GET", null, timeout));
+    const res = await this._dedupFetch(`fills_${broker}_${d}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}`, "GET", null, timeout));
+    if (res && res.success === false && this.isMaintenanceError(res.error)) {
+      this.showMaintenancePopup(broker, res.error);
+    }
+    return res;
   },
 
   async fetchPendingOrders() {

@@ -145,7 +145,6 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
     window.orderStatusCache.lastPhase = phase;
     if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
     if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
-
   } catch(e) {
     if (window.orderStatusCache && reqSeq === _roscReqSeq) {
       window.orderStatusCache.isLoading = false;
@@ -598,9 +597,10 @@ function collectCurrentCombinedOrders() {
 
 function getMarketDateMarkup(dateValue) {
   const cleaned = String(dateValue || "").replace(/\s*\(동기화됨\)\s*$/, "");
+  const targetDate = window.dateHelpers?.getTargetOrderDate ? window.dateHelpers.getTargetOrderDate(cleaned) : cleaned;
   return window.dateHelpers?.formatOrderDateWithMarketStatus
-    ? window.dateHelpers.formatOrderDateWithMarketStatus(cleaned)
-    : cleaned;
+    ? window.dateHelpers.formatOrderDateWithMarketStatus(targetDate)
+    : targetDate;
 }
 
 function getMarketStatusBadgeMarkup() {
@@ -933,7 +933,8 @@ function renderOrderViewSlot(res, slotNum) {
     elPg.innerText = slotPgVal;
   }
 
-  const orderDate = res.orderDateStr || "";
+  const rawOrderDate = res.orderDateStr || "";
+  const orderDate = window.dateHelpers?.getTargetOrderDate ? window.dateHelpers.getTargetOrderDate(rawOrderDate) : rawOrderDate;
   if (!window.currentOrderDate || (window.BrokerService && window.BrokerService.isSlotForBroker(slotNum))) window.currentOrderDate = orderDate;
   refreshOrderViewUI();
 }
@@ -2071,8 +2072,13 @@ window.openSheetVerificationModal = async function(forceReload = false) {
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
 
-  // ⭐️ 캐시된 검증 데이터가 있고 강제 새로고침이 아닌 경우 로딩창 없이 0ms 즉시 오픈!
-  const hasFreshCache = !forceReload && window.__lastSheetVerificationVmRes && (Date.now() - (window.__lastSheetVerificationTime || 0) < 120000);
+  if (forceReload) {
+    window.__lastSheetVerificationVmRes = null;
+    window.__lastSheetVerificationTime = 0;
+  }
+
+  // ⭐️ 캐시된 검증 데이터가 있고 강제 새로고침이 아닌 경우 로딩창 없이 0ms 즉시 오픈! (30초 TTL)
+  const hasFreshCache = !forceReload && window.__lastSheetVerificationVmRes && (Date.now() - (window.__lastSheetVerificationTime || 0) < 30000);
 
   const initialBodyHtml = hasFreshCache 
     ? buildSheetVerificationBodyContent(window.__lastSheetVerificationVmRes)
@@ -2093,7 +2099,10 @@ window.openSheetVerificationModal = async function(forceReload = false) {
             <span style="font-size:18px;">📊</span>
             <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--text, #fff); letter-spacing:-0.3px;">시트 데이터 검증 (앱 vs VM)</h3>
           </div>
-          <button onclick="document.getElementById('${modalId}').remove()" style="background:transparent; border:none; color:var(--text-muted, #94a3b8); font-size:20px; font-weight:700; cursor:pointer; line-height:1; padding:2px 6px;">✕</button>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button onclick="window.openSheetVerificationModal(true)" style="background:linear-gradient(135deg, #6366f1, #4f46e5); color:#fff; border:none; border-radius:6px; padding:5px 12px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px;">🔄 새로고침</button>
+            <button onclick="document.getElementById('${modalId}').remove()" style="background:transparent; border:none; color:var(--text-muted, #94a3b8); font-size:20px; font-weight:700; cursor:pointer; line-height:1; padding:2px 6px;">✕</button>
+          </div>
         </div>
 
         <!-- Body -->
