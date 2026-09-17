@@ -202,6 +202,8 @@ async function renderBrokerFills(broker) {
   if (!tbody) return;
   bindHistoryScrollListener(tbody);
   brokerFillsDisplayLimit = 20; // ⭐️ 조회 시 20개로 초기화
+  lastBrokerFillsRows = [];
+  lastBrokerFillsBroker = broker;
   const label = broker === 'ls' ? 'LS증권' : '키움증권';
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
   const textMuted = isLight ? '#64748b' : '#94a3b8';

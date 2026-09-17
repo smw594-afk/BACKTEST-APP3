@@ -107,6 +107,10 @@
     }
     const data = await fillsPromise[broker];
     fillsCache[broker] = { at: Date.now(), data };
+    if (data && data.success !== false) {
+      ingest(broker, data);
+      state.ready = true;
+    }
     return data;
   }
 
@@ -142,6 +146,13 @@
     state.coveredDates.clear();
   }
 
+  function invalidateBroker(broker) {
+    if (broker) {
+      fillsCache[broker] = null;
+      balanceCache[broker] = null;
+    }
+  }
+
   // ─────────── fill maps ───────────
   // state.buy / state.sell : Map<`SYMBOL|YYYY-MM-DD`, {qty, cost}>
   // state.coveredDates     : Set<YYYY-MM-DD> — dates the broker actually reported.
@@ -156,6 +167,20 @@
     const rows = Array.isArray(data && data.executions) ? data.executions
       : (Array.isArray(data && data.rows) ? data.rows : []);
     
+    // 해당 브로커의 기존 데이터 클리어
+    state.rows = state.rows.filter(r => r.broker !== broker);
+    for (const [k] of state.buy) { if (k.startsWith(broker + "|")) state.buy.delete(k); }
+    for (const [k] of state.sell) { if (k.startsWith(broker + "|")) state.sell.delete(k); }
+    for (const dKey of state.coveredDates) { if (dKey.startsWith(broker + "|")) state.coveredDates.delete(dKey); }
+
+    // 체결내역 조회 범위(최근 35일)의 모든 일자는 브로커가 조회 확인한 날짜로 coveredDates에 사전 등록
+    const now = Date.now();
+    for (let i = 0; i < 35; i++) {
+      const d = new Date(now - i * 86400000);
+      const ymdKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+      state.coveredDates.add(`${broker}|${ymdKey}`);
+    }
+
     // 1st pass: build symbol map from id / ord_no
     const symByOrdId = new Map();
     rows.forEach(r => {
@@ -212,23 +237,30 @@
       return;
     }
 
-    const activeBr = targetBroker || (window.BrokerService && window.BrokerService.activeBroker) || "kiwoom";
     refreshPromise = (async () => {
       try {
-        const brokersToFetch = targetBroker ? [targetBroker] : ["kiwoom", "ls"];
+        // 통합 보유현황은 전체 슬롯(키움+LS)을 대조하므로 양쪽 브로커를 병렬(Promise.allSettled)로 조회
+        const brokersToFetch = targetBroker ? [targetBroker, ...(BROKERS.filter(b => b !== targetBroker))] : BROKERS;
         let anyOk = false;
-        for (const br of brokersToFetch) {
-          const d = await getFills(br).catch(e => null);
-          state.rows = state.rows.filter(r => r.broker !== br);
-          for (const [k] of state.buy) { if (k.startsWith(br + "|")) state.buy.delete(k); }
-          for (const [k] of state.sell) { if (k.startsWith(br + "|")) state.sell.delete(k); }
-          for (const dKey of state.coveredDates) { if (dKey.startsWith(br + "|")) state.coveredDates.delete(dKey); }
 
-          if (d && d.success !== false) {
-            ingest(br, d);
-            anyOk = true;
+        const tasks = brokersToFetch.map(async (br) => {
+          try {
+            const d = await getFills(br);
+            if (d && d.success !== false) {
+              anyOk = true;
+              state.ready = true;
+              // 브로커 데이터 수신 즉시 보유현황 화면을 갱신
+              if (window.UI?.holdings?.renderCombinedHoldings) {
+                try { window.UI.holdings.renderCombinedHoldings(); } catch (e) {}
+              }
+            }
+            return d;
+          } catch (e) {
+            return null;
           }
-        }
+        });
+
+        await Promise.allSettled(tasks);
         state.ready = true;
         state.failed = !anyOk;
       } finally {
@@ -514,7 +546,7 @@
 
     BROKERS, BROKER_LABEL,
     normalizeMarketDate, normalizeDateKey, normSymbol, brokerForSlot,
-    getFills, getBalance, getCachedBalance, invalidate, refreshFills,
+    getFills, getBalance, getCachedBalance, invalidate, invalidateBroker, refreshFills,
     state,
     holdingStatus, sellStatus, badge, badgeTitle, cellHtml, escapeHtml,
     openAccountInfoModal, refreshAccountInfo, renderBrokerAccountTable,

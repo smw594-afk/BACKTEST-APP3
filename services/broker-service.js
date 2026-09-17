@@ -133,10 +133,12 @@ window.BrokerService = {
       }
     } catch (e) { console.warn("[BrokerService] btn update error:", e); }
 
-    // 1. Reconcile 캐시 무효화 및 orderStatusCache 초기화
+    // 1. orderStatusCache 초기화 및 전환된 브로커 캐시 리셋
+    // ⚠️ 전체 대조 맵(state.buy)은 보존하여 화면 깜빡임을 방지하되,
+    //    전환된 브로커의 fills/balance 캐시는 비워 서버에서 최신 체결을 즉시 다시 가져오게 한다!
     try {
-      if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === "function") {
-        window.BrokerReconcile.invalidate();
+      if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidateBroker === "function") {
+        window.BrokerReconcile.invalidateBroker(broker);
       }
       if (window.orderStatusCache) {
         window.orderStatusCache.unfilledOrders = [];
@@ -268,9 +270,12 @@ window.BrokerService = {
   isMaintenanceError(msg) {
     if (!msg) return false;
     const s = String(msg);
+    // ⚠️ Timeout은 일시적 통신 지연이지 증권사 '시스템 점검'이 아니다.
+    // 점검 팝업("주말 정기 전산 시스템 점검")을 띄워 사용자에게 혼란을 주는 오작동 방지.
+    if (/Timeout/i.test(s)) return false;
     return /IGW|GW라우팅|라우팅 중 오류|시스템\s*점검|정기\s*점검|전산\s*점검|서버\s*점검|서비스\s*점검|전산\s*작업|서비스\s*준비중|일시\s*중단|통신\s*장애|응답\s*없음/i.test(s)
-      || ((s.includes("500") || s.includes("502") || s.includes("503") || s.includes("504")) && /GW|게이트웨이|라우팅|점검|Bad Gateway|Gateway|Timeout/i.test(s))
-      || /502 Bad Gateway|relay failed|Timeout \(VM Proxy/i.test(s)
+      || ((s.includes("500") || s.includes("502") || s.includes("503") || s.includes("504")) && /GW|게이트웨이|라우팅|점검|Bad Gateway|Gateway/i.test(s))
+      || /502 Bad Gateway|relay failed/i.test(s)
       || /인증\s*실패:\s*\{\}|start\.html|비정상적\s*응답|서비스\s*중단|애프터마켓/i.test(s);
   },
 
@@ -485,9 +490,11 @@ window.BrokerService = {
     return res;
   },
 
-  async fetchOverseasFills(broker = this.activeBroker, days = 30) {
+  async fetchOverseasFills(broker = this.activeBroker, days = null) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    const d = Number(days) || 30;
+    // LS증권은 계좌조회 1건/초 제한이므로 14일, 키움은 30일 기본값 사용
+    const defaultDays = broker === "ls" ? 14 : 30;
+    const d = Number(days) || defaultDays;
     const timeout = broker === "ls" ? 60000 : 35000;
     const res = await this._dedupFetch(`fills_${broker}_${d}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
