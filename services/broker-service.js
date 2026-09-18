@@ -492,8 +492,9 @@ window.BrokerService = {
 
   async fetchOverseasFills(broker = this.activeBroker, days = null) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    // LS증권은 계좌조회 1건/초 제한이므로 14일, 키움은 30일 기본값 사용
-    const defaultDays = broker === "ls" ? 14 : 30;
+    // ⭐️ 35영업일(손절 기준일) 완전 커버를 위해 달력 60일(약 42~45영업일) 기본값 사용
+    // VM 로컬 파일 영구저장소 연동으로 과거 일자는 0ms 즉시 반환되므로 타임아웃 없음
+    const defaultDays = 60;
     const d = Number(days) || defaultDays;
     const timeout = broker === "ls" ? 60000 : 35000;
     const res = await this._dedupFetch(`fills_${broker}_${d}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}`, "GET", null, timeout));
