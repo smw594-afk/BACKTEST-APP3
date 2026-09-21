@@ -97,17 +97,17 @@
     : (Number(slot) <= 6 ? "kiwoom" : "ls"));
 
   // ─────────── cached proxy reads ───────────
-  async function getFills(broker) {
+  async function getFills(broker, force = false) {
     const now = Date.now();
     const c = fillsCache[broker];
-    if (c && now - c.at < CACHE_MS) return c.data;
+    if (!force && c && now - c.at < CACHE_MS) return c.data;
     if (!fillsPromise[broker]) {
-      fillsPromise[broker] = window.BrokerService.fetchOverseasFills(broker)
+      fillsPromise[broker] = window.BrokerService.fetchOverseasFills(broker, null, force)
         .finally(() => { fillsPromise[broker] = null; });
     }
     const data = await fillsPromise[broker];
-    fillsCache[broker] = { at: Date.now(), data };
     if (data && data.success !== false) {
+      fillsCache[broker] = { at: Date.now(), data };
       ingest(broker, data);
       state.ready = true;
     }
@@ -132,7 +132,9 @@
         error: "VM 프록시 서버 통신 대기 중 (잠시 후 다시 [🔄 새로고침]을 눌러주세요)"
       };
     }
-    balanceCache[broker] = { at: Date.now(), data };
+    if (data && data.success !== false) {
+      balanceCache[broker] = { at: Date.now(), data };
+    }
     return data;
   }
 
@@ -245,7 +247,7 @@
 
         const tasks = brokersToFetch.map(async (br) => {
           try {
-            const d = await getFills(br);
+            const d = await getFills(br, true);
             if (d && d.success !== false) {
               anyOk = true;
               state.ready = true;

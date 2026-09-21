@@ -405,7 +405,7 @@ window.BrokerService = {
     return await this.brokerFetch(`/api/orders/logs`, "POST", { userId: uid, msg }, 5000);
   },
 
-  async brokerFetch(endpoint, method = "GET", payload = null, timeoutMs = 3500) {
+  async brokerFetch(endpoint, method = "GET", payload = null, timeoutMs = 8000) {
     const baseUrl = this.getApiBase();
     const url = `${baseUrl}${endpoint}`;
     const headers = {
@@ -472,7 +472,7 @@ window.BrokerService = {
 
   async fetchUnfilledOrders(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    const timeout = broker === "ls" ? 30000 : 15000;
+    const timeout = broker === "ls" ? 30000 : 20000;
     const res = await this._dedupFetch(`unfilled_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
       this.showMaintenancePopup(broker, res.error);
@@ -482,7 +482,7 @@ window.BrokerService = {
 
   async fetchOverseasBalance(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    const timeout = broker === "ls" ? 30000 : 15000;
+    const timeout = broker === "ls" ? 30000 : 25000;
     const res = await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
       this.showMaintenancePopup(broker, res.error);
@@ -490,14 +490,15 @@ window.BrokerService = {
     return res;
   },
 
-  async fetchOverseasFills(broker = this.activeBroker, days = null) {
+  async fetchOverseasFills(broker = this.activeBroker, days = null, force = false) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     // ⭐️ 35영업일(손절 기준일) 완전 커버를 위해 달력 60일(약 42~45영업일) 기본값 사용
     // VM 로컬 파일 영구저장소 연동으로 과거 일자는 0ms 즉시 반환되므로 타임아웃 없음
     const defaultDays = 60;
     const d = Number(days) || defaultDays;
-    const timeout = broker === "ls" ? 60000 : 35000;
-    const res = await this._dedupFetch(`fills_${broker}_${d}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}`, "GET", null, timeout));
+    const forceParam = force ? "&force=1" : "";
+    const timeout = broker === "ls" ? 60000 : 40000;
+    const res = await this._dedupFetch(`fills_${broker}_${d}_${force ? 1 : 0}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}${forceParam}`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
       this.showMaintenancePopup(broker, res.error);
     }
