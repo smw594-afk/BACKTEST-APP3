@@ -90,7 +90,7 @@
         throw new Error('BrokerService가 로드되지 않았습니다.');
       }
 
-      const vapidRes = await window.BrokerService.brokerFetch('/api/push/vapid-public-key', 'GET');
+      const vapidRes = await window.BrokerService.brokerFetch('/api/user/vapid-public-key', 'GET');
       if (!vapidRes || !vapidRes.publicKey) {
         throw new Error('VAPID 공개키를 VM에서 가져오지 못했습니다: ' + (vapidRes?.error || '알 수 없는 오류'));
       }
