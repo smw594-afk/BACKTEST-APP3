@@ -626,6 +626,23 @@ window.BrokerService = {
           </div>
         </div>
 
+        <!-- 브라우저 푸시 알림 (Web Push) ON/OFF 및 테스트 -->
+        <div id="broker-webpush-box" style="display:flex; align-items:center; justify-content:space-between;
+             background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:8px; margin-top:4px;">
+          <div>
+            <div style="font-size:13px; font-weight:700; color:#f8fafc;">🔔 브라우저 푸시 알림 (원장 대조 결과)</div>
+            <div id="broker-webpush-status" style="font-size:11px; color:#94a3b8; margin-top:2px;">상태 확인 중...</div>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button onclick="window.BrokerService.sendPushTestFromModal()" id="btnPushTest"
+              style="padding:4px 8px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid #3b82f6; background:#1e3a8a; color:#93c5fd;">테스트</button>
+            <button onclick="window.BrokerService.togglePushFromModal(true)" id="btnPushOn"
+              style="padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; border:1px solid #334155; background:#1e293b; color:#fff;">ON</button>
+            <button onclick="window.BrokerService.togglePushFromModal(false)" id="btnPushOff"
+              style="padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; border:1px solid #334155; background:#1e293b; color:#fff;">OFF</button>
+          </div>
+        </div>
+
         <!-- GCP 봇(자동주문) 정지 스위치 — 브로커별로 독립 -->
         <div id="broker-autoorder-box" style="display:flex; align-items:center; justify-content:space-between;
              background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:4px;">
@@ -660,6 +677,7 @@ window.BrokerService = {
     `;
     document.body.appendChild(modal);
     this.refreshBotStatusInModal(broker);
+    this.refreshPushStatusInModal();
   },
 
   // 모달의 봇 상태줄을 서버 값으로 채운다(등록 여부 + 자동주문 on/off).
@@ -709,6 +727,77 @@ window.BrokerService = {
       await this.refreshBotStatusInModal(broker);
     } catch (e) {
       if (el) el.textContent = "실패: " + e.message;
+    }
+  },
+
+  async refreshPushStatusInModal() {
+    const el = document.getElementById("broker-webpush-status");
+    const onBtn = document.getElementById("btnPushOn");
+    const offBtn = document.getElementById("btnPushOff");
+    if (!el) return;
+
+    if (!window.PushNotificationService || !window.PushNotificationService.isSupported) {
+      el.innerHTML = `<span style="color:#94a3b8;">이 브라우저는 웹 푸시를 지원하지 않습니다</span>`;
+      if (onBtn) onBtn.disabled = true;
+      if (offBtn) offBtn.disabled = true;
+      return;
+    }
+
+    const perm = window.PushNotificationService.getPermission();
+    if (perm === "denied") {
+      el.innerHTML = `<span style="color:#ef4444; font-weight:700;">알림 차단됨</span> (브라우저 설정에서 권한 해제 필요)`;
+      if (onBtn) { onBtn.style.border = "1px solid #334155"; onBtn.style.background = "#1e293b"; }
+      if (offBtn) { onBtn.style.border = "1px solid #ef4444"; offBtn.style.background = "#ef4444"; }
+      return;
+    }
+
+    try {
+      const isSub = await window.PushNotificationService.isSubscribed();
+      if (isSub) {
+        el.innerHTML = `<span style="color:#4ade80; font-weight:700;">켜짐 (수신 중)</span> · 발주 직후 원장 대조 푸시 수신`;
+        if (onBtn) { onBtn.style.border = "1px solid #10b981"; onBtn.style.background = "#10b981"; }
+        if (offBtn) { offBtn.style.border = "1px solid #334155"; offBtn.style.background = "#1e293b"; }
+      } else {
+        el.innerHTML = `<span style="color:#f87171; font-weight:700;">꺼짐</span> · 알림 받으려면 ON 클릭`;
+        if (onBtn) { onBtn.style.border = "1px solid #334155"; onBtn.style.background = "#1e293b"; }
+        if (offBtn) { offBtn.style.border = "1px solid #ef4444"; offBtn.style.background = "#ef4444"; }
+      }
+    } catch (e) {
+      el.textContent = "상태 확인 오류: " + e.message;
+    }
+  },
+
+  async togglePushFromModal(enable) {
+    const el = document.getElementById("broker-webpush-status");
+    if (el) el.textContent = enable ? "알림 등록 중..." : "알림 해제 중...";
+    try {
+      if (enable) {
+        await window.PushNotificationService.subscribe();
+      } else {
+        await window.PushNotificationService.unsubscribe();
+      }
+      await this.refreshPushStatusInModal();
+    } catch (e) {
+      alert("알림 설정 오류: " + e.message);
+      await this.refreshPushStatusInModal();
+    }
+  },
+
+  async sendPushTestFromModal() {
+    const btn = document.getElementById("btnPushTest");
+    if (btn) { btn.disabled = true; btn.textContent = "발송 중..."; }
+    try {
+      const isSub = await window.PushNotificationService.isSubscribed();
+      if (!isSub) {
+        alert("알림이 꺼져 있습니다. 먼저 ON 버튼을 눌러 알림을 허용해주세요.");
+        return;
+      }
+      await window.PushNotificationService.sendTestPush();
+      alert("테스트 알림이 발송되었습니다! 잠시 후 윈도우/스마트폰 알림 팝업을 확인하세요.");
+    } catch (e) {
+      alert("테스트 알림 실패: " + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "테스트"; }
     }
   },
 
