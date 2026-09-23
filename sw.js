@@ -17,11 +17,17 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  // ⭐️ 안드로이드 상단바/알림 카드에 앱 아이콘이 정상 표시되도록 절대 URL로 변환
+  const scopeUrl = self.registration.scope || self.location.origin;
+  const iconPath = data.icon || 'images/logo-square-192-v2.png';
+  const iconUrl = iconPath.startsWith('http') ? iconPath : new URL(iconPath, scopeUrl).href;
+
   const title = data.title || '[A-QUANT] 자동주문 알림';
   const options = {
     body: data.body || '',
-    icon: data.icon || './images/logo-square-192-v2.png',
-    badge: data.badge || './images/logo.png',
+    icon: iconUrl,
+    // ⚠️ 안드로이드는 badge에 불투명 사각 이미지를 넣으면 전체를 '하얀 네모'로 마스킹합니다.
+    // badge 속성을 제외하면 안드로이드 시스템이 앱 컬러 아이콘을 정상 표시합니다.
     vibrate: [200, 100, 200],
     data: {
       url: data.url || './index.html',
@@ -30,6 +36,10 @@ self.addEventListener('push', (event) => {
     requireInteraction: !!data.requireInteraction,
     tag: data.tag || 'a-quant-order-notification'
   };
+
+  if (data.badge && data.badge.includes('badge')) {
+    options.badge = data.badge.startsWith('http') ? data.badge : new URL(data.badge, scopeUrl).href;
+  }
 
   event.waitUntil(
     self.registration.showNotification(title, options)
