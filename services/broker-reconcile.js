@@ -276,33 +276,93 @@
     return await refreshPromise;
   }
 
+  // ─────────── 퉁치기(상계) 수량 산출 ───────────
+  /**
+   * 특정 브로커, 종목, 거래일에 대해 매도와 매수가 1:1 퉁치기(상계)된 수량을 산출한다.
+   * 당일 및 과거 거래일 공통: 동일 브로커 내 슬롯들의 매수합과 매도합의 상계 수량(Math.min) 반환.
+   */
+  function getNettedQtyForTickerDate(tickerCode, dateStr, broker) {
+    if (!tickerCode || !dateStr) return 0;
+    const sym = normSymbol(tickerCode);
+    const targetDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(dateStr) : dateStr;
+    if (!sym || !targetDate) return 0;
+
+    const targetBroker = broker || (window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom');
+    let appSellQty = 0;
+    let appBuyQty = 0;
+
+    const maxSlots = window.MAX_SLOTS || 12;
+    for (let s = 1; s <= maxSlots; s++) {
+      if (typeof window.isSlotActive === 'function' && !window.isSlotActive(s)) continue;
+      const sBroker = window.BrokerService ? window.BrokerService.brokerForSlot(s) : (s <= 6 ? 'kiwoom' : 'ls');
+      if (sBroker !== targetBroker) continue;
+
+      const sTicker = normSymbol(window.slotConfigs?.[s]?.basics?.ticker || '');
+      if (sTicker !== sym) continue;
+
+      const res = typeof window.getBestResult === 'function'
+        ? window.getBestResult(window.lastBTResults?.[s], s)
+        : window.lastBTResults?.[s];
+      if (!res) continue;
+
+      // 1) 매도 수량 합산: res.trades에서 청산일이 targetDate인 건
+      const trades = Array.isArray(res.trades) ? res.trades : [];
+      trades.forEach(t => {
+        const sDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(t.sellDate || t.sell_date || '') : (t.sellDate || '');
+        if (sDate === targetDate) {
+          appSellQty += Math.round(Number(t.qty || 0));
+        }
+      });
+
+      // 2) 매수 수량 합산: res.inv에서 진입일이 targetDate인 건
+      const inv = Array.isArray(res.inv) ? res.inv : [];
+      inv.forEach(h => {
+        const bDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(h.buyDate || h.buy_date || '') : (h.buyDate || '');
+        if (bDate === targetDate) {
+          appBuyQty += Math.round(Number(h.qty || 0));
+        }
+      });
+    }
+
+    if (appSellQty <= 0 || appBuyQty <= 0) return 0;
+    return Math.min(appSellQty, appBuyQty);
+  }
+  window.getNettedQtyForTickerDate = getNettedQtyForTickerDate;
+
   // ─────────── reconcile status ───────────
   // Compare rounded quantities only. Prices differ legitimately (limit vs fill),
   // so a price gap alone is surfaced in the tooltip, not as a mismatch.
-  function statusFor(map, broker, symbol, dateKey, appQty) {
+  function statusFor(map, broker, symbol, dateKey, appQty, nettedQty = 0) {
     if (!state.ready) return { status: state.failed ? "unknown" : "loading" };
     const sym = normSymbol(symbol);
     const date = normalizeDateKey(dateKey);
     if (!sym || !date) return { status: "unknown" };
     if (!state.coveredDates.has(`${broker}|${date}`)) return { status: "pending", appQty };
     const live = map.get(`${broker}|${sym}|${date}`);
-    if (!live || live.qty <= 0) return { status: "mismatch", appQty, liveQty: 0, livePrice: 0 };
-    const livePrice = live.cost / live.qty;
+    const rawLiveQty = live ? Math.round(live.qty || 0) : 0;
+    const effectiveLiveQty = rawLiveQty + Math.round(nettedQty || 0);
     const roundedAppQty = Math.round(Number(appQty) || 0);
-    const roundedLiveQty = Math.round(live.qty);
-    const matched = roundedAppQty === roundedLiveQty || roundedLiveQty >= roundedAppQty;
-    return { status: matched ? "match" : "mismatch", appQty, liveQty: live.qty, livePrice };
+    if (effectiveLiveQty <= 0) return { status: "mismatch", appQty, liveQty: 0, livePrice: 0 };
+    const livePrice = (live && live.qty > 0) ? (live.cost / live.qty) : 0;
+    const matched = roundedAppQty === effectiveLiveQty || effectiveLiveQty >= roundedAppQty;
+    return { status: matched ? "match" : "mismatch", appQty, liveQty: effectiveLiveQty, livePrice, nettedQty };
   }
 
   // broker는 필수가 아니라 편의상 기본값을 둔다 — 실제로는 항상 brokerForSlot(slotNum)으로
   // 넘겨받아야 한다(안 넘기면 슬롯 4~6=LS 데이터를 잘못 키움 쪽에서 찾게 된다).
-  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom", appSellQty = 0) => {
+  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom", appSellQty = 0, nettedQty = null) => {
     // ⚠️ 당일 매도가 있으면 순 수량(매수 - 매도)으로 비교한다.
     // 예: 8/3 15주 매수, 2주 매도 → 순 수량 13주와 키움 체결 비교
     const netAppQty = Math.max(0, Math.round(Number(appQty) || 0) - Math.round(Number(appSellQty) || 0));
-    return statusFor(state.buy, broker, symbol, buyDate, netAppQty);
+    const effectiveNetted = (nettedQty !== null && nettedQty !== undefined)
+      ? Number(nettedQty)
+      : getNettedQtyForTickerDate(symbol, buyDate, broker);
+    return statusFor(state.buy, broker, symbol, buyDate, netAppQty, effectiveNetted);
   };
-  const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => statusFor(state.sell, broker, symbol, sellDate, appQty);
+  const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => {
+    const effectiveNetted = getNettedQtyForTickerDate(symbol, sellDate, broker);
+    return statusFor(state.sell, broker, symbol, sellDate, appQty, effectiveNetted);
+  };
 
   function badge(st) {
     const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
@@ -322,7 +382,12 @@
       return `title="브로커 체결과 불일치 — 앱: ${Math.round(st.appQty || 0)}주 / 브로커: ${Math.round(st.liveQty || 0)}주 @ $${Number(st.livePrice || 0).toFixed(2)}"`;
     }
     if (st.status === "pending" || st.status === "loading") return 'title="브로커 체결 대조 대기 — 조회 범위에 해당 일자가 없습니다"';
-    if (st.status === "match") return 'title="브로커 체결과 일치"';
+    if (st.status === "match") {
+      if (st.nettedQty > 0) {
+        return `title="브로커 체결(퉁치기 상계 ${Math.round(st.nettedQty)}주 포함)과 일치"`;
+      }
+      return 'title="브로커 체결과 일치"';
+    }
     return 'title="브로커 체결내역 미확인"';
   }
 
@@ -550,7 +615,7 @@
     normalizeMarketDate, normalizeDateKey, normSymbol, brokerForSlot,
     getFills, getBalance, getCachedBalance, invalidate, invalidateBroker, refreshFills,
     state,
-    holdingStatus, sellStatus, badge, badgeTitle, cellHtml, escapeHtml,
+    holdingStatus, sellStatus, getNettedQtyForTickerDate, badge, badgeTitle, cellHtml, escapeHtml,
     openAccountInfoModal, refreshAccountInfo, renderBrokerAccountTable,
     isReady: () => state.ready
   };

@@ -191,7 +191,10 @@ function renderCombinedHoldings() {
         }
       });
       
-      const st = window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay);
+      const nettedQty = typeof window.getNettedQtyForTickerDate === 'function'
+        ? window.getNettedQtyForTickerDate(symbol, buyDate, broker)
+        : 0;
+      const st = window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay, nettedQty);
       reconcileCell = window.BrokerReconcile.cellHtml(st, isPrimaryDate);
     }
 
@@ -381,10 +384,12 @@ function updateCombinedHoldingsSummary() {
     if (sortedDates.length > 0) summaryBaseDate = sortedDates[sortedDates.length - 1];
   }
 
-  // 해당 날짜의 매수 수량과 전체 수량 계산
-  const matchedHoldings = summaryBaseDate ? allHoldings.filter(h => {
-    const hDate = String(h.buyDate || h.buy_date || '');
-    return hDate === summaryBaseDate;
+  // 해당 날짜의 매수 수량과 전체 수량 계산 (날짜 정규화 비교로 2자리/4자리 연도 불일치 해결)
+  const normSummaryDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(summaryBaseDate) : summaryBaseDate;
+  const matchedHoldings = normSummaryDate ? allHoldings.filter(h => {
+    const rawHDate = String(h.buyDate || h.buy_date || '');
+    const normHDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(rawHDate) : rawHDate;
+    return normHDate === normSummaryDate;
   }) : [];
 
   const buyQty = matchedHoldings.reduce((sum, h) => sum + (parseFloat(h.qty) || 0), 0);

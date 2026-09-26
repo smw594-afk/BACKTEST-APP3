@@ -459,8 +459,17 @@ function renderDBTradeHistory() {
         return;
       }
 
+      // 매도 날짜에 신규 매수와 상계(퉁치기)된 수량을 합산 (당일 및 과거 거래일 공통)
+      const totalNetted = typeof window.getNettedQtyForTickerDate === 'function'
+        ? window.getNettedQtyForTickerDate(ticker, normalizedSellDate, broker)
+        : 0;
+
       const live = reconcileState.sell.get(`${broker}|${ticker}|${normalizedSellDate}`);
-      if (!live) {
+      const rawLiveQty = live ? Math.round(live.qty) : 0;
+      const liveTotal = rawLiveQty + totalNetted;
+      const appTotal = rows.reduce((sum, r) => sum + Math.round(r.qty), 0);
+
+      if (liveTotal <= 0) {
         rows.forEach(r => {
           const rowKey = `${groupKey}|${r.buyDate}`;
           sellStatusByRowKey.set(rowKey, { status: 'mismatch', mismatchQty: r.qty });
@@ -470,15 +479,13 @@ function renderDBTradeHistory() {
 
       // 진입일 역순으로 정렬하여 최신부터 매도 수량 차감
       rows.sort((a, b) => b.buyDate.localeCompare(a.buyDate));
-      const liveTotal = Math.round(live.qty);
-      const appTotal = rows.reduce((sum, r) => sum + Math.round(r.qty), 0);
       let remainingLiveQty = liveTotal;
 
       rows.forEach(r => {
         const rowKey = `${groupKey}|${r.buyDate}`;
         const rowQty = Math.round(r.qty);
         if (remainingLiveQty >= rowQty) {
-          sellStatusByRowKey.set(rowKey, { status: 'match', mismatchQty: 0 });
+          sellStatusByRowKey.set(rowKey, { status: 'match', mismatchQty: 0, isNetted: totalNetted > 0, nettedQty: totalNetted });
           remainingLiveQty -= rowQty;
         } else if (remainingLiveQty > 0) {
           sellStatusByRowKey.set(rowKey, { status: 'mismatch', mismatchQty: rowQty - remainingLiveQty });
@@ -638,7 +645,7 @@ function renderDBTradeHistory() {
       }
       const reconcileTitle = isMismatch ? mmTitle
         : (rowStatus === 'pending' || rowStatus === 'loading' || rowStatus === 'unknown' ? `title="${rowBrokerLabel} 체결 대조 대기 — 최근 체결내역에 없음"`
-          : (rowStatus === 'match' ? `title="${rowBrokerLabel} 체결과 일치"` : `title="${rowBrokerLabel} 체결내역 확인 중"`));
+          : (rowStatus === 'match' ? `title="${rowBrokerLabel} 체결${rowStatusObj.isNetted ? `(퉁치기 상계 ${rowStatusObj.nettedQty}주 포함)` : ''}과 일치"` : `title="${rowBrokerLabel} 체결내역 확인 중"`));
 
       const mode = modeMap[t.mode] || t.mode || "-";
       const tier = t.tier || "-";
