@@ -156,25 +156,21 @@ function refreshStatsTable() {
 
   // ══════════════════════════════════════════════════════
   // 📄 내역 모드 (perf-metrics-layout)
-  //   상태: statsDisplayMode ('chart' | 'table')
-  //   화면: 💼 자산현황(파이차트) ↔ 📡 계좌 정보(해외계좌 실잔고)
-  //   ※ 실시간 운영현황 절대 없음
+  //   화면: 💼 자산현황(파이차트 고정)
+  //   ※ 계좌 정보는 홈화면 중단으로 분리 이동됨
   // ══════════════════════════════════════════════════════
   if ((grid && grid.classList.contains('perf-metrics-layout')) || window.isStatsMode) {
-    if (statsTitle) statsTitle.innerHTML = statsDisplayMode === 'chart' ? '💼 자산현황' : (`📡 계좌 정보` + (window.lastAccountNo ? ` (${window.lastAccountNo})` : ''));
-    if (statsDisplayMode === 'chart') {
-      if (tableContainer) tableContainer.style.display = 'none';
-      if (chartContainer) chartContainer.style.display = 'flex';
-      if (selector) selector.style.display = 'block';
-      if (actionArea) actionArea.style.display = 'none';
-      updateStatsPieChart();
-    } else {
-      if (tableContainer) tableContainer.style.display = 'block';
-      if (chartContainer) chartContainer.style.display = 'none';
-      if (selector) selector.style.display = 'none';
-      if (actionArea) actionArea.style.display = 'flex';
-      if (table) renderKiwoomBalanceOnStatsTable(table);
+    statsDisplayMode = 'chart';
+    if (statsTitle) {
+      statsTitle.innerHTML = '💼 자산현황';
+      statsTitle.style.cursor = 'default';
+      statsTitle.title = '자산현황';
     }
+    if (tableContainer) tableContainer.style.display = 'none';
+    if (chartContainer) chartContainer.style.display = 'flex';
+    if (selector) selector.style.display = 'block';
+    if (actionArea) actionArea.style.display = 'none';
+    updateStatsPieChart();
     return;
   }
 
@@ -765,10 +761,15 @@ function updateStatsTitleAccountNo(result) {
   if (acctNo) {
     window.lastAccountNo = acctNo;
   }
-  const statsTitle = document.getElementById('statsTitle');
   const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : "";
+  const statsTitle = document.getElementById('statsTitle');
   if (statsTitle && statsDisplayMode === 'table') {
     statsTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+  }
+  const periodTitle = document.getElementById('periodTitle');
+  const grid = document.getElementById('mainGrid');
+  if (periodTitle && !grid?.classList.contains('perf-tab-layout')) {
+    periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
   }
 }
 
@@ -818,16 +819,218 @@ function buildBalanceHtml(result, broker) {
   const totalAsset = cashAsset + evalAmt;
   const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // ⭐️ 실시간 운영현황 통합 합산 데이터 (원금, 일수익, 월수익, 년수익, 총수익)
+  if ((!globalCombinedDailyData || globalCombinedDailyData.length === 0) && typeof calculateCombinedPeriodData === 'function') {
+    try { calculateCombinedPeriodData(); } catch (e) { }
+  }
+
+  let comb = null;
+  try {
+    if (typeof calculateCombinedSummary === 'function') {
+      comb = calculateCombinedSummary();
+    }
+  } catch (e) { }
+  if (!comb && window.cachedCombinedStats) {
+    comb = window.cachedCombinedStats;
+  }
+
+  const principal = comb ? Number(comb.realPrincipal !== undefined ? comb.realPrincipal : (comb.base || comb.base_principal || 0)) : 0;
+  const hasComb = !!comb;
+  const totalProfit = hasComb ? Number(comb.totalProfit !== undefined ? comb.totalProfit : ((comb.totalAssets || 0) - principal)) : 0;
+  const totalYield = hasComb ? Number(comb.yield !== undefined ? comb.yield : (principal > 0 ? totalProfit / principal : 0)) : 0;
+
+  const getLatestCombinedPeriodRow = (kind) => {
+    let rows = [];
+    if (kind === 'year') {
+      rows = (typeof globalCombinedYearlyData !== 'undefined' && Array.isArray(globalCombinedYearlyData) && globalCombinedYearlyData.length > 0)
+        ? globalCombinedYearlyData : (window.globalCombinedYearlyData || []);
+    } else if (kind === 'month') {
+      rows = (typeof globalCombinedMonthlyData !== 'undefined' && Array.isArray(globalCombinedMonthlyData) && globalCombinedMonthlyData.length > 0)
+        ? globalCombinedMonthlyData : (window.globalCombinedMonthlyData || []);
+    } else {
+      rows = (typeof globalCombinedDailyData !== 'undefined' && Array.isArray(globalCombinedDailyData) && globalCombinedDailyData.length > 0)
+        ? globalCombinedDailyData : (window.globalCombinedDailyData || []);
+    }
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return [...rows].filter(r => r && r.period).sort((a, b) => String(b.period).localeCompare(String(a.period)))[0] || null;
+  };
+
+  const dayRow = getLatestCombinedPeriodRow('day');
+  const monthRow = getLatestCombinedPeriodRow('month');
+  const yearRow = getLatestCombinedPeriodRow('year');
+
+  const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
+  const plusColor = isLight ? '#1d4ed8' : '#10b981';
+  const minusColor = isLight ? '#b91c1c' : '#f43f5e';
+
+  const formatProfitWithRate = (profit, rate, hasData) => {
+    if (!hasData || profit === undefined || profit === null) return '<span style="color:var(--text-muted, #94a3b8);">-</span>';
+    const numProfit = Number(profit || 0);
+    const numRate = Number(rate || 0);
+    const color = numProfit > 0 ? plusColor : (numProfit < 0 ? minusColor : 'var(--text, #fff)');
+    const sign = numProfit < 0 ? '-' : (numProfit > 0 ? '+' : '');
+    const pctSign = numRate > 0 ? '+' : '';
+    const pctStr = (numRate * 100).toFixed(1) + '%';
+    const fullText = `${sign}${usd(Math.abs(numProfit))} (${pctSign}${pctStr})`;
+    return `<strong style="color:${color};" title="${fullText}">${sign}${usd(Math.abs(numProfit))}<span class="summary-rate-pct" style="font-size:9.5px; opacity:0.9;">&nbsp;(${pctSign}${pctStr})</span></strong>`;
+  };
+
+  const roundedPrincipal = Math.round(principal);
+  const principalHtml = (hasComb && roundedPrincipal > 0)
+    ? `<strong style="color:var(--text, #fff);">$${roundedPrincipal.toLocaleString()}</strong>`
+    : (hasComb ? `<strong style="color:var(--text, #fff);">$0</strong>` : '<span style="color:var(--text-muted, #94a3b8);">-</span>');
+
+  const cashLabel = broker === "ls" ? "예수금(RP)" : "예수금";
+  const cashValHtml = `<strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong>`;
+  const buyingPowerHtml = `<strong style="color:var(--text, #fff);">${usd(buyingPower)}</strong>`;
+  const evalAmtHtml = `<strong style="color:var(--text, #fff);">${usd(evalAmt)}</strong>`;
+  const evalProfitHtml = `<strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong>`;
+  const totalAssetHtml = `<strong style="color:#fbbf24;">${usd(totalAsset)}</strong>`;
+
+  const dayProfitHtml = formatProfitWithRate(dayRow?.profit, dayRow?.rate, !!dayRow);
+  const monthProfitHtml = formatProfitWithRate(monthRow?.profit, monthRow?.rate, !!monthRow);
+  const yearProfitHtml = formatProfitWithRate(yearRow?.profit, yearRow?.rate, !!yearRow);
+  const totalProfitHtml = formatProfitWithRate(totalProfit, totalYield, hasComb);
+
   let html = '<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%;">';
 
-  // 앱1 가로 요약 바 그대로 적용 ($ 달러)
+  // 앱1 가로 요약 바 (넓을 때: 가로 5분할 2줄 / 좁을 때: 4열 그리드 5행)
   html += `
-    <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px;">
-      <div>${(broker === "ls" ? "RP+정산 예수금" : "정산 예수금")}: <strong style="color:var(--text, #fff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</strong></div>
-      <div>주문 가능금액: <strong style="color:var(--text, #fff);">${usd(buyingPower)}</strong></div>
-      <div>평가금액: <strong style="color:var(--text, #fff);">${usd(evalAmt)}</strong></div>
-      <div>평가손익: <strong style="color:${evalProfit >= 0 ? '#10b981' : '#f43f5e'};">${evalProfit < 0 ? '-' : ''}${usd(Math.abs(evalProfit))}</strong></div>
-      <div>총 자산: <strong style="color:#fbbf24;">${usd(totalAsset)}</strong></div>
+    <style>
+      .stats-balance-summary-card { container-type: inline-size; }
+      .summary-5col-view { display: grid; grid-template-columns: repeat(5, max-content); justify-content: space-between; column-gap: 8px; width: 100%; }
+      .summary-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .summary-cell { display: flex; flex-direction: row; align-items: center; gap: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .summary-cell-bottom { border-top: 1px dashed var(--border, rgba(255, 255, 255, 0.08)); padding-top: 4px; }
+      .summary-lbl { font-size: 10px; color: var(--text-muted, #94a3b8); }
+      .summary-val { font-size: 10.5px; }
+      .summary-narrow-view { display: none; width: 100%; }
+      @container (max-width: 620px) {
+        .summary-5col-view { display: none !important; }
+        .summary-narrow-view {
+          display: grid !important;
+          grid-template-columns: auto 1fr auto 1fr;
+          align-items: center;
+          row-gap: 3.5px;
+          column-gap: 6px;
+        }
+      }
+      @media (max-width: 620px) {
+        .summary-5col-view { display: none !important; }
+        .summary-narrow-view {
+          display: grid !important;
+          grid-template-columns: auto 1fr auto 1fr;
+          align-items: center;
+          row-gap: 3.5px;
+          column-gap: 6px;
+        }
+      }
+      /* 5열 뷰: 중간 화면/충분치 않은 폭(<= 1024px)에서 글자 잘림 방지를 위해 수익률 () 숨김 */
+      @container (max-width: 1024px) {
+        .summary-5col-view .summary-rate-pct { display: none !important; }
+      }
+      @media (max-width: 1024px) {
+        .summary-5col-view .summary-rate-pct { display: none !important; }
+      }
+      /* 4열 그리드 뷰 (<= 620px): 초소형 화면(<= 420px)에서 공간 절약을 위해 수익률 () 숨김 */
+      @container (max-width: 420px) {
+        .summary-narrow-view .summary-rate-pct { display: none !important; }
+      }
+      @media (max-width: 420px) {
+        .summary-narrow-view .summary-rate-pct { display: none !important; }
+      }
+    </style>
+    <div class="stats-balance-summary-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; margin-bottom:6px; font-size:10.5px;">
+      <!-- 1) 넓은 화면용: 5개 열 상하 정렬 (가로 1줄 인라인) -->
+      <div class="summary-5col-view">
+        <!-- 1열: 예수금(RP) & 원금 -->
+        <div class="summary-col">
+          <div class="summary-cell">
+            <span class="summary-lbl">${cashLabel}:</span>
+            <span class="summary-val">${cashValHtml}</span>
+          </div>
+          <div class="summary-cell summary-cell-bottom">
+            <span class="summary-lbl">원금:</span>
+            <span class="summary-val">${principalHtml}</span>
+          </div>
+        </div>
+
+        <!-- 2열: 주문 가능금액 & 일수익 -->
+        <div class="summary-col">
+          <div class="summary-cell">
+            <span class="summary-lbl">주문 가능금액:</span>
+            <span class="summary-val">${buyingPowerHtml}</span>
+          </div>
+          <div class="summary-cell summary-cell-bottom">
+            <span class="summary-lbl">일수익:</span>
+            <span class="summary-val">${dayProfitHtml}</span>
+          </div>
+        </div>
+
+        <!-- 3열: 평가금액 & 월수익 -->
+        <div class="summary-col">
+          <div class="summary-cell">
+            <span class="summary-lbl">평가금액:</span>
+            <span class="summary-val">${evalAmtHtml}</span>
+          </div>
+          <div class="summary-cell summary-cell-bottom">
+            <span class="summary-lbl">월수익:</span>
+            <span class="summary-val">${monthProfitHtml}</span>
+          </div>
+        </div>
+
+        <!-- 4열: 평가손익 & 년수익 -->
+        <div class="summary-col">
+          <div class="summary-cell">
+            <span class="summary-lbl">평가손익:</span>
+            <span class="summary-val">${evalProfitHtml}</span>
+          </div>
+          <div class="summary-cell summary-cell-bottom">
+            <span class="summary-lbl">년수익:</span>
+            <span class="summary-val">${yearProfitHtml}</span>
+          </div>
+        </div>
+
+        <!-- 5열: 총 자산 & 총수익 (좌측 정렬) -->
+        <div class="summary-col">
+          <div class="summary-cell">
+            <span class="summary-lbl">총 자산:</span>
+            <span class="summary-val">${totalAssetHtml}</span>
+          </div>
+          <div class="summary-cell summary-cell-bottom">
+            <span class="summary-lbl">총수익:</span>
+            <span class="summary-val">${totalProfitHtml}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2) 좁은 화면용: 4열 그리드 (1열 항목, 2열 값 | 3열 신규항목, 4열 신규값) -->
+      <div class="summary-narrow-view">
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left;">${cashLabel}</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right; padding-right:8px; border-right:1px dashed var(--border, rgba(255,255,255,0.08));">${cashValHtml}</div>
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left; padding-left:8px;">원금</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right;">${principalHtml}</div>
+
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left;">주문 가능금액</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right; padding-right:8px; border-right:1px dashed var(--border, rgba(255,255,255,0.08));">${buyingPowerHtml}</div>
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left; padding-left:8px;">일수익</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right;">${dayProfitHtml}</div>
+
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left;">평가금액</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right; padding-right:8px; border-right:1px dashed var(--border, rgba(255,255,255,0.08));">${evalAmtHtml}</div>
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left; padding-left:8px;">월수익</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right;">${monthProfitHtml}</div>
+
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left;">평가손익</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right; padding-right:8px; border-right:1px dashed var(--border, rgba(255,255,255,0.08));">${evalProfitHtml}</div>
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left; padding-left:8px;">년수익</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right;">${yearProfitHtml}</div>
+
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left;">총 자산</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right; padding-right:8px; border-right:1px dashed var(--border, rgba(255,255,255,0.08));">${totalAssetHtml}</div>
+        <div style="font-size:10px; color:var(--text-muted, #94a3b8); white-space:nowrap; text-align:left; padding-left:8px;">총수익</div>
+        <div style="font-size:10.5px; font-weight:700; white-space:nowrap; text-align:right;">${totalProfitHtml}</div>
+      </div>
     </div>
   `;
 
@@ -890,6 +1093,7 @@ function buildBalanceHtml(result, broker) {
 }
 
 async function renderKiwoomBalanceOnStatsTable(table) {
+  if (!table) table = document.getElementById('homeAccountTable') || document.getElementById('statsTable');
   if (!table) return;
   const broker = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
   const brokerLabel = broker === "ls" ? "LS" : "키움";
@@ -908,6 +1112,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     table.innerHTML = `<div style="padding:20px; color:#64748b; text-align:center; font-size:11px;">${brokerLabel} 증권사 실전 잔고 정보를 조회 중...</div>`;
   }
 
+  const fetchStartTime = Date.now();
   try {
     let result = null;
     if (window.BrokerReconcile && window.BrokerReconcile.getBalance) {
@@ -947,10 +1152,18 @@ async function renderKiwoomBalanceOnStatsTable(table) {
       return;
     }
 
+    const fetchDuration = Date.now() - fetchStartTime;
     table.innerHTML = buildBalanceHtml(result, broker);
     if (!table.dataset) table.dataset = {};
     table.dataset.broker = broker;
     updateStatsTitleAccountNo(result);
+
+    // ⭐️ 증권사 최신 계좌 로딩 완료 시 부드러운 전환 ("스르륵" 페이드인 효과)
+    if (fetchDuration > 50 || !alreadyRenderedSameBroker) {
+      table.classList.remove('account-smooth-fade');
+      void table.offsetWidth; // DOM reflow 강제하여 애니메이션 재시작
+      table.classList.add('account-smooth-fade');
+    }
   } catch (e) {
     console.error(`${brokerLabel} 잔고 로드 실패:`, e);
     const isMaint = window.BrokerService && typeof window.BrokerService.isMaintenanceError === 'function' && window.BrokerService.isMaintenanceError(e.message);
@@ -985,9 +1198,19 @@ window.UI.stats.getDisplayStatusData = getDisplayStatusData;
 window.UI.stats.renderKiwoomBalanceOnStatsTable = renderKiwoomBalanceOnStatsTable;
 window.UI.stats.getKiwoomBalanceCached = getKiwoomBalanceCached;
 
+function renderHomeAccountTable() {
+  const homeTable = document.getElementById('homeAccountTable');
+  if (homeTable) {
+    renderKiwoomBalanceOnStatsTable(homeTable);
+  }
+}
+window.renderHomeAccountTable = renderHomeAccountTable;
+if (!window.UI.stats) window.UI.stats = {};
+window.UI.stats.renderHomeAccountTable = renderHomeAccountTable;
+
 function toggleStatsView() {
-  // 내역모드 전용 토글 (절대 perfStatsMode 건드리지 않음)
-  statsDisplayMode = statsDisplayMode === 'chart' ? 'table' : 'chart';
+  // 내역모드 상단: [💼 자산현황] 도넛 차트 및 범례 항상 고정
+  statsDisplayMode = 'chart';
   refreshStatsTable();
 }
 function togglePerfView() {
@@ -1002,8 +1225,8 @@ window.togglePerfView = togglePerfView;
 function onStatsTitleClick() {
   const grid = document.getElementById('mainGrid');
   if ((grid && grid.classList.contains('perf-metrics-layout')) || window.isStatsMode) {
-    // 내역모드: 💼 자산현황 ↔ 📡 계좌 정보
-    statsDisplayMode = statsDisplayMode === 'chart' ? 'table' : 'chart';
+    // ⭐️ 사용자 요구사항: 내역 모드 상단에는 [💼 자산현황] 도넛 차트 및 범례를 항상 고정으로 표시하고 제목 클릭 토글은 비활성화
+    return;
   } else {
     // 성과모드/백테스트뷰/일반뷰: 📄 성과 지표 ↔ 📡 실시간 운영현황 토글
     perfStatsMode = perfStatsMode === 'stats' ? 'realtime' : 'stats';
@@ -1011,3 +1234,15 @@ function onStatsTitleClick() {
   refreshStatsTable();
 }
 window.onStatsTitleClick = onStatsTitleClick;
+
+// ⭐️ 스크립트 로드 시점 홈 화면 계좌 정보 즉시 자동 렌더링
+try {
+  if (typeof document !== 'undefined') {
+    const homeTable = document.getElementById('homeAccountTable');
+    if (homeTable && !window.isStatsMode) {
+      renderKiwoomBalanceOnStatsTable(homeTable);
+    }
+  }
+} catch (e) {
+  console.warn("homeAccountTable 초기 렌더링 시도:", e);
+}

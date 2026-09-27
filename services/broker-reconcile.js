@@ -30,7 +30,25 @@
   function getCachedBalance(broker) {
     const target = broker || (window.BrokerService ? window.BrokerService.activeBroker : "kiwoom");
     const c = balanceCache[target];
-    return c && c.data ? c.data : null;
+    if (c && c.data) return c.data;
+    // 📸 [스냅샷 캐시]: 메모리 캐시가 없더라도 로컬 스토리지에 저장된 마지막 계좌 스냅샷 즉시 반환
+    try {
+      const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+        ? window.BrokerService.getUserId()
+        : (localStorage.getItem("vtotal3_id") || "smw594");
+      const snapKey = `vtotal3_balance_snap_${target}_${uid}`;
+      const snapStr = localStorage.getItem(snapKey);
+      if (snapStr) {
+        const snap = JSON.parse(snapStr);
+        if (snap && snap.success !== false) {
+          balanceCache[target] = { at: 0, data: snap }; // 메모리 캐시에도 적재
+          return snap;
+        }
+      }
+    } catch (e) {
+      console.warn("[BrokerReconcile] getCachedBalance snapshot load error:", e);
+    }
+    return null;
   }
 
   // ─────────── date helpers (US market date, not KST calendar date) ───────────
@@ -134,6 +152,16 @@
     }
     if (data && data.success !== false) {
       balanceCache[broker] = { at: Date.now(), data };
+      // 📸 [스냅샷 영구 저장]: 로딩 전 선표시를 위해 로컬 스토리지에 마지막 정상 계좌 데이터 영구 보관
+      try {
+        const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+          ? window.BrokerService.getUserId()
+          : (localStorage.getItem("vtotal3_id") || "smw594");
+        const snapKey = `vtotal3_balance_snap_${broker}_${uid}`;
+        localStorage.setItem(snapKey, JSON.stringify(data));
+      } catch (e) {
+        console.warn("[BrokerReconcile] balance snapshot save error:", e);
+      }
     }
     return data;
   }

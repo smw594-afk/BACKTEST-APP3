@@ -374,6 +374,7 @@ function togglePeriodView() {
   const grid = document.getElementById('mainGrid');
   const isPerfTabLayout = grid && grid.classList.contains('perf-tab-layout');
   if (isPerfTabLayout) return; // 성과 탭 레이아웃에서는 타이틀 클릭 동작을 막음
+  if (window.isOrderView || !window.isStatsMode) return; // ⭐️ 홈 화면 중단은 계좌 정보이므로 토글하지 않음
 
   // 토글 순서: 년별(1) -> 월별(0) -> 일별(2) -> 년별(1)
   const nextPeriodStateMap = { 1: 0, 0: 2, 2: 1 };
@@ -500,6 +501,10 @@ function refreshAllUI() {
   if (isStatsMode) {
     window.UI.tradeHistory.renderDBTradeHistory();
     window.UI.misc?.updateHistorySummary?.();
+  } else if (!grid?.classList.contains('perf-tab-layout')) {
+    if (typeof window.renderHomeAccountTable === 'function') {
+      window.renderHomeAccountTable();
+    }
   }
 }
 

@@ -50,6 +50,11 @@ function calculateCombinedPeriodData() {
   if (myUserId) {
     localStorage.setItem(`vtotal3_snap_combined_${myUserId}`, JSON.stringify({ m: globalCombinedMonthlyData, y: globalCombinedYearlyData, d: globalCombinedDailyData }));
   }
+
+  // ⭐️ 통합 합산 기간 데이터 갱신 시 홈화면 계좌 정보 요약 바(2번째 줄)도 즉시 최신화
+  if (typeof window.renderHomeAccountTable === 'function') {
+    window.renderHomeAccountTable();
+  }
 }
 
 function renderPeriodTableTextRaw(slotNum, viewStateOverride, suffix = "") {

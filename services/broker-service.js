@@ -186,6 +186,9 @@ window.BrokerService = {
       if (typeof window.updateStatsPieChart === "function") {
         window.updateStatsPieChart();
       }
+      if (typeof window.renderHomeAccountTable === "function") {
+        window.renderHomeAccountTable();
+      }
       // 성과추이(Period Table / Bar Chart / Line Chart) 활성 브로커 기준으로 즉시 재계산 및 렌더링
       window.__forcePerfRender = true;
       if (window.barChartSignatures) window.barChartSignatures = {};
@@ -388,7 +391,7 @@ window.BrokerService = {
   },
 
   isSlotForBroker(slot, broker = this.activeBroker) {
-    if (window.isManualBacktestMode || window.isViewingHistory) return true;
+    if (window.isManualBacktestMode) return true;
     const slotNum = Number(slot);
     const max = window.MAX_SLOTS || 12;
     if (!(slotNum >= 1 && slotNum <= max)) return false;

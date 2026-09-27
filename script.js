@@ -573,8 +573,10 @@ function preparePerfLayout() {
   if (periodChartTitle) periodChartTitle.innerHTML = '📅 월별 자산 증감';
   if (periodDailyTitle) periodDailyTitle.innerHTML = '📅 일별 자산 증감';
 
-  // 홈화면용 토글 버튼은 숨김
+  // 홈화면용 토글 버튼 및 계좌정보 컨테이너 숨김
   if (btnPeriodMode) btnPeriodMode.style.display = 'none';
+  const homeAcctC = document.getElementById('homeAccountContainer');
+  if (homeAcctC) homeAcctC.style.display = 'none';
 
   // 성과 탭용 토글 버튼들 표시
   if (btnPeriodModeYearly) btnPeriodModeYearly.style.display = 'flex';
@@ -663,7 +665,7 @@ function restoreFromPerfLayout() {
   const btnPeriodModeDaily = document.getElementById('btnPeriodModeDaily');
   const currencyBtns = document.querySelectorAll('.btn-currency-toggle');
 
-  if (btnPeriodMode) btnPeriodMode.style.display = 'flex';
+  if (btnPeriodMode) btnPeriodMode.style.display = 'none';
   if (btnPeriodModeYearly) btnPeriodModeYearly.style.display = 'none';
   if (btnPeriodModeMonthly) btnPeriodModeMonthly.style.display = 'none';
   if (btnPeriodModeDaily) btnPeriodModeDaily.style.display = 'none';
@@ -674,6 +676,11 @@ function restoreFromPerfLayout() {
   if (perfMonthlyTableC) perfMonthlyTableC.style.display = 'none';
   if (perfDailyC) perfDailyC.style.display = 'none';
   if (perfDailyTableC) perfDailyTableC.style.display = 'none';
+
+  if (chartC) chartC.style.display = 'none';
+  if (tableC) tableC.style.display = 'none';
+  const homeAcctContainer = document.getElementById('homeAccountContainer');
+  if (homeAcctContainer && window.isOrderView) homeAcctContainer.style.display = 'block';
 
   if (perfMonthlyChartCard) perfMonthlyChartCard.classList.add('hidden');
   if (perfDailyChartCard) perfDailyChartCard.classList.add('hidden');
@@ -1850,8 +1857,18 @@ function updatePeriodTitle() {
   }
 
   const periodTitle = document.getElementById('periodTitle');
-  const periodChartTitle = document.getElementById('periodChartTitle');
   if (!periodTitle) return;
+
+  // ⭐️ 홈 화면(!window.isStatsMode)에서는 중단 섹션이 '📡 계좌 정보'
+  if (!window.isStatsMode) {
+    const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
+    periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+    periodTitle.style.cursor = 'default';
+    periodTitle.title = '계좌 정보';
+    return;
+  }
+
+  const periodChartTitle = document.getElementById('periodChartTitle');
   const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
   
   let titleText = "";
@@ -1875,6 +1892,21 @@ function initPeriodDisplayModeUI() {
   const chartC = document.getElementById('periodChartContainer');
   const tableC = document.getElementById('periodTableContainer');
   const ico = document.getElementById('icoPeriodMode');
+  const btnPeriodMode = document.getElementById('btnPeriodMode');
+
+  // ⭐️ 홈 화면에서는 기존 차트/테이블 숨기고 계좌정보 컨테이너 유지 및 모드 버튼 숨김
+  if (window.isOrderView || (!window.isStatsMode && !document.getElementById('mainGrid')?.classList.contains('perf-tab-layout'))) {
+    if (chartC) chartC.style.display = 'none';
+    if (tableC) tableC.style.display = 'none';
+    const homeAcctContainer = document.getElementById('homeAccountContainer');
+    if (homeAcctContainer) homeAcctContainer.style.display = 'block';
+    if (btnPeriodMode) btnPeriodMode.style.display = 'none';
+    if (typeof window.renderHomeAccountTable === 'function') {
+      window.renderHomeAccountTable();
+    }
+    return;
+  }
+
   if (periodDisplayMode === 'chart') {
     if (chartC) chartC.style.display = 'block';
     if (tableC) tableC.style.display = 'none';
@@ -2266,7 +2298,7 @@ window.updateStatsPieChart = function() {
 
   const activeOptions = [{ value: 'combined', text: '통합' }];
   for (let i = 1; i <= MAX_SLOTS; i++) {
-    if (isSlotActive(i)) {
+    if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       activeOptions.push({ value: String(i), text: getSlotConfig(i)?.basics?.strategy || `투자법 ${i}` });
     }
   }
@@ -2307,7 +2339,7 @@ window.updateStatsPieChart = function() {
     chartColors.push('#7c3aed'); // 합산 원금 색상
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) {
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const strategyName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
         const slotRes = getBestResult(lastBTResults[i], i);
         const slotData = window.UI.stats.getDisplayStatusData(slotRes, i);
@@ -2410,7 +2442,7 @@ window.updateStatsPieChart = function() {
   let legendRows = [];
   if (targetValue === 'combined') {
     for (let i = 1; i <= MAX_SLOTS; i++) {
-      if (isSlotActive(i)) {
+      if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const strategyName = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
         const slotRes = getBestResult(lastBTResults[i], i);
         const slotData = window.UI.stats.getDisplayStatusData(slotRes, i);

@@ -263,7 +263,7 @@ function showOrderView() {
   const panelChart = document.getElementById('panelChart');
   const panelAnalysis = document.getElementById('panelAnalysisView');
 
-  // 홈화면: 상단 주문표(panelOrder), 중단 년별자산증감(panelMonthly), 하단 성과추이(panelChart) 표시
+  // 홈화면: 상단 주문표(panelOrder), 중단 계좌정보(panelMonthly), 하단 성과추이(panelChart) 표시
   if (orderView) {
     orderView.classList.remove('hidden');
     orderView.style.display = '';
@@ -276,6 +276,29 @@ function showOrderView() {
     panelChart.classList.remove('hidden');
     panelChart.style.display = '';
   }
+
+  // 홈 화면 중단 컨테이너 제어: 브로커 계좌정보 표시, 기존 차트/테이블 숨김
+  const homeAcctContainer = document.getElementById('homeAccountContainer');
+  if (homeAcctContainer) homeAcctContainer.style.display = 'block';
+  const periodChartC = document.getElementById('periodChartContainer');
+  if (periodChartC) periodChartC.style.display = 'none';
+  const periodTableC = document.getElementById('periodTableContainer');
+  if (periodTableC) periodTableC.style.display = 'none';
+  const perfYearlyC = document.getElementById('perfYearlyChartContainer');
+  if (perfYearlyC) perfYearlyC.style.display = 'none';
+  const perfYearlyTableC = document.getElementById('perfYearlyTableContainer');
+  if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
+
+  // 홈 화면 중단 헤더: 📡 계좌 정보 (계좌번호)
+  const periodTitle = document.getElementById('periodTitle');
+  const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
+  if (periodTitle) {
+    periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+    periodTitle.style.cursor = 'default';
+    periodTitle.title = '계좌 정보';
+  }
+  const btnPeriodMode = document.getElementById('btnPeriodMode');
+  if (btnPeriodMode) btnPeriodMode.style.display = 'none';
 
   if (statsView) {
     statsView.classList.add('hidden');
@@ -311,7 +334,7 @@ function showOrderView() {
   if (btnPrice) btnPrice.classList.remove('active');
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) {
-    statsTitle.innerHTML = isViewingHistory ? '📄 성과 지표' : (statsDisplayMode === 'chart' ? '💼 자산현황' : '📡 계좌 정보');
+    statsTitle.innerHTML = isViewingHistory ? '📄 성과 지표' : '💼 자산현황';
   }
 
   // 성과 분석 패널 숨기기
@@ -327,11 +350,16 @@ function showOrderView() {
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
-  // 홈화면에서 요약 정보 표시
+  // 홈화면에서 요약 정보 표시 (월/일 매수, 총잔고, 월/일 매도, t수익금 유지)
   const perfSummaryHome = document.getElementById('performanceSummary');
   if (perfSummaryHome) {
     perfSummaryHome.style.display = 'grid';
     updatePerformanceSummary();
+  }
+
+  // 홈 화면 중단 브로커 계좌 정보 렌더링
+  if (typeof window.renderHomeAccountTable === 'function') {
+    window.renderHomeAccountTable();
   }
 
   const btnStats = document.getElementById('btnStatsShow');
@@ -399,7 +427,7 @@ function showStatsView() {
   isOrderView = false;  // 지역 참조도 함께 설정
   window.showIndividualHoldings = false;  // 내역 모드 진입 시 항상 통합 보유현황으로 표시
   window.currentHoldingsViewMode = 'combined'; // ⭐️ 내역모드 클릭 시 항상 통합 보유현황 고정
-  statsDisplayMode = 'table'; // 내역모드 기본: 📡 계좌 정보 고정
+  statsDisplayMode = 'chart'; // ⭐️ 내역모드 상단: 💼 자산현황(도넛차트) 고정
 
   const orderView = document.getElementById('panelOrder');
   const statsView = document.getElementById('panelStats');
@@ -429,8 +457,21 @@ function showStatsView() {
   // (수동 백테스트 모드는 사용자가 명시적으로 '실전 데이터 복원'을 누를 때까지 유지됨)
 
   const statsTitle = document.getElementById('statsTitle');
-  // App3 내역모드: 실시간 운영현황 대신 브로커 계좌 정보(App1 스타일)
-  if (statsTitle) statsTitle.innerHTML = '📡 계좌 정보' + (window.lastAccountNo ? ` (${window.lastAccountNo})` : ''); // 내역모드 기본 고정
+  if (statsTitle) {
+    statsTitle.innerHTML = '💼 자산현황';
+    statsTitle.style.cursor = 'default';
+    statsTitle.title = '자산현황';
+  }
+
+  const tableContainer = document.getElementById('statsTableContainer');
+  const chartContainer = document.getElementById('statsChartContainer');
+  const selector = document.getElementById('statsMetricSelector');
+  const actionArea = document.getElementById('statsActionArea');
+  if (tableContainer) tableContainer.style.display = 'none';
+  if (chartContainer) chartContainer.style.display = 'flex';
+  if (selector) selector.style.display = 'block';
+  if (actionArea) actionArea.style.display = 'none';
+  if (typeof updateStatsPieChart === 'function') updateStatsPieChart();
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
@@ -590,10 +631,14 @@ function showPerfView() {
     panelHistory.style.display = 'none';
   }
 
-  // 성과 모드에서 요약 정보 숨기기
+  // 성과 모드에서 요약 정보 및 홈 계좌정보 컨테이너 숨기기
   const perfSummary = document.getElementById('performanceSummary');
   if (perfSummary) {
     perfSummary.style.display = 'none';
+  }
+  const homeAcctContainer = document.getElementById('homeAccountContainer');
+  if (homeAcctContainer) {
+    homeAcctContainer.style.display = 'none';
   }
 
   isStatsMode = false;
@@ -891,6 +936,11 @@ async function enterAppDirectly() {
         || "kiwoom";
       if (typeof window.BrokerReconcile.getBalance === 'function') {
         window.BrokerReconcile.getBalance(activeBr)
+          .then(() => {
+            if (typeof window.renderHomeAccountTable === 'function') {
+              window.renderHomeAccountTable();
+            }
+          })
           .catch(e => console.warn("계좌정보 선조회 실패:", e.message))
           .finally(() => {
             if (typeof window.BrokerReconcile.refreshFills === 'function') {
@@ -1100,6 +1150,9 @@ async function enterAppDirectly() {
 
     renderChartAll();
     initPeriodDisplayModeUI();
+    if (typeof window.renderHomeAccountTable === 'function') {
+      window.renderHomeAccountTable();
+    }
   } catch (e) {
     console.error("⚠️ 로컬 스냅샷 초기 렌더링 실패(서버 동기화는 계속 진행됨):", e);
   }
@@ -1132,6 +1185,9 @@ async function enterAppDirectly() {
     if (typeof window.updateChartRatesDisplay === "function") window.updateChartRatesDisplay();
     if (window.UI?.holdings?.renderCombinedHoldings) window.UI.holdings.renderCombinedHoldings();
     if (window.UI?.holdings?.updateCombinedHoldingsSummary) window.UI.holdings.updateCombinedHoldingsSummary();
+    if (typeof window.renderHomeAccountTable === 'function') {
+      window.renderHomeAccountTable();
+    }
     console.log('[병렬로드] ✅ Chart.js + GET_ALL_INIT 동시 로드 완료');
 
     // ⭐️ 증권사 변경 후 새로고침된 경우, 직전에 보고 있던 마지막 화면으로 완벽 복원
@@ -1188,6 +1244,9 @@ async function enterAppDirectly() {
     renderChartAll();
     initPeriodDisplayModeUI();
     (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
+    if (typeof window.renderHomeAccountTable === 'function') {
+      window.renderHomeAccountTable();
+    }
   } catch (e) {
     console.error("⚠️ 최종 동기화 렌더링 실패:", e);
   }
