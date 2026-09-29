@@ -2582,10 +2582,11 @@ window.openGcpLogsModal = function() {
   ov.id = "gcpLogsOverlay";
   ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;";
   ov.innerHTML = `
-    <div style="background:var(--card,#1e293b);color:var(--text,#e2e8f0);border:1px solid rgba(255,255,255,0.12);border-radius:14px;width:min(94vw,700px);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);font-size:13px;overflow:hidden;">
-      <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.2);">
+    <div style="background:var(--card,#1e293b);color:var(--text,#e2e8f0);border:1px solid rgba(255,255,255,0.12);border-radius:14px;width:min(96vw,740px);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);font-size:13px;overflow:hidden;">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.2);">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:16px;font-weight:700;">📜 GCP 자동주문 & 실행 로그</span>
+          <span style="font-size:15px;font-weight:700;">📜 GCP 자동주문 & 실행 로그</span>
+          <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(56,189,248,0.15);color:#38bdf8;font-weight:600;">최신순</span>
           <span id="gcpLogStatusBadge" style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.1);color:var(--text-muted,#94a3b8);">조회 중...</span>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -2594,7 +2595,7 @@ window.openGcpLogsModal = function() {
         </div>
       </div>
 
-      <div id="gcpLogContent" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;">
+      <div id="gcpLogContent" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;">
         <div style="text-align:center;padding:30px;color:var(--text-muted,#94a3b8);">로딩 중...</div>
       </div>
     </div>
@@ -2631,8 +2632,35 @@ window.openGcpLogsModal = function() {
       badgeEl.textContent = "조회 완료";
       badgeEl.style.color = "#10b981";
 
+      // ⭐️ 최신순(내림차순) 정렬 2차 보장: 첫 항목 시간 < 마지막 항목 시간인 경우 자동 역순 처리
+      let logText = String(data.log || "").trim();
+      if (logText) {
+        const rawLines = logText.split("\n");
+        const blocks = [];
+        let cur = [];
+        for (const line of rawLines) {
+          if (/^\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\]/.test(line)) {
+            if (cur.length) blocks.push(cur.join("\n"));
+            cur = [line];
+          } else {
+            if (cur.length) cur.push(line);
+            else if (line.trim()) blocks.push(line);
+          }
+        }
+        if (cur.length) blocks.push(cur.join("\n"));
+
+        if (blocks.length > 1) {
+          const mFirst = blocks[0].match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]/);
+          const mLast = blocks[blocks.length - 1].match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]/);
+          if (mFirst && mLast && mFirst[1] < mLast[1]) {
+            blocks.reverse();
+            logText = blocks.join("\n\n");
+          }
+        }
+      }
+
       contentEl.innerHTML = `
-        <pre style="margin:0;padding:12px;background:#090d16;color:#38bdf8;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:65vh;overflow-y:auto;">${data.log || "로그가 없습니다."}</pre>
+        <pre style="margin:0;padding:10px 12px;background:#090d16;color:#38bdf8;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;line-height:1.35;white-space:pre-wrap;word-break:break-all;max-height:68vh;overflow-y:auto;letter-spacing:-0.2px;">${logText || "로그가 없습니다."}</pre>
       `;
     } catch (e) {
       badgeEl.textContent = "오류";
