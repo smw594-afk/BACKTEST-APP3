@@ -997,10 +997,12 @@ function buildBalanceHtml(result, broker) {
         <tbody>
           <!-- ⭐️ 최상단 1행: 총 자산 단독 행 (음영 제거, 주문표 헤더처럼 상/하단 회색줄, 라벨은 헤더 색상, 데이터값은 다크모드 흰색/라이트모드 검정색 강조) -->
           <tr>
-            <td colspan="5" class="summary-total-asset-td" style="padding:3px 6px !important; background:transparent !important; border:none !important; border-top:1px solid rgba(100, 116, 139, 0.25) !important; border-bottom:1px solid rgba(100, 116, 139, 0.25) !important;">
+            <td colspan="4" class="summary-total-asset-td" style="padding:3px 6px !important; background:transparent !important; border:none !important; border-top:1px solid rgba(100, 116, 139, 0.25) !important; border-bottom:1px solid rgba(100, 116, 139, 0.25) !important;">
               <div style="display:flex; align-items:center; justify-content:space-between; padding:0 2px;">
-                <span style="font-size:11.5px !important; font-weight:700 !important; color:var(--text-muted, #94a3b8) !important; font-family:inherit;">총 자산</span>
-                <span class="summary-total-asset-val" style="font-size:11.5px !important; font-weight:700 !important; font-family:inherit;">${usd(totalAsset)}</span>
+                <span style="font-size:11.5px !important; font-weight:700 !important; color:var(--text-muted, #94a3b8) !important; font-family:inherit;">총자산(원금)</span>
+                <span style="display:flex; align-items:baseline; gap:3px;">
+                  <span class="summary-total-asset-val" style="font-size:11.5px !important; font-weight:700 !important; font-family:inherit;">${usd(totalAsset)}</span>${hasComb && roundedPrincipal > 0 ? `<span style="font-size:9.5px; font-weight:normal; color:var(--text-muted, #94a3b8); font-family:inherit;">(\$${roundedPrincipal.toLocaleString()})</span>` : ''}
+                </span>
               </div>
             </td>
           </tr>
@@ -1008,11 +1010,9 @@ function buildBalanceHtml(result, broker) {
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">${cashLabel}:</span><span class="summary-val">${cashValHtml}</span></div></td>
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">주문 가능금액:</span><span class="summary-val">${buyingPowerHtml}</span></div></td>
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">평가금액:</span><span class="summary-val">${evalAmtHtml}</span></div></td>
-            <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">총 자산:</span><span class="summary-val">${totalAssetHtml}</span></div></td>
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">기타수익:</span><span class="summary-val">${otherProfitHtml}</span></div></td>
           </tr>
           <tr>
-            <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">원금:</span><span class="summary-val">${principalHtml}</span></div></td>
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">일수익:</span><span class="summary-val">${dayProfitHtml}</span></div></td>
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">월수익:</span><span class="summary-val">${monthProfitHtml}</span></div></td>
             <td><div style="display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden;"><span class="summary-lbl">년수익:</span><span class="summary-val">${yearProfitHtml}</span></div></td>
@@ -1028,32 +1028,28 @@ function buildBalanceHtml(result, broker) {
           <tr>
             <td colspan="4" class="summary-total-asset-td" style="padding:3px 6px !important; background:transparent !important; border:none !important; border-top:1px solid rgba(100, 116, 139, 0.25) !important; border-bottom:1px solid rgba(100, 116, 139, 0.25) !important;">
               <div style="display:flex; align-items:center; justify-content:space-between; padding:0 2px;">
-                <span style="font-size:11.5px !important; font-weight:700 !important; color:var(--text-muted, #94a3b8) !important; font-family:inherit;">총 자산</span>
-                <span class="summary-total-asset-val" style="font-size:11.5px !important; font-weight:700 !important; font-family:inherit;">${usd(totalAsset)}</span>
+                <span style="font-size:11.5px !important; font-weight:700 !important; color:var(--text-muted, #94a3b8) !important; font-family:inherit;">총자산(원금)</span>
+                <span style="display:flex; align-items:baseline; gap:3px;">
+                  <span class="summary-total-asset-val" style="font-size:11.5px !important; font-weight:700 !important; font-family:inherit;">${usd(totalAsset)}</span>${hasComb && roundedPrincipal > 0 ? `<span style="font-size:9.5px; font-weight:normal; color:var(--text-muted, #94a3b8); font-family:inherit;">(\$${roundedPrincipal.toLocaleString()})</span>` : ''}
+                </span>
               </div>
             </td>
           </tr>
           <tr>
             <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">${cashLabel}</td>
             <td style="text-align:right; font-weight:normal; font-size:10px;">${cashValHtml}</td>
-            <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">원금</td>
-            <td style="text-align:right; font-weight:normal; font-size:10px;">${principalHtml}</td>
-          </tr>
-          <tr>
-            <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">주문 가능금액</td>
-            <td style="text-align:right; font-weight:normal; font-size:10px;">${buyingPowerHtml}</td>
             <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">일수익</td>
             <td style="text-align:right; font-weight:normal; font-size:10px;">${dayProfitHtml}</td>
           </tr>
           <tr>
-            <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">평가금액</td>
-            <td style="text-align:right; font-weight:normal; font-size:10px;">${evalAmtHtml}</td>
+            <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">주문 가능금액</td>
+            <td style="text-align:right; font-weight:normal; font-size:10px;">${buyingPowerHtml}</td>
             <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">월수익</td>
             <td style="text-align:right; font-weight:normal; font-size:10px;">${monthProfitHtml}</td>
           </tr>
           <tr>
-            <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">총 자산</td>
-            <td style="text-align:right; font-weight:normal; font-size:10px;">${totalAssetHtml}</td>
+            <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">평가금액</td>
+            <td style="text-align:right; font-weight:normal; font-size:10px;">${evalAmtHtml}</td>
             <td style="width:75px; text-align:left; color:var(--text-muted, #94a3b8); font-size:10px;">년수익</td>
             <td style="text-align:right; font-weight:normal; font-size:10px;">${yearProfitHtml}</td>
           </tr>
@@ -1066,6 +1062,7 @@ function buildBalanceHtml(result, broker) {
         </tbody>
       </table>
     </div>
+
   `;
 
   // ⭐️ 2) 하단: 종목별 잔고 테이블 (종목명, 평단가, 현재가, 수량, 평가금, 수익률, 평가손익)
