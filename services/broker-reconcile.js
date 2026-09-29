@@ -484,32 +484,17 @@
 
     return `
       <div style="margin-bottom:20px; background:var(--card, #0f172a); padding:16px; border-radius:12px; border:1px solid var(--card-border, #334155); color:var(--text, #f8fafc);">
-        <!-- 국내주식 스타일 상단 계좌 요약 카드 -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--card-border, #1e293b); padding-bottom:10px;">
+        <!-- 상단 브로커 및 계좌번호 표시줄 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--card-border, #1e293b); padding-bottom:10px;">
           <span style="font-weight:700; font-size:15px; color:var(--text, #f8fafc);">${label}</span>
           <span style="font-size:12px; color:var(--text-muted, #94a3b8);">계좌: ${escapeHtml(data.accountNo || '연동 완료')}</span>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:14px; background:rgba(148,163,184,0.1); padding:12px; border-radius:8px;">
-          <div>
-            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">${broker === 'ls' ? 'RP+정산 예수금' : '정산 예수금'}</div>
-            <div style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">${usd(broker === 'ls' ? cashAsset : usdCash)}</div>
-          </div>
-          <div>
-            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">주문 가능 금액</div>
-            <div style="font-size:14px; font-weight:700; color:${isLight ? '#059669' : '#34d399'}; margin-top:2px;">${usd(buyingPower)}</div>
-          </div>
-          <div>
-            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">총 평가 금액</div>
-            <div style="font-size:14px; font-weight:700; color:var(--text, #f8fafc); margin-top:2px;">${usd(totalEval)}</div>
-          </div>
-        </div>
-
-        <!-- 국내주식 스타일 보유 종목 테이블 -->
+        <!-- ⭐️ 1) 상단 배치: 실시간 보유 종목 테이블 (종목명~평가손익) -->
         <div style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--text, #cbd5e1); display:flex; justify-content:space-between;">
           <span>📦 실시간 보유 종목 (${holdings.length}건)</span>
         </div>
-        <div style="overflow-x:auto; border-radius:8px; border:1px solid var(--card-border, #334155);">
+        <div style="overflow-x:auto; border-radius:8px; border:1px solid var(--card-border, #334155); margin-bottom:14px;">
           <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left; color:var(--text, #f8fafc);">
             <thead>
               <tr style="background:rgba(148,163,184,0.15); color:var(--text-muted, #94a3b8); border-bottom:1px solid var(--card-border, #334155);">
@@ -525,6 +510,22 @@
               ${rows}
             </tbody>
           </table>
+        </div>
+
+        <!-- ⭐️ 2) 하단 배치: 계좌 요약 카드 (예수금, 주문가능, 총평가금액) -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; background:rgba(148,163,184,0.1); padding:12px; border-radius:8px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">${broker === 'ls' ? 'RP+정산 예수금' : '정산 예수금'}</div>
+            <div style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">${usd(broker === 'ls' ? cashAsset : usdCash)}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">주문 가능 금액</div>
+            <div style="font-size:14px; font-weight:700; color:${isLight ? '#059669' : '#34d399'}; margin-top:2px;">${usd(buyingPower)}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted, #94a3b8);">총 평가 금액</div>
+            <div style="font-size:14px; font-weight:700; color:var(--text, #f8fafc); margin-top:2px;">${usd(totalEval)}</div>
+          </div>
         </div>
       </div>
     `;
