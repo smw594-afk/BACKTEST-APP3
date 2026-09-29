@@ -2659,9 +2659,11 @@ window.openGcpLogsModal = function() {
         }
       }
 
-      contentEl.innerHTML = `
-        <pre style="margin:0;padding:10px 12px;background:#090d16;color:#38bdf8;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;line-height:1.35;white-space:pre-wrap;word-break:break-all;max-height:68vh;overflow-y:auto;letter-spacing:-0.2px;">${logText || "로그가 없습니다."}</pre>
-      `;
+      contentEl.innerHTML = "";
+      const preEl = document.createElement("pre");
+      preEl.style.cssText = "margin:0;padding:10px 12px;background:#090d16;color:#38bdf8;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;line-height:1.35;white-space:pre-wrap;word-break:break-all;max-height:68vh;overflow-y:auto;letter-spacing:-0.2px;";
+      preEl.textContent = logText || "로그가 없습니다.";
+      contentEl.appendChild(preEl);
     } catch (e) {
       badgeEl.textContent = "오류";
       badgeEl.style.color = "#ef4444";
