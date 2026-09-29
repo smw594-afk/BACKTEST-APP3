@@ -242,17 +242,40 @@ function generateDynamicDOM() {
 function showOrderView() {
   restoreFromPerfLayout();
 
-  // ⭐️ 수동 백테스트 중이었다면 다른 화면이나 홈 이동 시 원래 실전 설정과 캐시로 즉시 복귀
+  isStatsMode = false;
+  window.isStatsMode = false;
+  window.isOrderView = true;
+  isOrderView = true;
+  window.showIndividualHoldings = false;
+  window.currentHoldingsViewMode = 'combined';
+  isViewingHistory = false;
+  window.isViewingHistory = false;
+
+  // ⭐️ 수동 백테스트 중이었다면 홈 복귀 시 원래 실전 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode || window.isManualBacktestMode) {
-    if (typeof restoreLocalCache === 'function') restoreLocalCache();
+    if (typeof window.restoreLocalCache === 'function') {
+      window.restoreLocalCache();
+    } else if (typeof restoreLocalCache === 'function') {
+      restoreLocalCache();
+    }
+    isManualBacktestMode = false;
+    window.isManualBacktestMode = false;
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
   }
 
   isStatsMode = false;
   window.isStatsMode = false;
-  window.isOrderView = true;  // 명시적으로 window 객체에 설정
-  isOrderView = true;  // 지역 참조도 함께 설정
-  window.showIndividualHoldings = false;  // 보유현황 모드 초기화 (홈은 항상 주문표)
+  window.isOrderView = true;
+  isOrderView = true;
+  window.showIndividualHoldings = false;
+  window.currentHoldingsViewMode = 'combined';
+  isViewingHistory = false;
+  window.isViewingHistory = false;
+
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'price-info-expanded', 'analysis-expanded');
+  }
 
   const orderView = document.getElementById('panelOrder');
   const statsView = document.getElementById('panelStats');
@@ -277,28 +300,45 @@ function showOrderView() {
     panelChart.style.display = '';
   }
 
-  // 홈 화면 중단 컨테이너 제어: 브로커 계좌정보 표시, 기존 차트/테이블 숨김
+  // 홈 화면 중단 컨테이너 제어
   const homeAcctContainer = document.getElementById('homeAccountContainer');
-  if (homeAcctContainer) homeAcctContainer.style.display = 'block';
   const periodChartC = document.getElementById('periodChartContainer');
-  if (periodChartC) periodChartC.style.display = 'none';
   const periodTableC = document.getElementById('periodTableContainer');
-  if (periodTableC) periodTableC.style.display = 'none';
   const perfYearlyC = document.getElementById('perfYearlyChartContainer');
-  if (perfYearlyC) perfYearlyC.style.display = 'none';
   const perfYearlyTableC = document.getElementById('perfYearlyTableContainer');
-  if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
-
-  // 홈 화면 중단 헤더: 📡 계좌 정보 (계좌번호)
   const periodTitle = document.getElementById('periodTitle');
-  const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
-  if (periodTitle) {
-    periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
-    periodTitle.style.cursor = 'default';
-    periodTitle.title = '계좌 정보';
-  }
   const btnPeriodMode = document.getElementById('btnPeriodMode');
-  if (btnPeriodMode) btnPeriodMode.style.display = 'none';
+  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
+
+  if (isBacktest) {
+    // ⭐️ 백테스트 실행 시: 홈 중단에 계좌정보 숨김, 기존 월별 자산 증감(차트/테이블) 표시!
+    if (homeAcctContainer) homeAcctContainer.style.display = 'none';
+    if (perfYearlyC) perfYearlyC.style.display = 'none';
+    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
+    if (btnPeriodMode) btnPeriodMode.style.display = 'flex';
+    if (typeof window.initPeriodDisplayModeUI === 'function') {
+      window.initPeriodDisplayModeUI();
+    }
+    if (typeof window.updatePeriodTitle === 'function') {
+      window.updatePeriodTitle();
+    }
+  } else {
+    // ⭐️ 일반 실전 홈 화면: 브로커 계좌정보 표시, 기존 차트/테이블 숨김
+    if (homeAcctContainer) homeAcctContainer.style.display = 'block';
+    if (periodChartC) periodChartC.style.display = 'none';
+    if (periodTableC) periodTableC.style.display = 'none';
+    if (perfYearlyC) perfYearlyC.style.display = 'none';
+    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
+    if (btnPeriodMode) btnPeriodMode.style.display = 'none';
+
+    // 홈 화면 중단 헤더: 📡 계좌 정보 (계좌번호)
+    const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
+    if (periodTitle) {
+      periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+      periodTitle.style.cursor = 'default';
+      periodTitle.title = '계좌 정보';
+    }
+  }
 
   if (statsView) {
     statsView.classList.add('hidden');
@@ -321,20 +361,13 @@ function showOrderView() {
     panelAnalysis.style.display = 'none';
   }
 
-  const grid = document.getElementById('mainGrid');
-  if (grid) {
-    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'price-info-expanded', 'analysis-expanded');
-    if (isViewingHistory) {
-      grid.classList.add('backtest-view-layout');
-    }
-  }
   const priceInfoCard = document.getElementById('panelPriceInfo');
   if (priceInfoCard) priceInfoCard.style.display = 'none';
   const btnPrice = document.getElementById('btnPriceInfo');
   if (btnPrice) btnPrice.classList.remove('active');
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle) {
-    statsTitle.innerHTML = isViewingHistory ? '📄 성과 지표' : '💼 자산현황';
+    statsTitle.innerHTML = '💼 자산현황';
   }
 
   // 성과 분석 패널 숨기기
@@ -350,15 +383,15 @@ function showOrderView() {
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
-  // 홈화면에서 요약 정보 표시 (월/일 매수, 총잔고, 월/일 매도, t수익금 유지)
+  // 홈화면에서 요약 정보 표시 (월/일 매수, 총잔고, 월/일 매도, t수익금 유지 - 백테스트가 아닐 때만)
   const perfSummaryHome = document.getElementById('performanceSummary');
   if (perfSummaryHome) {
-    perfSummaryHome.style.display = 'grid';
-    updatePerformanceSummary();
+    perfSummaryHome.style.display = isBacktest ? 'none' : 'grid';
+    if (!isBacktest) updatePerformanceSummary();
   }
 
-  // 홈 화면 중단 브로커 계좌 정보 렌더링
-  if (typeof window.renderHomeAccountTable === 'function') {
+  // 홈 화면 중단 브로커 계좌 정보 렌더링 (백테스트가 아닐 때만)
+  if (!isBacktest && typeof window.renderHomeAccountTable === 'function') {
     window.renderHomeAccountTable();
   }
 
@@ -376,11 +409,27 @@ function showOrderView() {
     return false;
   };
 
+  // ⭐️ 홈 모드는 항상 '⚡ 통합 주문표'가 기본 노출되어야 하므로 주문표 뷰 확실하게 강제
+  window.isOrderView = true;
+  isOrderView = true;
+  window.isStatsMode = false;
+  isStatsMode = false;
+  window.showIndividualHoldings = false;
+  window.currentHoldingsViewMode = 'combined';
+
+  const co = document.getElementById('combinedOrderView');
+  if (co) co.style.display = 'block';
+  const ch = document.getElementById('combinedHoldingsView');
+  if (ch) ch.style.display = 'none';
+  const cf = document.getElementById('combinedTierFooter');
+  if (cf) cf.style.display = 'flex';
+
   renderChartAll();
   if (shouldAutoRefresh()) handleInstantOrder();
   else window.UI.order.refreshOrderViewUI();
+  if (typeof updateSlotsVisibility === 'function') updateSlotsVisibility();
   window.UI.toggles?.applyOrderExpansionPreference?.();
-  updateOrderHeaderUI();
+  if (typeof updateOrderHeaderUI === 'function') updateOrderHeaderUI();
 }
 
 function showStatsView() {
@@ -389,7 +438,13 @@ function showStatsView() {
 
   // ⭐️ 수동 백테스트 중이었다면 다른 화면 전환 시 원래 실전 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode || window.isManualBacktestMode) {
-    if (typeof restoreLocalCache === 'function') restoreLocalCache();
+    if (typeof window.restoreLocalCache === 'function') {
+      window.restoreLocalCache();
+    } else if (typeof restoreLocalCache === 'function') {
+      restoreLocalCache();
+    }
+    isManualBacktestMode = false;
+    window.isManualBacktestMode = false;
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
   }
 
@@ -598,7 +653,13 @@ function showPerfView() {
 
   // ⭐️ 수동 백테스트 중이었다면 다른 화면 전환 시 원래 실전 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode || window.isManualBacktestMode) {
-    if (typeof restoreLocalCache === 'function') restoreLocalCache();
+    if (typeof window.restoreLocalCache === 'function') {
+      window.restoreLocalCache();
+    } else if (typeof restoreLocalCache === 'function') {
+      restoreLocalCache();
+    }
+    isManualBacktestMode = false;
+    window.isManualBacktestMode = false;
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
   }
 
@@ -915,6 +976,14 @@ async function enterAppDirectly() {
   document.getElementById('topBar').classList.remove('hidden');
   document.getElementById('mainGrid').classList.remove('hidden');
   detectLayout();
+
+  // ⭐️ 로그인/앱 진입 즉시 시트 검증 및 주문표 대조 버튼을 '확인중'으로 명시적 초기화
+  if (typeof window.updateSheetVerifyButton === 'function') {
+    window.updateSheetVerifyButton('syncing');
+  }
+  if (typeof window.updateCombinedOrderMatchStatus === 'function') {
+    window.updateCombinedOrderMatchStatus({ forceLoadingUi: true });
+  }
 
   // 🚀 병렬 로드: 로컬 슬롯 복원(동기 작업)과 동시에 서버 동기화를 미리 시작해둔다.
   // 아래쪽 GET_ALL_INIT 단계에서 이 promise를 그대로 재사용한다.
@@ -1355,6 +1424,9 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
   }
   window.isServerSyncing = true;
   setLED('loading');
+  if (typeof window.updateSheetVerifyButton === 'function') {
+    window.updateSheetVerifyButton('syncing');
+  }
   const userHeader = document.getElementById('userDisplayHeader');
   if (userHeader) userHeader.innerText = myUserId + ' (로딩중...)';
 
@@ -1993,7 +2065,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     setLED(isPriceLoaded ? 'on' : 'error');
     window.isServerSyncing = false;
     if (typeof window.checkSheetVerificationStatus === 'function') {
-      setTimeout(() => window.checkSheetVerificationStatus(), 100);
+      window.checkSheetVerificationStatus();
     }
   }
 }
@@ -2394,6 +2466,11 @@ async function runEngine() {
     if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) window.UI.performance.renderPeriodTableText(i);
   }
   window.UI.performance.renderPeriodTableText('Combined');
+
+  // ⭐️ 백테스트 모드: 중단에 계좌정보 숨김 및 성과 모드의 월별 자산 증감(차트/테이블) 표시
+  periodViewState = 0; // 📅 월별 자산 증감 우선 표시
+  if (typeof initPeriodDisplayModeUI === 'function') initPeriodDisplayModeUI();
+  if (typeof updatePeriodTitle === 'function') updatePeriodTitle();
 
   const settingsScreen = document.getElementById('settingsScreen');
   if (settingsScreen && !settingsScreen.classList.contains('hidden')) {

@@ -24,8 +24,17 @@
     isSupported: false,
 
     async init() {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-        console.log('[WebPush] 브라우저가 웹 푸시를 지원하지 않습니다.');
+      const isFileProtocol = typeof window !== 'undefined' && (window.location.protocol === 'file:' || window.location.origin === 'null');
+      const isSecure = typeof window !== 'undefined' && (typeof window.isSecureContext === 'undefined' || window.isSecureContext);
+
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || isFileProtocol || !isSecure) {
+        if (isFileProtocol) {
+          console.log('[WebPush] 로컬 파일(file://) 환경에서는 Service Worker가 지원되지 않습니다 (HTTPS 또는 localhost 환경 필요).');
+        } else if (!isSecure) {
+          console.log('[WebPush] 비보안(HTTP) 환경에서는 Service Worker가 지원되지 않습니다 (HTTPS 환경 필요).');
+        } else {
+          console.log('[WebPush] 브라우저가 웹 푸시를 지원하지 않습니다.');
+        }
         this.isSupported = false;
         return false;
       }
@@ -67,7 +76,10 @@
 
     async subscribe() {
       if (!this.isSupported) {
-        throw new Error('이 브라우저는 웹 푸시 알림을 지원하지 않습니다.');
+        const reason = typeof window !== 'undefined' && (window.location.protocol === 'file:' || window.location.origin === 'null')
+          ? '로컬 파일(file://) 환경에서는 웹 푸시 알림을 지원하지 않습니다. HTTPS 주소에서 접속해주세요.'
+          : '이 환경 또는 브라우저는 웹 푸시 알림을 지원하지 않습니다.';
+        throw new Error(reason);
       }
 
       if (Notification.permission === 'denied') {

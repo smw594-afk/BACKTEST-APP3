@@ -243,8 +243,8 @@ let isManualBacktestMode = false;
 let lastManualBTResults = {}; // 🔒 백테스트 결과 별도 보관 (실전 데이터로 덮어씌워지지 않도록)
 let chartViewMode = 0;
 let showIndividualHoldings = false;
-let statsDisplayMode = "chart";
-let perfStatsMode = "stats";    // 성과모드 전용: stats | realtime
+var statsDisplayMode = window.statsDisplayMode || "chart";
+var perfStatsMode = window.perfStatsMode || "stats";    // 성과모드 전용: stats | realtime
 let backtestStatsMode = "performance";
 let statsPieChartInstance = null;
 
@@ -353,9 +353,9 @@ let lastBTResults = Array(MAX_SLOTS + 1).fill(null);
 let globalMonthlyDataArr = Array(MAX_SLOTS + 1).fill(null);
 let globalYearlyDataArr = Array(MAX_SLOTS + 1).fill(null);
 let globalDailyDataArr = Array(MAX_SLOTS + 1).fill(null);
-let globalCombinedMonthlyData = [];
-let globalCombinedYearlyData = [];
-let globalCombinedDailyData = [];
+var globalCombinedMonthlyData = window.globalCombinedMonthlyData || [];
+var globalCombinedYearlyData = window.globalCombinedYearlyData || [];
+var globalCombinedDailyData = window.globalCombinedDailyData || [];
 
 // 슬롯별 테마 색상 (반복 순환)
 const SLOT_COLORS = ['#6366f1', '#10b981', '#fbbf24', '#f43f5e', '#8b5cf6', '#06b6d4', '#eab308'];
@@ -515,7 +515,19 @@ function restoreLocalCache() {
   isManualBacktestMode = false;
   window.isManualBacktestMode = false;
   isViewingHistory = false;
+  window.isViewingHistory = false;
+  isStatsMode = false;
+  window.isStatsMode = false;
+  isOrderView = true;
+  window.isOrderView = true;
+  window.showIndividualHoldings = false;
+  window.currentHoldingsViewMode = 'combined';
   updateHeaderDisplay();
+
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    grid.classList.remove('backtest-view-layout', 'perf-metrics-layout', 'perf-tab-layout');
+  }
 
   // 슬롯별로 localStorage에 저장된 실제 실전 캐시(snap) 데이터를 메모리에 다시 복원
   for (let i = 1; i <= MAX_SLOTS; i++) {
@@ -544,7 +556,9 @@ function restoreLocalCache() {
   renderChartAll();
   window.UI.stats.refreshStatsTable();
   window.UI.updates.updateCurrentStatusUI(activeSettingsTab);
+  if (typeof updateOrderHeaderUI === 'function') updateOrderHeaderUI();
 }
+window.restoreLocalCache = restoreLocalCache;
 
 function preparePerfLayout() {
   const chartC = document.getElementById('periodChartContainer');
@@ -680,7 +694,14 @@ function restoreFromPerfLayout() {
   if (chartC) chartC.style.display = 'none';
   if (tableC) tableC.style.display = 'none';
   const homeAcctContainer = document.getElementById('homeAccountContainer');
-  if (homeAcctContainer && window.isOrderView) homeAcctContainer.style.display = 'block';
+  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
+  if (homeAcctContainer) {
+    if (isBacktest) {
+      homeAcctContainer.style.display = 'none';
+    } else if (window.isOrderView) {
+      homeAcctContainer.style.display = 'block';
+    }
+  }
 
   if (perfMonthlyChartCard) perfMonthlyChartCard.classList.add('hidden');
   if (perfDailyChartCard) perfDailyChartCard.classList.add('hidden');
@@ -717,8 +738,11 @@ function ensureBacktestChartPanelsVisible() {
   const chartPanel = document.getElementById('panelChart');
   const chartC = document.getElementById('periodChartContainer');
   const tableC = document.getElementById('periodTableContainer');
+  const homeAcctContainer = document.getElementById('homeAccountContainer');
   const perfMonthlyChartCard = document.getElementById('panelMonthlyChart');
   const perfDailyChartCard = document.getElementById('panelDailyChart');
+
+  if (homeAcctContainer) homeAcctContainer.style.display = 'none';
 
   if (monthlyPanel) {
     monthlyPanel.classList.remove('hidden');
@@ -1829,6 +1853,11 @@ async function runEngine() {
   }
   window.UI.performance.renderPeriodTableText('Combined');
 
+  // ⭐️ 백테스트 모드: 중단에 계좌정보 숨김 및 성과 모드의 월별 자산 증감(차트/테이블) 표시
+  periodViewState = 0; // 📅 월별 자산 증감 우선 표시
+  initPeriodDisplayModeUI();
+  updatePeriodTitle();
+
   const settingsScreen = document.getElementById('settingsScreen');
   if (settingsScreen && !settingsScreen.classList.contains('hidden')) {
     settingsScreen.classList.add('hidden');
@@ -1859,8 +1888,11 @@ function updatePeriodTitle() {
   const periodTitle = document.getElementById('periodTitle');
   if (!periodTitle) return;
 
-  // ⭐️ 홈 화면(!window.isStatsMode)에서는 중단 섹션이 '📡 계좌 정보'
-  if (!window.isStatsMode) {
+  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
+
+  // ⭐️ 홈 화면(!window.isStatsMode)에서 백테스트가 아닐 때만 중단 섹션이 '📡 계좌 정보'
+  //    백테스트 실행 시에는 홈화면 중단에 계좌정보 대신 기존 '📅 월별 자산 증감' 표시
+  if (!window.isStatsMode && !isBacktest) {
     const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
     periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
     periodTitle.style.cursor = 'default';
@@ -1868,19 +1900,21 @@ function updatePeriodTitle() {
     return;
   }
 
+  periodTitle.style.cursor = 'pointer';
+  periodTitle.title = '클릭하여 월별/년별/일별 전환';
+
   const periodChartTitle = document.getElementById('periodChartTitle');
-  const smallStyle = 'style="font-size:0.85em; font-weight:normal; opacity:0.8; margin-left:2px;"';
   
   let titleText = "";
   let chartTitleText = "";
   if (periodViewState === 0) {
-    titleText = `📅 월별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    titleText = `📅 월별 자산 증감`;
     chartTitleText = `📅 월별 자산 증감`;
   } else if (periodViewState === 1) {
-    titleText = `📅 년별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    titleText = `📅 년별 자산 증감`;
     chartTitleText = `📅 년별 자산 증감`;
   } else {
-    titleText = `📅 일별 자산 증감 <span ${smallStyle}>(종합)</span>`;
+    titleText = `📅 일별 자산 증감`;
     chartTitleText = `📅 일별 자산 증감`;
   }
   
@@ -1893,18 +1927,30 @@ function initPeriodDisplayModeUI() {
   const tableC = document.getElementById('periodTableContainer');
   const ico = document.getElementById('icoPeriodMode');
   const btnPeriodMode = document.getElementById('btnPeriodMode');
+  const homeAcctContainer = document.getElementById('homeAccountContainer');
+  const perfSummaryHome = document.getElementById('performanceSummary');
+  const grid = document.getElementById('mainGrid');
+  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
 
-  // ⭐️ 홈 화면에서는 기존 차트/테이블 숨기고 계좌정보 컨테이너 유지 및 모드 버튼 숨김
-  if (window.isOrderView || (!window.isStatsMode && !document.getElementById('mainGrid')?.classList.contains('perf-tab-layout'))) {
+  // ⭐️ 홈 화면에서는 백테스트 모드가 아닐 때만 기존 차트/테이블 숨기고 계좌정보 컨테이너 유지 및 모드 버튼 숨김.
+  //    백테스트 실행 시에는 홈화면 중단에 계좌정보 대신 기존 월별 자산 증감(차트/테이블) 표시!
+  if (!isBacktest && (window.isOrderView || (!window.isStatsMode && !grid?.classList.contains('perf-tab-layout')))) {
     if (chartC) chartC.style.display = 'none';
     if (tableC) tableC.style.display = 'none';
-    const homeAcctContainer = document.getElementById('homeAccountContainer');
     if (homeAcctContainer) homeAcctContainer.style.display = 'block';
+    if (perfSummaryHome) perfSummaryHome.style.display = 'grid';
     if (btnPeriodMode) btnPeriodMode.style.display = 'none';
     if (typeof window.renderHomeAccountTable === 'function') {
       window.renderHomeAccountTable();
     }
     return;
+  }
+
+  // ⭐️ 백테스트 모드이거나 성과/내역 모드: 계좌정보 숨김 및 모드 버튼 표시
+  if (homeAcctContainer) homeAcctContainer.style.display = 'none';
+  if (perfSummaryHome && isBacktest) perfSummaryHome.style.display = 'none';
+  if (btnPeriodMode && !grid?.classList.contains('perf-tab-layout')) {
+    btnPeriodMode.style.display = 'flex';
   }
 
   if (periodDisplayMode === 'chart') {

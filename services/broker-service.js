@@ -147,11 +147,13 @@ window.BrokerService = {
         window.orderStatusCache.vmOrdersChecked = false;
         window.orderStatusCache.brokerOrdersChecked = false;
         window.orderStatusCache.isLoading = true;
+        window.orderStatusCache.hasEverLoaded = false;
         window.orderStatusCache.lastVerdict = 'loading';
         window.orderStatusCache.lastUpdated = 0;
+        window.orderStatusCache.activeBroker = broker;
       }
       if (typeof window.updateCombinedOrderMatchStatus === "function") {
-        window.updateCombinedOrderMatchStatus();
+        window.updateCombinedOrderMatchStatus({ forceLoadingUi: true });
       }
     } catch (e) { console.warn("[BrokerService] invalidate error:", e); }
 
@@ -224,7 +226,10 @@ window.BrokerService = {
         updateChartRatesDisplay();
       }
       if (typeof window.refreshOrderStatusCache === "function") {
-        window.refreshOrderStatusCache(true);
+        window.refreshOrderStatusCache(true, true);
+      }
+      if (typeof window.checkSheetVerificationStatus === "function") {
+        window.checkSheetVerificationStatus();
       }
     } catch (e) { console.warn("[BrokerService] render error:", e); }
   },
@@ -740,7 +745,10 @@ window.BrokerService = {
     if (!el) return;
 
     if (!window.PushNotificationService || !window.PushNotificationService.isSupported) {
-      el.innerHTML = `<span style="color:#94a3b8;">이 브라우저는 웹 푸시를 지원하지 않습니다</span>`;
+      const msg = typeof window !== 'undefined' && window.location.protocol === 'file:'
+        ? '로컬 파일(file://) 환경에서는 지원되지 않습니다 (HTTPS 접속 필요)'
+        : '이 브라우저는 웹 푸시를 지원하지 않습니다';
+      el.innerHTML = `<span style="color:#94a3b8;">${msg}</span>`;
       if (onBtn) onBtn.disabled = true;
       if (offBtn) offBtn.disabled = true;
       return;

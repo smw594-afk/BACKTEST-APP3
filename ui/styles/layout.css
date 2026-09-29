@@ -78,8 +78,14 @@
 }
 
 .dashboard-grid.backtest-view-layout .panel-order,
-.dashboard-grid.backtest-view-layout .panel-history {
+.dashboard-grid.backtest-view-layout .panel-history,
+.dashboard-grid.backtest-view-layout #homeAccountContainer,
+.dashboard-grid.backtest-view-layout #performanceSummary {
   display: none !important;
+}
+
+.dashboard-grid.backtest-view-layout #btnPeriodMode {
+  display: flex !important;
 }
 
 .dashboard-grid.perf-tab-layout {

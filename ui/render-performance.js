@@ -1,4 +1,7 @@
 // ui/render-performance.js - 성과 차트/테이블 렌더링 (백업에서 복구됨)
+var globalCombinedMonthlyData = window.globalCombinedMonthlyData || [];
+var globalCombinedYearlyData = window.globalCombinedYearlyData || [];
+var globalCombinedDailyData = window.globalCombinedDailyData || [];
 
 function calculateCombinedPeriodData() {
   const activeRes = [];
@@ -17,6 +20,9 @@ function calculateCombinedPeriodData() {
     globalCombinedMonthlyData = [];
     globalCombinedYearlyData = [];
     globalCombinedDailyData = [];
+    window.globalCombinedMonthlyData = globalCombinedMonthlyData;
+    window.globalCombinedYearlyData = globalCombinedYearlyData;
+    window.globalCombinedDailyData = globalCombinedDailyData;
     window.lastMonthlySig = null;
     return;
   }
@@ -36,6 +42,9 @@ function calculateCombinedPeriodData() {
   globalCombinedMonthlyData = combinedData.monthly;
   globalCombinedYearlyData = combinedData.yearly;
   globalCombinedDailyData = combinedData.daily;
+  window.globalCombinedMonthlyData = globalCombinedMonthlyData;
+  window.globalCombinedYearlyData = globalCombinedYearlyData;
+  window.globalCombinedDailyData = globalCombinedDailyData;
 
   if (periodDisplayMode === 'chart') {
     renderPeriodBarChart();

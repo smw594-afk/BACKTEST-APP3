@@ -373,8 +373,8 @@ function togglePeriodDisplayMode() {
 function togglePeriodView() {
   const grid = document.getElementById('mainGrid');
   const isPerfTabLayout = grid && grid.classList.contains('perf-tab-layout');
-  if (isPerfTabLayout) return; // 성과 탭 레이아웃에서는 타이틀 클릭 동작을 막음
-  if (window.isOrderView || !window.isStatsMode) return; // ⭐️ 홈 화면 중단은 계좌 정보이므로 토글하지 않음
+  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
+  if (!isBacktest && (window.isOrderView || !window.isStatsMode)) return; // ⭐️ 실전 홈 화면 중단은 계좌 정보이므로 토글하지 않음 (백테스트 시에는 토글 허용)
 
   // 토글 순서: 년별(1) -> 월별(0) -> 일별(2) -> 년별(1)
   const nextPeriodStateMap = { 1: 0, 0: 2, 2: 1 };

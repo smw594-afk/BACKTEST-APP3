@@ -1291,7 +1291,30 @@ h2:hover {
   container-type: inline-size;
 }
 
-/* 와이드 화면 (기본): 5열 상하 같은열 정렬 뷰 (균등 간격 space-between) */
+/* 와이드 화면 (기본): 5열 상하 같은열 정렬 뷰 (2행 5열 테이블) */
+.summary-5col-table {
+  width: 100%;
+  border-collapse: separate !important;
+  border-spacing: 1px 1px !important;
+  table-layout: fixed;
+}
+.summary-5col-table td {
+  padding: 3px 6px !important;
+  text-align: left !important;
+}
+
+/* 좁은 화면 (4열 5행 테이블) */
+.summary-narrow-table {
+  display: none;
+  width: 100%;
+  border-collapse: separate !important;
+  border-spacing: 1px 1px !important;
+}
+.summary-narrow-table td {
+  padding: 3px 6px !important;
+}
+
+/* 레거시 div 뷰 호환 */
 .summary-5col-view {
   display: grid;
   grid-template-columns: repeat(5, max-content);
@@ -1326,14 +1349,15 @@ h2:hover {
   font-size: 10.5px;
 }
 
-/* 좁은 화면 (4열 그리드 모드) */
 .summary-narrow-view {
   display: none;
   width: 100%;
 }
 
-/* 좁은 화면 (<= 620px): 5열 뷰 숨기고 4열 그리드 뷰 표출 */
+/* 좁은 화면 (<= 620px): 5열 테이블 숨기고 4열 테이블 표출 */
 @container (max-width: 620px) {
+  .summary-5col-table { display: none !important; }
+  .summary-narrow-table { display: table !important; }
   .summary-5col-view { display: none !important; }
   .summary-narrow-view {
     display: grid !important;
@@ -1344,6 +1368,8 @@ h2:hover {
   }
 }
 @media (max-width: 620px) {
+  .summary-5col-table { display: none !important; }
+  .summary-narrow-table { display: table !important; }
   .summary-5col-view { display: none !important; }
   .summary-narrow-view {
     display: grid !important;
@@ -1356,18 +1382,45 @@ h2:hover {
 
 /* 5열 뷰: 중간 화면/충분치 않은 폭(<= 1024px)에서 글자 잘림 방지를 위해 수익률 () 숨김 */
 @container (max-width: 1024px) {
+  .summary-5col-table .summary-rate-pct,
   .summary-5col-view .summary-rate-pct { display: none !important; }
 }
 @media (max-width: 1024px) {
+  .summary-5col-table .summary-rate-pct,
   .summary-5col-view .summary-rate-pct { display: none !important; }
 }
 
-/* 4열 그리드 뷰 (<= 620px): 초소형 화면(<= 420px)에서 공간 절약을 위해 수익률 () 숨김 */
+/* 4열 테이블 뷰 (<= 620px): 초소형 화면(<= 420px)에서 공간 절약을 위해 수익률 () 숨김 */
 @container (max-width: 420px) {
+  .summary-narrow-table .summary-rate-pct,
   .summary-narrow-view .summary-rate-pct { display: none !important; }
 }
 @media (max-width: 420px) {
+  .summary-narrow-table .summary-rate-pct,
   .summary-narrow-view .summary-rate-pct { display: none !important; }
+}
+
+/* 계좌 정보 하단 종목별 잔고 테이블 */
+.stats-stock-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 1px 1px !important;
+  table-layout: fixed;
+  margin-top: 3px;
+}
+.stats-stock-table th {
+  font-size: 11px !important;
+  font-weight: 700;
+  padding: 3px 2px !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+.stats-stock-table td {
+  font-size: var(--app-font-size, 10.5px) !important;
+  padding: 3px 2px !important;
+  line-height: 1.3 !important;
+  border: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
 }
 
 /* 계좌 정보 로딩 후 부드러운 전환 효과 (스르륵 페이드인) */

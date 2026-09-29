@@ -357,10 +357,16 @@ function annualizePeriodRate(rate, periodKey, dailyRows, boundaryStart, boundary
 }
 // engine.js와 정확히 같은 기준으로 endDate를 계산한다: 종료일이 비어있으면 "오늘(현재시각)"
 // engine.js의 `endDate.setHours(23, 59, 59, 999)` 동일 적용 필수
-function getConfigBoundaryDates(cfgBasics) {
-  if (!cfgBasics || !cfgBasics.startDate) return { start: null, end: null };
-  const start = new Date(cfgBasics.startDate);
-  const end = (cfgBasics.endDate && String(cfgBasics.endDate).trim() !== "") ? new Date(cfgBasics.endDate) : new Date();
+function getConfigBoundaryDates(cfgBasics, res) {
+  let startDateStr = cfgBasics?.startDate;
+  let endDateStr = cfgBasics?.endDate;
+  if (!startDateStr && res?.chartDates && res.chartDates.length > 0) {
+    startDateStr = res.chartDates[0];
+    endDateStr = res.chartDates[res.chartDates.length - 1];
+  }
+  if (!startDateStr) return { start: null, end: null };
+  const start = new Date(startDateStr);
+  const end = (endDateStr && String(endDateStr).trim() !== "") ? new Date(endDateStr) : new Date();
   end.setHours(23, 59, 59, 999);
   return {
     start: isNaN(start) ? null : start,
@@ -402,9 +408,9 @@ function openRankingModal(mode = 'backtest') {
         const s = res.summary; // 항상 summary 사용 (실전 데이터와 섞이지 않도록)
 
         // ⭐️ simulationConfigs는 새로고침 시 메모리에서 사라지는 런타임 전용 값이므로,
-        // 없으면 복원된 res.currentStrat(스냅샷에 저장됨)을 폴백으로 사용해
+        // 없으면 복원된 res.currentStrat(스냅샷에 저장됨) 및 slotConfigs를 폴백으로 사용해
         // F5 후에도 BT랭킹이 유지되도록 한다.
-        const cfg = simulationConfigs[i];
+        const cfg = simulationConfigs[i] || slotConfigs[i];
         const strategyName = (cfg && cfg.basics && cfg.basics.strategy) || res.currentStrat || `투자법 ${i}`;
         const slotColor = SLOT_COLORS[(i - 1) % SLOT_COLORS.length];
         const tAssets = s.totalAssets !== undefined ? s.totalAssets : (s.total_assets || 0);
@@ -420,14 +426,20 @@ function openRankingModal(mode = 'backtest') {
         const yearlyMdd = yRow ? Number(yRow.mdd || 0) : null;
         const monthlyMdd = mRow ? Number(mRow.mdd || 0) : null;
         const totalCagr = s.cagr !== undefined ? s.cagr : null;
-        const { start: cfgStart, end: cfgEnd } = getConfigBoundaryDates(cfg && cfg.basics);
-        const isOnlyYear = res.yearlyData && res.yearlyData.length === 1;
+        const { start: cfgStart, end: cfgEnd } = getConfigBoundaryDates(cfg && cfg.basics, res);
+        // 단일 연도 백테스트(운영 기간이 1년 미만이거나 단일 연도 내 진행)인 경우 총 구간과 년 구간이 100% 동일하므로
+        // 년 CAGR과 년 칼마비율은 총 CAGR 및 총 칼마비율과 1:1 완벽 일치해야 한다.
+        const isOnlyYear = (res.yearlyData && res.yearlyData.length === 1) || (yRow && Number(yRow.rate || 0) === Number(totalYield) && Number(yRow.mdd || 0) === Number(totalMdd));
         const isOnlyMonth = res.monthlyData && res.monthlyData.length === 1;
-        const yearlyCagr = yRow ? annualizePeriodRate(yearlyRate, yRow.period, res.dailyData, isOnlyYear ? cfgStart : null, cfgEnd) : null;
+        const yearlyCagr = (isOnlyYear && totalCagr !== null)
+          ? totalCagr
+          : (yRow ? annualizePeriodRate(yearlyRate, yRow.period, res.dailyData, isOnlyYear ? cfgStart : null, cfgEnd) : null);
         const monthlyCagr = mRow ? annualizeMonthlyRate(monthlyRate) : null;
         // 칼마비율 = CAGR(연환산 수익률) / MDD (단순 구간 수익률이 아님)
         const totalCalmar = s.calmar !== undefined ? s.calmar : 0;
-        const yearlyCalmar = (yearlyCagr !== null && yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(yearlyCagr / Number(yRow.mdd)) : null;
+        const yearlyCalmar = (isOnlyYear && totalCalmar !== null)
+          ? totalCalmar
+          : ((yearlyCagr !== null && yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(yearlyCagr / Number(yRow.mdd)) : null);
         const monthlyCalmar = (monthlyCagr !== null && mRow && mRow.mdd && mRow.mdd !== 0) ? Math.abs(monthlyCagr / Number(mRow.mdd)) : null;
 
         list.push({
@@ -474,14 +486,20 @@ function openRankingModal(mode = 'backtest') {
         const yearlyMdd = yRow ? Number(yRow.mdd || 0) : null;
         const monthlyMdd = mRow ? Number(mRow.mdd || 0) : null;
         const totalCagr = displaySummary.cagr !== undefined ? displaySummary.cagr : null;
+        const totalCalmar = displaySummary.calmar !== undefined ? displaySummary.calmar : 0;
+        const yRows = globalYearlyDataArr[i];
+        const isOnlyLiveYear = (Array.isArray(yRows) && yRows.length === 1) || (yRow && Number(yRow.rate || 0) === Number(totalYield) && Number(yRow.mdd || 0) === Number(totalMdd));
         // 실전 총 CAGR(engine.js live 경로)은 "실제 일별 데이터 구간(첫~마지막 거래일), 365일" 기준이다.
         // 년/월 CAGR도 현재시각으로 늘리지 말고 동일 기준(경계 없음 + 365)으로 계산해 총 CAGR과 일치시킨다.
-        // (단일 년 백테스트면 년 구간 = 총 구간 → 년 CAGR = 총 CAGR)
-        const yearlyCagr = yRow ? annualizePeriodRate(yearlyRate, yRow.period, globalDailyDataArr[i], null, null, 365) : null;
+        // (단일 년 백테스트/운영이면 년 구간 = 총 구간 → 년 CAGR = 총 CAGR, 년 칼마 = 총 칼마)
+        const yearlyCagr = (isOnlyLiveYear && totalCagr !== null)
+          ? totalCagr
+          : (yRow ? annualizePeriodRate(yearlyRate, yRow.period, globalDailyDataArr[i], null, null, 365) : null);
         const monthlyCagr = mRow ? annualizeMonthlyRate(monthlyRate) : null;
         // 칼마비율 = CAGR(연환산 수익률) / MDD (단순 구간 수익률이 아님)
-        const totalCalmar = displaySummary.calmar !== undefined ? displaySummary.calmar : 0;
-        const yearlyCalmar = (yearlyCagr !== null && yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(yearlyCagr / Number(yRow.mdd)) : null;
+        const yearlyCalmar = (isOnlyLiveYear && totalCalmar !== null)
+          ? totalCalmar
+          : ((yearlyCagr !== null && yRow && yRow.mdd && yRow.mdd !== 0) ? Math.abs(yearlyCagr / Number(yRow.mdd)) : null);
         const monthlyCalmar = (monthlyCagr !== null && mRow && mRow.mdd && mRow.mdd !== 0) ? Math.abs(monthlyCagr / Number(mRow.mdd)) : null;
 
         list.push({

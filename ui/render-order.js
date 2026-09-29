@@ -50,14 +50,14 @@ async function refreshOrderStatusCache(force = false, isManual = false) {
   }
 
   const thisSeq = ++_roscReqSeq;
-  _roscInFlight = _refreshOrderStatusCacheInner(force, thisSeq);
+  _roscInFlight = _refreshOrderStatusCacheInner(force, thisSeq, isManual);
   try {
     await _roscInFlight;
   } finally {
     if (_roscReqSeq === thisSeq) _roscInFlight = null;
   }
 }
-async function _refreshOrderStatusCacheInner(force, reqSeq) {
+async function _refreshOrderStatusCacheInner(force, reqSeq, isManual = false) {
   try {
     const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
     if (!userId) return;
@@ -66,36 +66,95 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
     const BR = window.BrokerReconcile;
     const activeBr = (BS && typeof BS.activeBroker === 'string' && BS.activeBroker.length > 1) ? BS.activeBroker : 'kiwoom';
     const phase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
-    const shouldCheckBroker = phase === 'order' || phase === 'closed' || force;
+    const isBrokerPhase = phase === 'order' || phase === 'closed';
 
     window.orderStatusCache.vmOrdersChecked = false;
     window.orderStatusCache.brokerOrdersChecked = false;
     window.orderStatusCache.isLoading = true;
     window.__forceOrderViewReRender = true;
 
-    // 1. VM 예약 주문 (가장 먼저 가볍게 조회)
-    if (BS && typeof BS.fetchPendingOrders === 'function') {
+    // 1. 잔고 조회 (독립 비동기 실행: 주문표 일치 판정을 블로킹하지 않아 1~2초 지연 제거)
+    const fetchBalTask = async () => {
       try {
-        const resP = await BS.fetchPendingOrders();
+        let resBal = null;
+        if (BR && typeof BR.getBalance === 'function') resBal = await BR.getBalance(activeBr);
+        else if (BS && typeof BS.fetchOverseasBalance === 'function') resBal = await BS.fetchOverseasBalance(activeBr);
         if (reqSeq !== _roscReqSeq) return;
-        if (resP && resP.ok) {
-          window.orderStatusCache.vmOrders = Array.isArray(resP.orders) ? resP.orders : [];
-          window.orderStatusCache.vmSaved = window.orderStatusCache.vmOrders.length > 0;
-          window.orderStatusCache.vmOverdue = !!(resP.backtest && resP.backtest.overdue);
-          window.orderStatusCache.vmRanToday = !!(resP.backtest && resP.backtest.ranToday);
-          window.orderStatusCache.vmSavedAt = resP.savedAt || 0;
+        if (resBal && resBal.success !== false) {
+          window.orderStatusCache.balance = resBal;
+          if (typeof window.UI !== 'undefined' && window.UI.stats && typeof window.UI.stats.refreshStatsTable === 'function') {
+            window.UI.stats.refreshStatsTable();
+          }
         }
       } catch (e) {}
-    }
-    if (reqSeq !== _roscReqSeq) return;
-    window.orderStatusCache.vmOrdersChecked = true;
+    };
+    fetchBalTask().catch(() => {});
 
-    // 2. 증권사 데이터 조회 (예약 시간대에는 불필요한 미체결/체결 조회를 생략하여 네트워크 낭비 및 지연 방지)
-    const brokerTasks = [];
+    let canUseVmFastPath = false;
 
-    if (shouldCheckBroker) {
+    // 2. VM 예약 주문 및 발주/체결 검증 보고서 조회
+    const fetchVmTask = async () => {
+      if (BS && typeof BS.fetchPendingOrders === 'function') {
+        try {
+          const resP = await BS.fetchPendingOrders();
+          if (reqSeq !== _roscReqSeq) return;
+          if (resP && resP.ok) {
+            window.orderStatusCache.vmOrders = Array.isArray(resP.orders) ? resP.orders : [];
+            window.orderStatusCache.vmSaved = window.orderStatusCache.vmOrders.length > 0;
+            window.orderStatusCache.vmOverdue = !!(resP.backtest && resP.backtest.overdue);
+            window.orderStatusCache.vmRanToday = !!(resP.backtest && resP.backtest.ranToday);
+            window.orderStatusCache.vmSavedAt = resP.savedAt || 0;
+            window.orderStatusCache.executed = resP.executed || null;
+            window.orderStatusCache.marketCloseResult = resP.marketCloseResult || null;
+          }
+        } catch (e) {}
+      }
+      if (reqSeq !== _roscReqSeq) return;
+      window.orderStatusCache.vmOrdersChecked = true;
+
+      // ⭐️ [VM 알림/원장 대조 우선순위 Fast Path]
+      // 1) 예약 시간대(!isBrokerPhase): 증권사 주문 전이므로 VM 예약표로 즉시 완료.
+      // 2) 장중 시간대(order): VM이 09:20 ET에 발주 후 대조한 executed 보고서가 정상이면 증권사 실시간 TR 없이 0.1~0.2초 즉시 완료.
+      // 3) 장마감 시간대(closed): VM이 16:05 ET에 체결 판정한 marketCloseResult 보고서가 정상이면 증권사 실시간 TR 없이 0.1~0.2초 즉시 완료.
+      const todayYmd = typeof nyTodayStr === 'function' ? nyTodayStr().replace(/[^0-9]/g, '') : '';
+      const exec = window.orderStatusCache.executed;
+      const mc = window.orderStatusCache.marketCloseResult;
+
+      const isTodayExec = exec && String(exec.date || '').replace(/[^0-9]/g, '') === todayYmd;
+      const isExecVerified = isTodayExec && (
+        (exec.report && exec.report.mismatched === 0 && exec.report.failed === 0) ||
+        (Array.isArray(exec.results) && exec.results.length > 0 && exec.results.every(r => r.ok !== false && !r.error))
+      );
+
+      const isTodayMc = mc && String(mc.date || '').replace(/[^0-9]/g, '') === todayYmd;
+      const isMcVerified = isTodayMc && mc.report && mc.report.failed === 0 && mc.report.notFound === 0;
+
+      canUseVmFastPath = !isBrokerPhase || 
+        (phase === 'order' && isExecVerified) || 
+        (phase === 'closed' && isMcVerified);
+
+      if (canUseVmFastPath) {
+        window.orderStatusCache.brokerOrdersChecked = true;
+        window.orderStatusCache.isLoading = false;
+        window.orderStatusCache.hasEverLoaded = true;
+        window.orderStatusCache.lastLoadedAt = Date.now();
+        window.orderStatusCache.lastPhase = phase;
+        if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
+        if (typeof window.updateOrderCompareModalDOM === 'function') window.updateOrderCompareModalDOM();
+        if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
+      }
+    };
+
+    // 3. 증권사 미체결 / 체결 내역 조회 (Fast Path 불가 시 또는 수동 강제 조회 시 병렬 실행)
+    const fetchBrokerTask = async () => {
+      // ⭐️ 이미 VM 검증 보고서로 Fast Path 완료된 상태이고 수동 강제 조회가 아니라면 무거운 실시간 TR 생략
+      if (canUseVmFastPath && !isManual) {
+        window.orderStatusCache.brokerOrdersChecked = true;
+        return;
+      }
+      const tasks = [];
       if (BS && typeof BS.fetchUnfilledOrders === 'function') {
-        brokerTasks.push(
+        tasks.push(
           BS.fetchUnfilledOrders(activeBr).then(res1 => {
             if (reqSeq !== _roscReqSeq) return;
             if (res1 && res1.success && Array.isArray(res1.unfilled)) {
@@ -115,27 +174,21 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
           if (list) window.orderStatusCache.filledOrders = list;
         }
       };
-      brokerTasks.push(fetchFillsTask().catch(() => {}));
-    }
+      tasks.push(fetchFillsTask().catch(() => {}));
 
-    // 잔고 조회
-    const fetchBalTask = async () => {
-      let resBal = null;
-      if (BR && typeof BR.getBalance === 'function') resBal = await BR.getBalance(activeBr);
-      else if (BS && typeof BS.fetchOverseasBalance === 'function') resBal = await BS.fetchOverseasBalance(activeBr);
-      if (reqSeq !== _roscReqSeq) return;
-      if (resBal && resBal.success !== false) {
-        window.orderStatusCache.balance = resBal;
-        if (typeof window.UI !== 'undefined' && window.UI.stats && typeof window.UI.stats.refreshStatsTable === 'function') {
-          window.UI.stats.refreshStatsTable();
-        }
+      if (tasks.length > 0) {
+        await Promise.all(tasks);
       }
-    };
-    brokerTasks.push(fetchBalTask().catch(() => {}));
+      if (reqSeq !== _roscReqSeq) return;
+      window.orderStatusCache.brokerOrdersChecked = true;
 
-    if (brokerTasks.length > 0) {
-      await Promise.all(brokerTasks);
-    }
+      if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
+      if (typeof window.updateOrderCompareModalDOM === 'function') window.updateOrderCompareModalDOM();
+      if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
+    };
+
+    // ⭐️ VM 예약/검증 조회와 증권사 주문 조회를 병렬(Promise.all)로 동시 실행
+    await Promise.all([fetchVmTask(), fetchBrokerTask()]);
     if (reqSeq !== _roscReqSeq) return;
 
     window.orderStatusCache.brokerOrdersChecked = true;
@@ -144,6 +197,7 @@ async function _refreshOrderStatusCacheInner(force, reqSeq) {
     window.orderStatusCache.lastLoadedAt = Date.now();
     window.orderStatusCache.lastPhase = phase;
     if (typeof updateCombinedOrderMatchStatus === 'function') updateCombinedOrderMatchStatus();
+    if (typeof window.updateOrderCompareModalDOM === 'function') window.updateOrderCompareModalDOM();
     if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
   } catch(e) {
     if (window.orderStatusCache && reqSeq === _roscReqSeq) {
@@ -1397,9 +1451,59 @@ window.getCombinedOrderEvaluationData = function() {
           }
         }
       });
+
+      // ⭐️ 증권사 체결 실시간 TR 조회가 생략되었거나 비어있을 때, VM의 장종료 체결 판정(marketCloseResult) 보고서 우선 활용
+      if (remainingBuyFills.length === 0 && remainingSellFills.length === 0 && cache.marketCloseResult) {
+        const todayYmd = typeof nyTodayStr === 'function' ? nyTodayStr().replace(/[^0-9]/g, '') : '';
+        if (String(cache.marketCloseResult.date || '').replace(/[^0-9]/g, '') === todayYmd) {
+          const details = cache.marketCloseResult.report?.details || [];
+          const activeDetails = details.filter(r => {
+            if (!r) return false;
+            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'kiwoom' : 'ls'));
+            return b === activeBr;
+          });
+          activeDetails.forEach(item => {
+            const s = normalizeOrderSide(item.side || item.sideKo);
+            const t = normalizeOrderType(item.ordType);
+            const p = t === 'MOC' ? '0.00' : Number(item.price || 0).toFixed(2);
+            const fQty = Number(item.filledQty || 0);
+            const fPrice = Number(item.fillPrice || item.price || 0);
+            const k = `${s}|${t}|${p}`;
+            if (fQty > 0) {
+              fillQtyMap[k] = fQty;
+              fillPriceMap[k] = fPrice;
+              brMap[k] = fQty;
+            }
+          });
+        }
+      }
     } else {
       // ⭐️ 주문시간에는 미체결 주문내역만 대조 (체결된 건 제외)
-      const allBrokerOrders = [...activeUnfilled];
+      let allBrokerOrders = [...activeUnfilled];
+
+      // ⭐️ 증권사 미체결 실시간 TR 조회가 생략되었거나 비어있을 때, VM의 자동주문 원장 대조(executed) 보고서 우선 활용
+      if (allBrokerOrders.length === 0 && cache.executed) {
+        const todayYmd = typeof nyTodayStr === 'function' ? nyTodayStr().replace(/[^0-9]/g, '') : '';
+        if (String(cache.executed.date || '').replace(/[^0-9]/g, '') === todayYmd) {
+          const list = (cache.executed.report && Array.isArray(cache.executed.report.details))
+            ? cache.executed.report.details
+            : (Array.isArray(cache.executed.results) ? cache.executed.results : []);
+          const activeList = list.filter(r => {
+            if (!r) return false;
+            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'kiwoom' : 'ls'));
+            return b === activeBr;
+          });
+          allBrokerOrders = activeList.map(item => ({
+            side: item.side || item.sideKo,
+            ordType: item.ordType || item.orderType,
+            price: item.price,
+            qty: item.qty || item.expQty,
+            broker: activeBr,
+            orderId: item.orderId
+          }));
+        }
+      }
+
       try {
         const rawTuples = allBrokerOrders.map(row => [
           normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
@@ -1470,11 +1574,24 @@ window.getCombinedOrderEvaluationData = function() {
   };
 };
 
-window.compareOrderBookManual = async function() {
-  if (typeof window.checkSheetVerificationStatus === 'function') {
-    window.checkSheetVerificationStatus();
+window.closeOrderCompareModal = function() {
+  if (window._orderCompareModalTimer) {
+    clearInterval(window._orderCompareModalTimer);
+    window._orderCompareModalTimer = null;
   }
-  const evalData = window.getCombinedOrderEvaluationData();
+  const existing = document.getElementById('orderCompareManualModal');
+  if (existing) existing.remove();
+};
+
+window.updateOrderCompareModalDOM = function() {
+  const modal = document.getElementById('orderCompareManualModal');
+  if (!modal) return;
+
+  const evalData = typeof window.getCombinedOrderEvaluationData === 'function'
+    ? window.getCombinedOrderEvaluationData()
+    : null;
+  if (!evalData) return;
+
   const {
     cache,
     currentPhase,
@@ -1495,8 +1612,7 @@ window.compareOrderBookManual = async function() {
     isPendingCalculation
   } = evalData;
 
-  // 휴장일(주말/공휴일) 또는 이미 VM 주문이 저장되어 있는 경우 vmRanToday 체크를 건너뛰고 기존 저장된 예약 주문표를 사용한다.
-  const isVmReady = !!cache.vmOrdersChecked && (isHoliday || isBrokerPhase || cache.vmSaved || cache.vmRanToday !== false);
+  const isVmReady = !!cache.vmOrdersChecked;
   const isBrokerReady = (isHoliday || !isBrokerPhase) ? true : !!cache.brokerOrdersChecked;
   const isDataReady = isVmReady && isBrokerReady && !cache.isLoading && !isPendingCalculation;
 
@@ -1507,8 +1623,6 @@ window.compareOrderBookManual = async function() {
     let loadingMsg = "⏳ 증권사/VM 데이터를 확인 중입니다... (잠시 후 자동 갱신됩니다)";
     if (isPendingCalculation) {
       loadingMsg = "⏳ 앱에서 슬롯별 주문표를 계산 중입니다... (잠시 후 자동 갱신됩니다)";
-    } else if (!isClosedPhase && !isBrokerPhase && !isHoliday && cache.vmOrdersChecked && !cache.vmSaved && cache.vmRanToday === false) {
-      loadingMsg = "⏳ VM이 오늘자 신규 주문표를 생성 중입니다... (잠시 후 자동 갱신됩니다)";
     }
     tbodyHtml = `<tr><td colspan="${colSpanCount}" style="padding:16px; color:#f59e0b; font-size:12px; text-align:center; font-weight:bold;">${loadingMsg}</td></tr>`;
   } else if (allKeys.length === 0) {
@@ -1633,19 +1747,54 @@ window.compareOrderBookManual = async function() {
     `;
   }
 
-  // Inject Modal
+  const badgeEl = document.getElementById('orderComparePhaseBadge');
+  if (badgeEl) badgeEl.innerHTML = phaseBadge;
+
+  const theadEl = document.getElementById('orderCompareThead');
+  if (theadEl) theadEl.innerHTML = theadHtml;
+
+  const tbodyEl = document.getElementById('orderCompareTbody');
+  if (tbodyEl) tbodyEl.innerHTML = tbodyHtml;
+
+  // Update time cards styling
+  const card1 = document.getElementById('orderCompareTimeCard1');
+  const card2 = document.getElementById('orderCompareTimeCard2');
+  const card3 = document.getElementById('orderCompareTimeCard3');
+  if (card1) {
+    card1.style.background = currentPhase === 'order' ? 'rgba(14,165,233,0.15)' : 'transparent';
+    card1.style.borderColor = currentPhase === 'order' ? '#0ea5e9' : 'var(--card-border, rgba(255,255,255,0.07))';
+  }
+  if (card2) {
+    card2.style.background = currentPhase === 'closed' ? 'rgba(16,185,129,0.15)' : 'transparent';
+    card2.style.borderColor = currentPhase === 'closed' ? '#10b981' : 'var(--card-border, rgba(255,255,255,0.07))';
+  }
+  if (card3) {
+    card3.style.background = currentPhase === 'reserved' ? 'rgba(245,158,11,0.15)' : 'transparent';
+    card3.style.borderColor = currentPhase === 'reserved' ? '#f59e0b' : 'var(--card-border, rgba(255,255,255,0.07))';
+  }
+};
+
+window.compareOrderBookManual = async function() {
+  if (typeof window.checkSheetVerificationStatus === 'function') {
+    window.checkSheetVerificationStatus();
+  }
+
+  window.closeOrderCompareModal();
+
+  const evalData = window.getCombinedOrderEvaluationData();
+  const kstOrderStr = evalData.kstOrderStr;
+  const kstClosedStr = evalData.kstClosedStr;
+  const kstReservedStr = evalData.kstReservedStr;
   const modalId = 'orderCompareManualModal';
-  let existing = document.getElementById(modalId);
-  if (existing) existing.remove();
 
   const modalHtml = `
-    <div id="${modalId}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px);">
+    <div id="${modalId}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px);" onclick="if(event.target === this) window.closeOrderCompareModal()">
       <div style="background:var(--card, #1e293b); color:var(--text, #fff); width:100%; max-width:600px; max-height:90vh; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.5); overflow:hidden; border:1px solid var(--card-border, rgba(255,255,255,0.1));">
         <div style="padding:14px 20px; border-bottom:1px solid var(--card-border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:8px;">
             <h3 style="margin:0; font-size:16px; color:var(--primary, #8b5cf6);">주문표 일치 확인 (수동 대조)</h3>
           </div>
-          ${phaseBadge}
+          <div id="orderComparePhaseBadge"></div>
         </div>
         
         <!-- 시간대 안내 카드 -->
@@ -1655,18 +1804,18 @@ window.compareOrderBookManual = async function() {
               <span>🕒 상태별 비교 시간대 안내</span>
               <span style="font-size:10px; color:var(--text-muted);">기준: 뉴욕(ET) / 한국(KST)</span>
             </div>
-            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; text-align:center;">
-              <div style="background:${currentPhase === 'order' ? 'rgba(14,165,233,0.15)' : 'transparent'}; border:1px solid ${currentPhase === 'order' ? '#0ea5e9' : 'var(--card-border, rgba(255,255,255,0.07))'}; border-radius:6px; padding:5px 2px;">
+            <div id="orderCompareTimeCards" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; text-align:center;">
+              <div id="orderCompareTimeCard1" style="border:1px solid var(--card-border, rgba(255,255,255,0.07)); border-radius:6px; padding:5px 2px;">
                 <div style="font-weight:bold; color:#0ea5e9; font-size:11px;">1. 주문시간</div>
                 <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">09:20 ~ 16:00 ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstOrderStr})</div>
               </div>
-              <div style="background:${currentPhase === 'closed' ? 'rgba(16,185,129,0.15)' : 'transparent'}; border:1px solid ${currentPhase === 'closed' ? '#10b981' : 'var(--card-border, rgba(255,255,255,0.07))'}; border-radius:6px; padding:5px 2px;">
+              <div id="orderCompareTimeCard2" style="border:1px solid var(--card-border, rgba(255,255,255,0.07)); border-radius:6px; padding:5px 2px;">
                 <div style="font-weight:bold; color:#10b981; font-size:11px;">2. 체결/정산시간</div>
                 <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">16:00 ~ 17:20 ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstClosedStr})</div>
               </div>
-              <div style="background:${currentPhase === 'reserved' ? 'rgba(245,158,11,0.15)' : 'transparent'}; border:1px solid ${currentPhase === 'reserved' ? '#f59e0b' : 'var(--card-border, rgba(255,255,255,0.07))'}; border-radius:6px; padding:5px 2px;">
+              <div id="orderCompareTimeCard3" style="border:1px solid var(--card-border, rgba(255,255,255,0.07)); border-radius:6px; padding:5px 2px;">
                 <div style="font-weight:bold; color:#f59e0b; font-size:11px;">3. 예약시간</div>
                 <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">17:20 ~ 09:20 ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstReservedStr})</div>
@@ -1677,10 +1826,8 @@ window.compareOrderBookManual = async function() {
 
         <div style="padding:8px 16px 0 16px; overflow-y:auto; flex:1;">
           <table style="width:100%; border-collapse:collapse; text-align:center; font-size:12px;">
-            <thead style="background:var(--bg, #020617); position:sticky; top:0;">\n              ${theadHtml}\n            </thead>
-            <tbody>
-              ${tbodyHtml}
-            </tbody>
+            <thead id="orderCompareThead" style="background:var(--bg, #020617); position:sticky; top:0;"></thead>
+            <tbody id="orderCompareTbody"></tbody>
           </table>
         </div>
 
@@ -1688,22 +1835,75 @@ window.compareOrderBookManual = async function() {
           <div style="font-size:11px; color:var(--text-muted);">
             <span style="color:#0ea5e9;">ℹ️</span> 모든 주문표는 <b>퉁치기(상계/합산)</b>하여 표기 및 비교합니다.
           </div>
-          <button onclick="document.getElementById('${modalId}').remove()" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.15)); border-radius:6px; padding:6px 16px; font-size:12px; font-weight:bold; cursor:pointer;">닫기</button>
+          <button onclick="window.closeOrderCompareModal()" style="background:var(--card, #334155); color:var(--text, #fff); border:1px solid var(--card-border, rgba(255,255,255,0.15)); border-radius:6px; padding:6px 16px; font-size:12px; font-weight:bold; cursor:pointer;">닫기</button>
         </div>
       </div>
     </div>
   `;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // 초기 렌더링
+  window.updateOrderCompareModalDOM();
+
+  // 데이터가 아직 준비되지 않은 경우 즉시 비동기 갱신 트리거 및 감시 타이머 가동
+  const cache = window.orderStatusCache || {};
+  const isBrokerPhase = evalData.isBrokerPhase;
+  const isHoliday = evalData.isHoliday;
+  const isVmReady = !!cache.vmOrdersChecked;
+  const isBrokerReady = (isHoliday || !isBrokerPhase) ? true : !!cache.brokerOrdersChecked;
+  const isDataReady = isVmReady && isBrokerReady && !cache.isLoading && !evalData.isPendingCalculation;
+
+  if (!isDataReady) {
+    if (typeof _roscInFlight !== 'undefined' && _roscInFlight) {
+      _roscInFlight.then(() => {
+        if (typeof window.updateOrderCompareModalDOM === 'function') {
+          window.updateOrderCompareModalDOM();
+        }
+      });
+    } else if (typeof window.refreshOrderStatusCache === 'function') {
+      window.refreshOrderStatusCache(true, true).then(() => {
+        if (typeof window.updateOrderCompareModalDOM === 'function') {
+          window.updateOrderCompareModalDOM();
+        }
+      });
+    }
+
+    // ⭐️ 300ms 간격으로 준비 상태를 폴링하여 데이터 도착 즉시 모달 자동 갱신
+    window._orderCompareModalTimer = setInterval(() => {
+      const curModal = document.getElementById('orderCompareManualModal');
+      if (!curModal) {
+        clearInterval(window._orderCompareModalTimer);
+        window._orderCompareModalTimer = null;
+        return;
+      }
+      window.updateOrderCompareModalDOM();
+      const curData = window.getCombinedOrderEvaluationData();
+      const c = window.orderStatusCache || {};
+      const ready = !!c.vmOrdersChecked && ((curData.isHoliday || !curData.isBrokerPhase) ? true : !!c.brokerOrdersChecked) && !c.isLoading && !curData.isPendingCalculation;
+      if (ready) {
+        // 준비 완료되면 백그라운드 동기화용으로 4초 폴링 전환
+        clearInterval(window._orderCompareModalTimer);
+        window._orderCompareModalTimer = setInterval(() => {
+          if (!document.getElementById('orderCompareManualModal')) {
+            clearInterval(window._orderCompareModalTimer);
+            window._orderCompareModalTimer = null;
+            return;
+          }
+          window.updateOrderCompareModalDOM();
+        }, 4000);
+      }
+    }, 300);
+  }
 };
 
 // 📊 시트 검증 버튼 상태 관리 ('시트확인중', '시트일치', '시트불일치')
 window.updateSheetVerifyButton = function(status, reason) {
   const btn = document.getElementById('btnSheetVerify');
   if (!btn) return;
-  if (status === 'checking') {
+  if (status === 'checking' || status === 'syncing') {
     btn.innerHTML = '시트확인중';
     btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
-    btn.title = '구글 시트와 앱의 데이터를 검증 중입니다...';
+    btn.title = status === 'syncing' ? '구글 시트 데이터 동기화(로그인)가 진행 중입니다...' : '구글 시트와 앱의 데이터를 검증 중입니다...';
   } else if (status === 'matched') {
     btn.innerHTML = '시트일치';
     btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
@@ -1793,62 +1993,221 @@ window.collectAppStatesForVerification = function() {
   return appStates;
 };
 
-// 🔄 백그라운드 시트 1:1 대조 자동 검증 함수
-window.checkSheetVerificationStatus = async function() {
+// ⭐️ 시트 데이터 검증 평가 공통 함수 (결과 반환: true/false)
+window.evaluateSheetVerificationResult = function(vmRes) {
+  if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) return false;
+  const appStates = window.collectAppStatesForVerification ? window.collectAppStatesForVerification() : [];
+  if (!appStates.length) return false;
+
+  for (let slot = 1; slot <= (window.MAX_SLOTS || 12); slot++) {
+    const app = appStates[slot - 1];
+    const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
+    if (!app?.active && !vm?.active) continue;
+
+    const sheet = vm.sheetActual || {
+      date: vm.date,
+      asset: vm.asset,
+      inout: vm.inout,
+      cash: vm.cash,
+      base: vm.base,
+      realPrincipal: vm.realPrincipal,
+      holdings: vm.holdings
+    };
+
+    const hMatch = window.isHoldingsMatchForVerification ? window.isHoldingsMatchForVerification(app.holdings, sheet.holdings) : true;
+    const d1 = String(app.date || '').replace(/[^0-9]/g, '');
+    const d2 = String(sheet.date || '').replace(/[^0-9]/g, '');
+    const isDateMatch = d1 === d2;
+    const isAssetMatch = Math.abs(Number(app.asset || 0) - Number(sheet.asset || 0)) < 0.05;
+    const isInoutMatch = Math.abs(Number(app.inout || 0) - Number(sheet.inout || 0)) < 0.05;
+    const isCashMatch = Math.abs(Number(app.cash || 0) - Number(sheet.cash || 0)) < 0.05;
+    const isBaseMatch = Math.abs(Number(app.base || 0) - Number(sheet.base || 0)) < 0.05;
+    const isPrincipalMatch = Math.abs(Number(app.realPrincipal || 0) - Number(sheet.realPrincipal || 0)) < 0.05;
+
+    if (!isDateMatch || !isAssetMatch || !isInoutMatch || !isCashMatch || !isBaseMatch || !isPrincipalMatch || !hMatch) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// ⚡ 브라우저 메모리에 이미 로드된 구글 시트 로그(lastMyPerfData)로 검증 데이터 0.001초 즉석 생성
+window.generateLocalSheetVerificationRes = function() {
+  const perfData = window.lastMyPerfData;
+  if (!perfData) return null;
+  const maxSlots = window.MAX_SLOTS || 12;
+  const slotStates = [];
+  let hasActiveSlot = false;
+
+  const normalizeDateStr = (d) => {
+    if (!d || d === "-") return "-";
+    const s = String(d).trim();
+    const p = s.replace(/[^0-9.\-\s\/]/g, "").replace(/[.\s\/]+/g, "-").split("-").filter(Boolean);
+    if (p.length >= 3) {
+      const y = p[0].length === 2 ? "20" + p[0] : (p[0].length === 4 ? p[0] : p[0]);
+      const m = p[1].padStart(2, "0");
+      const d = p[2].padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    return s.slice(0, 10);
+  };
+
+  const computeTotalInout = (logs) => {
+    let total = 0;
+    if (Array.isArray(logs)) {
+      for (let i = 0; i < logs.length; i++) {
+        total += (parseFloat(String(logs[i][2] || 0).replace(/[^0-9.-]+/g, "")) || 0);
+      }
+    }
+    return Math.round(total * 100) / 100;
+  };
+
+  const computeTruePrincipal = (logs, fallback) => {
+    if (Array.isArray(logs) && logs.length > 0) {
+      let firstPrincipal = 0;
+      if (logs[0][3]) {
+        try {
+          const p0 = typeof logs[0][3] === "string" ? JSON.parse(logs[0][3]) : logs[0][3];
+          firstPrincipal = Number(p0.realPrincipal ?? p0.base_principal ?? 0);
+        } catch (e) {}
+      }
+      if (!firstPrincipal || firstPrincipal <= 0) {
+        firstPrincipal = parseFloat(String(logs[0][1] || 0).replace(/[^0-9.-]+/g, "")) || 0;
+      }
+      let totalInout = 0;
+      for (let i = 0; i < logs.length; i++) {
+        totalInout += (parseFloat(String(logs[i][2] || 0).replace(/[^0-9.-]+/g, "")) || 0);
+      }
+      return Math.round((firstPrincipal + totalInout) * 100) / 100;
+    }
+    return Number(fallback || 0);
+  };
+
+  for (let i = 1; i <= maxSlots; i++) {
+    const isActive = typeof window.isSlotActive === "function" ? window.isSlotActive(i) : true;
+    const conf = window.slotConfigs ? window.slotConfigs[i] : null;
+    const isConfActive = !!(conf && conf.basics && conf.basics.strategy && conf.basics.strategy !== "정지" && conf.basics.strategy !== "-- 선택 안 함 --");
+    
+    if (!isActive || !isConfActive) {
+      slotStates.push({
+        slot: i,
+        active: false,
+        ticker: conf?.basics?.ticker || "-",
+        strategy: "정지",
+        holdings: []
+      });
+      continue;
+    }
+
+    const perfSlot = perfData[`strat${i}`];
+    if (!perfSlot || !Array.isArray(perfSlot.logs) || perfSlot.logs.length === 0) {
+      return null;
+    }
+
+    hasActiveSlot = true;
+    const logs = perfSlot.logs;
+    const sheetLastRow = logs[logs.length - 1];
+    let sheetLastJson = {};
+    if (sheetLastRow && sheetLastRow[3]) {
+      try {
+        sheetLastJson = typeof sheetLastRow[3] === "string" ? JSON.parse(sheetLastRow[3]) : sheetLastRow[3];
+      } catch (e) {}
+    }
+    const sheetLastHoldings = Array.isArray(sheetLastJson.holdings) ? sheetLastJson.holdings : [];
+    const totalInout = computeTotalInout(logs);
+    const initialCash = Number(conf.basics.initialCash || (sheetLastRow ? sheetLastRow[1] : 0));
+    const trueRealPrincipal = computeTruePrincipal(logs, initialCash);
+
+    const sheetActual = {
+      date: normalizeDateStr(sheetLastRow ? sheetLastRow[0] : ""),
+      asset: sheetLastRow ? (parseFloat(String(sheetLastRow[1] || "").replace(/[^0-9.-]+/g, "")) || 0) : 0,
+      inout: totalInout,
+      cash: Number(sheetLastJson.cash ?? 0),
+      base: Number(sheetLastJson.base_principal ?? sheetLastJson.base ?? 0),
+      realPrincipal: trueRealPrincipal,
+      holdings: sheetLastHoldings.map(h => ({
+        mode: h.mode || "-",
+        tier: h.tier !== undefined ? h.tier : "-",
+        qty: Number(h.qty || 0),
+        buy_price: Number(h.buy_price || h.price || 0),
+        buyDate: h.buyDate || ""
+      }))
+    };
+
+    slotStates.push({
+      slot: i,
+      active: true,
+      ticker: String(conf.basics.ticker || "").toUpperCase(),
+      strategy: String(conf.basics.strategy || ""),
+      date: sheetActual.date,
+      asset: sheetActual.asset,
+      inout: sheetActual.inout,
+      cash: sheetActual.cash,
+      base: sheetActual.base,
+      realPrincipal: sheetActual.realPrincipal,
+      holdings: sheetActual.holdings,
+      sheetActual: sheetActual
+    });
+  }
+
+  if (!hasActiveSlot) return null;
+  return { ok: true, slotStates: slotStates };
+};
+
+// 🔄 시트 1:1 대조 자동 검증 함수 (초고속 Fast Path 탑재)
+window.checkSheetVerificationStatus = async function(forceNetwork = false) {
+  // 1) ⚡ 초고속 Fast Path 1: 최근 60초 이내 검증 결과 캐시 재활용 (0ms 즉시 완료)
+  if (!forceNetwork && window.__lastSheetVerificationVmRes && (Date.now() - (window.__lastSheetVerificationTime || 0) < 60000)) {
+    const isMatched = window.evaluateSheetVerificationResult(window.__lastSheetVerificationVmRes);
+    window.updateSheetVerifyButton(isMatched ? 'matched' : 'mismatched');
+    return isMatched;
+  }
+
+  // 2) ⚡ 초고속 Fast Path 2: 브라우저 메모리에 이미 로드된 구글 시트 로그(lastMyPerfData)로 즉각 검증 (0.001초!)
+  if (!forceNetwork) {
+    const localRes = window.generateLocalSheetVerificationRes ? window.generateLocalSheetVerificationRes() : null;
+    if (localRes && localRes.ok && Array.isArray(localRes.slotStates)) {
+      window.__lastSheetVerificationVmRes = localRes;
+      window.__lastSheetVerificationTime = Date.now();
+      const isMatched = window.evaluateSheetVerificationResult(localRes);
+      window.updateSheetVerifyButton(isMatched ? 'matched' : 'mismatched');
+
+      // 백그라운드에서 조용히 VM 최신 스냅샷 동기화 (UI 대기/깜빡임 없음)
+      const now = Date.now();
+      if (now - (window.__lastSheetVerificationServerTime || 0) > 60000) {
+        window.__lastSheetVerificationServerTime = now;
+        (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(false) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()))
+          .then(vmRes => {
+            if (vmRes && vmRes.ok && Array.isArray(vmRes.slotStates)) {
+              window.__lastSheetVerificationVmRes = vmRes;
+              window.__lastSheetVerificationTime = Date.now();
+              const bgMatched = window.evaluateSheetVerificationResult(vmRes);
+              window.updateSheetVerifyButton(bgMatched ? 'matched' : 'mismatched');
+            }
+          })
+          .catch(() => {});
+      }
+      return isMatched;
+    }
+  }
+
+  // 3) 폴백: 로컬 시트 데이터도 아직 준비되지 않았거나 사용자가 명시적으로 새로고침한 경우에만 VM 대기
   window.updateSheetVerifyButton('checking');
   try {
-    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification() : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()));
+    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceNetwork) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceNetwork ? '&force=1' : ''}`).then(r => r.json()));
     
     if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
       window.updateSheetVerifyButton('mismatched', vmRes?.reason || 'VM 응답 오류');
       return false;
     }
 
-    // ⭐️ 캐시 저장: 이미 확인한 결과는 모달 클릭 시 0ms 즉각 표시
     window.__lastSheetVerificationVmRes = vmRes;
     window.__lastSheetVerificationTime = Date.now();
+    window.__lastSheetVerificationServerTime = Date.now();
 
-    const appStates = window.collectAppStatesForVerification ? window.collectAppStatesForVerification() : [];
-    let allMatched = true;
-
-    for (let slot = 1; slot <= (window.MAX_SLOTS || 12); slot++) {
-      const app = appStates[slot - 1];
-      const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
-      if (!app?.active && !vm?.active) continue;
-
-      const sheet = vm.sheetActual || {
-        date: vm.date,
-        asset: vm.asset,
-        inout: vm.inout,
-        cash: vm.cash,
-        base: vm.base,
-        realPrincipal: vm.realPrincipal,
-        holdings: vm.holdings
-      };
-
-      const hMatch = window.isHoldingsMatchForVerification ? window.isHoldingsMatchForVerification(app.holdings, sheet.holdings) : true;
-      const d1 = String(app.date || '').replace(/[^0-9]/g, '');
-      const d2 = String(sheet.date || '').replace(/[^0-9]/g, '');
-      const isDateMatch = d1 === d2;
-      const isAssetMatch = Math.abs(Number(app.asset || 0) - Number(sheet.asset || 0)) < 0.05;
-      const isInoutMatch = Math.abs(Number(app.inout || 0) - Number(sheet.inout || 0)) < 0.05;
-      const isCashMatch = Math.abs(Number(app.cash || 0) - Number(sheet.cash || 0)) < 0.05;
-      const isBaseMatch = Math.abs(Number(app.base || 0) - Number(sheet.base || 0)) < 0.05;
-      const isPrincipalMatch = Math.abs(Number(app.realPrincipal || 0) - Number(sheet.realPrincipal || 0)) < 0.05;
-
-      if (!isDateMatch || !isAssetMatch || !isInoutMatch || !isCashMatch || !isBaseMatch || !isPrincipalMatch || !hMatch) {
-        allMatched = false;
-        break;
-      }
-    }
-
-    if (allMatched) {
-      window.updateSheetVerifyButton('matched');
-      return true;
-    } else {
-      window.updateSheetVerifyButton('mismatched');
-      return false;
-    }
+    const isMatched = window.evaluateSheetVerificationResult(vmRes);
+    window.updateSheetVerifyButton(isMatched ? 'matched' : 'mismatched');
+    return isMatched;
   } catch (err) {
     window.updateSheetVerifyButton('mismatched', err.message);
     return false;
@@ -2072,23 +2431,40 @@ window.openSheetVerificationModal = async function(forceReload = false) {
   let existing = document.getElementById(modalId);
   if (existing) existing.remove();
 
+  const isSyncing = !!window.isServerSyncing;
+
   if (forceReload) {
     window.__lastSheetVerificationVmRes = null;
     window.__lastSheetVerificationTime = 0;
   }
 
-  // ⭐️ 캐시된 검증 데이터가 있고 강제 새로고침이 아닌 경우 로딩창 없이 0ms 즉시 오픈! (30초 TTL)
-  const hasFreshCache = !forceReload && window.__lastSheetVerificationVmRes && (Date.now() - (window.__lastSheetVerificationTime || 0) < 30000);
+  // ⭐️ 캐시된 검증 데이터가 있거나 로컬 시트 데이터가 있는 경우 로딩창 없이 0ms 즉시 오픈! (60초 TTL)
+  if (!forceReload && !isSyncing && !window.__lastSheetVerificationVmRes) {
+    const localRes = window.generateLocalSheetVerificationRes ? window.generateLocalSheetVerificationRes() : null;
+    if (localRes && localRes.ok) {
+      window.__lastSheetVerificationVmRes = localRes;
+      window.__lastSheetVerificationTime = Date.now();
+    }
+  }
+  const hasFreshCache = !forceReload && !isSyncing && window.__lastSheetVerificationVmRes && (Date.now() - (window.__lastSheetVerificationTime || 0) < 60000);
 
   const initialBodyHtml = hasFreshCache 
     ? buildSheetVerificationBodyContent(window.__lastSheetVerificationVmRes)
-    : `
-      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px;">
-        <div style="width:36px; height:36px; border:3px solid rgba(99,102,241,0.2); border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite;"></div>
-        <div style="font-size:13px; font-weight:700; color:var(--text, #fff);">VM 백엔드에서 시트 최신 계산 및 JSON 꾸러미 데이터를 수집 중입니다...</div>
-        <div style="font-size:11px; color:var(--text-muted, #94a3b8);">시트 전날 데이터 기준 금일 10대 항목 + 매수티어별 JSON 1:1 대조</div>
-      </div>
-    `;
+    : (isSyncing 
+      ? `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px;">
+          <div style="width:36px; height:36px; border:3px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:spin 1s linear infinite;"></div>
+          <div style="font-size:14px; font-weight:800; color:#f59e0b;">⏳ 구글 시트 데이터 동기화(로그인)가 진행 중입니다...</div>
+          <div style="font-size:11px; color:var(--text-muted, #94a3b8);">앱에 최신 시트 데이터가 반영되는 즉시 1:1 대조 검증이 자동으로 진행됩니다.</div>
+        </div>
+      `
+      : `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; gap:12px;">
+          <div style="width:36px; height:36px; border:3px solid rgba(99,102,241,0.2); border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite;"></div>
+          <div style="font-size:13px; font-weight:700; color:var(--text, #fff);">VM 백엔드에서 시트 최신 계산 및 JSON 꾸러미 데이터를 수집 중입니다...</div>
+          <div style="font-size:11px; color:var(--text-muted, #94a3b8);">시트 전날 데이터 기준 금일 10대 항목 + 매수티어별 JSON 1:1 대조</div>
+        </div>
+      `);
 
   const modalHtml = `
     <div id="${modalId}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:999999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px);">
@@ -2129,6 +2505,9 @@ window.openSheetVerificationModal = async function(forceReload = false) {
 
   // Fetch VM Data and Render Content
   try {
+    if (isSyncing && window.initDataFuture) {
+      try { await window.initDataFuture; } catch (e) {}
+    }
     const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceReload) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceReload ? '&force=1' : ''}`).then(r => r.json()));
 
     if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
@@ -2289,6 +2668,13 @@ function updateCombinedOrderMatchStatus(opts = {}) {
     btn.style.display = 'none';
   }
   const cache = window.orderStatusCache || {};
+  const activeBr = (window.BrokerService && typeof window.BrokerService.activeBroker === 'string' && window.BrokerService.activeBroker.length > 1) 
+    ? window.BrokerService.activeBroker : 'kiwoom';
+  if (cache.lastBroker && cache.lastBroker !== activeBr) {
+    cache.hasEverLoaded = false;
+  }
+  cache.lastBroker = activeBr;
+
   const currentPhase = typeof nyMarketPhaseForOrderCompare === 'function' ? nyMarketPhaseForOrderCompare() : 'reserved';
   const isBrokerPhase = currentPhase === 'order' || currentPhase === 'closed';
 
@@ -2308,6 +2694,7 @@ function updateCombinedOrderMatchStatus(opts = {}) {
     if (btn) {
       btn.innerHTML = '확인중';
       btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
+      btn.title = 'VM/앱/증권사 주문 데이터를 확인 중입니다...';
     }
     if (titleEl) {
       titleEl.innerHTML = '통합 주문표 <span style="color:#94a3b8; font-size:11px; font-weight:700;">(확인중)</span>';
@@ -2403,6 +2790,11 @@ function updateCombinedOrderMatchStatus(opts = {}) {
         titleEl.innerHTML = '통합 주문표 <span style="color:#ef4444; font-size:11px; font-weight:800;">(불일치)</span>';
       }
     }
+  }
+
+  // ⭐️ 수동 대조 모달이 열려 있다면 모달 내용도 즉시 실시간 갱신!
+  if (typeof window.updateOrderCompareModalDOM === 'function') {
+    window.updateOrderCompareModalDOM();
   }
 }
 window.updateCombinedOrderMatchStatus = updateCombinedOrderMatchStatus;
