@@ -161,10 +161,14 @@
 
   window.PushNotificationService = PushNotificationService;
 
-  // 페이지 로드 시 백그라운드에서 Service Worker 사전 초기화
+  // 페이지 로드 시 백그라운드에서 Service Worker 사전 초기화 및 푸시 자동 구독(기본값 ON) 확인
   if (typeof window !== 'undefined') {
     window.addEventListener('load', () => {
-      PushNotificationService.init().catch(() => {});
+      PushNotificationService.init().then(() => {
+        if (window.BrokerService && typeof window.BrokerService.ensurePushNotificationSubscribed === 'function') {
+          window.BrokerService.ensurePushNotificationSubscribed().catch(() => {});
+        }
+      }).catch(() => {});
     });
   }
 })();

@@ -738,6 +738,31 @@ window.BrokerService = {
     }
   },
 
+  async ensurePushNotificationSubscribed() {
+    if (!window.PushNotificationService || !window.PushNotificationService.isSupported) return;
+    const userId = this.getUserId();
+    if (!userId) return;
+
+    // 사용자가 명시적으로 알림을 끈 경우(disabled === '1')에만 자동 구독 건너뜀 (기본값 ON!)
+    if (localStorage.getItem(`vtotal3_webpush_disabled_${userId}`) === "1") {
+      return;
+    }
+
+    try {
+      const perm = window.PushNotificationService.getPermission();
+      if (perm === "granted") {
+        const isSub = await window.PushNotificationService.isSubscribed();
+        if (!isSub) {
+          console.log(`[WebPush] 기본값 ON 정책: [${userId}] 푸시 자동 구독 등록 진행...`);
+          await window.PushNotificationService.subscribe();
+          console.log(`[WebPush] 기본값 ON 정책: [${userId}] 푸시 자동 구독 등록 완료`);
+        }
+      }
+    } catch (e) {
+      console.warn("[WebPush] 자동 푸시 구독 중 예외 (무시 가능):", e.message);
+    }
+  },
+
   async refreshPushStatusInModal() {
     const el = document.getElementById("broker-webpush-status");
     const onBtn = document.getElementById("btnPushOn");
@@ -758,12 +783,25 @@ window.BrokerService = {
     if (perm === "denied") {
       el.innerHTML = `<span style="color:#ef4444; font-weight:700;">알림 차단됨</span> (브라우저 설정에서 권한 해제 필요)`;
       if (onBtn) { onBtn.style.border = "1px solid #334155"; onBtn.style.background = "#1e293b"; }
-      if (offBtn) { onBtn.style.border = "1px solid #ef4444"; offBtn.style.background = "#ef4444"; }
+      if (offBtn) { offBtn.style.border = "1px solid #ef4444"; offBtn.style.background = "#ef4444"; }
       return;
     }
 
     try {
-      const isSub = await window.PushNotificationService.isSubscribed();
+      let isSub = await window.PushNotificationService.isSubscribed();
+      const userId = this.getUserId();
+      const isExplicitlyDisabled = userId && localStorage.getItem(`vtotal3_webpush_disabled_${userId}`) === "1";
+
+      // ⭐️ 기본값 ON: 권한이 허용되어 있고 사용자가 명시적으로 끄지 않았다면 즉시 자동 구독
+      if (!isSub && perm === "granted" && !isExplicitlyDisabled) {
+        try {
+          await window.PushNotificationService.subscribe();
+          isSub = true;
+        } catch (subErr) {
+          console.warn("[WebPush] 모달 진입 시 자동 구독 시도:", subErr.message);
+        }
+      }
+
       if (isSub) {
         el.innerHTML = `<span style="color:#4ade80; font-weight:700;">켜짐 (수신 중)</span> · 발주 직후 원장 대조 푸시 수신`;
         if (onBtn) { onBtn.style.border = "1px solid #10b981"; onBtn.style.background = "#10b981"; }
@@ -782,9 +820,12 @@ window.BrokerService = {
     const el = document.getElementById("broker-webpush-status");
     if (el) el.textContent = enable ? "알림 등록 중..." : "알림 해제 중...";
     try {
+      const userId = this.getUserId();
       if (enable) {
+        if (userId) localStorage.removeItem(`vtotal3_webpush_disabled_${userId}`);
         await window.PushNotificationService.subscribe();
       } else {
+        if (userId) localStorage.setItem(`vtotal3_webpush_disabled_${userId}`, "1");
         await window.PushNotificationService.unsubscribe();
       }
       await this.refreshPushStatusInModal();

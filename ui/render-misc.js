@@ -1021,6 +1021,11 @@ async function enterAppDirectly() {
       }
     }
 
+  // 🔔 브라우저 푸시 알림 기본값 ON: 앱 진입 즉시 구독 상태 점검 및 자동 구독
+  if (window.BrokerService && typeof window.BrokerService.ensurePushNotificationSubscribed === 'function') {
+    window.BrokerService.ensurePushNotificationSubscribed().catch(() => {});
+  }
+
   const userHeader = document.getElementById('userDisplayHeader');
   if (userHeader) userHeader.innerText = myUserId + ' (로딩중...)';
   if (document.getElementById('loginVersion')) document.getElementById('loginVersion').innerText = `v${APP_VERSION}`;

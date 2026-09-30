@@ -2732,7 +2732,18 @@ function updateCombinedOrderMatchStatus(opts = {}) {
       const isDataReadyLog = isDataReady;
       
       // --- 대조 결과 로깅 (VM으로 전송) ---
-      if (isDataReadyLog && isBrokerPhaseLog) {
+      // ⚠️ 발주 직후 첫 1분(09:20 ET / 한국 22:20)은 VM이 순차 발주 중인 In-Flight 상태이므로
+      // 증권사에 아직 주문이 접수되기 전 일시적인 0주를 '발주 실패/거부'로 오판하여 로깅하는 것을 방지
+      const isDispatchWindow = (() => {
+        try {
+          const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit" }).formatToParts(new Date());
+          const hh = Number((parts.find(p => p.type === "hour") || {}).value || 0) % 24;
+          const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
+          return (hh === 9 && mm === 20);
+        } catch (_) { return false; }
+      })();
+
+      if (isDataReadyLog && isBrokerPhaseLog && !isDispatchWindow) {
         const mismatches = [];
         evalDataForLog.allKeys.forEach(k => {
           const vQty = evalDataForLog.vmMap[k] || 0;
