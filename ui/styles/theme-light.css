@@ -27,6 +27,17 @@ body.light-mode select {
   border-color: var(--card-border) !important;
 }
 
+body.light-mode .btn-date-clear {
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--card-border) !important;
+}
+
+body.light-mode .btn-date-clear:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
 body.light-mode .top-bar {
   background: rgba(255, 255, 255, 0.8) !important;
   border-top-color: var(--card-border) !important;

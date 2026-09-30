@@ -141,8 +141,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v1787732256753" defer></script>
   <link rel="stylesheet" href="ui/styles/core.css?v=cf_v20260917_04">
   <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v20260929_01">
-  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20260928_02">
-  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v20260928_02">
+  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20260930_02">
+  <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v20260930_01">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
   <script src="utils/formatters.js?v=cf_v1787732256753" defer></script>
   <script src="utils/date-helpers.js?v=cf_v20260912_01" defer></script>
@@ -241,8 +241,8 @@
       </div>
       <div id="alwaysVisibleInputs">
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">티커</label><select id="ticker" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"><option value="SOXL">SOXL</option><option value="TQQQ">TQQQ</option></select></div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">투자법</label>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">티커</label><select id="ticker" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"><option value="SOXL">SOXL</option><option value="TQQQ">TQQQ</option></select></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">투자법</label>
             <select id="strategySelect" style="width: 100%; min-width: 0;" onchange="window.UI.misc.handleStrategyChange(this.value)">
               <option value="">-- 선택 안 함 --</option>
               <option value="정지">정지</option>
@@ -264,27 +264,51 @@
           </div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">시작일</label><input type="date" id="startDate" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">종료일</label><input type="date" id="endDate" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;">
+            <label style="width: 40px; flex-shrink: 0;">시작일</label>
+            <div class="date-input-wrap">
+              <input type="date" id="startDate" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()">
+              <button type="button" class="btn-date-clear" onclick="window.clearDateInput('startDate')" title="시작일 삭제">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+                  <path d="M22 21H7"/>
+                  <path d="m5 11 9 9"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="input-group" style="margin-bottom:0;">
+            <label style="width: 40px; flex-shrink: 0;">종료일</label>
+            <div class="date-input-wrap">
+              <input type="date" id="endDate" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()">
+              <button type="button" class="btn-date-clear" onclick="window.clearDateInput('endDate')" title="종료일 삭제">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+                  <path d="M22 21H7"/>
+                  <path d="m5 11 9 9"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">초기자산</label><input type="text" id="initialCash" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">수수료(%)</label><input type="number" id="fBase" step="any" style="width: 100%; min-width: 0;"
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">초기자산</label><input type="text" id="initialCash" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0; font-size: 10px; letter-spacing: -0.4px;">수수료(%)</label><input type="number" id="fBase" step="any" style="width: 100%; min-width: 0;"
               onchange="window.UI.misc.triggerOptimisticSave()"></div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">갱신금</label><input type="text" id="renewCash" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">SEC(%)</label><input type="number" id="fSec" step="any" style="width: 100%; min-width: 0;"
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">갱신금</label><input type="text" id="renewCash" style="width: 100%; min-width: 0;" onchange="window.UI.misc.triggerOptimisticSave()"></div>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0; font-size: 10px; letter-spacing: -0.4px;">SEC(%)</label><input type="number" id="fSec" step="any" style="width: 100%; min-width: 0;"
               onchange="window.UI.misc.triggerOptimisticSave()"></div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">통화</label>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">통화</label>
             <select id="defaultCurrency" onchange="updateDefaultCurrency(this.value)" style="width: 100%; min-width: 0;">
               <option value="USD">USD</option>
               <option value="KRW">KRW</option>
             </select>
           </div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">배경</label>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">배경</label>
             <select id="themeSelect" onchange="updateTheme(this.value)" style="width: 100%; min-width: 0;">
               <option value="light" selected>라이트</option>
               <option value="dark">다크</option>
@@ -292,14 +316,14 @@
           </div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">주문표</label>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">주문표</label>
             <select id="combinedModeSelect" onchange="updateCombinedMode(this.value)" style="width: 100%; min-width: 0;">
               <option value="combined" selected>통합주문</option>
               <option value="normal">일반</option>
               <option value="combined_normal">통합+일반</option>
             </select>
           </div>
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 48px; flex-shrink: 0;">폰트</label>
+          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">폰트</label>
             <select id="fontSizeSelect" onchange="updateFontSize(this.value)" style="width: 100%; min-width: 0;">
               <option value="9px">폰트 9.0px</option>
               <option value="9.5px">폰트 9.5px</option>
@@ -917,8 +941,32 @@
         </div>
 
         <div class="input-group"><label>티커</label><input type="text" id="qTicker" value="SOXL" onchange="saveQuickConfigToLocal()"></div>
-        <div class="input-group"><label>시작일</label><input type="date" id="qStartDate" onchange="saveQuickConfigToLocal()"></div>
-        <div class="input-group"><label>종료일</label><input type="date" id="qEndDate" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group">
+          <label>시작일</label>
+          <div class="date-input-wrap">
+            <input type="date" id="qStartDate" onchange="saveQuickConfigToLocal()">
+            <button type="button" class="btn-date-clear" onclick="window.clearDateInput('qStartDate')" title="시작일 삭제">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+                <path d="M22 21H7"/>
+                <path d="m5 11 9 9"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>종료일</label>
+          <div class="date-input-wrap">
+            <input type="date" id="qEndDate" onchange="saveQuickConfigToLocal()">
+            <button type="button" class="btn-date-clear" onclick="window.clearDateInput('qEndDate')" title="종료일 삭제">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+                <path d="M22 21H7"/>
+                <path d="m5 11 9 9"/>
+              </svg>
+            </button>
+          </div>
+        </div>
 
         <div class="input-group"><label>초기자산</label><input type="text" id="qInitialCash" onchange="saveQuickConfigToLocal()"></div>
         <div class="input-group"><label>갱신금</label><input type="text" id="qRenewCash" onchange="saveQuickConfigToLocal()"></div>
@@ -1144,7 +1192,7 @@
   <script src="ui/render-notifications.js?v=cf_v20260929_01" defer></script>
   <script src="ui/render-misc.js?v=cf_v20260929_06" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20260930_06" defer></script>
+  <script src="script.js?v=cf_v20260930_07" defer></script>
 
 
 </body>

@@ -419,6 +419,42 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   text-align: center;
 }
 
+.date-input-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  width: 100%;
+}
+
+.btn-date-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.btn-date-clear:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-date-clear:active {
+  transform: scale(0.92);
+}
+
 /* 테이블 */
 .data-table {
   width: 100%;

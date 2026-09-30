@@ -134,6 +134,17 @@ function loadBTResult(slotNum, userId) {
   }
 }
 
+window.clearDateInput = function(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.value = '';
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  if (typeof el.onchange === 'function') {
+    try { el.onchange(); } catch (e) { console.warn('clearDateInput onchange error:', e); }
+  }
+};
+
 function clearTransientAppCaches() {
   const removableKeys = [];
 
