@@ -2190,6 +2190,146 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   setupPriceInfoSwipeDirect();
+
+  // 💼 자산현황 화면 전용 다이렉트 touch/mouse 좌우 스와이프 리스너
+  // 통합 -> 활성 슬롯1 -> ... -> 활성 슬롯7 -> 활성 슬롯8 순환 전환
+  const setupStatsSwipeDirect = () => {
+    const panel = document.getElementById('panelStats');
+    if (!panel) return;
+
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
+
+    panel.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    panel.addEventListener('touchend', (e) => {
+      if (!e.changedTouches || e.changedTouches.length === 0) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      handleStatsSwipe(startX, startY, endX, endY);
+    }, { passive: true });
+
+    panel.addEventListener('mousedown', (e) => {
+      // 셀렉트 박스나 버튼 클릭 시에는 스와이프 드래그 시작 방지
+      if (e.target.closest('select') || e.target.closest('button')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    });
+
+    panel.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      handleStatsSwipe(startX, startY, e.clientX, e.clientY);
+    });
+
+    panel.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+
+    function handleStatsSwipe(sX, sY, eX, eY) {
+      const chartContainer = document.getElementById('statsChartContainer');
+      if (!chartContainer || chartContainer.style.display === 'none') return;
+
+      const diffX = eX - sX;
+      const diffY = eY - sY;
+      // 수평 이동 거리가 수직보다 크고 35px 이상일 때 스와이프 인정
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 35) {
+        const selector = document.getElementById('statsMetricSelector');
+        if (!selector) return;
+
+        // 활성화된 옵션 목록 수집 (통합 + 활성 슬롯들)
+        const activeOpts = ['combined'];
+        const maxSlots = window.MAX_SLOTS || 12;
+        for (let i = 1; i <= maxSlots; i++) {
+          if (isSlotActive(i)) {
+            activeOpts.push(String(i));
+          }
+        }
+        if (activeOpts.length <= 1) return;
+
+        const currentVal = selector.value || 'combined';
+        let currentIndex = activeOpts.indexOf(currentVal);
+        if (currentIndex === -1) currentIndex = 0;
+
+        if (diffX < 0) {
+          // 좌측으로 스와이프: 다음 슬롯 (통합 -> 슬롯1 -> ... -> 슬롯7 -> 슬롯8)
+          currentIndex = (currentIndex + 1) % activeOpts.length;
+        } else {
+          // 우측으로 스와이프: 이전 슬롯
+          currentIndex = (currentIndex - 1 + activeOpts.length) % activeOpts.length;
+        }
+
+        selector.value = activeOpts[currentIndex];
+        if (typeof updateStatsPieChart === 'function') {
+          updateStatsPieChart();
+        }
+        if (navigator.vibrate) navigator.vibrate(8);
+      }
+    }
+  };
+
+  setupStatsSwipeDirect();
+
+  // 📜 실전 매도 내역 ↔ 증권사 매매내역 좌우 스와이프 토글 리스너
+  const setupHistorySwipeDirect = () => {
+    const panel = document.getElementById('panelHistory');
+    if (!panel) return;
+
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
+
+    panel.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    panel.addEventListener('touchend', (e) => {
+      if (!e.changedTouches || e.changedTouches.length === 0) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      handleHistorySwipe(startX, startY, endX, endY);
+    }, { passive: true });
+
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('select') || e.target.closest('a')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    });
+
+    panel.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      handleHistorySwipe(startX, startY, e.clientX, e.clientY);
+    });
+
+    panel.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+
+    function handleHistorySwipe(sX, sY, eX, eY) {
+      const diffX = eX - sX;
+      const diffY = eY - sY;
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 35) {
+        if (typeof window.toggleView === 'function') {
+          window.toggleView();
+          if (navigator.vibrate) navigator.vibrate(8);
+        }
+      }
+    }
+  };
+
+  setupHistorySwipeDirect();
 });
 
 
