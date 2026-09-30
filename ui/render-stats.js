@@ -55,48 +55,166 @@ function buildStatsPieRows() {
   return rows;
 }
 
-function updateStatsPieChart() {
+function updateStatsPieChart(explicitTarget) {
+  if (typeof window.updateStatsPieChart === 'function' && window.updateStatsPieChart !== updateStatsPieChart) {
+    return window.updateStatsPieChart(explicitTarget);
+  }
   const canvas = document.getElementById('statsPieChart');
   const legend = document.getElementById('statsChartLegend');
   if (!canvas) return;
 
-  const rows = buildStatsPieRows();
-  const isKRW = true;
-  const fx = typeof currentFXRate !== 'undefined' ? currentFXRate : 1;
+  const selector = document.getElementById('statsMetricSelector');
+  const activeOptions = [{ value: 'combined', text: '통합' }];
+  const maxSlots = window.MAX_SLOTS || 12;
+  for (let i = 1; i <= maxSlots; i++) {
+    if (isSlotActive(i)) {
+      const name = getSlotConfig(i)?.basics?.strategy || `투자법 ${i}`;
+      activeOptions.push({ value: String(i), text: name });
+    }
+  }
+
+  // ⭐️ 1) 먼저 옵션 HTML을 동기화하여 select 안에 option들이 온전히 존재하도록 보장
+  if (selector) {
+    const nextHtml = activeOptions.map(opt => `<option value="${opt.value}">${opt.text}</option>`).join('');
+    if (selector.innerHTML !== nextHtml) {
+      selector.innerHTML = nextHtml;
+    }
+  }
+
+  // ⭐️ 2) explicitTarget이 주어지면 우선 사용, 없으면 현재 selector.value 사용
+  let targetValue = explicitTarget;
+  if (!targetValue) {
+    targetValue = selector ? (selector.value || 'combined') : 'combined';
+  }
+
+  // 유효한 옵션인지 확인 후 폴백
+  if (!activeOptions.some(opt => opt.value === targetValue)) {
+    targetValue = 'combined';
+  }
+
+  // ⭐️ 3) 옵션이 채워진 상태에서 selector.value를 안전하게 동기화
+  if (selector && selector.value !== targetValue) {
+    selector.value = targetValue;
+  }
+
+  const fx = typeof currentFXRate !== 'undefined' ? currentFXRate : 1450;
+  const isKRW = typeof isCurrencyKRW !== 'undefined' ? isCurrencyKRW : false;
   const formatMoney = (value) => {
     const num = Number(value || 0);
-    if (isKRW) return Math.round(num * fx).toLocaleString();
-    return Math.round(num).toLocaleString();
+    if (isKRW) return Math.round(num * fx).toLocaleString() + '원';
+    return '$' + Math.round(num).toLocaleString();
   };
 
-  if (!rows.length) {
-    if (legend) legend.innerHTML = '<div class="analysis-legend-value">데이터 없음</div>';
-    const existing = getStatsPieChartInstance();
-    if (existing && typeof existing.destroy === 'function') existing.destroy();
-    setStatsPieChartInstance(null);
-    return;
+  let rows = [];
+
+  if (targetValue === 'combined') {
+    // ⭐️ [통합 모드] 활성 슬롯 전체의 자산 비중 파이차트
+    rows = buildStatsPieRows();
+
+    if (!rows.length) {
+      if (legend) legend.innerHTML = '<div class="analysis-legend-value" style="color:var(--text-muted); font-size:11px; text-align:center; padding:10px;">데이터 없음</div>';
+      const existing = getStatsPieChartInstance();
+      if (existing && typeof existing.destroy === 'function') existing.destroy();
+      setStatsPieChartInstance(null);
+      return;
+    }
+
+    const values = rows.map(row => Number(row.value || 0));
+    const total = values.reduce((sum, val) => sum + val, 0) || rows.length;
+
+    if (legend) {
+      legend.innerHTML = rows.map(row => {
+        const share = total > 0 ? ((Number(row.value || 0) / total) * 100) : 0;
+        return `
+          <div class="stats-asset-legend-row" style="display:flex; align-items:center; gap:6px; padding:2px 4px; min-height:18px;">
+            <span style="width:8px; height:8px; border-radius:999px; background:${row.color}; flex:0 0 auto;"></span>
+            <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatStrategyNameWithSmallParentheses(row.label)}</span>
+            <span style="margin-left:auto; font-weight:700; color:var(--text);">${formatMoney(row.value)}</span>
+            <span style="margin-left:6px; color:var(--text-muted); font-size:10px;">${share.toFixed(1)}%</span>
+          </div>`;
+      }).join('');
+    }
+  } else {
+    // ⭐️ [개별 슬롯 모드] 해당 슬롯의 상세 자산 구성 (주식 평가금 vs 예수금) & 핵심 요약
+    const slotNum = parseInt(targetValue, 10);
+    const res = getBestResult(lastBTResults[slotNum], slotNum);
+    const summary = (res ? getDisplayStatusData(res, slotNum) : null) || (res ? res.summary : null) || {};
+    const stratName = getSlotConfig(slotNum)?.basics?.strategy || `투자법 ${slotNum}`;
+
+    const totalAssets = Number(summary.totalAssets !== undefined ? summary.totalAssets : (summary.total_assets || 0));
+    const realPrincipal = Number(summary.realPrincipal !== undefined ? summary.realPrincipal : (summary.base || summary.base_principal || 0));
+    const totalProfit = Number(summary.totalProfit !== undefined ? summary.totalProfit : (totalAssets - realPrincipal));
+    const yieldRate = realPrincipal > 0 ? (totalProfit / realPrincipal) : 0;
+    const cash = Number(summary.cash !== undefined ? summary.cash : (summary.cashUSD || 0));
+    const evalAmt = Number(summary.evalAmt !== undefined ? summary.evalAmt : Math.max(0, totalAssets - cash));
+    const actualCash = Math.max(0, cash > 0 ? cash : (totalAssets - evalAmt));
+
+    if (evalAmt > 0) {
+      rows.push({
+        label: '주식 평가금',
+        value: evalAmt,
+        color: '#3b82f6'
+      });
+    }
+    if (actualCash > 0 || rows.length === 0) {
+      rows.push({
+        label: '예수금',
+        value: actualCash > 0 ? actualCash : Math.max(totalAssets, 1),
+        color: '#10b981'
+      });
+    }
+
+    if (legend) {
+      const isLight = document.body.classList.contains('light-mode');
+      const plusColor = isLight ? '#1d4ed8' : '#3b82f6';
+      const minusColor = isLight ? '#b91c1c' : '#ef4444';
+      const profitColor = totalProfit > 0 ? plusColor : (totalProfit < 0 ? minusColor : 'var(--text)');
+      const profitSign = totalProfit > 0 ? '+' : (totalProfit < 0 ? '-' : '');
+      const profitStr = `${profitSign}${formatMoney(Math.abs(totalProfit))} (${(yieldRate * 100).toFixed(1)}%)`;
+
+      const evalShare = totalAssets > 0 ? ((evalAmt / totalAssets) * 100).toFixed(1) : '0.0';
+      const cashShare = totalAssets > 0 ? ((actualCash / totalAssets) * 100).toFixed(1) : '0.0';
+
+      legend.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:3px; padding:2px 4px; width:100%; font-size:10.5px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1px;">
+            <span style="color:var(--text-muted, #94a3b8); font-weight:700;">총 자산</span>
+            <span style="font-weight:700; color:var(--text);">${formatMoney(totalAssets)}</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="display:flex; align-items:center; gap:5px;">
+              <span style="width:7px; height:7px; border-radius:999px; background:#3b82f6; flex-shrink:0;"></span>
+              <span style="color:var(--text-muted, #94a3b8);">주식 평가</span>
+            </span>
+            <span style="font-weight:600; color:var(--text);">${formatMoney(evalAmt)} <span style="font-size:9.5px; color:var(--text-muted);">(${evalShare}%)</span></span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="display:flex; align-items:center; gap:5px;">
+              <span style="width:7px; height:7px; border-radius:999px; background:#10b981; flex-shrink:0;"></span>
+              <span style="color:var(--text-muted, #94a3b8);">예수금</span>
+            </span>
+            <span style="font-weight:600; color:var(--text);">${formatMoney(actualCash)} <span style="font-size:9.5px; color:var(--text-muted);">(${cashShare}%)</span></span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:2px; padding-top:2px; border-top:1px solid rgba(148, 163, 184, 0.15);">
+            <span style="color:var(--text-muted, #94a3b8); font-weight:600;">원금</span>
+            <span style="font-weight:600; color:var(--text);">${formatMoney(realPrincipal)}</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="color:var(--text-muted, #94a3b8); font-weight:600;">총수익</span>
+            <span style="font-weight:700; color:${profitColor};">${profitStr}</span>
+          </div>
+        </div>
+      `;
+    }
   }
 
   const values = rows.map(row => Number(row.value || 0));
   const total = values.reduce((sum, val) => sum + val, 0) || rows.length;
   const safeValues = values.map(val => (val > 0 ? val : 1));
-
-  if (legend) {
-    legend.innerHTML = rows.map(row => {
-      const share = total > 0 ? ((Number(row.value || 0) / total) * 100) : 0;
-      return `
-        <div class="stats-asset-legend-row" style="display:flex; align-items:center; gap:6px; padding:2px 4px; min-height:18px;">
-          <span style="width:8px; height:8px; border-radius:999px; background:${row.color}; flex:0 0 auto;"></span>
-          <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatStrategyNameWithSmallParentheses(row.label)}</span>
-          <span style="margin-left:auto; font-weight:700; color:var(--text);">${formatMoney(row.value)}</span>
-          <span style="margin-left:6px; color:var(--text-muted); font-size:10px;">${share.toFixed(1)}%</span>
-        </div>`;
-    }).join('');
-  }
-
-  const existing = getStatsPieChartInstance();
   const labels = rows.map(row => row.label);
   const colors = rows.map(row => row.color);
+
+  const existing = getStatsPieChartInstance();
 
   if (existing) {
     existing.data.labels = labels;

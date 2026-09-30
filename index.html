@@ -532,8 +532,7 @@
     <div class="card panel-stats hidden" id="panelStats">
       <div class="section-header">
         <h2 id="statsTitle" style="cursor:pointer;" onclick="window.onStatsTitleClick()" title="클릭하여 표/그래프 전환">💼 자산현황</h2>
-        <!-- 차트용 투자법 선택기 (기본 숨김) -->
-        <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; margin-left:auto; width:75px; max-width:75px; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 2px; outline:none; cursor:pointer;">
+        <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; margin-left:auto; max-width:110px; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 4px; outline:none; cursor:pointer;">
           <option value="combined">통합</option>
         </select>
         <div id="statsActionArea" style="margin-left:8px; display:flex; gap:8px;"></div>
@@ -1136,7 +1135,7 @@
   <script src="ui/render-order.js?v=cf_v20260929_05" defer></script>
   <script src="ui/render-holdings.js?v=cf_v20260926_01" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20260930_04" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20260930_07" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v20260926_01" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
@@ -1145,7 +1144,7 @@
   <script src="ui/render-notifications.js?v=cf_v20260929_01" defer></script>
   <script src="ui/render-misc.js?v=cf_v20260929_06" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20260930_03" defer></script>
+  <script src="script.js?v=cf_v20260930_06" defer></script>
 
 
 </body>

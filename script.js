@@ -2196,6 +2196,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const setupStatsSwipeDirect = () => {
     const panel = document.getElementById('panelStats');
     if (!panel) return;
+    panel.style.touchAction = 'pan-y';
 
     let startX = 0;
     let startY = 0;
@@ -2244,11 +2245,11 @@ window.addEventListener('DOMContentLoaded', () => {
         const selector = document.getElementById('statsMetricSelector');
         if (!selector) return;
 
-        // 활성화된 옵션 목록 수집 (통합 + 활성 슬롯들)
+        // 활성화된 옵션 목록 수집 (통합 + 활성 브로커 슬롯들)
         const activeOpts = ['combined'];
         const maxSlots = window.MAX_SLOTS || 12;
         for (let i = 1; i <= maxSlots; i++) {
-          if (isSlotActive(i)) {
+          if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
             activeOpts.push(String(i));
           }
         }
@@ -2259,16 +2260,19 @@ window.addEventListener('DOMContentLoaded', () => {
         if (currentIndex === -1) currentIndex = 0;
 
         if (diffX < 0) {
-          // 좌측으로 스와이프: 다음 슬롯 (통합 -> 슬롯1 -> ... -> 슬롯7 -> 슬롯8)
+          // 좌측으로 스와이프: 다음 슬롯 (통합 -> 첫 슬롯 -> ...)
           currentIndex = (currentIndex + 1) % activeOpts.length;
         } else {
           // 우측으로 스와이프: 이전 슬롯
           currentIndex = (currentIndex - 1 + activeOpts.length) % activeOpts.length;
         }
 
-        selector.value = activeOpts[currentIndex];
-        if (typeof updateStatsPieChart === 'function') {
-          updateStatsPieChart();
+        const nextVal = activeOpts[currentIndex];
+        selector.value = nextVal;
+        if (typeof window.updateStatsPieChart === 'function') {
+          window.updateStatsPieChart(nextVal);
+        } else if (typeof updateStatsPieChart === 'function') {
+          updateStatsPieChart(nextVal);
         }
         if (navigator.vibrate) navigator.vibrate(8);
       }
@@ -2477,7 +2481,7 @@ function getSlotLatestPeriodRow(slotNum, kind) {
 
 // 🏆 백테스트 투자법별 총수익률/년수익률/월수익률 랭킹 모달 생성 및 노출 함수
 // 도넛 차트 업데이트 로직
-window.updateStatsPieChart = function() {
+window.updateStatsPieChart = function(explicitTarget) {
   if (statsDisplayMode !== 'chart') return;
   const selector = document.getElementById('statsMetricSelector');
   if (!selector) return;
@@ -2489,12 +2493,12 @@ window.updateStatsPieChart = function() {
     }
   }
 
-  const previousValue = selector.value || 'combined';
+  const previousValue = explicitTarget || selector.value || 'combined';
   const nextHtml = activeOptions.map(opt => `<option value="${opt.value}">${opt.text}</option>`).join('');
   if (selector.innerHTML !== nextHtml) selector.innerHTML = nextHtml;
-  selector.value = activeOptions.some(opt => opt.value === previousValue) ? previousValue : 'combined';
 
-  const targetValue = selector.value || 'combined';
+  const targetValue = activeOptions.some(opt => opt.value === previousValue) ? previousValue : 'combined';
+  selector.value = targetValue;
   let statusData = null;
   let targetLabel = '통합';
 
