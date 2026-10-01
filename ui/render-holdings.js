@@ -332,9 +332,9 @@ function toggleIndividualHoldings(event) {
 
 function createSummaryBadge(label, value, color, noBg = false) {
   if (noBg) {
-    return `<span style="display:inline-flex; align-items:center; gap:3px; padding:0; white-space:nowrap;"><span>${label}</span><strong style="color:${color}; margin-left:3px;">${value}</strong></span>`;
+    return `<span style="display:inline-flex; align-items:center; gap:3px; padding:0; white-space:nowrap; font-size:var(--app-font-size, 10.5px); font-family:inherit;"><span>${label}</span><strong style="color:${color}; margin-left:3px; font-weight:700;">${value}</strong></span>`;
   }
-  return `<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); white-space:nowrap;"><span>${label}</span><strong style="color:${color};">${value}</strong></span>`;
+  return `<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); white-space:nowrap; font-size:var(--app-font-size, 10.5px); font-family:inherit;"><span>${label}</span><strong style="color:${color}; font-weight:700;">${value}</strong></span>`;
 }
 
 function formatSummaryDate(dateStr) {

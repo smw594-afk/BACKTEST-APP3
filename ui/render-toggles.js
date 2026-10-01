@@ -131,8 +131,6 @@ function toggleOrderView(dir) {
     const combinedModeSelect = document.getElementById('combinedModeSelect');
     if (combinedModeSelect) combinedModeSelect.value = nextMode;
 
-    showToast(`주문표 모드가 ${nextMode === 'combined' ? '통합' : (nextMode === 'normal' ? '일반' : '통합+일반')}으로 전환되었습니다.`);
-
     updateSlotsVisibility();
     window.UI.order.refreshOrderViewUI();
     updateOrderHeaderUI();
@@ -175,13 +173,6 @@ function toggleOrderView(dir) {
   updateSlotsVisibility();
   window.UI.order.refreshOrderViewUI();
   updateOrderHeaderUI();
-
-  if (typeof showToast === 'function') {
-    const viewName = window.currentHoldingsViewMode === 'combined'
-      ? '통합 보유현황'
-      : `투자법 ${window.currentHoldingsViewMode.replace('slot', '')} 보유현황`;
-    showToast(`📦 ${viewName}`);
-  }
 }
 
 function updateOrderHeaderUI() {
@@ -351,7 +342,7 @@ function toggleStatsDisplayMode() {
   if (statsDisplayMode === 'chart') {
     if (tableContainer) tableContainer.style.display = 'none';
     if (chartContainer) chartContainer.style.display = 'flex';
-    if (selector) selector.style.display = 'block';
+    if (selector) selector.style.display = 'none';
     if (actionArea) actionArea.style.display = 'none';
     setTimeout(() => {
       updateStatsPieChart();
@@ -374,7 +365,15 @@ function togglePeriodView() {
   const grid = document.getElementById('mainGrid');
   const isPerfTabLayout = grid && grid.classList.contains('perf-tab-layout');
   const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
-  if (!isBacktest && (window.isOrderView || !window.isStatsMode)) return; // ⭐️ 실전 홈 화면 중단은 계좌 정보이므로 토글하지 않음 (백테스트 시에는 토글 허용)
+  if (!isBacktest && !isPerfTabLayout && (window.isOrderView || !window.isStatsMode)) {
+    // ⭐️ 실전 홈 화면 중단: 계좌 정보 ↔ 성과 지표 토글
+    if (typeof window.toggleHomeMidView === 'function') {
+      window.toggleHomeMidView();
+    } else if (typeof toggleHomeMidView === 'function') {
+      toggleHomeMidView();
+    }
+    return;
+  }
 
   // 토글 순서: 년별(1) -> 월별(0) -> 일별(2) -> 년별(1)
   const nextPeriodStateMap = { 1: 0, 0: 2, 2: 1 };

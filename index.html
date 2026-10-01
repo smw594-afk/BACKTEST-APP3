@@ -140,7 +140,7 @@
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v1787732256753" defer></script>
   <link rel="stylesheet" href="ui/styles/core.css?v=cf_v20260917_04">
-  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v20260929_01">
+  <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v20261001_06">
   <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20260930_02">
   <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v20260930_01">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
@@ -460,7 +460,7 @@
     <div class="card panel-monthly" id="panelMonthly">
       <div class="section-header swipe-handler" id="monthlyHeader">
         <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="계좌 정보">📡 계좌 정보</h2>
-        <div id="performanceSummary" style="display:grid; grid-template-columns:1fr 1fr; row-gap:2px; column-gap:0; font-size:11px; color:var(--text); justify-content:start; align-self:flex-start; margin-right:0; padding:0; line-height:1;">
+        <div id="performanceSummary" style="display:grid; grid-template-columns:1fr 1fr; row-gap:2px; column-gap:0; font-size:var(--app-font-size, 10.5px); color:var(--text); justify-content:start; align-self:flex-start; margin-right:0; padding:0; line-height:1;">
           <div id="perfSummaryHoldingsQty" style="line-height:1;"></div>
           <div id="perfSummaryHoldingsTotal" style="line-height:1;"></div>
           <div id="perfSummaryTradesQty" style="line-height:1;"></div>
@@ -475,6 +475,12 @@
       <div id="homeAccountContainer" class="slim-scroll"
         style="flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:2px 0;">
         <div id="homeAccountTable" style="width:100%; font-size:10.5px; color:var(--text);">
+        </div>
+      </div>
+      <!-- 홈 화면 전용: 성과 지표 컨테이너 (좌우 스와이프 토글) -->
+      <div id="homeStatsContainer" class="slim-scroll"
+        style="flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; padding:2px 0; display:none;">
+        <div id="homeStatsTable" style="width:100%; font-size:10.5px; color:var(--text);">
         </div>
       </div>
       <!-- 성과 탭 및 백테스트용 차트/테이블 (기본 숨김) -->
@@ -1180,19 +1186,19 @@
   <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v20260930_01" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v20260926_01" defer></script>
+  <script src="ui/render-order.js?v=cf_v20261001_01" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v20261001_02" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20260930_07" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20261002_07" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v20260926_01" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v20260928_02" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v20261001_05" defer></script>
   <script src="ui/render-helpers.js?v=cf_v20260910_01" defer></script>
   <script src="ui/render-notifications.js?v=cf_v20260929_01" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20260930_01" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20261001_08" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20260930_08" defer></script>
+  <script src="script.js?v=cf_v20261001_06" defer></script>
 
 
 </body>

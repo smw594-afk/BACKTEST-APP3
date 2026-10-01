@@ -240,8 +240,7 @@ function generateDynamicDOM() {
 }
 
 function showOrderView() {
-  restoreFromPerfLayout();
-
+  // ⭐️ 1) 뷰 플래그 및 홈 모드 즉시 확립 (restoreFromPerfLayout보다 먼저 실행되어야 올바른 상태로 복원됨)
   isStatsMode = false;
   window.isStatsMode = false;
   window.isOrderView = true;
@@ -250,8 +249,9 @@ function showOrderView() {
   window.currentHoldingsViewMode = 'combined';
   isViewingHistory = false;
   window.isViewingHistory = false;
+  window.homeMidViewMode = 'account';
 
-  // ⭐️ 수동 백테스트 중이었다면 홈 복귀 시 원래 실전 설정과 캐시로 즉시 복귀
+  // ⭐️ 2) 수동 백테스트 중이었다면 홈 복귀 시 원래 실전 설정과 캐시로 즉시 복귀
   if (isManualBacktestMode || window.isManualBacktestMode) {
     if (typeof window.restoreLocalCache === 'function') {
       window.restoreLocalCache();
@@ -263,19 +263,15 @@ function showOrderView() {
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
   }
 
-  isStatsMode = false;
-  window.isStatsMode = false;
-  window.isOrderView = true;
-  isOrderView = true;
-  window.showIndividualHoldings = false;
-  window.currentHoldingsViewMode = 'combined';
-  isViewingHistory = false;
-  window.isViewingHistory = false;
-
+  // ⭐️ 3) 그리드 레이아웃 클래스 완전 초기화 (성과의 perf-tab-layout이나 내역의 perf-metrics-layout 즉시 제거)
   const grid = document.getElementById('mainGrid');
   if (grid) {
-    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'price-info-expanded', 'analysis-expanded');
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'price-info-expanded', 'analysis-expanded', 'order-expanded', 'holdings-view-active', 'hide-order-panel');
+    grid.classList.add('order-view-active');
   }
+
+  // ⭐️ 4) 성과 레이아웃 잔여 DOM 정리
+  restoreFromPerfLayout();
 
   const orderView = document.getElementById('panelOrder');
   const statsView = document.getElementById('panelStats');
@@ -286,7 +282,7 @@ function showOrderView() {
   const panelChart = document.getElementById('panelChart');
   const panelAnalysis = document.getElementById('panelAnalysisView');
 
-  // 홈화면: 상단 주문표(panelOrder), 중단 계좌정보(panelMonthly), 하단 성과추이(panelChart) 표시
+  // 홈화면 기본 3단: 상단 주문표(panelOrder), 중단 계좌정보(panelMonthly), 하단 성과추이(panelChart) 표시
   if (orderView) {
     orderView.classList.remove('hidden');
     orderView.style.display = '';
@@ -300,46 +296,7 @@ function showOrderView() {
     panelChart.style.display = '';
   }
 
-  // 홈 화면 중단 컨테이너 제어
-  const homeAcctContainer = document.getElementById('homeAccountContainer');
-  const periodChartC = document.getElementById('periodChartContainer');
-  const periodTableC = document.getElementById('periodTableContainer');
-  const perfYearlyC = document.getElementById('perfYearlyChartContainer');
-  const perfYearlyTableC = document.getElementById('perfYearlyTableContainer');
-  const periodTitle = document.getElementById('periodTitle');
-  const btnPeriodMode = document.getElementById('btnPeriodMode');
-  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
-
-  if (isBacktest) {
-    // ⭐️ 백테스트 실행 시: 홈 중단에 계좌정보 숨김, 기존 월별 자산 증감(차트/테이블) 표시!
-    if (homeAcctContainer) homeAcctContainer.style.display = 'none';
-    if (perfYearlyC) perfYearlyC.style.display = 'none';
-    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
-    if (btnPeriodMode) btnPeriodMode.style.display = 'flex';
-    if (typeof window.initPeriodDisplayModeUI === 'function') {
-      window.initPeriodDisplayModeUI();
-    }
-    if (typeof window.updatePeriodTitle === 'function') {
-      window.updatePeriodTitle();
-    }
-  } else {
-    // ⭐️ 일반 실전 홈 화면: 브로커 계좌정보 표시, 기존 차트/테이블 숨김
-    if (homeAcctContainer) homeAcctContainer.style.display = 'block';
-    if (periodChartC) periodChartC.style.display = 'none';
-    if (periodTableC) periodTableC.style.display = 'none';
-    if (perfYearlyC) perfYearlyC.style.display = 'none';
-    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
-    if (btnPeriodMode) btnPeriodMode.style.display = 'none';
-
-    // 홈 화면 중단 헤더: 📡 계좌 정보 (계좌번호)
-    const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
-    if (periodTitle) {
-      periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
-      periodTitle.style.cursor = 'default';
-      periodTitle.title = '계좌 정보';
-    }
-  }
-
+  // 비홈 패널 완전 숨김
   if (statsView) {
     statsView.classList.add('hidden');
     statsView.style.display = 'none';
@@ -360,21 +317,10 @@ function showOrderView() {
     panelAnalysis.classList.add('hidden');
     panelAnalysis.style.display = 'none';
   }
-
   const priceInfoCard = document.getElementById('panelPriceInfo');
   if (priceInfoCard) priceInfoCard.style.display = 'none';
   const btnPrice = document.getElementById('btnPriceInfo');
   if (btnPrice) btnPrice.classList.remove('active');
-  const statsTitle = document.getElementById('statsTitle');
-  if (statsTitle) {
-    statsTitle.innerHTML = '💼 자산현황';
-  }
-
-  // 성과 분석 패널 숨기기
-  if (panelAnalysis) {
-    panelAnalysis.classList.add('hidden');
-    panelAnalysis.style.display = 'none';
-  }
   const analysisCurrencyBtn = document.getElementById('btnCurrencyToggleAnalysis');
   if (analysisCurrencyBtn) analysisCurrencyBtn.style.display = 'none';
   if (window.UI && window.UI.performance && window.UI.performance.destroyAnalysisCharts) {
@@ -383,18 +329,84 @@ function showOrderView() {
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
-  // 홈화면에서 요약 정보 표시 (월/일 매수, 총잔고, 월/일 매도, t수익금 유지 - 백테스트가 아닐 때만)
+  // ⭐️ 5) 주문표 영역 내부: '⚡ 통합 주문표' 활성화 및 보유현황 뷰 완벽 숨김
+  const co = document.getElementById('combinedOrderView');
+  if (co) co.style.display = 'block';
+  const ch = document.getElementById('combinedHoldingsView');
+  if (ch) ch.style.display = 'none';
+  const cf = document.getElementById('combinedTierFooter');
+  if (cf) cf.style.display = 'flex';
+
+  for (let i = 1; i <= window.MAX_SLOTS; i++) {
+    const ov = document.getElementById('orderView' + i);
+    const hv = document.getElementById('holdingsView' + i);
+    const tf = document.getElementById('tierFooter' + i);
+    if (ov) ov.style.display = 'block';
+    if (hv) hv.style.display = 'none';
+    if (tf) tf.style.display = 'flex';
+  }
+
+  // ⭐️ 6) 홈 화면 중단 컨테이너 제어
+  const homeAcctContainer = document.getElementById('homeAccountContainer');
+  const homeStatsContainer = document.getElementById('homeStatsContainer');
+  const periodChartC = document.getElementById('periodChartContainer');
+  const periodTableC = document.getElementById('periodTableContainer');
+  const perfYearlyC = document.getElementById('perfYearlyChartContainer');
+  const perfYearlyTableC = document.getElementById('perfYearlyTableContainer');
+  const periodTitle = document.getElementById('periodTitle');
+  const btnPeriodMode = document.getElementById('btnPeriodMode');
+
+  const isBacktest = !!(window.isManualBacktestMode || (typeof isManualBacktestMode !== 'undefined' && isManualBacktestMode) || (grid && grid.classList.contains('backtest-view-layout')));
+
+  if (isBacktest) {
+    // 백테스트 실행 시: 홈 중단에 계좌정보 숨김, 기존 월별 자산 증감(차트/테이블) 표시
+    if (homeAcctContainer) homeAcctContainer.style.display = 'none';
+    if (homeStatsContainer) homeStatsContainer.style.display = 'none';
+    if (perfYearlyC) perfYearlyC.style.display = 'none';
+    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
+    if (btnPeriodMode) btnPeriodMode.style.display = 'flex';
+    if (typeof window.initPeriodDisplayModeUI === 'function') {
+      window.initPeriodDisplayModeUI();
+    }
+    if (typeof window.updatePeriodTitle === 'function') {
+      window.updatePeriodTitle();
+    }
+  } else {
+    // ⭐️ 일반 실전 홈 화면: 계좌정보 표시, 성과 차트/테이블은 100% 무조건 숨김
+    if (periodChartC) periodChartC.style.display = 'none';
+    if (periodTableC) periodTableC.style.display = 'none';
+    if (perfYearlyC) perfYearlyC.style.display = 'none';
+    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
+    if (btnPeriodMode) btnPeriodMode.style.display = 'none';
+
+    if (typeof syncHomeMidViewDisplay === 'function') {
+      syncHomeMidViewDisplay();
+    } else {
+      if (homeAcctContainer) homeAcctContainer.style.display = 'block';
+      if (homeStatsContainer) homeStatsContainer.style.display = 'none';
+      const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
+      if (periodTitle) {
+        periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+        periodTitle.style.cursor = 'pointer';
+        periodTitle.title = '계좌 정보';
+      }
+    }
+
+    if (typeof window.renderHomeAccountTable === 'function') {
+      window.renderHomeAccountTable();
+    }
+  }
+
+  // 홈화면 요약 정보 (매수/매도/잔고 배지) 복원
   const perfSummaryHome = document.getElementById('performanceSummary');
   if (perfSummaryHome) {
     perfSummaryHome.style.display = isBacktest ? 'none' : 'grid';
-    if (!isBacktest) updatePerformanceSummary();
+    if (!isBacktest && typeof updatePerformanceSummary === 'function') {
+      updatePerformanceSummary();
+    }
   }
 
-  // 홈 화면 중단 브로커 계좌 정보 렌더링 (백테스트가 아닐 때만)
-  if (!isBacktest && typeof window.renderHomeAccountTable === 'function') {
-    window.renderHomeAccountTable();
-  }
-
+  // ⭐️ 7) 내비게이션 탭 버튼 active 클래스 동기화
   const btnStats = document.getElementById('btnStatsShow');
   if (btnStats) btnStats.classList.remove('active');
   const btnPerf = document.getElementById('btnPerfShow');
@@ -409,21 +421,7 @@ function showOrderView() {
     return false;
   };
 
-  // ⭐️ 홈 모드는 항상 '⚡ 통합 주문표'가 기본 노출되어야 하므로 주문표 뷰 확실하게 강제
-  window.isOrderView = true;
-  isOrderView = true;
-  window.isStatsMode = false;
-  isStatsMode = false;
-  window.showIndividualHoldings = false;
-  window.currentHoldingsViewMode = 'combined';
-
-  const co = document.getElementById('combinedOrderView');
-  if (co) co.style.display = 'block';
-  const ch = document.getElementById('combinedHoldingsView');
-  if (ch) ch.style.display = 'none';
-  const cf = document.getElementById('combinedTierFooter');
-  if (cf) cf.style.display = 'flex';
-
+  // ⭐️ 8) 하단 성과추이 차트 및 주문표 최종 렌더링
   renderChartAll();
   if (shouldAutoRefresh()) handleInstantOrder();
   else window.UI.order.refreshOrderViewUI();
@@ -524,7 +522,7 @@ function showStatsView() {
   const actionArea = document.getElementById('statsActionArea');
   if (tableContainer) tableContainer.style.display = 'none';
   if (chartContainer) chartContainer.style.display = 'flex';
-  if (selector) selector.style.display = 'block';
+  if (selector) selector.style.display = 'none';
   if (actionArea) actionArea.style.display = 'none';
   if (typeof updateStatsPieChart === 'function') updateStatsPieChart();
 
@@ -642,7 +640,7 @@ function updateHistorySummary() {
   };
 
   const createBadge = (label, value, color) => {
-    return `<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); white-space:nowrap;"><span>${label}</span><strong style="color:${color};">${value}</strong></span>`;
+    return `<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); white-space:nowrap; font-size:var(--app-font-size, 10.5px); font-family:inherit;"><span>${label}</span><strong style="color:${color}; font-weight:700;">${value}</strong></span>`;
   };
 
   summaryEl.innerHTML = `${createBadge(`${formatDate(summaryBaseDate)} 매도`, `${Math.round(soldQty).toLocaleString()}개`, '#fbbf24')} ${createBadge('T수익금', profitText, profit >= 0 ? '#3b82f6' : '#ef4444')}`;
@@ -700,6 +698,10 @@ function showPerfView() {
   const homeAcctContainer = document.getElementById('homeAccountContainer');
   if (homeAcctContainer) {
     homeAcctContainer.style.display = 'none';
+  }
+  const homeStatsContainer = document.getElementById('homeStatsContainer');
+  if (homeStatsContainer) {
+    homeStatsContainer.style.display = 'none';
   }
 
   isStatsMode = false;
@@ -2495,11 +2497,18 @@ async function handleInstantOrder() {
     console.log("서버 동기화 진행 중이므로 수동 갱신을 보류합니다.");
     return;
   }
+  isStatsMode = false;
+  window.isStatsMode = false;
+  isOrderView = true;
+  window.isOrderView = true;
+  window.showIndividualHoldings = false;
+  isViewingHistory = false;
+  isManualBacktestMode = false;
+  window.isManualBacktestMode = false;
+
   restoreFromPerfLayout();
   const grid = document.getElementById('mainGrid');
   if (grid) grid.classList.remove('hide-order-panel', 'perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout');
-  isViewingHistory = false;
-  isManualBacktestMode = false;
   updateHeaderDisplay();
   const restoreBtn = setBtnLoading('btnInstant', '계산 중...');
 
@@ -2544,6 +2553,8 @@ async function handleInstantOrder() {
   window.UI.tradeHistory.renderDBTradeHistory();
   // 최초 로딩 시에도 요약이 즉시 반영되도록 데이터 로드 완료 시점에 갱신
   updatePerformanceSummary();
+  // ⭐️ 홈 화면 실전 뷰 상태를 완벽하게 재확립 (일별성과 노출 등 잔여 레이아웃 오염 원천 차단)
+  showOrderView();
 }
 
 // 네임스페이스 등록

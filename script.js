@@ -598,10 +598,12 @@ function preparePerfLayout() {
   if (periodChartTitle) periodChartTitle.innerHTML = '📅 월별 자산 증감';
   if (periodDailyTitle) periodDailyTitle.innerHTML = '📅 일별 자산 증감';
 
-  // 홈화면용 토글 버튼 및 계좌정보 컨테이너 숨김
+  // 홈화면용 토글 버튼 및 계좌정보/성과지표 컨테이너 숨김
   if (btnPeriodMode) btnPeriodMode.style.display = 'none';
   const homeAcctC = document.getElementById('homeAccountContainer');
   if (homeAcctC) homeAcctC.style.display = 'none';
+  const homeStatsC = document.getElementById('homeStatsContainer');
+  if (homeStatsC) homeStatsC.style.display = 'none';
 
   // 성과 탭용 토글 버튼들 표시
   if (btnPeriodModeYearly) btnPeriodModeYearly.style.display = 'flex';
@@ -673,7 +675,9 @@ function restoreFromPerfLayout() {
 
   if (priceInfoCard) priceInfoCard.style.display = 'none';
   const grid = document.getElementById('mainGrid');
-  if (grid) grid.classList.remove('price-info-expanded');
+  if (grid) {
+    grid.classList.remove('price-info-expanded', 'perf-tab-layout', 'perf-metrics-layout');
+  }
   const btnPrice = document.getElementById('btnPriceInfo');
   if (btnPrice) btnPrice.classList.remove('active');
 
@@ -704,13 +708,22 @@ function restoreFromPerfLayout() {
 
   if (chartC) chartC.style.display = 'none';
   if (tableC) tableC.style.display = 'none';
+
   const homeAcctContainer = document.getElementById('homeAccountContainer');
-  const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
-  if (homeAcctContainer) {
-    if (isBacktest) {
-      homeAcctContainer.style.display = 'none';
-    } else if (window.isOrderView) {
-      homeAcctContainer.style.display = 'block';
+  const homeStatsContainer = document.getElementById('homeStatsContainer');
+  const isBacktest = !!(window.isManualBacktestMode || (typeof isManualBacktestMode !== 'undefined' && isManualBacktestMode) || (grid && grid.classList.contains('backtest-view-layout')));
+
+  if (isBacktest) {
+    if (homeAcctContainer) homeAcctContainer.style.display = 'none';
+    if (homeStatsContainer) homeStatsContainer.style.display = 'none';
+    if (btnPeriodMode) btnPeriodMode.style.display = 'flex';
+  } else {
+    // ⭐️ 실전 모드: 차트/테이블 컨테이너는 철저히 숨기고 계좌정보 ↔ 성과지표 뷰만 동기화
+    if (typeof syncHomeMidViewDisplay === 'function') {
+      syncHomeMidViewDisplay();
+    } else {
+      if (homeAcctContainer) homeAcctContainer.style.display = 'block';
+      if (homeStatsContainer) homeStatsContainer.style.display = 'none';
     }
   }
 
@@ -729,18 +742,21 @@ function restoreFromPerfLayout() {
   updatePeriodTitle();
 
   const ico = document.getElementById('icoPeriodMode');
-  if (periodDisplayMode === 'chart') {
-    if (chartC) chartC.style.display = 'flex';
-    if (tableC) tableC.style.display = 'none';
-    if (ico) ico.innerHTML = '🔢';
-    if (typeof renderPeriodBarChart === 'function') renderPeriodBarChart();
-    // renderPeriodBarChartRaw는 requestAnimationFrame으로 비동기 실행되지만,
-    // updateChartRatesDisplay가 그 내부에서도 호출되므로, 여기서의 호출은 불필요
-    // (비동기 실행 전에 호출되어 stale 데이터를 사용할 수 있음)
+  if (isBacktest) {
+    if (periodDisplayMode === 'chart') {
+      if (chartC) chartC.style.display = 'flex';
+      if (tableC) tableC.style.display = 'none';
+      if (ico) ico.innerHTML = '🔢';
+      if (typeof renderPeriodBarChart === 'function') renderPeriodBarChart();
+    } else {
+      if (chartC) chartC.style.display = 'none';
+      if (tableC) tableC.style.display = 'block';
+      if (ico) ico.innerHTML = '📊';
+    }
   } else {
+    // ⭐️ 실전 모드에서는 차트와 일별/월별 테이블 절대 비노출 유지
     if (chartC) chartC.style.display = 'none';
-    if (tableC) tableC.style.display = 'block';
-    if (ico) ico.innerHTML = '📊';
+    if (tableC) tableC.style.display = 'none';
   }
 }
 
@@ -1948,10 +1964,18 @@ function initPeriodDisplayModeUI() {
   if (!isBacktest && (window.isOrderView || (!window.isStatsMode && !grid?.classList.contains('perf-tab-layout')))) {
     if (chartC) chartC.style.display = 'none';
     if (tableC) tableC.style.display = 'none';
-    if (homeAcctContainer) homeAcctContainer.style.display = 'block';
-    if (perfSummaryHome) perfSummaryHome.style.display = 'grid';
+    const perfYearlyC = document.getElementById('perfYearlyChartContainer');
+    const perfYearlyTableC = document.getElementById('perfYearlyTableContainer');
+    if (perfYearlyC) perfYearlyC.style.display = 'none';
+    if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
+    const perfMonthlyChartCard = document.getElementById('panelMonthlyChart');
+    const perfDailyChartCard = document.getElementById('panelDailyChart');
+    if (perfMonthlyChartCard) { perfMonthlyChartCard.classList.add('hidden'); perfMonthlyChartCard.style.display = 'none'; }
+    if (perfDailyChartCard) { perfDailyChartCard.classList.add('hidden'); perfDailyChartCard.style.display = 'none'; }
     if (btnPeriodMode) btnPeriodMode.style.display = 'none';
-    if (typeof window.renderHomeAccountTable === 'function') {
+    if (typeof window.syncHomeMidViewDisplay === 'function') {
+      window.syncHomeMidViewDisplay();
+    } else if (typeof window.renderHomeAccountTable === 'function') {
       window.renderHomeAccountTable();
     }
     return;
@@ -2116,6 +2140,53 @@ window.addEventListener('DOMContentLoaded', () => {
   }, (dir) => window.UI.toggles.toggleOrderView(dir), '#dualOrderContainer');
   setupDragScrollX('dualOrderContainer');
   setupSwipe('monthlyHeader', () => window.UI.toggles.togglePeriodView());
+
+  // ⭐️ 홈 화면 중단(계좌 정보 ↔ 성과 지표) 좌우 스와이프 리스너 등록
+  const setupHomeMidSwipe = () => {
+    const el = document.getElementById('panelMonthly');
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    let isSwiping = false;
+
+    el.addEventListener('touchstart', (e) => {
+      const touch = e.touches && e.touches[0];
+      if (!touch) return;
+      if (e.target && e.target.closest('button, select, input, a')) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      isSwiping = true;
+    }, { passive: true });
+
+    el.addEventListener('touchend', (e) => {
+      if (!isSwiping) return;
+      isSwiping = false;
+      const touch = e.changedTouches && e.changedTouches[0];
+      if (!touch) return;
+      const diffX = touch.clientX - startX;
+      const diffY = touch.clientY - startY;
+
+      // 수평 스와이프 감지: 38px 이상, 수평 방향 우세
+      if (Math.abs(diffX) > 38 && Math.abs(diffX) > Math.abs(diffY) * 1.2) {
+        const grid = document.getElementById('mainGrid');
+        const isPerfTabLayout = grid && grid.classList.contains('perf-tab-layout');
+        const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
+        if (!isBacktest && !isPerfTabLayout && (window.isOrderView || !window.isStatsMode)) {
+          if (typeof window.toggleHomeMidView === 'function') {
+            window.toggleHomeMidView(diffX < 0 ? 'left' : 'right');
+          } else if (window.UI?.stats?.toggleHomeMidView) {
+            window.UI.stats.toggleHomeMidView(diffX < 0 ? 'left' : 'right');
+          }
+          try {
+            if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) {
+              navigator.vibrate(8);
+            }
+          } catch (_) { }
+        }
+      }
+    }, { passive: true });
+  };
+  setupHomeMidSwipe();
 
   // ⭐️ 안전한 순환 로직: 무한루프 방지 및 비어있는 슬롯 자동 건너뛰기
   setupSwipe('panelChart', (dir) => {

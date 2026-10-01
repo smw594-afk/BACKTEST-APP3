@@ -317,11 +317,15 @@ function normalizeOrderSide(value) {
   return "";
 }
 
-function normalizeOrderType(value) {
+function normalizeOrderType(value, side, price) {
   const s = String(value || "").toUpperCase().trim();
   if (s.includes("MOC") || s === "33" || s === "M4") return "MOC";
   if (s.includes("LOC") || s === "30" || s === "M2" || s === "00") return "LOC";
   if (s === "03" || s === "M1" || s === "M3") return "MKT";
+  // ⭐️ 가격이 0(또는 0.00)인 매도 주문은 증권사에서 MOC로 접수됨 (LS M4, 키움 33)
+  if (side === "sell" && (price === 0 || price === "0" || price === "0.00" || price === 0.0)) {
+    return "MOC";
+  }
   return "";
 }
 
@@ -416,12 +420,18 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
   let combinedBroker = [];
   if (tungFn && allBrokerOrders.length > 0) {
     try {
-      const rawTuples = allBrokerOrders.map(row => [
-        normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
-        normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode) === 'MOC' ? 'MOC' : 'LOC',
-        brokerOrderPrice(row),
-        brokerOrderQty(row)
-      ]);
+      const rawTuples = allBrokerOrders.map(row => {
+        const rawSide = normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode);
+        const rawPrice = brokerOrderPrice(row);
+        let rawType = normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode, rawSide, rawPrice);
+        if (rawType !== 'MOC') rawType = 'LOC';
+        return [
+          rawSide === 'buy' ? '매수' : '매도',
+          rawType,
+          rawPrice,
+          brokerOrderQty(row)
+        ];
+      });
       const sanitized = rawTuples.map(o => {
         const c = [...o];
         if (c[2] !== undefined && c[2] !== '' && !isNaN(c[2])) c[2] = Math.round(parseFloat(c[2]) * 100) / 100;
@@ -438,8 +448,8 @@ function getBrokerOrderMatchMarkup(order, slotNum) {
   // 단일화된 정확한 일치 판정: side(매수/매도), ordType(LOC/MOC), price, qty 모두 일치 확인
   const hit = combinedBroker.find(v => {
     const vSide = normalizeOrderSide(v[0] || v.side || v.orderSide || v.ordSide || v.bsnTp || v.OrdPtnCode);
-    const vType = normalizeOrderType(v[1] || v.ordType || v.orderType || v.type || v.trde_tp || v.OrdprcPtnCode) || 'LOC';
     const vPrice = Math.round((parseFloat(v[2] !== undefined ? v[2] : (v.price || v.orderPrice || v.OvrsOrdPrc)) || 0) * 100) / 100;
+    const vType = normalizeOrderType(v[1] || v.ordType || v.orderType || v.type || v.trde_tp || v.OrdprcPtnCode, vSide, vPrice) || 'LOC';
     const vQty = Math.round(Number(v[3] !== undefined ? v[3] : (v.qty || v.orderQty || v.OrdQty || v.ExecQty)) || 0);
 
     return vSide === side &&
@@ -1494,6 +1504,7 @@ window.getCombinedOrderEvaluationData = function() {
             return b === activeBr;
           });
           allBrokerOrders = activeList.map(item => ({
+            ...item,
             side: item.side || item.sideKo,
             ordType: item.ordType || item.orderType,
             price: item.price,
@@ -1505,12 +1516,18 @@ window.getCombinedOrderEvaluationData = function() {
       }
 
       try {
-        const rawTuples = allBrokerOrders.map(row => [
-          normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode) === 'buy' ? '매수' : '매도',
-          normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode) === 'MOC' ? 'MOC' : 'LOC',
-          brokerOrderPrice(row),
-          brokerOrderQty(row)
-        ]);
+        const rawTuples = allBrokerOrders.map(row => {
+          const rawSide = normalizeOrderSide(row?.side || row?.orderSide || row?.ordSide || row?.bsnTp || row?.OrdPtnCode);
+          const rawPrice = brokerOrderPrice(row);
+          let rawType = normalizeOrderType(row?.ordType || row?.orderType || row?.type || row?.trde_tp || row?.OrdprcPtnCode, rawSide, rawPrice);
+          if (rawType !== 'MOC') rawType = 'LOC';
+          return [
+            rawSide === 'buy' ? '매수' : '매도',
+            rawType,
+            rawPrice,
+            brokerOrderQty(row)
+          ];
+        });
         const brokerCombined = tungFn ? tungFn(rawTuples.map(o => { const c=[...o]; if(c[2]!==undefined && c[2]!=="") c[2]=Math.round(parseFloat(c[2])*100)/100; return c; })) : rawTuples;
         (brokerCombined || []).forEach(o => {
           const s = (o[0] === '매수' || o[0] === 'buy') ? 'buy' : 'sell';
