@@ -254,7 +254,9 @@ function showOrderView() {
   window.homeMidViewMode = 'account';
 
   // ⭐️ 2) 수동 백테스트 중이었다면 홈 복귀 시 원래 실전 설정과 캐시로 즉시 복귀
-  if (isManualBacktestMode || window.isManualBacktestMode) {
+  const grid = document.getElementById('mainGrid');
+  const wasBacktest = isManualBacktestMode || window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout'));
+  if (wasBacktest) {
     if (typeof window.restoreLocalCache === 'function') {
       window.restoreLocalCache();
     } else if (typeof restoreLocalCache === 'function') {
@@ -266,7 +268,6 @@ function showOrderView() {
   }
 
   // ⭐️ 3) 그리드 레이아웃 클래스 완전 초기화 (성과의 perf-tab-layout이나 내역의 perf-metrics-layout 즉시 제거)
-  const grid = document.getElementById('mainGrid');
   if (grid) {
     grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'price-info-expanded', 'analysis-expanded', 'order-expanded', 'holdings-view-active', 'hide-order-panel');
     grid.classList.add('order-view-active');
@@ -429,7 +430,8 @@ function showStatsView() {
   resetOrderExpansion();
 
   // ⭐️ 수동 백테스트 중이었다면 다른 화면 전환 시 원래 실전 설정과 캐시로 즉시 복귀
-  if (isManualBacktestMode || window.isManualBacktestMode) {
+  const gridForBacktest = document.getElementById('mainGrid');
+  if (isManualBacktestMode || window.isManualBacktestMode || (gridForBacktest && gridForBacktest.classList.contains('backtest-view-layout'))) {
     if (typeof window.restoreLocalCache === 'function') {
       window.restoreLocalCache();
     } else if (typeof restoreLocalCache === 'function') {
@@ -651,7 +653,8 @@ function showPerfView() {
   resetOrderExpansion();
 
   // ⭐️ 수동 백테스트 중이었다면 다른 화면 전환 시 원래 실전 설정과 캐시로 즉시 복귀
-  if (isManualBacktestMode || window.isManualBacktestMode) {
+  const gridForBacktest = document.getElementById('mainGrid');
+  if (isManualBacktestMode || window.isManualBacktestMode || (gridForBacktest && gridForBacktest.classList.contains('backtest-view-layout'))) {
     if (typeof window.restoreLocalCache === 'function') {
       window.restoreLocalCache();
     } else if (typeof restoreLocalCache === 'function') {
@@ -1112,6 +1115,13 @@ async function enterAppDirectly() {
     localStorage.setItem(`vtotal3_daily_display_mode_${myUserId}`, "table");
   }
   dailyDisplayMode = localStorage.getItem(`vtotal3_daily_display_mode_${myUserId}`) || "table";
+
+  // ⭐️ 자산현황 마지막 선택 화면(계좌/통합/투자법) 복원
+  const prefStatsPieTarget = localStorage.getItem(`vtotal3_stats_pie_target_${myUserId}`);
+  const statsSelector = document.getElementById('statsMetricSelector');
+  if (statsSelector && prefStatsPieTarget) {
+    statsSelector.value = prefStatsPieTarget;
+  }
 
   // 슬롯 데이터 복원
   window.skipChartRendering = true;
@@ -2425,10 +2435,10 @@ async function runEngine() {
   const panelHoldings = document.getElementById('panelHoldings');
 
   if (statsView) { statsView.classList.remove('hidden'); statsView.style.display = 'flex'; }
-  if (orderView) { orderView.classList.remove('hidden'); orderView.style.display = 'flex'; }
+  if (monthlyPanel) { monthlyPanel.classList.remove('hidden'); monthlyPanel.style.display = 'flex'; }
   if (panelChart) { panelChart.classList.remove('hidden'); panelChart.style.display = ''; }
 
-  if (monthlyPanel) { monthlyPanel.classList.add('hidden'); monthlyPanel.style.display = 'none'; }
+  if (orderView) { orderView.classList.add('hidden'); orderView.style.display = 'none'; }
   if (panelHoldings) { panelHoldings.classList.add('hidden'); panelHoldings.style.display = 'none'; }
   if (panelHistory) { panelHistory.classList.add('hidden'); panelHistory.style.display = 'none'; }
   if (perfMonthlyChart) { perfMonthlyChart.classList.add('hidden'); perfMonthlyChart.style.display = 'none'; }
@@ -2460,6 +2470,7 @@ async function runEngine() {
   isManualBacktestMode = true;
   window.isManualBacktestMode = true;
   backtestStatsMode = "performance";
+  window.backtestStatsMode = "performance";
 
   restoreFromPerfLayout();
   const grid = document.getElementById('mainGrid');

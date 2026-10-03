@@ -65,7 +65,6 @@ function updateStatsPieChart(explicitTarget) {
 
   const selector = document.getElementById('statsMetricSelector');
   const activeOptions = [
-    { value: 'account', text: '계좌' },
     { value: 'combined', text: '통합' }
   ];
   const maxSlots = window.MAX_SLOTS || 12;
@@ -86,12 +85,13 @@ function updateStatsPieChart(explicitTarget) {
 
   const grid = document.getElementById('mainGrid');
   const isBacktest = !!(window.isManualBacktestMode || (typeof isManualBacktestMode !== 'undefined' && isManualBacktestMode) || (grid && grid.classList.contains('backtest-view-layout')));
-  const defaultTarget = isBacktest ? 'combined' : 'account';
+  const defaultTarget = 'combined';
 
   // ⭐️ 2) explicitTarget이 주어지면 우선 사용, 없으면 현재 selector.value 사용
-  let targetValue = explicitTarget;
+  let targetValue = (explicitTarget === 'account') ? 'combined' : explicitTarget;
   if (!targetValue) {
     targetValue = selector ? (selector.value || defaultTarget) : defaultTarget;
+    if (targetValue === 'account') targetValue = 'combined';
   }
 
   // 유효한 옵션인지 확인 후 폴백
@@ -106,9 +106,7 @@ function updateStatsPieChart(explicitTarget) {
 
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle && statsDisplayMode === 'chart' && (!grid || !grid.classList.contains('perf-tab-layout'))) {
-    if (targetValue === 'account') {
-      statsTitle.innerHTML = '💼 자산현황(계좌)';
-    } else if (targetValue === 'combined') {
+    if (targetValue === 'combined') {
       statsTitle.innerHTML = '💼 자산현황(통합)';
     } else {
       const slotNum = parseInt(targetValue, 10);
@@ -116,7 +114,7 @@ function updateStatsPieChart(explicitTarget) {
       statsTitle.innerHTML = `💼 자산현황(${formatStrategyNameWithSmallParentheses(stratName)})`;
     }
     statsTitle.style.cursor = 'pointer';
-    statsTitle.title = '클릭 또는 좌우 스와이프: 자산현황 전환 (계좌/통합/투자법)';
+    statsTitle.title = '클릭 또는 좌우 스와이프: 자산현황 전환 (통합/투자법)';
   }
 
   const fx = typeof currentFXRate !== 'undefined' ? currentFXRate : 1450;
@@ -129,47 +127,7 @@ function updateStatsPieChart(explicitTarget) {
 
   let rows = [];
 
-  if (targetValue === 'account') {
-    const acct = typeof window.getAccountBalanceData === 'function' ? window.getAccountBalanceData() : null;
-    const principalVal = acct ? Number(acct.principal || 0) : 0;
-    const otherProfit = acct ? Number(acct.otherProfit || 0) : 0;
-    const eTotalProfit = acct ? Number(acct.totalProfit || 0) : 0;
-    const cashAsset = acct ? Number(acct.cashAsset || 0) : 0;
-    const totalAsset = acct ? Number(acct.totalAsset || 0) : 0;
-    const rawCashLabel = acct?.cashLabel || '예수금';
-    const cashLabel = rawCashLabel.replace(/^E/, '');
-
-    rows.push({ label: '원금', value: principalVal > 0 ? principalVal : Math.max(totalAsset, 1), color: '#a855f7' });
-    if (otherProfit > 0) {
-      rows.push({ label: '기타수익', value: otherProfit, color: '#06b6d4' });
-    }
-    if (eTotalProfit > 0) {
-      rows.push({ label: 'E총수익', value: eTotalProfit, color: '#3b82f6' });
-    }
-
-    if (legend && acct) {
-      const isLight = document.body.classList.contains('light-mode');
-      const plusColor = isLight ? '#1d4ed8' : '#3b82f6';
-      const minusColor = isLight ? '#b91c1c' : '#ef4444';
-      const acctProfit = acct.acctTotalProfit || 0;
-      const acctYield = acct.acctTotalYield || 0;
-      const pColor = acctProfit > 0 ? plusColor : (acctProfit < 0 ? minusColor : 'var(--text)');
-      const pSign = acctProfit > 0 ? '+' : (acctProfit < 0 ? '-' : '');
-      const ySign = acctYield > 0 ? '+' : '';
-
-      legend.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:2px; padding:2px 4px; width:100%; font-size:10px;">
-          <div style="display:flex; justify-content:space-between;"><span style="font-weight:700;">총수익</span><span style="font-weight:700; color:${pColor}; text-align:right;">${pSign}${formatMoney(Math.abs(acctProfit))} (${ySign}${(acctYield * 100).toFixed(1)}%)</span></div>
-          <div style="display:flex; justify-content:space-between; color:var(--text-muted);"><span>${cashLabel}</span><span style="text-align:right;">${formatMoney(cashAsset)}</span></div>
-          <div style="display:flex; justify-content:space-between; color:var(--text-muted);"><span>주문 가능금액</span><span style="text-align:right;">${formatMoney(acct.buyingPower)}</span></div>
-          <div style="display:flex; justify-content:space-between; color:var(--text-muted);"><span>평가금</span><span style="text-align:right;">${formatMoney(acct.evalAmt)}</span></div>
-          <div style="display:flex; justify-content:space-between; color:#06b6d4;"><span>기타수익</span><span style="text-align:right; color:#06b6d4;">${formatMoney(acct.otherProfit)} (${(principalVal > 0 ? (acct.otherProfit / principalVal * 100).toFixed(1) : 0)}%)</span></div>
-          <div style="display:flex; justify-content:space-between; color:#c084fc;"><span>원금</span><span style="text-align:right; color:#c084fc;">${formatMoney(acct.principal)}</span></div>
-          <div style="display:flex; justify-content:space-between; color:#60a5fa;"><span>E총수익</span><span style="text-align:right; color:#60a5fa;">${formatMoney(acct.totalProfit)}</span></div>
-        </div>
-      `;
-    }
-  } else if (targetValue === 'combined') {
+  if (targetValue === 'combined') {
     // ⭐️ [통합 모드] 활성 슬롯 전체의 자산 비중 파이차트
     rows = buildStatsPieRows();
 
@@ -371,14 +329,43 @@ function refreshStatsTable() {
   }
 
   // ══════════════════════════════════════════════════════
-  // 💼 홈 화면 상단 및 백테스트 뷰
+  // 📊 백테스트 뷰 (backtest-view-layout 또는 isManualBacktestMode)
+  //   화면: 📄 성과 지표 ↔ 📡 실시간 운영현황 (홈 상단 자산현황 자리에 테이블 표시)
+  // ══════════════════════════════════════════════════════
+  const isBacktest = !!(window.isManualBacktestMode || (typeof isManualBacktestMode !== 'undefined' && isManualBacktestMode) || (grid && grid.classList.contains('backtest-view-layout')));
+
+  if (isBacktest) {
+    statsDisplayMode = 'table';
+    const isRealtime = (window.backtestStatsMode === 'realtime');
+    if (statsTitle) {
+      statsTitle.innerHTML = isRealtime ? '📡 실시간 운영현황' : '📄 성과 지표';
+      statsTitle.style.cursor = 'pointer';
+      statsTitle.title = '클릭: 성과 지표 ↔ 실시간 운영현황 전환';
+    }
+    if (tableContainer) tableContainer.style.display = 'block';
+    if (chartContainer) chartContainer.style.display = 'none';
+    if (selector) selector.style.display = 'none';
+    if (actionArea) actionArea.style.display = 'none';
+
+    if (table) {
+      if (isRealtime) {
+        renderRealtimeStatusTable(table);
+      } else {
+        renderOriginalStatsTable(table);
+      }
+    }
+    return;
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 💼 홈 화면 상단 (일반 실전 모드)
   //   화면: 💼 자산현황 (도넛 파이차트 및 범례 고정)
   // ══════════════════════════════════════════════════════
   statsDisplayMode = 'chart';
   if (statsTitle) {
     statsTitle.innerHTML = '💼 자산현황';
-    statsTitle.style.cursor = 'default';
-    statsTitle.title = '자산현황';
+    statsTitle.style.cursor = 'pointer';
+    statsTitle.title = '클릭 또는 좌우 스와이프: 자산현황 전환 (계좌/통합/투자법)';
   }
   if (tableContainer) tableContainer.style.display = 'none';
   if (chartContainer) chartContainer.style.display = 'flex';
@@ -1003,7 +990,7 @@ function updateStatsTitleAccountNo(result) {
   if (acctNo) {
     window.lastAccountNo = acctNo;
   }
-  const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : "";
+  const displayAcct = window.lastAccountNo ? ` <span class="stats-profit-rate">(${window.lastAccountNo})</span>` : "";
   const statsTitle = document.getElementById('statsTitle');
   const currentStatsMode = (typeof statsDisplayMode !== 'undefined' ? statsDisplayMode : (window.statsDisplayMode || 'chart'));
   if (statsTitle && currentStatsMode === 'table') {
@@ -1091,12 +1078,15 @@ function buildBalanceHtml(result, broker) {
     comb = window.cachedCombinedStats;
   }
 
-  const manualPrincipal = (typeof getManualEstimatedPrincipal === 'function')
-    ? getManualEstimatedPrincipal(broker)
-    : (typeof window.getManualEstimatedPrincipal === 'function' ? window.getManualEstimatedPrincipal(broker) : 0);
+  // ⭐️ 사용자가 직접 입력·저장한 원금만 오버라이드로 사용한다.
+  // getManualEstimatedPrincipal()은 이제 기본값(실시간원금/초기자산)도 포함하므로
+  // 여기서는 getUserManualPrincipal()로 순수 사용자 입력값만 읽는다.
+  const userManualPrincipal = (typeof getUserManualPrincipal === 'function')
+    ? getUserManualPrincipal(broker)
+    : (typeof window.getUserManualPrincipal === 'function' ? window.getUserManualPrincipal(broker) : 0);
   const backtestPrincipal = comb ? Number(comb.realPrincipal !== undefined ? comb.realPrincipal : (comb.base || comb.base_principal || 0)) : 0;
-  const principal = manualPrincipal > 0 ? manualPrincipal : backtestPrincipal;
-  const hasComb = (manualPrincipal > 0) || !!comb;
+  const principal = userManualPrincipal > 0 ? userManualPrincipal : backtestPrincipal;
+  const hasComb = (userManualPrincipal > 0) || !!comb;
   const totalProfit = comb ? Number(comb.totalProfit !== undefined ? comb.totalProfit : ((comb.totalAssets || 0) - backtestPrincipal)) : 0;
   const totalYield = comb ? Number(comb.yield !== undefined ? comb.yield : (backtestPrincipal > 0 ? totalProfit / backtestPrincipal : 0)) : 0;
 
@@ -1140,7 +1130,8 @@ function buildBalanceHtml(result, broker) {
     ? `<span style="font-size:calc(var(--app-font-size, 10.5px) - 0.5px); color:var(--text, #fff); font-weight:normal;">${usd(principal)}</span>`
     : (hasComb ? `<span style="font-size:calc(var(--app-font-size, 10.5px) - 0.5px); color:var(--text, #fff); font-weight:normal;">$0.00</span>` : '<span style="font-size:calc(var(--app-font-size, 10.5px) - 0.5px); color:var(--text-muted, #94a3b8); font-weight:normal;">-</span>');
 
-  const cashLabel = broker === "ls" ? "예수금(RP)" : "예수금";
+  const rawCashLabel = "예수금";
+  const cashLabel = rawCashLabel;
   const cashValHtml = `<span style="font-size:calc(var(--app-font-size, 10.5px) - 0.5px); color:var(--text, #fff); font-weight:normal;">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</span>`;
   const buyingPowerHtml = `<span style="font-size:calc(var(--app-font-size, 10.5px) - 0.5px); color:var(--text, #fff); font-weight:normal;">${usd(buyingPower)}</span>`;
   const evalAmtHtml = `<span style="font-size:calc(var(--app-font-size, 10.5px) - 0.5px); color:var(--text, #fff); font-weight:normal;">${usd(evalAmt)}</span>`;
@@ -1167,7 +1158,7 @@ function buildBalanceHtml(result, broker) {
     ? `${acctTotalProfitSign}${usd(Math.abs(acctTotalProfit))} (${acctTotalYieldSign}${acctTotalYieldStr})`
     : '-';
   const acctTotalProfitHtml = hasComb
-    ? `<span style="font-size:var(--app-font-size, 10.5px) !important; font-weight:700 !important; color:${acctTotalProfitColor} !important; font-family:inherit; line-height:1.2;" title="${acctTotalProfitFullText}">${acctTotalProfitSign}${usd(Math.abs(acctTotalProfit))}<span class="summary-rate-pct" style="font-size:calc(var(--app-font-size, 10.5px) - 1px); font-weight:normal; opacity:0.9;">&nbsp;(${acctTotalYieldSign}${acctTotalYieldStr})</span></span>`
+    ? `<span style="font-size:var(--app-font-size, 10.5px) !important; font-weight:700 !important; color:${acctTotalProfitColor} !important; font-family:inherit; line-height:1.2;" title="${acctTotalProfitFullText}">${acctTotalProfitSign}${usd(Math.abs(acctTotalProfit))}</span>`
     : `<span style="font-size:var(--app-font-size, 10.5px) !important; font-weight:700 !important; color:var(--text-muted, #94a3b8); font-weight:700;">-</span>`;
 
   const dayProfitHtml = formatProfitWithRate(dayRow?.profit, dayRow?.rate, !!dayRow);
@@ -1197,7 +1188,6 @@ function buildBalanceHtml(result, broker) {
       .stats-stock-table td { font-size: 10.5px !important; font-family: inherit; padding: 3px 2px !important; }
 
       .stats-balance-summary-card {
-        container-type: inline-size;
         width: 100%;
         margin-top: 1px;
         margin-bottom: 2px;
@@ -1209,119 +1199,40 @@ function buildBalanceHtml(result, broker) {
         -webkit-text-size-adjust: 100% !important;
         text-size-adjust: 100% !important;
       }
-      .summary-5col-table {
+      .summary-4col-row-table {
         width: 100%;
         border-collapse: separate !important;
         border-spacing: 1px 1px !important;
         table-layout: fixed;
         font-family: inherit;
       }
-      .summary-5col-table td {
-        padding: 3px 6px !important;
-        text-align: left !important;
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-        font-family: inherit;
-        font-weight: normal !important;
-        background: transparent !important;
-      }
-      .summary-narrow-table {
-        display: none;
-        width: 100%;
-        border-collapse: separate !important;
-        border-spacing: 1px 1px !important;
-        font-family: inherit;
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-      }
-      .summary-narrow-table td {
+      .summary-4col-row-table td {
         padding: 3px 6px !important;
         font-family: inherit;
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
         background: transparent !important;
-      }
-      .summary-narrow-table td:nth-child(odd) {
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-        font-weight: normal !important;
-        color: var(--text-muted, #94a3b8) !important;
-      }
-      .summary-narrow-table td:nth-child(even) {
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-        font-weight: normal !important;
       }
       .summary-lbl {
         display: inline-block;
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-        font-weight: normal !important;
-        color: var(--text-muted, #94a3b8) !important;
+        font-size: var(--app-font-size, 10.5px) !important;
+        font-weight: 700 !important;
+        color: var(--text, #ffffff) !important;
         font-family: inherit;
         line-height: 1.2;
+      }
+      body.light-mode .summary-lbl {
+        color: #000000 !important;
       }
       .summary-val {
         display: inline-block;
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-        font-weight: normal !important;
-        font-family: inherit;
-        line-height: 1.2;
-      }
-      .summary-val > span,
-      .summary-val *,
-      .summary-narrow-table td:nth-child(even) > span {
-        font-size: calc(var(--app-font-size, 10.5px) - 0.5px) !important;
-        font-weight: normal !important;
-      }
-
-      .summary-total-asset-td,
-      body.light-mode .summary-total-asset-td,
-      body.light-mode .data-table td.summary-total-asset-td,
-      body.light-mode table.data-table tr td.summary-total-asset-td,
-      body.light-mode .summary-narrow-table td.summary-total-asset-td,
-      body.light-mode .summary-5col-table td.summary-total-asset-td {
-        padding: 3px 6px !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-      }
-      .summary-total-asset-lbl {
-        display: inline-block;
         font-size: var(--app-font-size, 10.5px) !important;
         font-weight: 700 !important;
-        color: var(--text, #ffffff) !important;
         font-family: inherit;
         line-height: 1.2;
-        background: transparent !important;
-        box-shadow: none !important;
-        text-shadow: none !important;
-      }
-      body.light-mode .summary-total-asset-lbl {
-        color: #000000 !important;
-      }
-      .summary-total-asset-val {
-        display: inline-block;
-        font-size: var(--app-font-size, 10.5px) !important;
-        font-weight: 700 !important;
-        color: var(--text, #ffffff) !important;
-        font-family: inherit;
-        line-height: 1.2;
-        background: transparent !important;
-        box-shadow: none !important;
-        text-shadow: none !important;
-      }
-      body.light-mode .summary-total-asset-val {
-        color: #000000 !important;
-      }
-
-      @container (max-width: 620px) {
-        .summary-5col-table { display: none !important; }
-        .summary-narrow-table { display: table !important; }
-      }
-      @media (max-width: 620px) {
-        .summary-5col-table { display: none !important; }
-        .summary-narrow-table { display: table !important; }
       }
     </style>
     <div class="stats-balance-summary-card">
-      <!-- 1) 넓은 화면용: 4개 열 상하 정렬 (최상단 총자산/총수익 행 + 2행 4열) -->
-      <table class="data-table summary-5col-table">
+      <!-- ⭐️ 총자산, 총수익, 예수금, 주문 가능금액 4개 항목을 한 줄로 표시 (25% 균등 간격) -->
+      <table class="data-table summary-4col-row-table">
         <colgroup>
           <col style="width:25%;">
           <col style="width:25%;">
@@ -1329,67 +1240,31 @@ function buildBalanceHtml(result, broker) {
           <col style="width:25%;">
         </colgroup>
         <tbody>
-          <!-- ⭐️ 최상단 1행: 설정 폰트 크기 + 0.5px (11.0px) -->
           <tr style="background:transparent !important; background-color:transparent !important;">
-            <td colspan="2" class="summary-total-asset-td" style="background:transparent !important; background-color:transparent !important; border:none !important; box-shadow:none !important;">
+            <td style="background:transparent !important; border:none !important; box-shadow:none !important;">
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
-                <span class="summary-total-asset-lbl" style="white-space:nowrap;">총자산</span>
+                <span class="summary-lbl" style="white-space:nowrap;">총자산:</span>
                 <span style="display:flex; align-items:baseline; gap:3px; margin-left:auto;">
-                  <span class="summary-total-asset-val">${usd(totalAsset)}</span>
+                  <span class="summary-val" style="color:var(--text, #ffffff);">${usd(totalAsset)}</span>
                 </span>
               </div>
             </td>
-            <td colspan="2" class="summary-total-asset-td" style="background:transparent !important; background-color:transparent !important; border:none !important; box-shadow:none !important;">
+            <td style="background:transparent !important; border:none !important; box-shadow:none !important;">
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
-                <span class="summary-total-asset-lbl" style="white-space:nowrap;">총수익</span>
+                <span class="summary-lbl" style="white-space:nowrap;">총수익:</span>
                 <span style="margin-left:auto;">${acctTotalProfitHtml}</span>
               </div>
             </td>
-          </tr>
-          <tr>
-            <td colspan="4" style="background:transparent !important; border:none !important; box-shadow:none !important; padding:3px 6px !important;">
-              <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                <div style="display:flex; align-items:center; gap:3px; white-space:nowrap;"><span class="summary-lbl">${cashLabel}:</span><span class="summary-val">${cashValHtml}</span></div>
-                <div style="display:flex; align-items:center; gap:3px; white-space:nowrap;"><span class="summary-lbl">주문 가능금액:</span><span class="summary-val">${buyingPowerHtml}</span></div>
-                <div style="display:flex; align-items:center; gap:3px; white-space:nowrap;"><span class="summary-lbl">기타수익:</span><span class="summary-val">${otherProfitHtml}</span></div>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- 2) 좁은 화면용: 4열 테이블 -->
-      <table class="data-table summary-narrow-table" style="table-layout:fixed;">
-        <colgroup>
-          <col style="width:26%;">
-          <col style="width:24%;">
-          <col style="width:26%;">
-          <col style="width:24%;">
-        </colgroup>
-        <tbody>
-          <!-- ⭐️ 좁은 화면 최상단 1행: 설정 폰트 크기 + 0.5px (11.0px) -->
-          <tr style="background:transparent !important; background-color:transparent !important;">
-            <td colspan="2" class="summary-total-asset-td" style="background:transparent !important; background-color:transparent !important; border:none !important; box-shadow:none !important;">
+            <td style="background:transparent !important; border:none !important; box-shadow:none !important;">
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
-                <span class="summary-total-asset-lbl" style="white-space:nowrap;">총자산</span>
-                <span style="display:flex; align-items:baseline; gap:2px; margin-left:auto;">
-                  <span class="summary-total-asset-val">${usd(totalAsset)}</span>
-                </span>
+                <span class="summary-lbl" style="white-space:nowrap;">예수금:</span>
+                <span style="margin-left:auto;"><span class="summary-val" style="color:var(--text, #ffffff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</span></span>
               </div>
             </td>
-            <td colspan="2" class="summary-total-asset-td" style="background:transparent !important; background-color:transparent !important; border:none !important; box-shadow:none !important;">
+            <td style="background:transparent !important; border:none !important; box-shadow:none !important;">
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
-                <span class="summary-total-asset-lbl" style="white-space:nowrap;">총수익</span>
-                <span style="margin-left:auto;">${acctTotalProfitHtml}</span>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="4" style="background:transparent !important; border:none !important; box-shadow:none !important; padding:3px 6px !important;">
-              <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                <div style="display:flex; align-items:center; gap:3px; white-space:nowrap;"><span class="summary-lbl">${cashLabel}:</span><span class="summary-val">${cashValHtml}</span></div>
-                <div style="display:flex; align-items:center; gap:3px; white-space:nowrap;"><span class="summary-lbl">주문 가능금액:</span><span class="summary-val">${buyingPowerHtml}</span></div>
-                <div style="display:flex; align-items:center; gap:3px; white-space:nowrap;"><span class="summary-lbl">기타수익:</span><span class="summary-val">${otherProfitHtml}</span></div>
+                <span class="summary-lbl" style="white-space:nowrap;">주문가능:</span>
+                <span style="margin-left:auto;"><span class="summary-val" style="color:var(--text, #ffffff);">${usd(buyingPower)}</span></span>
               </div>
             </td>
           </tr>
@@ -1466,9 +1341,9 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     table.dataset.broker = broker;
     updateStatsTitleAccountNo(cached);
     const selector = document.getElementById('statsMetricSelector');
-    if (selector && selector.value === 'account' && (window.statsDisplayMode || statsDisplayMode) === 'chart') {
+    if (selector && (window.statsDisplayMode || statsDisplayMode) === 'chart') {
       if (typeof window.updateStatsPieChart === 'function') {
-        window.updateStatsPieChart('account');
+        window.updateStatsPieChart(selector.value);
       }
     }
   } else if (!alreadyRenderedSameBroker) {
@@ -1522,9 +1397,9 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     updateStatsTitleAccountNo(result);
 
     const selector = document.getElementById('statsMetricSelector');
-    if (selector && selector.value === 'account' && (window.statsDisplayMode || statsDisplayMode) === 'chart') {
+    if (selector && (window.statsDisplayMode || statsDisplayMode) === 'chart') {
       if (typeof window.updateStatsPieChart === 'function') {
-        window.updateStatsPieChart('account');
+        window.updateStatsPieChart(selector.value);
       }
     }
 
@@ -1622,7 +1497,7 @@ function syncHomeMidViewDisplay() {
         updatePerformanceSummary();
       }
     }
-    const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
+    const displayAcct = window.lastAccountNo ? ` <span class="stats-profit-rate">(${window.lastAccountNo})</span>` : '';
     if (periodTitle) {
       periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
       periodTitle.style.cursor = 'pointer';
@@ -1702,16 +1577,26 @@ function onStatsTitleClick() {
     refreshStatsTable();
     return;
   }
-  // ⭐️ 홈 화면: 클릭 시에도 다음 자산현황으로 순환 전환 (계좌 -> 통합 -> 투자법1 -> ...)
+
+  // ⭐️ 백테스트 뷰: 📄 성과 지표 ↔ 📡 실시간 운영현황 토글
+  const isBacktest = !!(window.isManualBacktestMode || (typeof isManualBacktestMode !== 'undefined' && isManualBacktestMode) || (grid && grid.classList.contains('backtest-view-layout')));
+  if (isBacktest) {
+    window.backtestStatsMode = (window.backtestStatsMode === 'realtime') ? 'performance' : 'realtime';
+    refreshStatsTable();
+    if (navigator.vibrate) navigator.vibrate(8);
+    return;
+  }
+
+  // ⭐️ 홈 화면: 클릭 시에도 다음 자산현황으로 순환 전환 (통합 -> 투자법1 -> ...)
   const selector = document.getElementById('statsMetricSelector');
-  const activeOpts = ['account', 'combined'];
+  const activeOpts = ['combined'];
   const maxSlots = window.MAX_SLOTS || 12;
   for (let i = 1; i <= maxSlots; i++) {
     if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       activeOpts.push(String(i));
     }
   }
-  const currentVal = selector ? (selector.value || 'account') : 'account';
+  const currentVal = selector ? (selector.value || 'combined') : 'combined';
   let currentIndex = activeOpts.indexOf(currentVal);
   if (currentIndex === -1) currentIndex = 0;
   const nextVal = activeOpts[(currentIndex + 1) % activeOpts.length];

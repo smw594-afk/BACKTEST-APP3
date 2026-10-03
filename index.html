@@ -142,7 +142,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v1787732256753" defer></script>
   <link rel="stylesheet" href="ui/styles/core.css?v=cf_v20260917_04">
   <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v20261003_02">
-  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20261002_12">
+  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20261003_13">
   <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v20260930_01">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
   <script src="utils/formatters.js?v=cf_v1787732256753" defer></script>
@@ -430,6 +430,10 @@
           <h2 id="orderTitle" style="margin:0; color:var(--primary); cursor:pointer;" onclick="window.UI.toggles.toggleOrderView()"
             title="클릭하여 주문표 모드 전환(통합/통합+일반/일반)">⚡ 주문표</h2>
         </div>
+        <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+          <button id="btnOrderSettings" class="btn-icon-sub" onclick="toggleSettings()" title="설정"
+            style="font-size:18px; width:28px; height:24px; flex-shrink:0;">⚙️</button>
+        </div>
       </div>
       <div id="dualOrderContainer" class="slim-scroll"
         style="display:flex; gap:4px; flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch;">
@@ -579,11 +583,10 @@
     <div class="card panel-stats hidden" id="panelStats">
       <div class="section-header swipe-handler" id="statsHeader">
         <div style="display:flex; align-items:center;">
-          <h2 id="statsTitle" style="cursor:pointer; margin:0;" onclick="window.onStatsTitleClick()" title="클릭 또는 좌우 스와이프: 자산현황 전환 (계좌/통합/투자법)">💼 자산현황(계좌)</h2>
+          <h2 id="statsTitle" style="cursor:pointer; margin:0;" onclick="window.onStatsTitleClick()" title="클릭 또는 좌우 스와이프: 자산현황 전환 (통합/투자법)">💼 자산현황(통합)</h2>
         </div>
-        <select id="statsMetricSelector" onchange="updateStatsPieChart()" style="display:none; max-width:110px; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 4px; outline:none; cursor:pointer;">
-          <option value="account" selected>계좌</option>
-          <option value="combined">통합</option>
+        <select id="statsMetricSelector" onchange="updateStatsPieChart(this.value)" style="display:none; max-width:110px; background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:10.5px; padding:2px 4px; outline:none; cursor:pointer;">
+          <option value="combined" selected>통합</option>
         </select>
         <div id="statsActionArea" style="display:none; gap:8px;"></div>
         <div style="display:flex; align-items:center; gap:5px; margin-left:auto;">
@@ -1212,19 +1215,19 @@
   <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v20261003_01" defer></script>
+  <script src="ui/render-order.js?v=cf_v20261003_04" defer></script>
   <script src="ui/render-holdings.js?v=cf_v20261002_09" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20261003_07" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20261003_20" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v20260926_01" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v20261003_02" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v20261003_03" defer></script>
   <script src="ui/render-helpers.js?v=cf_v20261003_03" defer></script>
-  <script src="ui/render-notifications.js?v=cf_v20261003_01" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20261003_04" defer></script>
+  <script src="ui/render-notifications.js?v=cf_v20261003_02" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20261003_07" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20261003_07" defer></script>
+  <script src="script.js?v=cf_v20261003_33" defer></script>
 
 
 </body>

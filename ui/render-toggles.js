@@ -211,8 +211,9 @@ function updateOrderHeaderUI() {
   const sheetVerifyBtn = document.getElementById('btnSheetVerify');
   const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
+  const orderSettingsBtn = document.getElementById('btnOrderSettings');
 
-  if (!titleEl || !statusEl) return;
+  if (!titleEl) return;
 
   const currentUserId = myUserId || localStorage.getItem('vtotal3_id') || '';
   const currentMode = localStorage.getItem(`vtotal3_combined_mode_${currentUserId}`) || 'combined';
@@ -235,12 +236,13 @@ function updateOrderHeaderUI() {
     ? ` <span style="font-size:0.75em; font-weight:normal; opacity:0.6; margin-left:8px;">(${marketDateHtml})</span>${marketBadgeHtml}`
     : '';
   titleEl.innerHTML = titleText + dateText;
-  statusEl.innerHTML = statusText;
+  if (statusEl) statusEl.innerHTML = statusText;
 
   if (orderCompareBtn) orderCompareBtn.style.display = 'flex';
   if (sheetVerifyBtn) sheetVerifyBtn.style.display = 'flex';
   if (rankingBTBtn) rankingBTBtn.style.display = 'flex';
   if (settingsBtn) settingsBtn.style.display = 'flex';
+  if (orderSettingsBtn) orderSettingsBtn.style.display = 'flex';
 
   const btnExpand = document.getElementById('btnExpandOrder');
   if (btnExpand) {

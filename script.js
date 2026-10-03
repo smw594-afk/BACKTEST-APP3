@@ -1828,11 +1828,12 @@ async function runEngine() {
   const perfAnalysisCard = document.getElementById('panelAnalysisView');
   const priceInfoCard = document.getElementById('panelPriceInfo');
 
-  if (orderView) { orderView.classList.remove('hidden'); orderView.style.display = ''; }
-  if (monthlyPanel) { monthlyPanel.classList.remove('hidden'); monthlyPanel.style.display = ''; }
+  if (statsView) { statsView.classList.remove('hidden'); statsView.style.display = 'flex'; }
+  if (monthlyPanel) { monthlyPanel.classList.remove('hidden'); monthlyPanel.style.display = 'flex'; }
   if (panelChart) { panelChart.classList.remove('hidden'); panelChart.style.display = ''; }
 
-  if (statsView) { statsView.classList.add('hidden'); statsView.style.display = 'none'; }
+  if (orderView) { orderView.classList.add('hidden'); orderView.style.display = 'none'; }
+  if (panelHoldings) { panelHoldings.classList.add('hidden'); panelHoldings.style.display = 'none'; }
   if (panelHistory) { panelHistory.classList.add('hidden'); panelHistory.style.display = 'none'; }
   if (perfMonthlyChart) { perfMonthlyChart.classList.add('hidden'); perfMonthlyChart.style.display = 'none'; }
   if (perfDailyChart) { perfDailyChart.classList.add('hidden'); perfDailyChart.style.display = 'none'; }
@@ -1863,6 +1864,7 @@ async function runEngine() {
   isManualBacktestMode = true;
   window.isManualBacktestMode = true;
   backtestStatsMode = "performance";
+  window.backtestStatsMode = "performance";
 
   restoreFromPerfLayout();
   const grid = document.getElementById('mainGrid');
@@ -1926,7 +1928,7 @@ function updatePeriodTitle() {
   // ⭐️ 홈 화면(!window.isStatsMode)에서 백테스트가 아닐 때만 중단 섹션이 '📡 계좌 정보'
   //    백테스트 실행 시에는 홈화면 중단에 계좌정보 대신 기존 '📅 월별 자산 증감' 표시
   if (!window.isStatsMode && !isBacktest) {
-    const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
+    const displayAcct = window.lastAccountNo ? ` <span class="stats-profit-rate">(${window.lastAccountNo})</span>` : '';
     periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
     periodTitle.style.cursor = 'default';
     periodTitle.title = '계좌 정보';
@@ -2333,8 +2335,8 @@ window.addEventListener('DOMContentLoaded', () => {
         const selector = document.getElementById('statsMetricSelector');
         if (!selector) return;
 
-        // 활성화된 옵션 목록 수집 (계좌 + 통합 + 활성 브로커 슬롯들)
-        const activeOpts = ['account', 'combined'];
+        // 활성화된 옵션 목록 수집 (통합 + 활성 브로커 슬롯들)
+        const activeOpts = ['combined'];
         const maxSlots = window.MAX_SLOTS || 12;
         for (let i = 1; i <= maxSlots; i++) {
           if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
@@ -2343,15 +2345,15 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         if (activeOpts.length <= 1) return;
 
-        const currentVal = selector.value || 'account';
+        const currentVal = selector.value || 'combined';
         let currentIndex = activeOpts.indexOf(currentVal);
         if (currentIndex === -1) currentIndex = 0;
 
         if (diffX < 0) {
-          // 좌측으로 스와이프: 다음 슬롯 (계좌 -> 통합 -> 첫 슬롯 -> ...)
+          // 좌측으로 스와이프: 다음 슬롯 (통합 -> 첫 슬롯 -> ...)
           currentIndex = (currentIndex + 1) % activeOpts.length;
         } else {
-          // 우측으로 스와이프: 이전 슬롯 (... -> 첫 슬롯 -> 통합 -> 계좌)
+          // 우측으로 스와이프: 이전 슬롯 (... -> 첫 슬롯 -> 통합)
           currentIndex = (currentIndex - 1 + activeOpts.length) % activeOpts.length;
         }
 
@@ -2661,11 +2663,12 @@ function getAccountBalanceData() {
     comb = window.cachedCombinedStats;
   }
 
-  const manualPrincipal = (typeof getManualEstimatedPrincipal === 'function')
-    ? getManualEstimatedPrincipal(broker)
-    : (typeof window.getManualEstimatedPrincipal === 'function' ? window.getManualEstimatedPrincipal(broker) : 0);
+  // ⭐️ 사용자가 직접 입력·저장한 원금만 오버라이드로 사용한다.
+  const userManualPrincipal = (typeof getUserManualPrincipal === 'function')
+    ? getUserManualPrincipal(broker)
+    : (typeof window.getUserManualPrincipal === 'function' ? window.getUserManualPrincipal(broker) : 0);
   const backtestPrincipal = comb ? Number(comb.realPrincipal !== undefined ? comb.realPrincipal : (comb.base || comb.base_principal || 0)) : 0;
-  const principal = manualPrincipal > 0 ? manualPrincipal : backtestPrincipal;
+  const principal = userManualPrincipal > 0 ? userManualPrincipal : backtestPrincipal;
   const totalProfit = comb ? Number(comb.totalProfit !== undefined ? comb.totalProfit : ((comb.totalAssets || 0) - backtestPrincipal)) : 0;
   const totalYield = comb ? Number(comb.yield !== undefined ? comb.yield : (backtestPrincipal > 0 ? totalProfit / backtestPrincipal : 0)) : 0;
 
@@ -2705,7 +2708,6 @@ window.updateStatsPieChart = function(explicitTarget) {
   if (!selector) return;
 
   const activeOptions = [
-    { value: 'account', text: '계좌' },
     { value: 'combined', text: '통합' }
   ];
   for (let i = 1; i <= MAX_SLOTS; i++) {
@@ -2714,22 +2716,41 @@ window.updateStatsPieChart = function(explicitTarget) {
     }
   }
 
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const rawSavedTarget = localStorage.getItem(`vtotal3_stats_pie_target_${uid}`);
+  const savedTarget = (rawSavedTarget === 'account') ? 'combined' : rawSavedTarget;
   const grid = document.getElementById('mainGrid');
   const isBacktest = !!(window.isManualBacktestMode || (typeof isManualBacktestMode !== 'undefined' && isManualBacktestMode) || (grid && grid.classList.contains('backtest-view-layout')));
-  const defaultTarget = isBacktest ? 'combined' : 'account';
+  const defaultTarget = 'combined';
 
-  const previousValue = explicitTarget || selector.value || defaultTarget;
+  // explicitTarget 우선, 없으면 (초기 로드 시에는 savedTarget 우선, 이후에는 selector.value)
+  let chosenValue = (explicitTarget === 'account') ? 'combined' : explicitTarget;
+  if (!chosenValue) {
+    if (!window.__statsPieTargetInitialized && savedTarget) {
+      chosenValue = savedTarget;
+    } else {
+      chosenValue = selector.value || savedTarget || defaultTarget;
+      if (chosenValue === 'account') chosenValue = 'combined';
+    }
+  }
+  window.__statsPieTargetInitialized = true;
+
   const nextHtml = activeOptions.map(opt => `<option value="${opt.value}">${opt.text}</option>`).join('');
   if (selector.innerHTML !== nextHtml) selector.innerHTML = nextHtml;
 
-  const targetValue = activeOptions.some(opt => opt.value === previousValue) ? previousValue : defaultTarget;
+  const targetValue = activeOptions.some(opt => opt.value === chosenValue)
+    ? chosenValue
+    : (activeOptions.some(opt => opt.value === savedTarget) ? savedTarget : defaultTarget);
   selector.value = targetValue;
+
+  // ⭐️ 마지막 자산현황 화면(통합/투자법) 로컬스토리지 기억 저장
+  if (uid && targetValue && !isBacktest) {
+    try { localStorage.setItem(`vtotal3_stats_pie_target_${uid}`, targetValue); } catch (e) { }
+  }
 
   const statsTitle = document.getElementById('statsTitle');
   if (statsTitle && statsDisplayMode === 'chart' && (!grid || !grid.classList.contains('perf-tab-layout'))) {
-    if (targetValue === 'account') {
-      statsTitle.innerHTML = '💼 자산현황(계좌)';
-    } else if (targetValue === 'combined') {
+    if (targetValue === 'combined') {
       statsTitle.innerHTML = '💼 자산현황(통합)';
     } else {
       const slotNum = parseInt(targetValue, 10);
@@ -2737,16 +2758,14 @@ window.updateStatsPieChart = function(explicitTarget) {
       statsTitle.innerHTML = `💼 자산현황(${formatStrategyNameWithSmallParentheses(stratName)})`;
     }
     statsTitle.style.cursor = 'pointer';
-    statsTitle.title = '클릭 또는 좌우 스와이프: 자산현황 전환 (계좌/통합/투자법)';
+    statsTitle.title = '클릭 또는 좌우 스와이프: 자산현황 전환 (통합/투자법)';
   }
 
   let statusData = null;
-  let targetLabel = '계좌';
+  let targetLabel = '통합';
   let acctData = null;
 
-  if (targetValue === 'account') {
-    acctData = getAccountBalanceData();
-  } else if (targetValue === 'combined') {
+  if (targetValue === 'combined') {
     statusData = calculateCombinedSummary();
     acctData = getAccountBalanceData();
     targetLabel = '통합';
@@ -2763,20 +2782,16 @@ window.updateStatsPieChart = function(explicitTarget) {
   let evalVal = 0;
 
   const currentBroker = window.BrokerService?.activeBroker || 'kiwoom';
-  const manualPrincipal = (typeof getManualEstimatedPrincipal === 'function')
-    ? getManualEstimatedPrincipal(currentBroker)
-    : (typeof window.getManualEstimatedPrincipal === 'function' ? window.getManualEstimatedPrincipal(currentBroker) : 0);
+  // ⭐️ 도넛 차트 원금 오버라이드는 사용자 직접 입력값만 사용한다.
+  const userManualPrincipal = (typeof getUserManualPrincipal === 'function')
+    ? getUserManualPrincipal(currentBroker)
+    : (typeof window.getUserManualPrincipal === 'function' ? window.getUserManualPrincipal(currentBroker) : 0);
+  const manualPrincipal = userManualPrincipal;
 
-  if (targetValue === 'account') {
-    totalAssets = Math.max(0, Number(acctData?.totalAsset || 0));
-    realPrincipal = Math.max(0, Number(acctData?.principal || 0));
-    totalProfit = Number(acctData?.acctTotalProfit || 0);
-    cash = Math.max(0, Number(acctData?.cashAsset || 0));
-    evalVal = Math.max(0, Number(acctData?.evalAmt || 0));
-  } else if (statusData) {
+  if (statusData) {
     const backtestTotalAssets = Math.max(0, Number(statusData.totalAssets || statusData.total_assets || 0));
     const backtestPrincipal = Math.max(0, Number(statusData.realPrincipal || statusData.real_principal || statusData.realPrincipalUSD || 0));
-    realPrincipal = (targetValue === 'combined' && manualPrincipal > 0) ? manualPrincipal : backtestPrincipal;
+    realPrincipal = (targetValue === 'combined' && userManualPrincipal > 0) ? userManualPrincipal : backtestPrincipal;
     cash = Math.max(0, Number(statusData.cash || 0));
     evalVal = Math.max(0, Number(statusData.evalVal || Math.max(0, backtestTotalAssets - cash)));
     if (targetValue === 'combined') {
@@ -2799,27 +2814,8 @@ window.updateStatsPieChart = function(explicitTarget) {
   let chartData = [];
   let chartColors = [];
 
-  if (targetValue === 'account') {
-    const principalVal = Math.max(0, Number(acctData?.principal || 0));
-    const otherProfit = Number(acctData?.otherProfit || 0);
-    const eTotalProfit = Number(acctData?.totalProfit || 0);
-
-    chartLabels = ['원금'];
-    chartData = [principalVal > 0 ? principalVal : Math.max(totalAssets, 1)];
-    chartColors = ['#a855f7']; // 원금 보라색
-
-    if (otherProfit > 0) {
-      chartLabels.push('기타수익');
-      chartData.push(otherProfit);
-      chartColors.push('#06b6d4'); // 기타수익 시안/청록색
-    }
-    if (eTotalProfit > 0) {
-      chartLabels.push('E총수익');
-      chartData.push(eTotalProfit);
-      chartColors.push('#3b82f6'); // E총수익 파란색
-    }
-  } else if (targetValue === 'combined') {
-    chartLabels.push('원금');
+  if (targetValue === 'combined') {
+    chartLabels.push('계좌 총원금');
     chartData.push(realPrincipal);
     chartColors.push('#7c3aed'); // 합산 원금 색상
 
@@ -2842,12 +2838,12 @@ window.updateStatsPieChart = function(explicitTarget) {
 
     const otherProfit = acctData ? Number(acctData.otherProfit || 0) : 0;
     if (otherProfit > 0) {
-      chartLabels.push('기타수익');
+      chartLabels.push('계좌 기타수익');
       chartData.push(otherProfit);
       chartColors.push('#06b6d4'); // 기타수익 시안/청록색
     }
   } else {
-    chartLabels = ['E원금', 'E총수익'];
+    chartLabels = ['원금', '총수익'];
     chartData = [realPrincipal, Math.max(0, totalProfit)];
     chartColors = ['#7c3aed', '#2563eb'];
   }
@@ -2868,14 +2864,41 @@ window.updateStatsPieChart = function(explicitTarget) {
 
   const formatPct = (value, base, digits = 0) => {
     const safeBase = Math.abs(Number(base || 0));
-    if (safeBase <= 0) return '0%';
-    return (Number(value || 0) / safeBase * 100).toFixed(digits) + '%';
+    if (safeBase <= 0) return `${(0).toFixed(digits)}%`;
+    const pct = Number(value || 0) / safeBase * 100;
+    const sign = pct > 0 ? '+' : (pct < 0 ? '-' : '');
+    return `${sign}${Math.abs(pct).toFixed(digits)}%`;
   };
 
   const getLatestPeriodRow = (kind) => {
     let rows = [];
     if (targetValue === 'account' || targetValue === 'combined') {
       rows = kind === 'year' ? globalCombinedYearlyData : (kind === 'month' ? globalCombinedMonthlyData : globalCombinedDailyData);
+      if ((!Array.isArray(rows) || rows.length === 0) && window.globalCombinedYearlyData) {
+        rows = kind === 'year' ? window.globalCombinedYearlyData : (kind === 'month' ? window.globalCombinedMonthlyData : window.globalCombinedDailyData);
+      }
+      if ((!Array.isArray(rows) || rows.length === 0) && (typeof generateCombinedPeriodDataEngine === 'function' || (window.summaryCalculator && typeof window.summaryCalculator.generateCombinedPeriodDataEngine === 'function'))) {
+        const genFn = typeof generateCombinedPeriodDataEngine === 'function' ? generateCombinedPeriodDataEngine : window.summaryCalculator.generateCombinedPeriodDataEngine;
+        const activeRes = [];
+        for (let i = 1; i <= MAX_SLOTS; i++) {
+          if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
+            const b = getBestResult(lastBTResults[i], i);
+            if (b) activeRes.push(b);
+          }
+        }
+        if (activeRes.length > 0) {
+          const cData = genFn(activeRes);
+          if (cData) {
+            globalCombinedMonthlyData = cData.monthly || [];
+            globalCombinedYearlyData = cData.yearly || [];
+            globalCombinedDailyData = cData.daily || [];
+            window.globalCombinedMonthlyData = globalCombinedMonthlyData;
+            window.globalCombinedYearlyData = globalCombinedYearlyData;
+            window.globalCombinedDailyData = globalCombinedDailyData;
+            rows = kind === 'year' ? globalCombinedYearlyData : (kind === 'month' ? globalCombinedMonthlyData : globalCombinedDailyData);
+          }
+        }
+      }
     } else {
       const slotNum = parseInt(targetValue, 10);
       rows = kind === 'year' ? globalYearlyDataArr[slotNum] : (kind === 'month' ? globalMonthlyDataArr[slotNum] : globalDailyDataArr[slotNum]);
@@ -2887,12 +2910,14 @@ window.updateStatsPieChart = function(explicitTarget) {
   const formatPeriodValue = (row) => {
     if (!row) return '-';
     const p = Number(row.profit || 0);
-    const r = (realPrincipal > 0 && manualPrincipal > 0 && (targetValue === 'account' || targetValue === 'combined')) ? (p / realPrincipal) : Number(row.rate || 0);
+    const r = (targetValue === 'combined') ? Number(row.rate || 0) : ((realPrincipal > 0 && manualPrincipal > 0 && targetValue === 'account') ? (p / realPrincipal) : Number(row.rate || 0));
     const isLight = document.body.classList.contains('light-mode');
     const plusColor = isLight ? '#1d4ed8' : '#3b82f6';
     const minusColor = isLight ? '#b91c1c' : '#ef4444';
     const colorStr = p > 0 ? plusColor : (p < 0 ? minusColor : 'var(--text-muted)');
-    return `${formatChartMoney(p, true)}<span class="stats-profit-rate" style="color:${colorStr} !important; opacity:0.9;">(${(r * 100).toFixed(1)}%)</span>`;
+    const rPct = Math.abs(r) * 100;
+    const rSign = r > 0 ? '+' : (r < 0 ? '-' : '');
+    return `${formatChartMoney(p, true)}<span class="stats-profit-rate" style="color:${colorStr} !important; opacity:0.9;">(${rSign}${rPct.toFixed(1)}%)</span>`;
   };
 
   const colorizeProfitValue = (valueText, rawValue) => {
@@ -2915,70 +2940,26 @@ window.updateStatsPieChart = function(explicitTarget) {
   const latestDayRow = getLatestPeriodRow('day');
 
   let legendRows = [];
-  if (targetValue === 'account') {
-    const isLight = document.body.classList.contains('light-mode');
-    const acctTotalProfit = acctData?.acctTotalProfit || 0;
-    const acctTotalYield = acctData?.acctTotalYield || 0;
-    const acctTotalYieldSign = acctTotalYield > 0 ? '+' : '';
-    const otherProfit = acctData?.otherProfit || 0;
-    const eTotalProfit = acctData?.totalProfit || 0;
-    const principalVal = acctData?.principal || 0;
-    const rawCashLabel = acctData?.cashLabel || (window.BrokerService?.activeBroker === 'ls' ? '예수금(RP)' : '예수금');
-    const cashLabel = rawCashLabel.replace(/^E/, '');
-
-    legendRows.push(
-      {
-        label: '총수익<span class="stats-profit-rate">(수익률)</span>',
-        customValue: colorizeProfitValue(
-          `${formatChartMoney(acctTotalProfit, true)}<span class="stats-profit-rate">(${acctTotalYieldSign}${(acctTotalYield * 100).toFixed(1)}%)</span>`,
-          acctTotalProfit
-        ),
-        isBold: true,
-        tone: 'profit'
-      },
-      { label: cashLabel, value: cash, isBold: false, tone: 'cash' },
-      { label: '주문 가능금액', value: acctData?.buyingPower || cash, isBold: false, tone: 'plain' },
-      { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
-      {
-        label: '기타수익<span class="stats-profit-rate">(수익률)</span>',
-        customValue: `<span style="color: #06b6d4;">${formatChartMoney(otherProfit, true)}<span class="stats-profit-rate" style="color: #06b6d4 !important;">(${formatPct(otherProfit, principalVal, 1)})</span></span>`,
-        isBold: false,
-        tone: 'plain',
-        color: '#06b6d4'
-      },
-      { label: '원금', value: principalVal, isBold: false, tone: 'principal', color: '#c084fc' },
-      { label: 'E일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
-      { label: 'E월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
-      { label: 'E년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
-      {
-        label: 'E총수익<span class="stats-profit-rate">(수익률)</span>',
-        customValue: `<span style="color: #60a5fa;">${formatChartMoney(eTotalProfit, true)}<span class="stats-profit-rate" style="color: #60a5fa !important;">(${formatPct(eTotalProfit, principalVal, 1)})</span></span>`,
-        isBold: false,
-        tone: 'plain',
-        color: '#60a5fa'
-      }
-    );
-  } else if (targetValue === 'combined') {
+  if (targetValue === 'combined') {
     const isLight = document.body.classList.contains('light-mode');
     const acctTotalProfit = acctData?.acctTotalProfit !== undefined ? acctData.acctTotalProfit : (totalAssets - realPrincipal);
     const acctTotalYield = acctData?.acctTotalYield !== undefined ? acctData.acctTotalYield : (realPrincipal > 0 ? acctTotalProfit / realPrincipal : 0);
-    const acctTotalYieldSign = acctTotalYield > 0 ? '+' : '';
+    const acctTotalYieldSign = acctTotalYield > 0 ? '+' : (acctTotalYield < 0 ? '-' : '');
     const rawCashLabel = acctData?.cashLabel || (window.BrokerService?.activeBroker === 'ls' ? '예수금(RP)' : '예수금');
-    const cashLabel = rawCashLabel.replace(/^E/, '');
+    const cashLabel = rawCashLabel.replace(/^E/, '').replace(/(\([^)]+\))/g, '<span class="stats-profit-rate">$1</span>');
 
-    // ⭐️ 1) 계좌 총수익(수익률), 예수금(RP), 주문 가능금액 (자산현황(계좌)와 동일하게 상단 배치)
+    // ⭐️ 1) 계좌 총수익(수익률), 계좌 예수금 (상단 배치, 원금/기타수익처럼 강조, 주문 가능금액은 제거)
     legendRows.push(
       {
-        label: '총수익<span class="stats-profit-rate">(수익률)</span>',
+        label: '계좌 총수익<span class="stats-profit-rate">(수익률)</span>',
         customValue: colorizeProfitValue(
-          `${formatChartMoney(acctTotalProfit, true)}<span class="stats-profit-rate">(${acctTotalYieldSign}${(acctTotalYield * 100).toFixed(1)}%)</span>`,
+          `${formatChartMoney(acctTotalProfit, true)}<span class="stats-profit-rate">(${acctTotalYieldSign}${(Math.abs(acctTotalYield) * 100).toFixed(1)}%)</span>`,
           acctTotalProfit
         ),
         isBold: true,
         tone: 'profit'
       },
-      { label: cashLabel, value: acctData?.cashAsset !== undefined ? acctData.cashAsset : cash, isBold: false, tone: 'cash' },
-      { label: '주문 가능금액', value: acctData?.buyingPower !== undefined ? acctData.buyingPower : cash, isBold: false, tone: 'plain' }
+      { label: '계좌 예수금', value: acctData?.cashAsset !== undefined ? acctData.cashAsset : cash, isBold: true, tone: 'cash' }
     );
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
@@ -2990,55 +2971,72 @@ window.updateStatsPieChart = function(explicitTarget) {
         if (slotData) {
           slotProfit = Number(slotData.totalProfit !== undefined ? slotData.totalProfit : (slotData.totalAssets - slotData.realPrincipal));
         }
+        const sColor = SLOT_COLORS[(i - 1) % SLOT_COLORS.length];
         legendRows.push({
-          label: formatStrategyNameWithSmallParentheses(strategyName),
-          customValue: `수익 ${formatChartMoney(slotProfit, true)}<span class="stats-profit-rate" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]} !important;">(${formatPct(slotProfit, realPrincipal, 1)})</span>`,
+          label: `${formatStrategyNameWithSmallParentheses(strategyName)}<span class="stats-profit-rate">(수익률)</span>`,
+          customValue: `수익 ${formatChartMoney(slotProfit, true)}<span class="stats-profit-rate" style="color:${sColor} !important;">(${formatPct(slotProfit, realPrincipal, 1)})</span>`,
+          isBold: true,
+          inDonut: true,
+          donutColor: sColor,
           tone: 'profit',
-          color: SLOT_COLORS[(i - 1) % SLOT_COLORS.length]
+          color: sColor
         });
       }
     }
     const otherProfit = acctData ? Number(acctData.otherProfit || 0) : 0;
     if (otherProfit !== 0 || (acctData && acctData.hasData)) {
       legendRows.push({
-        label: '기타수익<span class="stats-profit-rate">(수익률)</span>',
-        customValue: `<span style="color: #06b6d4;">${formatChartMoney(otherProfit, true)}<span class="stats-profit-rate" style="color: #06b6d4 !important;">(${formatPct(otherProfit, realPrincipal, 1)})</span></span>`,
+        label: '계좌 기타수익',
+        customValue: `<span style="color: #06b6d4;">수익 ${formatChartMoney(otherProfit, true)}<span class="stats-profit-rate" style="color: #06b6d4 !important;">(${formatPct(otherProfit, realPrincipal, 1)})</span></span>`,
+        isBold: otherProfit > 0,
+        inDonut: otherProfit > 0,
+        donutColor: '#06b6d4',
         tone: 'plain',
         color: '#06b6d4'
       });
     }
+    const combTotalYield = (statusData && statusData.yield !== undefined)
+      ? Number(statusData.yield)
+      : (realPrincipal > 0 ? totalProfit / realPrincipal : 0);
+    const combTotalYieldSign = combTotalYield > 0 ? '+' : (combTotalYield < 0 ? '-' : '');
+
     legendRows.push(
-      { label: '원금', value: realPrincipal, tone: 'principal', color: '#7c3aed' },
+      { label: '계좌 총원금', value: realPrincipal, isBold: true, inDonut: true, donutColor: '#7c3aed', tone: 'principal', color: '#c084fc' },
       { 
-        label: 'E총수익<span class="stats-profit-rate">(수익률)</span>', 
-        customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}<span class="stats-profit-rate">(${formatPct(totalProfit, realPrincipal, 1)})</span>`, totalProfit), 
+        label: '총수익<span class="stats-profit-rate">(수익률)</span>', 
+        customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}<span class="stats-profit-rate">(${combTotalYieldSign}${(Math.abs(combTotalYield) * 100).toFixed(1)}%)</span>`, totalProfit), 
+        isBold: false,
         tone: 'profit' 
       },
-      { label: 'E년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), tone: 'profit' },
-      { label: 'E월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), tone: 'profit' },
-      { label: 'E일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), tone: 'profit' },
-      { label: 'E평가금', value: evalVal, tone: 'eval' },
-      { label: 'E예수금', value: cash, tone: 'cash' }
+      { label: '년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
+      { label: '월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
+      { label: '일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
+      { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
+      { label: '예수금', value: cash, isBold: false, tone: 'cash' }
     );
   } else {
     legendRows.push(
-      { label: 'E원금', value: realPrincipal, tone: 'principal', color: '#7c3aed' },
+      { label: '원금', value: realPrincipal, isBold: true, inDonut: true, donutColor: '#7c3aed', tone: 'principal', color: '#c084fc' },
       { 
-        label: 'E총수익<span class="stats-profit-rate">(수익률)</span>', 
+        label: '총수익<span class="stats-profit-rate">(수익률)</span>', 
         customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}<span class="stats-profit-rate">(${formatPct(totalProfit, realPrincipal, 1)})</span>`, totalProfit), 
-        tone: 'profit' 
+        isBold: totalProfit > 0,
+        inDonut: totalProfit > 0,
+        donutColor: '#2563eb',
+        tone: 'profit',
+        color: '#60a5fa'
       },
-      { label: 'E년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), tone: 'profit' },
-      { label: 'E월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), tone: 'profit' },
-      { label: 'E일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), tone: 'profit' },
-      { label: 'E평가금', value: evalVal, tone: 'eval' },
-      { label: 'E예수금', value: cash, tone: 'cash' }
+      { label: '년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
+      { label: '월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
+      { label: '일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
+      { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
+      { label: '예수금', value: cash, isBold: false, tone: 'cash' }
     );
   }
 
   const legendContainer = document.getElementById('statsChartLegend');
   const assetLegendFontPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-font-size')) || 10.5;
-  const assetLegendWidthPx = Math.ceil(200 + Math.max(0, assetLegendFontPx - 10.5) * 8.5);
+  const assetLegendWidthPx = Math.ceil(226 + Math.max(0, assetLegendFontPx - 10.5) * 8.5);
   const assetLegendWidth = `${assetLegendWidthPx}px`;
   const donutStartPx = assetLegendWidthPx + 10;
   const donutWrap = document.querySelector('.stats-donut-wrap');
@@ -3052,18 +3050,23 @@ window.updateStatsPieChart = function(explicitTarget) {
         return `
           <div class="stats-asset-legend-row stats-asset-header" style="display: flex; justify-content: space-between; align-items: center; width: ${assetLegendWidth}; min-width: ${assetLegendWidth}; padding: 2px 6px; box-sizing: border-box; height: auto; background: transparent; border-radius: 0;">
             <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: left; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${row.label}</span>
-            <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: right; width: 110px; flex-shrink: 0; letter-spacing: -0.3px;">${row.customValue}</span>
+            <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: right; width: 116px; flex-shrink: 0; letter-spacing: -0.3px;">${row.customValue}</span>
           </div>
         `;
       }
-      const labelWeight = (row.isBold === false) ? 'normal' : '700';
-      const valWeight = (row.isBold === false) ? 'normal' : '700';
+      const isDonut = !!row.inDonut;
+      const isEmphasized = isDonut || !!row.isBold;
+      const labelWeight = isEmphasized ? '700' : '400';
+      const valWeight = isEmphasized ? '700' : '400';
+      const labelColor = row.color || (row.isBold ? 'var(--text, #fff)' : 'var(--text-muted, #94a3b8)');
+      const valColor = isEmphasized ? (row.color || 'var(--text, #fff)') : (row.color || 'var(--text-muted, #94a3b8)');
+
       return `
-        <div class="stats-asset-legend-row stats-asset-${row.tone || 'plain'}" style="display: flex; justify-content: space-between; align-items: center; width: ${assetLegendWidth}; min-width: ${assetLegendWidth}; padding: 0 6px; box-sizing: border-box; height: auto;">
-          <div style="display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1;">
-            <span class="stats-asset-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${row.color || 'var(--text-muted)'}; font-size: var(--app-font-size, 10.5px); font-weight: ${labelWeight} !important; flex: 1; text-align: left;">${row.label}</span>
+        <div class="stats-asset-legend-row stats-asset-${row.tone || 'plain'}" style="display: flex; justify-content: space-between; align-items: center; width: ${assetLegendWidth}; min-width: ${assetLegendWidth}; padding: 1px 6px; box-sizing: border-box; height: auto;">
+          <div style="display: flex; align-items: center; min-width: 0; flex: 1;">
+            <span class="stats-asset-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${labelColor}; font-size: var(--app-font-size, 10.5px); font-weight: ${labelWeight} !important; flex: 1; text-align: left;">${row.label}</span>
           </div>
-          <b style="color: ${row.color || 'var(--text-muted)'}; font-size: var(--app-font-size, 10.5px); font-weight: ${valWeight} !important; white-space: nowrap; width: 110px; flex-shrink: 0; text-align: right; display: flex; justify-content: flex-end; align-items: center; letter-spacing: -0.3px;">
+          <b style="color: ${valColor}; font-size: ${isEmphasized ? 'calc(var(--app-font-size, 10.5px) + 0.3px)' : 'var(--app-font-size, 10.5px)'}; font-weight: ${valWeight} !important; white-space: nowrap; width: 116px; flex-shrink: 0; text-align: right; display: flex; justify-content: flex-end; align-items: center; letter-spacing: -0.3px;">
             ${row.customValue || `${formatChartMoney(row.value, true)}${row.pctBase ? `(${formatPct(row.value, row.pctBase, row.pctDigits || 0)})` : ''}`}
           </b>
         </div>
@@ -3081,19 +3084,14 @@ window.updateStatsPieChart = function(explicitTarget) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  try {
-    const chartOnCanvas = (typeof Chart !== 'undefined' && typeof Chart.getChart === 'function')
-      ? Chart.getChart(canvas)
-      : null;
-    if (chartOnCanvas) chartOnCanvas.destroy();
-  } catch (e) { }
-  if (statsPieChartInstance) {
-    try { statsPieChartInstance.destroy(); } catch (e) { }
-  }
-  statsPieChartInstance = null;
-  window.statsPieChartInstance = null;
-  if (window.stateManager && typeof window.stateManager.setStatsPieChart === 'function') {
-    window.stateManager.setStatsPieChart(null);
+  let existingChart = (typeof Chart !== 'undefined' && typeof Chart.getChart === 'function')
+    ? Chart.getChart(canvas)
+    : statsPieChartInstance;
+
+  if (existingChart) {
+    try { existingChart.destroy(); } catch (err) { }
+    existingChart = null;
+    statsPieChartInstance = null;
   }
 
   const isDark = !document.body.classList.contains('light-mode');
@@ -3120,10 +3118,11 @@ window.updateStatsPieChart = function(explicitTarget) {
       ctx.fillStyle = textMutedColor;
       ctx.fillText(formatChartMoney(totalAssets, true), centerX, centerY - 4);
       
-      // 총자산 라벨 - --text-muted 색상으로 통일
+      // 도넛 중앙 라벨: 통합 모드면 '계좌 총자산', 개별 슬롯이면 '총자산'
+      const centerLabel = targetValue === 'combined' ? '계좌 총자산' : '총자산';
       ctx.font = `600 ${Math.max(9, appFontPx)}px Outfit, Inter, sans-serif`;
       ctx.fillStyle = textMutedColor;
-      ctx.fillText('총자산', centerX, centerY + 13);
+      ctx.fillText(centerLabel, centerX, centerY + 13);
       
       ctx.restore();
     }
@@ -3143,34 +3142,8 @@ window.updateStatsPieChart = function(explicitTarget) {
           const total = dataset.data.reduce((a, b) => a + b, 0);
           if (total <= 0 || value <= 0) return;
           
-          let percentage = '';
-          const label = chartLabels[index] || '';
-          
-          if (targetValue === 'account' || targetValue === 'combined') {
-            // ⭐️ 1) 자산현황(계좌) 및 자산현황(통합): 모든 슬라이스(%은 총자산 기준 백분율)
-            percentage = ((value / total) * 100).toFixed(1) + '%';
-          } else if (realPrincipal > 0 && label !== 'E원금' && label !== '원금') {
-            // ⭐️ 2) 개별투자법에서 수익 슬라이스는 기준 원금(realPrincipal) 대비 수익률(%)로 표시
-            const rate = (value / realPrincipal) * 100;
-            percentage = rate.toFixed(1) + '%';
-          } else {
-            if (realPrincipal > 0) {
-              // ⭐️ 3) 개별투자법의 원금 슬라이스는 전체 100%에서 수익률 합을 역산하여 합계가 정확히 100%가 되도록 맞춤 (수익률 합계 < 100%일 때)
-              // ⭐️ 수익률 합계가 100% 이상인 경우 0.0%로 잘리지 않고 실제 총자산 비중((value / total) * 100)으로 표시
-              let sumProfitRate = 0;
-              chartLabels.forEach((lbl, idx) => {
-                if (lbl !== 'E원금' && lbl !== '원금') {
-                  const val = dataset.data[idx] || 0;
-                  sumProfitRate += (val / realPrincipal) * 100;
-                }
-              });
-              const diff = 100 - sumProfitRate;
-              const principalRate = diff > 0 ? diff : ((value / total) * 100);
-              percentage = principalRate.toFixed(1) + '%';
-            } else {
-              percentage = ((value / total) * 100).toFixed(0) + '%';
-            }
-          }
+          // ⭐️ 총자산(도넛 전체 합계) 기준 원금 및 총수익 백분율(%) 표시
+          const percentage = ((value / total) * 100).toFixed(1) + '%';
           
           // 3% 미만의 너무 좁은 영역은 글씨 생략 (가독성 목적)
           if ((value / total) < 0.03) return;
@@ -3182,12 +3155,12 @@ window.updateStatsPieChart = function(explicitTarget) {
           const textY = y + Math.sin(middleAngle) * middleRadius;
           
           ctx.save();
-          ctx.font = 'bold 9px Outfit, Inter, sans-serif';
+          ctx.font = 'bold 10px Outfit, Inter, sans-serif';
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-          ctx.shadowBlur = 2;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+          ctx.shadowBlur = 3;
           ctx.fillText(percentage, textX, textY);
           ctx.restore();
         });
@@ -3215,6 +3188,7 @@ window.updateStatsPieChart = function(explicitTarget) {
       maintainAspectRatio: false,
       layout: { padding: { top: 8, bottom: 8, left: 8, right: 8 } },
       cutout: '55%',
+      animation: false,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -3227,43 +3201,9 @@ window.updateStatsPieChart = function(explicitTarget) {
               const val = Number(context.raw || 0);
               const lbl = context.label;
               const totalVal = chartData.reduce((a, b) => a + b, 0);
-
-              if (targetValue === 'account' || targetValue === 'combined') {
-                // ⭐️ 자산현황(계좌) 및 자산현황(통합): 총자산 기준 백분율
-                const pct = totalVal > 0 ? (val / totalVal * 100).toFixed(1) : '0.0';
-                return [
-                  lbl,
-                  `${formatChartMoney(val, true)} (${pct}%)`
-                ];
-              }
-
-              if (realPrincipal > 0 && lbl !== 'E원금' && lbl !== '원금') {
-                const pct = (val / realPrincipal * 100).toFixed(1);
-                return [
-                  lbl,
-                  `${formatChartMoney(val, true)} (원금대비 ${pct}%)`
-                ];
-              }
-              if (realPrincipal > 0 && (lbl === 'E원금' || lbl === '원금')) {
-                let sumProfitRate = 0;
-                chartLabels.forEach((l, idx) => {
-                  if (l !== 'E원금' && l !== '원금') {
-                    const v = chartData[idx] || 0;
-                    sumProfitRate += (v / realPrincipal) * 100;
-                  }
-                });
-                const diff = 100 - sumProfitRate;
-                const principalPct = diff > 0
-                  ? diff.toFixed(1)
-                  : (totalVal > 0 ? (val / totalVal * 100).toFixed(1) : '0.0');
-                return [
-                  lbl,
-                  `${formatChartMoney(val, true)} (${principalPct}%)`
-                ];
-              }
               const pct = totalVal > 0 ? (val / totalVal * 100).toFixed(1) : '0.0';
               return [
-                context.label,
+                lbl,
                 `${formatChartMoney(val, true)} (${pct}%)`
               ];
             }

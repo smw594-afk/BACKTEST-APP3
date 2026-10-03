@@ -200,7 +200,8 @@ function renderRankingsUI(list, contentEl, overlay) {
 function showPriceInfoView() {
   restoreFromPerfLayout();
 
-  if (isManualBacktestMode) {
+  const gridCheck = document.getElementById('mainGrid');
+  if (isManualBacktestMode || window.isManualBacktestMode || (gridCheck && gridCheck.classList.contains('backtest-view-layout'))) {
     restoreLocalCache();
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
   }
@@ -255,7 +256,8 @@ function showPriceInfoView() {
 function showPerformanceAnalysisView() {
   restoreFromPerfLayout();
 
-  if (isManualBacktestMode) {
+  const gridCheck = document.getElementById('mainGrid');
+  if (isManualBacktestMode || window.isManualBacktestMode || (gridCheck && gridCheck.classList.contains('backtest-view-layout'))) {
     restoreLocalCache();
     showToast("실전 데이터 모드로 복귀했습니다.", "🔄");
   }

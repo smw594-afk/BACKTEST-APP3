@@ -240,10 +240,15 @@ function orderTableDateStr() {
 
 function isUSMarketClosedToday() {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", hour12: false, weekday: "short", year: "numeric", month: "2-digit", day: "2-digit"
+    timeZone: "America/New_York", hour12: false, weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
   }).formatToParts(new Date());
   const wd = (parts.find(p => p.type === "weekday") || {}).value || "";
+  const hh = Number((parts.find(p => p.type === "hour") || {}).value || 0) % 24;
+  const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
+  const mins = hh * 60 + mm;
+
   if (wd === "Sat" || wd === "Sun") return { isClosed: true, reason: wd === "Sat" ? "주말(토)" : "주말(일)" };
+  if (wd === "Fri" && mins >= 17 * 60 + 20) return { isClosed: true, reason: "주말(토)" };
 
   const y = (parts.find(p => p.type === "year") || {}).value || "";
   const m = (parts.find(p => p.type === "month") || {}).value || "";
@@ -1537,10 +1542,12 @@ window.getCombinedOrderEvaluationData = function() {
     });
   }
 
-  // ⭐️ 주문표 기준 휴장일 판정: "현재 시각"이 아니라 "주문표 대상 거래일(orderTableDateStr)"을 기준으로 휴장 여부를 판정한다.
+  // ⭐️ 휴장일 판정: 오늘이 주말/공휴일(휴장)이거나, 주문표 대상 거래일(orderTableDateStr)이 휴장일인 경우
+  const todayClosed = isUSMarketClosedToday();
   const targetOrderDate = orderTableDateStr();
-  const holidayInfo = isUSMarketClosedForOrder(targetOrderDate);
-  const isHoliday = holidayInfo.isClosed;
+  const targetHolidayInfo = isUSMarketClosedForOrder(targetOrderDate);
+  const holidayInfo = todayClosed.isClosed ? todayClosed : targetHolidayInfo;
+  const isHoliday = todayClosed.isClosed || targetHolidayInfo.isClosed;
 
   return {
     cache,
@@ -1836,55 +1843,47 @@ window.compareOrderBookManual = async function() {
   // 초기 렌더링
   window.updateOrderCompareModalDOM();
 
-  // 데이터가 아직 준비되지 않은 경우 즉시 비동기 갱신 트리거 및 감시 타이머 가동
-  const cache = window.orderStatusCache || {};
-  const isBrokerPhase = evalData.isBrokerPhase;
-  const isHoliday = evalData.isHoliday;
-  const isVmReady = !!cache.vmOrdersChecked;
-  const isBrokerReady = (isHoliday || !isBrokerPhase) ? true : !!cache.brokerOrdersChecked;
-  const isDataReady = isVmReady && isBrokerReady && !cache.isLoading && !evalData.isPendingCalculation;
-
-  if (!isDataReady) {
-    if (typeof _roscInFlight !== 'undefined' && _roscInFlight) {
-      _roscInFlight.then(() => {
-        if (typeof window.updateOrderCompareModalDOM === 'function') {
-          window.updateOrderCompareModalDOM();
-        }
-      });
-    } else if (typeof window.refreshOrderStatusCache === 'function') {
-      window.refreshOrderStatusCache(true, true).then(() => {
-        if (typeof window.updateOrderCompareModalDOM === 'function') {
-          window.updateOrderCompareModalDOM();
-        }
-      });
+  // ⭐️ 모달 열림 시 비동기 갱신 트리거 및 실시간 감시 타이머 가동
+  const refreshModalData = async () => {
+    try {
+      if (typeof window.refreshOrderStatusCache === 'function') {
+        await window.refreshOrderStatusCache(true, true);
+      }
+    } catch (e) {
+      console.warn("Modal status cache refresh error:", e);
+    } finally {
+      if (typeof window.updateOrderCompareModalDOM === 'function') {
+        window.updateOrderCompareModalDOM();
+      }
     }
+  };
+  refreshModalData();
 
-    // ⭐️ 300ms 간격으로 준비 상태를 폴링하여 데이터 도착 즉시 모달 자동 갱신
-    window._orderCompareModalTimer = setInterval(() => {
-      const curModal = document.getElementById('orderCompareManualModal');
-      if (!curModal) {
-        clearInterval(window._orderCompareModalTimer);
-        window._orderCompareModalTimer = null;
-        return;
-      }
-      window.updateOrderCompareModalDOM();
-      const curData = window.getCombinedOrderEvaluationData();
-      const c = window.orderStatusCache || {};
-      const ready = !!c.vmOrdersChecked && ((curData.isHoliday || !curData.isBrokerPhase) ? true : !!c.brokerOrdersChecked) && !c.isLoading && !curData.isPendingCalculation;
-      if (ready) {
-        // 준비 완료되면 백그라운드 동기화용으로 4초 폴링 전환
-        clearInterval(window._orderCompareModalTimer);
-        window._orderCompareModalTimer = setInterval(() => {
-          if (!document.getElementById('orderCompareManualModal')) {
-            clearInterval(window._orderCompareModalTimer);
-            window._orderCompareModalTimer = null;
-            return;
-          }
-          window.updateOrderCompareModalDOM();
-        }, 4000);
-      }
-    }, 300);
-  }
+  // ⭐️ 300ms 간격으로 준비 상태를 폴링하여 데이터 도착 즉시 모달 자동 갱신
+  window._orderCompareModalTimer = setInterval(() => {
+    const curModal = document.getElementById('orderCompareManualModal');
+    if (!curModal) {
+      clearInterval(window._orderCompareModalTimer);
+      window._orderCompareModalTimer = null;
+      return;
+    }
+    window.updateOrderCompareModalDOM();
+    const curData = window.getCombinedOrderEvaluationData();
+    const c = window.orderStatusCache || {};
+    const ready = !!c.vmOrdersChecked && ((curData.isHoliday || !curData.isBrokerPhase) ? true : !!c.brokerOrdersChecked) && !c.isLoading && !curData.isPendingCalculation;
+    if (ready) {
+      // 준비 완료되면 백그라운드 동기화용으로 4초 폴링 전환
+      clearInterval(window._orderCompareModalTimer);
+      window._orderCompareModalTimer = setInterval(() => {
+        if (!document.getElementById('orderCompareManualModal')) {
+          clearInterval(window._orderCompareModalTimer);
+          window._orderCompareModalTimer = null;
+          return;
+        }
+        window.updateOrderCompareModalDOM();
+      }, 4000);
+    }
+  }, 300);
 };
 
 // 📊 시트 검증 버튼 상태 관리 ('시트확인중', '시트일치', '시트불일치')
@@ -2772,9 +2771,12 @@ function updateCombinedOrderMatchStatus(opts = {}) {
 
   // Update UI Elements
   if (btn) {
-    if (isAllMatched) {
-      btn.innerHTML = isHoliday ? '주문표일치(휴장)' : '주문표일치';
-      btn.style.background = isHoliday ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)' : 'linear-gradient(135deg, #10b981, #047857)';
+    if (isHoliday) {
+      btn.innerHTML = '휴장일';
+      btn.style.background = 'linear-gradient(135deg, #8b5cf6, #6d28d9)';
+    } else if (isAllMatched) {
+      btn.innerHTML = '주문표일치';
+      btn.style.background = 'linear-gradient(135deg, #10b981, #047857)';
     } else {
       btn.innerHTML = '주문표불일치';
       btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
