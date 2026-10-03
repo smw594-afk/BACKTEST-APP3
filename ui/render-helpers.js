@@ -186,7 +186,7 @@ function updateSortOrder(val) {
   }
 }
 
-function getManualEstimatedPrincipal(targetBroker) {
+function getUserManualPrincipal(targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
   const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
   const val = localStorage.getItem(`vtotal3_manual_principal_${broker}_${uid}`);
@@ -205,23 +205,161 @@ function getManualEstimatedPrincipal(targetBroker) {
   return 0;
 }
 
+function getRealtimeOperatingPrincipal(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const maxSlots = window.MAX_SLOTS || 12;
+  let sumRealPrincipal = 0;
+  let hasValidData = false;
+
+  for (let i = 1; i <= maxSlots; i++) {
+    const isThisBroker = window.BrokerService
+      ? window.BrokerService.isSlotForBroker(i, broker)
+      : (broker === 'kiwoom' ? i <= 6 : i > 6);
+
+    if (isThisBroker && (typeof isSlotActive === 'function' ? isSlotActive(i) : true)) {
+      const b = (typeof getBestResult === 'function' && window.lastBTResults)
+        ? getBestResult(window.lastBTResults[i], i)
+        : (window.lastBTResults ? window.lastBTResults[i] : null);
+
+      if (b) {
+        const st = (window.UI?.stats?.getDisplayStatusData)
+          ? window.UI.stats.getDisplayStatusData(b, i)
+          : (b.summary || null);
+
+        const p = st ? Number(st.realPrincipal !== undefined ? st.realPrincipal : (st.base || st.base_principal || 0))
+                     : (b.summary ? Number(b.summary.realPrincipal !== undefined ? b.summary.realPrincipal : (b.summary.base || b.summary.base_principal || 0)) : 0);
+
+        if (!isNaN(p) && p > 0) {
+          sumRealPrincipal += p;
+          hasValidData = true;
+        }
+      }
+    }
+  }
+
+  if (hasValidData && sumRealPrincipal > 0) {
+    return sumRealPrincipal;
+  }
+
+  // combSummary fallback (활성 브로커 기준)
+  if (broker === (window.BrokerService?.activeBroker || 'kiwoom')) {
+    try {
+      if (typeof calculateCombinedSummary === 'function') {
+        const comb = calculateCombinedSummary();
+        if (comb && comb.realPrincipal && Number(comb.realPrincipal) > 0) {
+          return Number(comb.realPrincipal);
+        }
+      }
+    } catch (e) { }
+    if (window.cachedCombinedStats && window.cachedCombinedStats.realPrincipal && Number(window.cachedCombinedStats.realPrincipal) > 0) {
+      return Number(window.cachedCombinedStats.realPrincipal);
+    }
+  }
+
+  return 0;
+}
+
+function getInitialAssetTotal(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const maxSlots = window.MAX_SLOTS || 12;
+  let sumActiveInitial = 0;
+  let sumAllInitial = 0;
+
+  for (let i = 1; i <= maxSlots; i++) {
+    const isThisBroker = window.BrokerService
+      ? window.BrokerService.isSlotForBroker(i, broker)
+      : (broker === 'kiwoom' ? i <= 6 : i > 6);
+
+    if (isThisBroker) {
+      const cfg = (typeof getSlotConfig === 'function')
+        ? getSlotConfig(i)
+        : (window.slotConfigs && window.slotConfigs[i]);
+      const rawCfg = (window.slotConfigs && window.slotConfigs[i]) || cfg;
+      const rawVal = rawCfg?.basics?.initialCash || rawCfg?.basics?.renewCash || 0;
+      const initCash = Number(typeof unformatComma === 'function' ? unformatComma(rawVal) : String(rawVal).replace(/,/g, '')) || 0;
+
+      if (initCash > 0) {
+        sumAllInitial += initCash;
+        if (typeof isSlotActive === 'function' ? isSlotActive(i) : true) {
+          sumActiveInitial += initCash;
+        }
+      }
+    }
+  }
+
+  if (sumActiveInitial > 0) return sumActiveInitial;
+  if (sumAllInitial > 0) return sumAllInitial;
+  return 0;
+}
+
+function getDefaultEstimatedPrincipal(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  // 1순위: 실시간 운영현황의 원금값
+  const rt = getRealtimeOperatingPrincipal(broker);
+  if (rt > 0) return rt;
+  // 2순위: 실시간 운영현황 원금값이 없을 때는 초기자산값
+  const init = getInitialAssetTotal(broker);
+  if (init > 0) return init;
+  return 0;
+}
+
+function getManualEstimatedPrincipal(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  // ⭐️ 사용자 입력시 사용자 입력값을 최우선으로 하며 유지
+  const userVal = getUserManualPrincipal(broker);
+  if (userVal > 0) return userVal;
+  // ⭐️ 기본값: 실시간 운영현황 원금 -> 없을 때 초기자산
+  return getDefaultEstimatedPrincipal(broker);
+}
+
+function syncManualPrincipalInput(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const input = document.getElementById('manualEstimatedPrincipal');
+  if (!input) return;
+
+  const userVal = getUserManualPrincipal(broker);
+  const isUserManual = userVal > 0;
+  const finalVal = isUserManual ? userVal : getDefaultEstimatedPrincipal(broker);
+  const brokerName = broker === 'ls' ? 'LS증권' : '키움증권';
+
+  input.value = finalVal > 0 ? Number(finalVal).toLocaleString() : '';
+
+  if (isUserManual) {
+    input.title = `[${brokerName}] 사용자 지정 원금: $${Number(userVal).toLocaleString()} (지우면 기본값으로 자동 전환)`;
+  } else {
+    const rtVal = getRealtimeOperatingPrincipal(broker);
+    const srcName = rtVal > 0 ? '실시간 운영현황 원금' : '초기자산';
+    input.title = `[${brokerName}] ${srcName} 기본값: $${Number(finalVal).toLocaleString()} (직접 수정 가능)`;
+  }
+}
+
 function updateManualEstimatedPrincipal(val, targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
-  const num = Number(String(val).replace(/[^0-9.-]/g, '')) || 0;
+  const cleanStr = String(val === undefined || val === null ? '' : val).trim();
+  const num = Number(cleanStr.replace(/[^0-9.-]/g, '')) || 0;
   const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
   const brokerName = broker === 'ls' ? 'LS증권' : '키움증권';
-  if (num > 0) {
+
+  const userVal = getUserManualPrincipal(broker);
+  const defaultVal = getDefaultEstimatedPrincipal(broker);
+
+  // 사용자가 아직 직접 입력한 적이 없고(기본값 모드), 현재 입력값이 기본값과 동일하면 저장하지 않고 기본값 유지
+  if (userVal <= 0 && num > 0 && Math.round(num) === Math.round(defaultVal)) {
+    syncManualPrincipalInput(broker);
+    return;
+  }
+
+  if (cleanStr !== '' && num > 0) {
     localStorage.setItem(`vtotal3_manual_principal_${broker}_${uid}`, String(num));
     if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 $${num.toLocaleString()}로 설정되었습니다.`);
   } else {
     localStorage.removeItem(`vtotal3_manual_principal_${broker}_${uid}`);
     if (broker === 'kiwoom') localStorage.removeItem(`vtotal3_manual_principal_${uid}`);
-    if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 자동 계산 모드로 초기화되었습니다.`);
+    if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 기본값으로 초기화되었습니다.`);
   }
-  const input = document.getElementById('manualEstimatedPrincipal');
-  if (input) {
-    input.value = num > 0 ? num.toLocaleString() : '';
-  }
+
+  syncManualPrincipalInput(broker);
+
   // 자산현황 및 계좌정보 즉시 리프레시
   if (typeof renderKiwoomBalanceOnStatsTable === 'function') {
     renderKiwoomBalanceOnStatsTable();
@@ -370,3 +508,8 @@ window.updateCombinedMode = updateCombinedMode;
 window.updateFontSize = updateFontSize;
 window.getManualEstimatedPrincipal = getManualEstimatedPrincipal;
 window.updateManualEstimatedPrincipal = updateManualEstimatedPrincipal;
+window.getUserManualPrincipal = getUserManualPrincipal;
+window.getRealtimeOperatingPrincipal = getRealtimeOperatingPrincipal;
+window.getInitialAssetTotal = getInitialAssetTotal;
+window.getDefaultEstimatedPrincipal = getDefaultEstimatedPrincipal;
+window.syncManualPrincipalInput = syncManualPrincipalInput;

@@ -192,10 +192,16 @@ window.BrokerService = {
         window.renderHomeAccountTable();
       }
       try {
-        const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
-        if (manualPrincipalInput && typeof getManualEstimatedPrincipal === 'function') {
-          const p = getManualEstimatedPrincipal(broker);
-          manualPrincipalInput.value = p > 0 ? Number(p).toLocaleString() : '';
+        if (typeof window.syncManualPrincipalInput === 'function') {
+          window.syncManualPrincipalInput(broker);
+        } else if (typeof syncManualPrincipalInput === 'function') {
+          syncManualPrincipalInput(broker);
+        } else {
+          const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
+          if (manualPrincipalInput && typeof getManualEstimatedPrincipal === 'function') {
+            const p = getManualEstimatedPrincipal(broker);
+            manualPrincipalInput.value = p > 0 ? Number(p).toLocaleString() : '';
+          }
         }
       } catch (e) { }
       // 성과추이(Period Table / Bar Chart / Line Chart) 활성 브로커 기준으로 즉시 재계산 및 렌더링

@@ -1057,12 +1057,19 @@ async function enterAppDirectly() {
   const combinedModeSelect = document.getElementById('combinedModeSelect');
   if (combinedModeSelect) combinedModeSelect.value = prefCombinedMode;
 
-  const manualPrincipal = (typeof getManualEstimatedPrincipal === 'function')
-    ? getManualEstimatedPrincipal()
-    : (typeof window.getManualEstimatedPrincipal === 'function' ? window.getManualEstimatedPrincipal() : 0);
-  const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
-  if (manualPrincipalInput) {
-    manualPrincipalInput.value = manualPrincipal > 0 ? Number(manualPrincipal).toLocaleString() : '';
+  const activeBroker = (window.BrokerService?.activeBroker) || 'kiwoom';
+  if (typeof syncManualPrincipalInput === 'function') {
+    syncManualPrincipalInput(activeBroker);
+  } else if (typeof window.syncManualPrincipalInput === 'function') {
+    window.syncManualPrincipalInput(activeBroker);
+  } else {
+    const manualPrincipal = (typeof getManualEstimatedPrincipal === 'function')
+      ? getManualEstimatedPrincipal(activeBroker)
+      : (typeof window.getManualEstimatedPrincipal === 'function' ? window.getManualEstimatedPrincipal(activeBroker) : 0);
+    const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
+    if (manualPrincipalInput) {
+      manualPrincipalInput.value = manualPrincipal > 0 ? Number(manualPrincipal).toLocaleString() : '';
+    }
   }
 
   if (localStorage.getItem(`vtotal3_font_size_${myUserId}`) === null) {

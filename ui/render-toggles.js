@@ -14,10 +14,17 @@ function toggleSettings() {
     // 활성 브로커의 슬롯 탭만 보이게 맞춘다(키움 1~6 / LS 7~12).
     window.BrokerService?.applySettingsTabVisibility?.();
     try {
-      const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
-      if (manualPrincipalInput && typeof getManualEstimatedPrincipal === 'function') {
-        const p = getManualEstimatedPrincipal();
-        manualPrincipalInput.value = p > 0 ? Number(p).toLocaleString() : '';
+      const broker = window.BrokerService?.activeBroker || 'kiwoom';
+      if (typeof syncManualPrincipalInput === 'function') {
+        syncManualPrincipalInput(broker);
+      } else if (typeof window.syncManualPrincipalInput === 'function') {
+        window.syncManualPrincipalInput(broker);
+      } else {
+        const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
+        if (manualPrincipalInput && typeof getManualEstimatedPrincipal === 'function') {
+          const p = getManualEstimatedPrincipal(broker);
+          manualPrincipalInput.value = p > 0 ? Number(p).toLocaleString() : '';
+        }
       }
     } catch (e) { }
   } else {
