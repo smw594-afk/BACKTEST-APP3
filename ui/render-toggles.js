@@ -13,6 +13,13 @@ function toggleSettings() {
     updateSettingsTabButtons();
     // 활성 브로커의 슬롯 탭만 보이게 맞춘다(키움 1~6 / LS 7~12).
     window.BrokerService?.applySettingsTabVisibility?.();
+    try {
+      const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
+      if (manualPrincipalInput && typeof getManualEstimatedPrincipal === 'function') {
+        const p = getManualEstimatedPrincipal();
+        manualPrincipalInput.value = p > 0 ? Number(p).toLocaleString() : '';
+      }
+    } catch (e) { }
   } else {
     screen.classList.add('hidden');
     screen.style.display = 'none';
@@ -108,71 +115,86 @@ function togglePeriodDisplayModeDaily() {
 }
 
 function toggleOrderView(dir) {
-  // 1. 주문표 상태(window.isOrderView === true)일 때 타이틀 클릭 ➔ 주문표 모드만 무한 루프 순환
-  if (window.isOrderView) {
-    const currentUserId = myUserId || localStorage.getItem('vtotal3_id') || '';
-    const currentMode = localStorage.getItem(`vtotal3_combined_mode_${currentUserId}`) || 'combined';
-    let nextMode = 'combined';
+  const currentUserId = myUserId || localStorage.getItem('vtotal3_id') || '';
+  const currentMode = localStorage.getItem(`vtotal3_combined_mode_${currentUserId}`) || 'combined';
+  let nextMode = 'combined';
 
-    const modes = ['combined', 'combined_normal', 'normal'];
-    let idx = modes.indexOf(currentMode);
-    if (idx === -1) idx = 0;
+  const modes = ['combined', 'combined_normal', 'normal'];
+  let idx = modes.indexOf(currentMode);
+  if (idx === -1) idx = 0;
 
-    if (dir === 'left') {
-      nextMode = modes[(idx + 1) % modes.length];
-    } else if (dir === 'right') {
-      nextMode = modes[(idx - 1 + modes.length) % modes.length];
-    } else {
-      nextMode = modes[(idx + 1) % modes.length];
-    }
-
-    // 로컬스토리지 저장 및 UI 셀렉트박스 동기화
-    localStorage.setItem(`vtotal3_combined_mode_${myUserId}`, nextMode);
-    const combinedModeSelect = document.getElementById('combinedModeSelect');
-    if (combinedModeSelect) combinedModeSelect.value = nextMode;
-
-    updateSlotsVisibility();
-    window.UI.order.refreshOrderViewUI();
-    updateOrderHeaderUI();
-    return;
+  if (dir === 'left') {
+    nextMode = modes[(idx + 1) % modes.length];
+  } else if (dir === 'right') {
+    nextMode = modes[(idx - 1 + modes.length) % modes.length];
+  } else {
+    nextMode = modes[(idx + 1) % modes.length];
   }
 
-  // 2. 보유현황 상태(window.isOrderView === false)일 때 타이틀 클릭 ➔ 보유현황 모드만 무한 루프 순환
+  // 로컬스토리지 저장 및 UI 셀렉트박스 동기화
+  localStorage.setItem(`vtotal3_combined_mode_${currentUserId}`, nextMode);
+  const combinedModeSelect = document.getElementById('combinedModeSelect');
+  if (combinedModeSelect) combinedModeSelect.value = nextMode;
+
+  updateSlotsVisibility();
+  if (window.UI?.order?.refreshOrderViewUI) window.UI.order.refreshOrderViewUI();
+  updateOrderHeaderUI();
+}
+
+function toggleHoldingsView(dir) {
   const activeSlots = [];
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
     if (typeof isSlotActive === 'function' && isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
       activeSlots.push(i);
     }
   }
-  
+
   // 순환 모드 리스트 구성: ['combined', 'slot1', 'slot2', ...]
   const modes = ['combined', ...activeSlots.map(num => 'slot' + num)];
-  
+
   if (!window.currentHoldingsViewMode) window.currentHoldingsViewMode = 'combined';
   let idx = modes.indexOf(window.currentHoldingsViewMode);
   if (idx === -1) idx = 0;
-  
+
   if (dir === 'left') {
-    idx = (idx + 1) % modes.length; // 손가락을 왼쪽으로 쓸어넘길 때 -> 다음 보유현황
+    idx = (idx + 1) % modes.length;
   } else if (dir === 'right') {
-    idx = (idx - 1 + modes.length) % modes.length; // 손가락을 오른쪽으로 쓸어넘길 때 -> 이전 보유현황
+    idx = (idx - 1 + modes.length) % modes.length;
   } else {
-    idx = (idx + 1) % modes.length; // 클릭 시
+    idx = (idx + 1) % modes.length;
   }
-  
+
   window.currentHoldingsViewMode = modes[idx];
   window.showIndividualHoldings = (window.currentHoldingsViewMode !== 'combined');
 
-  if (typeof showIndividualHoldings !== 'undefined') {
-    showIndividualHoldings = window.showIndividualHoldings;
+  const combinedSlot = document.getElementById('combinedHoldingsSlot');
+  const indSlots = document.getElementById('individualHoldingsSlots');
+
+  if (window.currentHoldingsViewMode === 'combined') {
+    if (combinedSlot) combinedSlot.style.display = 'block';
+    if (indSlots) indSlots.style.display = 'none';
+    if (window.UI?.holdings?.renderCombinedHoldings) {
+      window.UI.holdings.renderCombinedHoldings();
+    }
+  } else {
+    if (combinedSlot) combinedSlot.style.display = 'none';
+    if (indSlots) indSlots.style.display = 'flex';
+    const slotNum = parseInt(window.currentHoldingsViewMode.replace('slot', ''), 10);
+    for (let i = 1; i <= window.MAX_SLOTS; i++) {
+      const hs = document.getElementById('holdingsSlot' + i);
+      if (hs) hs.style.display = (i === slotNum) ? 'block' : 'none';
+    }
+    const res = (typeof getBestResult === 'function') ? getBestResult(lastBTResults[slotNum], slotNum) : lastBTResults[slotNum];
+    const stratName = (res && res.currentStrat) || (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
+    const nameEl = document.getElementById('holdingsSlot' + slotNum + 'Name');
+    if (nameEl) nameEl.textContent = stratName + ' 보유현황';
+    if (res && res.inv && window.UI?.holdings?.renderTableSlot) {
+      window.UI.holdings.renderTableSlot(res.inv, stratName, slotNum);
+    }
   }
-  if (typeof isOrderView !== 'undefined') {
-    isOrderView = window.isOrderView;
-  }
-  
+
   updateSlotsVisibility();
-  window.UI.order.refreshOrderViewUI();
-  updateOrderHeaderUI();
+  updateHoldingsHeaderUI();
 }
 
 function updateOrderHeaderUI() {
@@ -182,11 +204,11 @@ function updateOrderHeaderUI() {
   const sheetVerifyBtn = document.getElementById('btnSheetVerify');
   const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
-  const holdingSummaryEl = document.getElementById('combinedHoldingsSummary');
 
   if (!titleEl || !statusEl) return;
 
-  const currentMode = localStorage.getItem(`vtotal3_combined_mode_${myUserId}`) || 'combined';
+  const currentUserId = myUserId || localStorage.getItem('vtotal3_id') || '';
+  const currentMode = localStorage.getItem(`vtotal3_combined_mode_${currentUserId}`) || 'combined';
   const orderDateRaw = lastBTResults[1]?.orderDateStr || window.currentOrderDate || '';
   const orderDate = String(orderDateRaw).replace(/\s*\(동기화됨\)\s*$/, '');
   const targetOrderDate = window.dateHelpers?.getTargetOrderDate
@@ -198,58 +220,47 @@ function updateOrderHeaderUI() {
   const marketBadgeHtml = window.dateHelpers?.getOrderHeaderMarketStatusBadge
     ? window.dateHelpers.getOrderHeaderMarketStatusBadge()
     : "";
-  
-  let titleText = '⚡ 주문표';
+
+  let titleText = currentMode === 'combined' ? '⚡ 통합 주문표' : (currentMode === 'combined_normal' ? '⚡ 통합+일반 주문표' : '⚡ 주문표');
   let statusText = '';
-  // ⭐️ 버튼은 오직 '주문표' 상태(!window.isStatsMode && window.isOrderView)일 때만 표시되고,
-  // '통합 보유현황'이나 '투자법 N 보유현황' 등 보유현황 상태일 때는 절대 노출되지 않음
-  let showRankingBtns = (!window.isStatsMode && !!window.isOrderView);
 
-  if (window.isStatsMode || !window.isOrderView) {
-    const viewMode = window.currentHoldingsViewMode || 'combined';
-    if (viewMode === 'combined') {
-      titleText = '📦 통합 보유현황';
-    } else {
-      const slotNum = parseInt(viewMode.replace('slot', ''), 10);
-      const res = (typeof getBestResult === 'function') ? getBestResult(lastBTResults[slotNum], slotNum) : lastBTResults[slotNum];
-      const stratName = (res && res.currentStrat) || (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
-      const formattedName = window.formatStrategyNameWithSmallParentheses ? window.formatStrategyNameWithSmallParentheses(stratName) : stratName;
-      titleText = `📦 ${formattedName} 보유현황`;
-    }
-    statusText = '';
-    showRankingBtns = false;
-  } else {
-    titleText = currentMode === 'combined' ? '⚡ 통합 주문표' : (currentMode === 'combined_normal' ? '⚡ 통합+일반 주문표' : '⚡ 주문표');
-  }
-
-  const dateText = !window.isStatsMode && window.isOrderView && orderDate
+  const dateText = orderDate
     ? ` <span style="font-size:0.75em; font-weight:normal; opacity:0.6; margin-left:8px;">(${marketDateHtml})</span>${marketBadgeHtml}`
     : '';
   titleEl.innerHTML = titleText + dateText;
   statusEl.innerHTML = statusText;
 
-  if (orderCompareBtn) orderCompareBtn.style.display = showRankingBtns ? 'flex' : 'none';
-  if (sheetVerifyBtn) sheetVerifyBtn.style.display = showRankingBtns ? 'flex' : 'none';
-  if (rankingBTBtn) rankingBTBtn.style.display = showRankingBtns ? 'flex' : 'none';
-  if (settingsBtn) settingsBtn.style.display = (!window.isStatsMode && window.isOrderView) ? 'flex' : 'none';
+  if (orderCompareBtn) orderCompareBtn.style.display = 'flex';
+  if (sheetVerifyBtn) sheetVerifyBtn.style.display = 'flex';
+  if (rankingBTBtn) rankingBTBtn.style.display = 'flex';
+  if (settingsBtn) settingsBtn.style.display = 'flex';
 
-  // ⭐️ 통합 보유현황 요약 배지(우측 상단) 제어: 통합 보유현황 모드(!window.isOrderView && !window.showIndividualHoldings)일 때 표시
-  if (holdingSummaryEl) {
-    const isCombinedHoldingsShowing = (!window.isOrderView && !window.showIndividualHoldings);
-    holdingSummaryEl.style.display = isCombinedHoldingsShowing ? 'flex' : 'none';
-    if (isCombinedHoldingsShowing) {
-      if (typeof window.UI?.holdings?.updateCombinedHoldingsSummary === 'function') {
-        window.UI.holdings.updateCombinedHoldingsSummary();
-      }
-    }
-  }
-
-  // ⭐️ 보유현황일 때는 우측 상단의 확대 아이콘 숨김
   const btnExpand = document.getElementById('btnExpandOrder');
   if (btnExpand) {
     btnExpand.style.display = 'none';
   }
   if (typeof window.updateCombinedPerfRatesUI === 'function') window.updateCombinedPerfRatesUI();
+}
+
+function updateHoldingsHeaderUI() {
+  const titleEl = document.getElementById('holdingsTitle');
+  const summaryEl = document.getElementById('combinedHoldingsSummary');
+  if (!titleEl) return;
+
+  const viewMode = window.currentHoldingsViewMode || 'combined';
+  let titleText = '📦 통합 보유현황';
+  if (viewMode !== 'combined') {
+    const slotNum = parseInt(viewMode.replace('slot', ''), 10);
+    const res = (typeof getBestResult === 'function') ? getBestResult(lastBTResults[slotNum], slotNum) : lastBTResults[slotNum];
+    const stratName = (res && res.currentStrat) || (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
+    const formattedName = window.formatStrategyNameWithSmallParentheses ? window.formatStrategyNameWithSmallParentheses(stratName) : stratName;
+    titleText = `📦 ${formattedName} 보유현황`;
+  }
+  titleEl.innerHTML = titleText;
+
+  if (summaryEl && typeof window.UI?.holdings?.updateCombinedHoldingsSummary === 'function') {
+    window.UI.holdings.updateCombinedHoldingsSummary();
+  }
 }
 
 function getOrderExpansionPreferenceKey() {
@@ -525,3 +536,7 @@ window.UI.toggles.toggleCurrencyMode = toggleCurrencyMode;
 window.UI.toggles.toggleSortOrder = toggleSortOrder;
 window.UI.toggles.refreshAllUI = refreshAllUI;
 window.UI.toggles.toggleStatsDisplayMode = toggleStatsDisplayMode;
+window.UI.toggles.toggleHoldingsView = toggleHoldingsView;
+window.UI.toggles.updateHoldingsHeaderUI = updateHoldingsHeaderUI;
+window.toggleHoldingsView = toggleHoldingsView;
+window.updateHoldingsHeaderUI = updateHoldingsHeaderUI;

@@ -186,6 +186,54 @@ function updateSortOrder(val) {
   }
 }
 
+function getManualEstimatedPrincipal(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const val = localStorage.getItem(`vtotal3_manual_principal_${broker}_${uid}`);
+  if (val !== null && val !== '') {
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) return num;
+  }
+  // 하위 호환: 키움 모드에서 기존 단일 키 폴백 지원
+  if (broker === 'kiwoom') {
+    const legacyVal = localStorage.getItem(`vtotal3_manual_principal_${uid}`);
+    if (legacyVal !== null && legacyVal !== '') {
+      const num = Number(legacyVal);
+      if (!isNaN(num) && num > 0) return num;
+    }
+  }
+  return 0;
+}
+
+function updateManualEstimatedPrincipal(val, targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const num = Number(String(val).replace(/[^0-9.-]/g, '')) || 0;
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const brokerName = broker === 'ls' ? 'LS증권' : '키움증권';
+  if (num > 0) {
+    localStorage.setItem(`vtotal3_manual_principal_${broker}_${uid}`, String(num));
+    if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 $${num.toLocaleString()}로 설정되었습니다.`);
+  } else {
+    localStorage.removeItem(`vtotal3_manual_principal_${broker}_${uid}`);
+    if (broker === 'kiwoom') localStorage.removeItem(`vtotal3_manual_principal_${uid}`);
+    if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 자동 계산 모드로 초기화되었습니다.`);
+  }
+  const input = document.getElementById('manualEstimatedPrincipal');
+  if (input) {
+    input.value = num > 0 ? num.toLocaleString() : '';
+  }
+  // 자산현황 및 계좌정보 즉시 리프레시
+  if (typeof renderKiwoomBalanceOnStatsTable === 'function') {
+    renderKiwoomBalanceOnStatsTable();
+  }
+  if (typeof updateStatsPieChart === 'function') {
+    updateStatsPieChart();
+  }
+  if (typeof window.updateStatsPieChart === 'function' && window.updateStatsPieChart !== updateStatsPieChart) {
+    window.updateStatsPieChart();
+  }
+}
+
 function updateCombinedMode(val) {
   if (myUserId) {
     localStorage.setItem(`vtotal3_combined_mode_${myUserId}`, val);
@@ -320,3 +368,5 @@ window.updateTheme = updateTheme;
 window.updateSortOrder = updateSortOrder;
 window.updateCombinedMode = updateCombinedMode;
 window.updateFontSize = updateFontSize;
+window.getManualEstimatedPrincipal = getManualEstimatedPrincipal;
+window.updateManualEstimatedPrincipal = updateManualEstimatedPrincipal;

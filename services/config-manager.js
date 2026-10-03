@@ -1,29 +1,37 @@
 // services/config-manager.js
 // 슬롯 설정 및 시뮬레이션 관리
 
+window.MAX_SLOTS = window.MAX_SLOTS || 12;
+
 const configManager = {
   // 초기화 함수
   init() {
-    // script.js에서 window.slotConfigs 등을 먼저 초기화하므로 여기서는 참조만 함
-    if (!window.slotConfigs) window.slotConfigs = Array(MAX_SLOTS + 1).fill(null);
-    if (!window.simulationConfigs) window.simulationConfigs = Array(MAX_SLOTS + 1).fill(null);
+    const max = window.MAX_SLOTS || 12;
+    if (!window.slotConfigs) window.slotConfigs = Array(max + 1).fill(null);
+    if (!window.simulationConfigs) window.simulationConfigs = Array(max + 1).fill(null);
   },
 
   // 슬롯 활성화 여부 확인
   isSlotActive(num) {
-    if (num < 1 || num > MAX_SLOTS) return false;
+    const max = window.MAX_SLOTS || 12;
+    if (num < 1 || num > max) return false;
+    if (!window.slotConfigs || !Array.isArray(window.slotConfigs)) return false;
     return !!window.slotConfigs[num];
   },
 
   // 슬롯 설정 조회
   getSlotConfig(num) {
-    if (num < 1 || num > MAX_SLOTS) return null;
-    return window.slotConfigs[num];
+    const max = window.MAX_SLOTS || 12;
+    if (num < 1 || num > max) return null;
+    if (!window.slotConfigs || !Array.isArray(window.slotConfigs)) return null;
+    return window.slotConfigs[num] || null;
   },
 
   // 슬롯 설정 저장
   setSlotConfig(num, config) {
-    if (num < 1 || num > MAX_SLOTS) return;
+    const max = window.MAX_SLOTS || 12;
+    if (num < 1 || num > max) return;
+    if (!window.slotConfigs) window.slotConfigs = Array(max + 1).fill(null);
     window.slotConfigs[num] = config;
   },
 
@@ -113,7 +121,8 @@ const configManager = {
     let headerText = myUserId || 'User';
     const activeSlots = [];
 
-    for (let i = 1; i <= MAX_SLOTS; i++) {
+    const max = window.MAX_SLOTS || 12;
+    for (let i = 1; i <= max; i++) {
       if (this.isSlotActive(i) && !this.isSlotLocallyDisabled(i)) {
         const cfg = this.getSlotConfig(i);
         if (cfg?.basics?.strategy) {

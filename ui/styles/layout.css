@@ -31,7 +31,7 @@
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1.5fr 1fr 1.5fr;
-  grid-template-areas: "order" "monthly" "chart";
+  grid-template-areas: "stats" "monthly" "chart";
   gap: 2px;
   width: 100%;
   height: calc(100vh - 48px);
@@ -44,7 +44,7 @@
 }
 
 .dashboard-grid.perf-metrics-layout {
-  grid-template-areas: "stats" "order" "history";
+  grid-template-areas: "order" "holdings" "history";
   grid-template-rows: 1.4fr 1.4fr 1.2fr !important;
 }
 
@@ -53,9 +53,9 @@
   grid-area: order;
 }
 
-.dashboard-grid.perf-metrics-layout .panel-stats {
+.dashboard-grid.perf-metrics-layout .panel-holdings {
   display: flex !important;
-  grid-area: stats;
+  grid-area: holdings;
 }
 
 .dashboard-grid.perf-metrics-layout .panel-history {
@@ -63,6 +63,7 @@
   grid-area: history;
 }
 
+.dashboard-grid.perf-metrics-layout .panel-stats,
 .dashboard-grid.perf-metrics-layout .panel-monthly,
 .dashboard-grid.perf-metrics-layout .panel-chart {
   display: none !important;
@@ -78,6 +79,7 @@
 }
 
 .dashboard-grid.backtest-view-layout .panel-order,
+.dashboard-grid.backtest-view-layout .panel-holdings,
 .dashboard-grid.backtest-view-layout .panel-history,
 .dashboard-grid.backtest-view-layout #homeAccountContainer,
 .dashboard-grid.backtest-view-layout #performanceSummary {
@@ -120,6 +122,7 @@
 }
 
 .dashboard-grid.perf-tab-layout .panel-order,
+.dashboard-grid.perf-tab-layout .panel-holdings,
 .dashboard-grid.perf-tab-layout .panel-chart,
 .dashboard-grid.perf-tab-layout .panel-history {
   display: none !important;
@@ -158,6 +161,7 @@
 }
 
 .dashboard-grid.price-info-expanded {
+  grid-template-columns: 1fr !important;
   grid-template-areas: "priceinfo" !important;
   grid-template-rows: 1fr !important;
 }
@@ -169,20 +173,27 @@
 }
 
 .dashboard-grid.price-info-expanded .panel-order,
+.dashboard-grid.price-info-expanded .panel-holdings,
 .dashboard-grid.price-info-expanded .panel-monthly,
+.dashboard-grid.price-info-expanded .panel-monthly-chart,
+.dashboard-grid.price-info-expanded .panel-daily-chart,
 .dashboard-grid.price-info-expanded .panel-chart,
 .dashboard-grid.price-info-expanded .panel-settings,
 .dashboard-grid.price-info-expanded .panel-stats,
-.dashboard-grid.price-info-expanded .panel-history {
+.dashboard-grid.price-info-expanded .panel-history,
+.dashboard-grid.price-info-expanded .panel-analysis {
   display: none !important;
 }
 
 .dashboard-grid.price-info-expanded .panel-price-info {
   display: flex !important;
   grid-area: priceinfo;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .dashboard-grid.analysis-expanded {
+  grid-template-columns: 1fr !important;
   grid-template-areas: "analysis" !important;
   grid-template-rows: 1fr !important;
 }
@@ -194,6 +205,7 @@
 }
 
 .dashboard-grid.analysis-expanded .panel-order,
+.dashboard-grid.analysis-expanded .panel-holdings,
 .dashboard-grid.analysis-expanded .panel-monthly,
 .dashboard-grid.analysis-expanded .panel-monthly-chart,
 .dashboard-grid.analysis-expanded .panel-daily-chart,
@@ -208,6 +220,8 @@
 .dashboard-grid.analysis-expanded .panel-analysis {
   display: flex !important;
   grid-area: analysis;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .panel-analysis {
@@ -238,11 +252,20 @@
 }
 
 .dashboard-grid.monthly-expanded {
-  grid-template-areas: "order" "monthly" "chart";
+  grid-template-areas: "stats" "monthly" "chart";
 }
 
 .panel-order {
   grid-area: order;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-holdings {
+  grid-area: holdings;
+  overflow-y: auto;
 }
 
 .panel-monthly {
@@ -265,6 +288,32 @@
   position: relative;
 }
 
+.panel-history {
+  grid-area: history;
+}
+
+/* 홈 화면 기본 표시 상태 (내역모드나 성과모드, 주가정보, 성과분석, 주문표확장 모드가 아닐 때) */
+.dashboard-grid:not(.perf-metrics-layout):not(.perf-tab-layout):not(.backtest-view-layout):not(.price-info-expanded):not(.analysis-expanded):not(.order-expanded) .panel-order,
+.dashboard-grid:not(.perf-metrics-layout):not(.perf-tab-layout):not(.backtest-view-layout):not(.price-info-expanded):not(.analysis-expanded):not(.order-expanded) .panel-holdings,
+.dashboard-grid:not(.perf-metrics-layout):not(.perf-tab-layout):not(.backtest-view-layout):not(.price-info-expanded):not(.analysis-expanded):not(.order-expanded) .panel-history {
+  display: none !important;
+}
+
+.dashboard-grid:not(.perf-metrics-layout):not(.perf-tab-layout):not(.backtest-view-layout):not(.price-info-expanded):not(.analysis-expanded):not(.order-expanded) .panel-stats {
+  display: flex !important;
+  grid-area: stats;
+}
+
+.dashboard-grid:not(.perf-metrics-layout):not(.perf-tab-layout):not(.backtest-view-layout):not(.price-info-expanded):not(.analysis-expanded):not(.order-expanded) .panel-monthly {
+  display: flex !important;
+  grid-area: monthly;
+}
+
+.dashboard-grid:not(.perf-metrics-layout):not(.perf-tab-layout):not(.backtest-view-layout):not(.price-info-expanded):not(.analysis-expanded):not(.order-expanded) .panel-chart {
+  display: flex !important;
+  grid-area: chart;
+}
+
 #chartBox {
   flex: 1;
   width: 100%;
@@ -278,6 +327,9 @@
   display: flex;
   flex-direction: column;
   min-width: 110px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   display: none;
 }
 
@@ -288,9 +340,10 @@
 
 .order-scroll-area {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overflow-x: hidden;
   min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .view-pane-active {
@@ -432,7 +485,7 @@
   .dashboard-grid {
     grid-template-columns: 1fr;
     grid-template-rows: 1.5fr 1fr 1.5fr;
-    grid-template-areas: "order" "monthly" "chart";
+    grid-template-areas: "stats" "monthly" "chart";
   }
 
   .dashboard-grid.backtest-view-layout {
@@ -445,24 +498,47 @@
   }
 
   .dashboard-grid.price-info-expanded {
+    grid-template-columns: 1fr !important;
     grid-template-areas: "priceinfo" !important;
     grid-template-rows: 1fr !important;
   }
 
+  .dashboard-grid.analysis-expanded {
+    grid-template-columns: 1fr !important;
+    grid-template-areas: "analysis" !important;
+    grid-template-rows: 1fr !important;
+  }
+
   .dashboard-grid.hide-order-panel {
-    grid-template-areas: "monthly" "monthly" "chart";
+    grid-template-areas: "stats" "stats" "chart";
   }
 
   .panel-stats {
+    display: flex !important;
+  }
+
+  .dashboard-grid.perf-metrics-layout .panel-stats,
+  .dashboard-grid.price-info-expanded .panel-stats,
+  .dashboard-grid.analysis-expanded .panel-stats,
+  .dashboard-grid.order-expanded .panel-stats {
     display: none !important;
   }
 
   .dashboard-grid.perf-metrics-layout {
-    grid-template-areas: "stats" "order" "history" !important;
+    grid-template-areas: "order" "holdings" "history" !important;
     grid-template-rows: 1.4fr 1.4fr 1.2fr !important;
   }
 
-  .dashboard-grid.perf-metrics-layout .panel-stats,
+  .dashboard-grid.perf-metrics-layout .panel-order,
+  .dashboard-grid.perf-metrics-layout .panel-holdings,
+  .dashboard-grid.perf-metrics-layout .panel-history {
+    display: flex !important;
+  }
+
+  .dashboard-grid.perf-metrics-layout .panel-monthly {
+    display: none !important;
+  }
+
   .dashboard-grid.backtest-view-layout .panel-stats {
     display: flex !important;
   }
@@ -499,21 +575,26 @@
 .dashboard-grid.perf-metrics-layout.force-3-col,
 .dashboard-grid.perf-metrics-layout.force-2-col {
   grid-template-columns: 1fr !important;
-  grid-template-areas: "stats" "order" "history" !important;
+  grid-template-areas: "monthly" "holdings" "history" !important;
   grid-template-rows: 1.4fr 1.4fr 1.2fr !important;
   height: calc(100vh - 48px) !important;
 }
 
 .dashboard-grid.perf-metrics-layout.force-3-col .panel-stats,
 .dashboard-grid.perf-metrics-layout.force-2-col .panel-stats {
-  display: flex !important;
-  grid-area: stats !important;
+  display: none !important;
 }
 
-.dashboard-grid.perf-metrics-layout.force-3-col .panel-order,
-.dashboard-grid.perf-metrics-layout.force-2-col .panel-order {
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-monthly,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-monthly {
   display: flex !important;
-  grid-area: order !important;
+  grid-area: monthly !important;
+}
+
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-holdings,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-holdings {
+  display: flex !important;
+  grid-area: holdings !important;
 }
 
 .dashboard-grid.perf-metrics-layout.force-3-col .panel-history,
@@ -522,8 +603,8 @@
   grid-area: history !important;
 }
 
-.dashboard-grid.perf-metrics-layout.force-3-col .panel-monthly,
-.dashboard-grid.perf-metrics-layout.force-2-col .panel-monthly,
+.dashboard-grid.perf-metrics-layout.force-3-col .panel-order,
+.dashboard-grid.perf-metrics-layout.force-2-col .panel-order,
 .dashboard-grid.perf-metrics-layout.force-3-col .panel-chart,
 .dashboard-grid.perf-metrics-layout.force-2-col .panel-chart,
 .dashboard-grid.perf-metrics-layout.force-3-col .panel-settings,
@@ -552,9 +633,11 @@
 .summary-5col-table td,
 .summary-narrow-table td,
 table.data-table.summary-5col-table td,
-table.data-table.summary-narrow-table td {
+table.data-table.summary-narrow-table td,
+.summary-total-asset-td {
   background: transparent !important;
   background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 @media (max-width: 400px) {

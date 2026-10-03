@@ -944,6 +944,8 @@ h2:hover {
 #dualOrderContainer {
   overflow-x: auto !important;
   touch-action: pan-x pan-y;
+  min-height: 0;
+  height: 100%;
 }
 
 .data-table th,
@@ -1241,7 +1243,7 @@ h2:hover {
   align-self: stretch !important;
   display: flex !important;
   align-items: center !important;
-  justify-content: center !important;
+  justify-content: flex-start !important;
   box-sizing: border-box !important;
   padding-top: 2px !important;
   padding-bottom: 2px !important;
@@ -1251,8 +1253,11 @@ h2:hover {
   border-radius: 3px 0 0 3px;
 }
 
-.stats-asset-total > *:last-child {
+.stats-asset-total > *:last-child,
+.stats-asset-total > b {
   border-radius: 0 3px 3px 0;
+  justify-content: flex-end !important;
+  text-align: right !important;
 }
 
 .stats-asset-plain {

@@ -1010,19 +1010,12 @@ function refreshOrderViewUI() {
   const date1 = window.lastBTResults[1]?.orderDateStr || window.currentOrderDate || "";
   const currentCombined = collectCurrentCombinedOrders();
 
-  // 내역모드에서는 isOrderView를 false로 강제 (보유현황 표시)
-  if (window.isStatsMode) {
-    window.isOrderView = false;
-  }
-
   for (let i = 1; i <= window.MAX_SLOTS; i++) {
     if (window.isSlotActive(i)) {
       const v = document.getElementById('orderView' + i);
-      const h = document.getElementById('holdingsView' + i);
       const f = document.getElementById('tierFooter' + i);
-      if (v) v.style.display = window.isOrderView ? 'block' : 'none';
-      if (h) h.style.display = window.isOrderView ? 'none' : 'block';
-      if (f) f.style.display = window.isOrderView ? 'flex' : 'none';
+      if (v) v.style.display = 'block';
+      if (f) f.style.display = 'flex';
     }
   }
 
@@ -1037,43 +1030,24 @@ function refreshOrderViewUI() {
   if (dualContainer) dualContainer.style.display = 'flex';
 
   const co = document.getElementById('combinedOrderView');
-  const ch = document.getElementById('combinedHoldingsView');
   const cf = document.getElementById('combinedTierFooter');
-  if (co) co.style.display = window.isOrderView ? 'block' : 'none';
-  if (ch) ch.style.display = window.isOrderView ? 'none' : 'block';
-  if (cf) cf.style.display = window.isOrderView ? 'flex' : 'none';
+  if (co) co.style.display = 'block';
+  if (cf) cf.style.display = 'flex';
 
   // 1fr/40px 동적 min-width 조정을 위해 클래스 적용
   const grid = document.getElementById('mainGrid');
   if (grid) {
-    if (window.isOrderView) {
-      grid.classList.add('order-view-active');
-      grid.classList.remove('holdings-view-active');
-    } else {
-      grid.classList.add('holdings-view-active');
-      grid.classList.remove('order-view-active');
-    }
+    grid.classList.add('order-view-active');
   }
 
-  // 통합 보유현황 요약 표시: 통합 보유현황 모드(!isOrderView && !showIndividualHoldings)일 때만
-  const holdingSummaryEl = document.getElementById('combinedHoldingsSummary');
-  if (holdingSummaryEl) {
-    holdingSummaryEl.style.display = (!window.isOrderView && !window.showIndividualHoldings) ? 'flex' : 'none';
-    if (!window.isOrderView && !window.showIndividualHoldings) {
-      if (typeof window.UI.holdings.updateCombinedHoldingsSummary === 'function') {
-        window.UI.holdings.updateCombinedHoldingsSummary();
-      }
-    }
-  }
-
-  // 주문표일치 / 시트일치 버튼 제어: 주문표 모드(isOrderView && !isStatsMode)일 때만 표시
+  // 주문표일치 / 시트일치 버튼 제어: 주문표 패널 표시 시 활성화
   const btnOrderCompare = document.getElementById('btnOrderCompare');
   if (btnOrderCompare) {
-    btnOrderCompare.style.display = (window.isOrderView && !window.isStatsMode) ? 'flex' : 'none';
+    btnOrderCompare.style.display = 'flex';
   }
   const btnSheetVerify = document.getElementById('btnSheetVerify');
   if (btnSheetVerify) {
-    btnSheetVerify.style.display = (window.isOrderView && !window.isStatsMode) ? 'flex' : 'none';
+    btnSheetVerify.style.display = 'flex';
   }
 
   // 확대 아이콘 제어: 보유현황 모드(!window.isOrderView)일 때는 전체적으로 숨김
@@ -2681,7 +2655,8 @@ window.submitCombinedOrdersToBroker = async function() {
 function updateCombinedOrderMatchStatus(opts = {}) {
   const btn = document.getElementById('btnOrderCompare');
   const titleEl = document.getElementById('combinedOrderPanelTitle');
-  if (btn && (!window.isOrderView || window.isStatsMode)) {
+  const orderPanel = document.getElementById('panelOrder');
+  if (btn && orderPanel && (orderPanel.classList.contains('hidden') || orderPanel.style.display === 'none')) {
     btn.style.display = 'none';
   }
   const cache = window.orderStatusCache || {};
@@ -2760,7 +2735,9 @@ function updateCombinedOrderMatchStatus(opts = {}) {
         } catch (_) { return false; }
       })();
 
-      if (isDataReadyLog && isBrokerPhaseLog && !isDispatchWindow) {
+      // ⚠️ 장마감 체결 대조 시간대(isClosedPhase, 한국 05:00~06:20)에는 미체결 LOC 주문이 체결되지 않아 brMap(체결내역)이 0이 되는 것이 정상이므로,
+      // 순수 장중 시간대(!isClosedPhase)에만 증권사 호가창 미접수를 '발주 실패'로 판정해야 한다.
+      if (isDataReadyLog && isBrokerPhaseLog && !evalDataForLog.isClosedPhase && !isDispatchWindow) {
         const mismatches = [];
         evalDataForLog.allKeys.forEach(k => {
           const vQty = evalDataForLog.vmMap[k] || 0;

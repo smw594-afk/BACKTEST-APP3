@@ -102,13 +102,6 @@ function generateDynamicDOM() {
               <tbody id="combinedOrderBody"><tr><td colspan="3" class="table-empty-cell">주문 없음</td></tr></tbody>
             </table>
           </div>
-          <div id="combinedHoldingsView" class="view-pane-hidden">
-            <div class="slot-title slot-title-sm" style="color:#fbbf24;">통합 보유 현황</div>
-            <table class="data-table">
-              <thead><tr><th style="width:52px;">일치</th><th>투자법</th><th>진입일</th><th>청산일</th><th>모드/T</th><th>진입가</th><th>청산가</th><th>수량</th><th>T수익금</th></tr></thead>
-              <tbody id="combinedHoldingsBody"><tr><td colspan="9" class="table-empty-cell">보유 없음</td></tr></tbody>
-            </table>
-          </div>
         </div>
         <div class="tier-footer" id="combinedTierFooter" style="display:flex; flex-direction:column; align-items:center; gap:4px; min-height:20px; padding-top:4px;">
           <div id="combinedOrderSummaryRow1" style="display:flex; justify-content:center; gap:8px; width:100%; font-weight:700;">
@@ -129,18 +122,11 @@ function generateDynamicDOM() {
       orderHtml += `
         <div id="orderSlot${i}" class="order-slot-container${borderClass}">
           <div id="orderScroll${i}" class="order-scroll-area slim-scroll">
-            <div id="orderView${i}" class="${window.isOrderView === false ? 'view-pane-hidden' : 'view-pane-active'}">
+            <div id="orderView${i}" class="view-pane-active">
               <div class="slot-title slot-title-sm" id="orderSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]}; cursor:pointer;" onclick="window.UI.toggles.toggleSortOrder()" title="클릭하여 오름/내림 정렬 토글"></div>
               <table class="data-table">
                 <thead><tr><th style="width:40%; text-align:center;">구분</th><th style="width:34%; text-align:center;">가격</th><th style="width:26%; text-align:center;">수량</th></tr></thead>
                 <tbody id="orderBody${i}"><tr><td colspan="3" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
-              </table>
-            </div>
-            <div id="holdingsView${i}" class="${window.isOrderView === false ? 'view-pane-active' : 'view-pane-hidden'}">
-              <div class="slot-title slot-title-sm" id="holdingsSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]};"></div>
-              <table class="data-table">
-                <thead><tr><th>투자법</th><th>진입일</th><th>청산일</th><th>모드/T</th><th>진입가</th><th>청산가</th><th>수량</th><th>T수익금</th></tr></thead>
-                <tbody id="holdingsBody${i}"><tr><td colspan="8" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -154,6 +140,22 @@ function generateDynamicDOM() {
         </div>`;
     }
     orderContainer.innerHTML = orderHtml;
+
+    const indHoldingsContainer = document.getElementById('individualHoldingsSlots');
+    if (indHoldingsContainer) {
+      let holdingsHtml = '';
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        holdingsHtml += `
+          <div id="holdingsSlot${i}" class="order-slot-container" style="flex:1 0 100%; min-width:100%; width:100%; display:none;">
+            <div class="slot-title slot-title-sm" id="holdingsSlot${i}Name" style="color:${SLOT_COLORS[(i - 1) % SLOT_COLORS.length]}; font-size:calc(var(--app-font-size, 10.5px) + 1px); font-weight:700; margin-bottom:4px;"></div>
+            <table class="data-table" style="width:100%; border-collapse:collapse; font-size:10.5px; color:var(--text); min-width:100%;">
+              <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-weight:700;"><th>투자법</th><th>진입일</th><th>청산일</th><th>모드/T</th><th>진입가</th><th>청산가</th><th>수량</th><th>T수익금</th></tr></thead>
+              <tbody id="holdingsBody${i}"><tr><td colspan="8" class="table-empty-cell">데이터 대기 중...</td></tr></tbody>
+            </table>
+          </div>`;
+      }
+      indHoldingsContainer.innerHTML = holdingsHtml;
+    }
 
     // 통합 모드의 주문표 컨테이너는 서버/엔진 로딩을 기다리지 않고 먼저 노출한다.
     // 기존에는 inline display:none 상태로 만들어진 뒤 updateSlotsVisibility()가
@@ -282,24 +284,33 @@ function showOrderView() {
   const panelChart = document.getElementById('panelChart');
   const panelAnalysis = document.getElementById('panelAnalysisView');
 
-  // 홈화면 기본 3단: 상단 주문표(panelOrder), 중단 계좌정보(panelMonthly), 하단 성과추이(panelChart) 표시
-  if (orderView) {
-    orderView.classList.remove('hidden');
-    orderView.style.display = '';
+  const panelHoldings = document.getElementById('panelHoldings');
+
+  // 홈화면 기본 3단:
+  // 상단: 💼 자산현황 (panelStats - 도넛 파이차트 및 범례)
+  // 중단: 📡 계좌 정보 (panelMonthly - 실전 계좌 테이블)
+  // 하단: 📈 성과추이 (panelChart - 성과추이 그래프)
+  if (statsView) {
+    statsView.classList.remove('hidden');
+    statsView.style.display = 'flex';
   }
   if (perfView) {
     perfView.classList.remove('hidden');
-    perfView.style.display = '';
+    perfView.style.display = 'flex';
   }
   if (panelChart) {
     panelChart.classList.remove('hidden');
     panelChart.style.display = '';
   }
 
-  // 비홈 패널 완전 숨김
-  if (statsView) {
-    statsView.classList.add('hidden');
-    statsView.style.display = 'none';
+  // 주문표는 내역 모드 상단으로 이동했으므로 홈 화면에서는 숨김
+  if (orderView) {
+    orderView.classList.add('hidden');
+    orderView.style.display = 'none';
+  }
+  if (panelHoldings) {
+    panelHoldings.classList.add('hidden');
+    panelHoldings.style.display = 'none';
   }
   if (panelHistory) {
     panelHistory.classList.add('hidden');
@@ -329,22 +340,21 @@ function showOrderView() {
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
-  // ⭐️ 5) 주문표 영역 내부: '⚡ 통합 주문표' 활성화 및 보유현황 뷰 완벽 숨김
-  const co = document.getElementById('combinedOrderView');
-  if (co) co.style.display = 'block';
-  const ch = document.getElementById('combinedHoldingsView');
-  if (ch) ch.style.display = 'none';
-  const cf = document.getElementById('combinedTierFooter');
-  if (cf) cf.style.display = 'flex';
-
-  for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    const ov = document.getElementById('orderView' + i);
-    const hv = document.getElementById('holdingsView' + i);
-    const tf = document.getElementById('tierFooter' + i);
-    if (ov) ov.style.display = 'block';
-    if (hv) hv.style.display = 'none';
-    if (tf) tf.style.display = 'flex';
+  // ⭐️ 5) 홈 화면 상단: [💼 자산현황] 도넛 파이차트 및 범례 표시
+  const statsTitle = document.getElementById('statsTitle');
+  if (statsTitle) {
+    statsTitle.style.cursor = 'pointer';
+    statsTitle.title = '클릭 또는 좌우 스와이프: 자산현황 전환 (계좌/통합/투자법)';
   }
+  const statsTableC = document.getElementById('statsTableContainer');
+  const statsChartC = document.getElementById('statsChartContainer');
+  const statsMetricSel = document.getElementById('statsMetricSelector');
+  const statsActArea = document.getElementById('statsActionArea');
+  if (statsTableC) statsTableC.style.display = 'none';
+  if (statsChartC) statsChartC.style.display = 'flex';
+  if (statsMetricSel) statsMetricSel.style.display = 'none';
+  if (statsActArea) statsActArea.style.display = 'none';
+  if (typeof updateStatsPieChart === 'function') updateStatsPieChart();
 
   // ⭐️ 6) 홈 화면 중단 컨테이너 제어
   const homeAcctContainer = document.getElementById('homeAccountContainer');
@@ -372,29 +382,12 @@ function showOrderView() {
       window.updatePeriodTitle();
     }
   } else {
-    // ⭐️ 일반 실전 홈 화면: 계좌정보 표시, 성과 차트/테이블은 100% 무조건 숨김
+    // ⭐️ 일반 실전 홈 화면: 주문표 표시, 성과 차트/테이블은 100% 무조건 숨김
     if (periodChartC) periodChartC.style.display = 'none';
     if (periodTableC) periodTableC.style.display = 'none';
     if (perfYearlyC) perfYearlyC.style.display = 'none';
     if (perfYearlyTableC) perfYearlyTableC.style.display = 'none';
     if (btnPeriodMode) btnPeriodMode.style.display = 'none';
-
-    if (typeof syncHomeMidViewDisplay === 'function') {
-      syncHomeMidViewDisplay();
-    } else {
-      if (homeAcctContainer) homeAcctContainer.style.display = 'block';
-      if (homeStatsContainer) homeStatsContainer.style.display = 'none';
-      const displayAcct = window.lastAccountNo ? ` (${window.lastAccountNo})` : '';
-      if (periodTitle) {
-        periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
-        periodTitle.style.cursor = 'pointer';
-        periodTitle.title = '계좌 정보';
-      }
-    }
-
-    if (typeof window.renderHomeAccountTable === 'function') {
-      window.renderHomeAccountTable();
-    }
   }
 
   // 홈화면 요약 정보 (매수/매도/잔고 배지) 복원
@@ -421,8 +414,9 @@ function showOrderView() {
     return false;
   };
 
-  // ⭐️ 8) 하단 성과추이 차트 및 주문표 최종 렌더링
+  // ⭐️ 8) 하단 성과추이 차트 및 중단 계좌정보 최종 렌더링
   renderChartAll();
+  if (typeof syncHomeMidViewDisplay === 'function') syncHomeMidViewDisplay();
   if (shouldAutoRefresh()) handleInstantOrder();
   else window.UI.order.refreshOrderViewUI();
   if (typeof updateSlotsVisibility === 'function') updateSlotsVisibility();
@@ -476,55 +470,63 @@ function showStatsView() {
 
   isStatsMode = true;
   window.isStatsMode = true;
-  window.isOrderView = false;  // 명시적으로 window 객체에 설정
-  isOrderView = false;  // 지역 참조도 함께 설정
-  window.showIndividualHoldings = false;  // 내역 모드 진입 시 항상 통합 보유현황으로 표시
-  window.currentHoldingsViewMode = 'combined'; // ⭐️ 내역모드 클릭 시 항상 통합 보유현황 고정
-  statsDisplayMode = 'chart'; // ⭐️ 내역모드 상단: 💼 자산현황(도넛차트) 고정
+  window.isOrderView = true;  // ⭐️ 상단 주문표 표시 상태
+  isOrderView = true;
+  window.showIndividualHoldings = false;
+  window.currentHoldingsViewMode = 'combined';
 
   const orderView = document.getElementById('panelOrder');
+  const holdingsView = document.getElementById('panelHoldings');
+  const panelHistory = document.getElementById('panelHistory');
   const statsView = document.getElementById('panelStats');
   const perfView = document.getElementById('panelMonthly');
   const perfChart1 = document.getElementById('panelMonthlyChart');
   const perfChart2 = document.getElementById('panelDailyChart');
-  const panelHistory = document.getElementById('panelHistory');
   const panelChart = document.getElementById('panelChart');
   const panelAnalysis = document.getElementById('panelAnalysisView');
 
-  // 내역모드: 상단 자산현황(panelStats), 중단 보유현황(panelOrder), 하단 매도내역(panelHistory) 표시
-  if (statsView) statsView.classList.remove('hidden');
-  if (orderView) orderView.classList.remove('hidden');
+  // 내역모드 3단:
+  // 상단: ⚡ 주문표 (panelOrder - 실전 주문표)
+  // 중단: 📦 통합 보유현황 (panelHoldings)
+  // 하단: 📜 실전 매도 내역 (panelHistory)
+  if (orderView) {
+    orderView.classList.remove('hidden');
+    orderView.style.display = 'flex';
+  }
+  if (holdingsView) {
+    holdingsView.classList.remove('hidden');
+    holdingsView.style.display = 'flex';
+  }
   if (panelHistory) {
     panelHistory.classList.remove('hidden');
     panelHistory.style.display = 'flex';
   }
-  if (perfView) perfView.classList.add('hidden');
-  if (perfChart1) perfChart1.classList.add('hidden');
-  if (perfChart2) perfChart2.classList.add('hidden');
-  if (panelChart) panelChart.classList.add('hidden');
+
+  // 비내역 패널 완전 숨김
+  if (statsView) {
+    statsView.classList.add('hidden');
+    statsView.style.display = 'none';
+  }
+  if (perfView) {
+    perfView.classList.add('hidden');
+    perfView.style.display = 'none';
+  }
+  if (panelChart) {
+    panelChart.classList.add('hidden');
+    panelChart.style.display = 'none';
+  }
+  if (perfChart1) {
+    perfChart1.classList.add('hidden');
+    perfChart1.style.display = 'none';
+  }
+  if (perfChart2) {
+    perfChart2.classList.add('hidden');
+    perfChart2.style.display = 'none';
+  }
   if (panelAnalysis) {
     panelAnalysis.classList.add('hidden');
     panelAnalysis.style.display = 'none';
   }
-
-  // (수동 백테스트 모드는 사용자가 명시적으로 '실전 데이터 복원'을 누를 때까지 유지됨)
-
-  const statsTitle = document.getElementById('statsTitle');
-  if (statsTitle) {
-    statsTitle.innerHTML = '💼 자산현황';
-    statsTitle.style.cursor = 'default';
-    statsTitle.title = '자산현황';
-  }
-
-  const tableContainer = document.getElementById('statsTableContainer');
-  const chartContainer = document.getElementById('statsChartContainer');
-  const selector = document.getElementById('statsMetricSelector');
-  const actionArea = document.getElementById('statsActionArea');
-  if (tableContainer) tableContainer.style.display = 'none';
-  if (chartContainer) chartContainer.style.display = 'flex';
-  if (selector) selector.style.display = 'none';
-  if (actionArea) actionArea.style.display = 'none';
-  if (typeof updateStatsPieChart === 'function') updateStatsPieChart();
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
@@ -547,41 +549,40 @@ function showStatsView() {
   const btnAnalysis = document.getElementById('btnAnalysis');
   if (btnAnalysis) btnAnalysis.classList.remove('active');
 
-  // 데이터가 정상적으로 있으면 종합 데이터 및 차트만 리렌더링
+  // 상단 주문표 렌더링
   try {
-    if (window.UI?.performance?.calculateCombinedPeriodData) {
-      window.UI.performance.calculateCombinedPeriodData();
+    if (window.UI?.order?.refreshOrderViewUI) {
+      window.UI.order.refreshOrderViewUI();
     }
-  } catch (e) { console.warn("[showStatsView] calculateCombinedPeriodData err:", e); }
+    if (typeof updateSlotsVisibility === 'function') updateSlotsVisibility();
+    window.UI.toggles?.applyOrderExpansionPreference?.();
+    if (typeof updateOrderHeaderUI === 'function') updateOrderHeaderUI();
+  } catch (e) { console.warn("[showStatsView] order refresh err:", e); }
 
+  // 중단 보유현황 렌더링
   try {
-    if (typeof renderChartAll === 'function') renderChartAll();
-    if (typeof updateChartRatesDisplay === 'function') updateChartRatesDisplay();
-  } catch (e) { console.warn("[showStatsView] renderChart err:", e); }
+    const combinedSlot = document.getElementById('combinedHoldingsSlot');
+    const indSlot = document.getElementById('individualHoldingsSlots');
+    if (combinedSlot) combinedSlot.style.display = 'block';
+    if (indSlot) indSlot.style.display = 'none';
+    if (window.UI?.holdings?.renderCombinedHoldings) {
+      window.UI.holdings.renderCombinedHoldings();
+    }
+    if (window.UI?.holdings?.updateCombinedHoldingsSummary) {
+      window.UI.holdings.updateCombinedHoldingsSummary();
+    }
+    if (typeof updateHoldingsHeaderUI === 'function') updateHoldingsHeaderUI();
+  } catch (e) { console.warn("[showStatsView] holdings refresh err:", e); }
 
+  // 하단 매도 내역 렌더링
   try {
-    (window.UI?.stats?.refreshStatsTable ? window.UI.stats.refreshStatsTable() : (window.refreshStatsTable ? window.refreshStatsTable() : null));
-  } catch (e) { console.warn("[showStatsView] refreshStatsTable err:", e); }
-
-  try {
+    updateHistorySummary();
     if (window.UI?.tradeHistory?.resetToStrategyHistory) {
       window.UI.tradeHistory.resetToStrategyHistory();
     } else if (window.UI?.tradeHistory?.renderDBTradeHistory) {
       window.UI.tradeHistory.renderDBTradeHistory();
     }
   } catch (e) { console.warn("[showStatsView] tradeHistory err:", e); }
-
-  // 매도 내역 요약 및 통합 보유현황 렌더링
-  try {
-    updateHistorySummary();
-    updateSlotsVisibility();
-    if (window.UI?.holdings?.renderCombinedHoldings) {
-      window.UI.holdings.renderCombinedHoldings();
-    }
-    if (window.UI?.order?.refreshOrderViewUI) window.UI.order.refreshOrderViewUI();
-    if (typeof updateOrderHeaderUI === 'function') updateOrderHeaderUI();
-    if (window.UI?.holdings?.updateCombinedHoldingsSummary) window.UI.holdings.updateCombinedHoldingsSummary();
-  } catch (e) { console.warn("[showStatsView] ui refresh err:", e); }
 }
 
 function updateHistorySummary() {
@@ -712,20 +713,20 @@ function showPerfView() {
   perfStatsMode = loadPerfStatsMode();
 
   const orderView = document.getElementById('panelOrder');
-  const holdingsView = null;
+  const holdingsView = document.getElementById('panelHoldings');
   const statsView = document.getElementById('panelStats');
   const perfView = document.getElementById('panelMonthly');
   const perfChart1 = document.getElementById('panelMonthlyChart');
   const perfChart2 = document.getElementById('panelDailyChart');
-  if (orderView) orderView.classList.add('hidden');
-  if (holdingsView) holdingsView.classList.add('hidden');
-  if (statsView) statsView.classList.add('hidden');
-  if (perfView) perfView.classList.remove('hidden');
-  if (perfChart1) perfChart1.classList.remove('hidden');
-  if (perfChart2) perfChart2.classList.remove('hidden');
-  const ph = document.getElementById('panelHistory'); if (ph) ph.classList.add('hidden');
-  const pa = document.getElementById('panelAnalysisView'); if (pa) pa.classList.add('hidden');
-  const pc = document.getElementById('panelChart'); if (pc) pc.classList.add('hidden');
+  if (orderView) { orderView.classList.add('hidden'); orderView.style.display = 'none'; }
+  if (holdingsView) { holdingsView.classList.add('hidden'); holdingsView.style.display = 'none'; }
+  if (statsView) { statsView.classList.remove('hidden'); statsView.style.display = 'flex'; }
+  if (perfView) { perfView.classList.remove('hidden'); perfView.style.display = ''; }
+  if (perfChart1) { perfChart1.classList.remove('hidden'); perfChart1.style.display = ''; }
+  if (perfChart2) { perfChart2.classList.remove('hidden'); perfChart2.style.display = ''; }
+  const ph = document.getElementById('panelHistory'); if (ph) { ph.classList.add('hidden'); ph.style.display = 'none'; }
+  const pa = document.getElementById('panelAnalysisView'); if (pa) { pa.classList.add('hidden'); pa.style.display = 'none'; }
+  const pc = document.getElementById('panelChart'); if (pc) { pc.classList.add('hidden'); pc.style.display = 'none'; }
 
   // (수동 백테스트 모드는 사용자가 명시적으로 '실전 데이터 복원'을 누를 때까지 유지됨)
 
@@ -808,13 +809,6 @@ function updateSlotsVisibility() {
   const combinedMode = localStorage.getItem(`vtotal3_combined_mode_${currentUserId}`) || 'combined';
   let activeCount = 0;
 
-  // ⭐️ 로컬 변수 스코프 꼬임 방지를 위해 window 상태를 동기화
-  const isOrderView = window.isOrderView;
-
-  // currentHoldingsViewMode 상태 변수 기본값 처리
-  if (!window.currentHoldingsViewMode) window.currentHoldingsViewMode = 'combined';
-  const viewMode = window.currentHoldingsViewMode;
-
   // ⚠️ 2026-07-31부터 개별 슬롯 표시(주문표/일별수익)도 활성 브로커(키움 1~3 / LS 4~6)만
   // 필터링한다(사용자 요청) — isSlotActive(백테스트 활성 여부)에 브로커 필터를 더한다.
   for (let i = 1; i <= MAX_SLOTS; i++) {
@@ -822,29 +816,12 @@ function updateSlotsVisibility() {
     if (active) activeCount++;
     const v = document.getElementById('orderSlot' + i);
     if (v) {
-      if (!isOrderView) {
-        // 보유현황 모드(!isOrderView)일 때의 개별 슬롯 가시성
-        if (viewMode === 'combined') {
-          v.style.display = 'none';
-        } else {
-          const targetSlotNum = parseInt(viewMode.replace('slot', ''), 10);
-          v.style.display = (active && targetSlotNum === i) ? 'flex' : 'none';
-        }
+      if (combinedMode === 'combined') {
+        v.style.display = 'none';
+      } else if (combinedMode === 'combined_normal') {
+        v.style.display = active ? 'flex' : 'none';
       } else {
-        if (combinedMode === 'combined') {
-          // 통합 모드이면 개별 주문표는 항상 숨김
-          v.style.display = 'none';
-        } else if (combinedMode === 'combined_normal') {
-          // 통합+일반 모드이면 개별 주문표는 항상 노출
-          v.style.display = active ? 'flex' : 'none';
-        } else {
-          // 일반 모드이면, 토글 상태(isCombinedOrderMode)에 따라 분기
-          if (isCombinedOrderMode) {
-            v.style.display = 'none';
-          } else {
-            v.style.display = active ? 'flex' : 'none';
-          }
-        }
+        v.style.display = (typeof isCombinedOrderMode !== 'undefined' && isCombinedOrderMode) ? 'none' : (active ? 'flex' : 'none');
       }
     }
     const m = document.getElementById('monthlySlot' + i);
@@ -859,16 +836,30 @@ function updateSlotsVisibility() {
 
   const combinedSlot = document.getElementById('combinedOrderSlot');
   if (combinedSlot) {
-    if (!isOrderView) {
-      // 보유현황 모드(!isOrderView)일 때의 통합 슬롯 가시성
-      combinedSlot.style.display = (viewMode === 'combined') ? 'flex' : 'none';
+    if (combinedMode === 'combined' || combinedMode === 'combined_normal') {
+      combinedSlot.style.display = 'flex';
     } else {
-      if (combinedMode === 'combined') {
-        combinedSlot.style.display = 'flex';
-      } else if (combinedMode === 'combined_normal') {
-        combinedSlot.style.display = 'flex';
-      } else {
-        combinedSlot.style.display = isCombinedOrderMode ? 'flex' : 'none';
+      combinedSlot.style.display = (typeof isCombinedOrderMode !== 'undefined' && isCombinedOrderMode) ? 'flex' : 'none';
+    }
+  }
+
+  // ⭐️ 보유현황 슬롯 가시성 동기화 (panelHoldings 전용)
+  const holdingsViewMode = window.currentHoldingsViewMode || 'combined';
+  const combinedHoldingsSlot = document.getElementById('combinedHoldingsSlot');
+  const indHoldingsSlots = document.getElementById('individualHoldingsSlots');
+  if (combinedHoldingsSlot && indHoldingsSlots) {
+    if (holdingsViewMode === 'combined') {
+      combinedHoldingsSlot.style.display = 'block';
+      indHoldingsSlots.style.display = 'none';
+    } else {
+      combinedHoldingsSlot.style.display = 'none';
+      indHoldingsSlots.style.display = 'flex';
+      const targetSlotNum = parseInt(holdingsViewMode.replace('slot', ''), 10);
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const hs = document.getElementById('holdingsSlot' + i);
+        if (hs) {
+          hs.style.display = (i === targetSlotNum) ? 'block' : 'none';
+        }
       }
     }
   }
@@ -1065,6 +1056,14 @@ async function enterAppDirectly() {
   const prefCombinedMode = localStorage.getItem(`vtotal3_combined_mode_${myUserId}`) || "combined";
   const combinedModeSelect = document.getElementById('combinedModeSelect');
   if (combinedModeSelect) combinedModeSelect.value = prefCombinedMode;
+
+  const manualPrincipal = (typeof getManualEstimatedPrincipal === 'function')
+    ? getManualEstimatedPrincipal()
+    : (typeof window.getManualEstimatedPrincipal === 'function' ? window.getManualEstimatedPrincipal() : 0);
+  const manualPrincipalInput = document.getElementById('manualEstimatedPrincipal');
+  if (manualPrincipalInput) {
+    manualPrincipalInput.value = manualPrincipal > 0 ? Number(manualPrincipal).toLocaleString() : '';
+  }
 
   if (localStorage.getItem(`vtotal3_font_size_${myUserId}`) === null) {
     localStorage.setItem(`vtotal3_font_size_${myUserId}`, "10.5px");
@@ -2416,11 +2415,14 @@ async function runEngine() {
   const perfAnalysisCard = document.getElementById('panelAnalysisView');
   const priceInfoCard = document.getElementById('panelPriceInfo');
 
-  if (orderView) { orderView.classList.remove('hidden'); orderView.style.display = ''; }
-  if (monthlyPanel) { monthlyPanel.classList.remove('hidden'); monthlyPanel.style.display = ''; }
+  const panelHoldings = document.getElementById('panelHoldings');
+
+  if (statsView) { statsView.classList.remove('hidden'); statsView.style.display = 'flex'; }
+  if (orderView) { orderView.classList.remove('hidden'); orderView.style.display = 'flex'; }
   if (panelChart) { panelChart.classList.remove('hidden'); panelChart.style.display = ''; }
 
-  if (statsView) { statsView.classList.add('hidden'); statsView.style.display = 'none'; }
+  if (monthlyPanel) { monthlyPanel.classList.add('hidden'); monthlyPanel.style.display = 'none'; }
+  if (panelHoldings) { panelHoldings.classList.add('hidden'); panelHoldings.style.display = 'none'; }
   if (panelHistory) { panelHistory.classList.add('hidden'); panelHistory.style.display = 'none'; }
   if (perfMonthlyChart) { perfMonthlyChart.classList.add('hidden'); perfMonthlyChart.style.display = 'none'; }
   if (perfDailyChart) { perfDailyChart.classList.add('hidden'); perfDailyChart.style.display = 'none'; }

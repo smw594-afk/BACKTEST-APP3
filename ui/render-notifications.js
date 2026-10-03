@@ -224,7 +224,7 @@ function showPriceInfoView() {
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
-    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'analysis-expanded');
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'analysis-expanded', 'order-view-active', 'holdings-view-active', 'hide-order-panel');
     grid.classList.add('price-info-expanded');
   }
 
@@ -277,7 +277,7 @@ function showPerformanceAnalysisView() {
 
   const grid = document.getElementById('mainGrid');
   if (grid) {
-    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'price-info-expanded');
+    grid.classList.remove('perf-metrics-layout', 'backtest-view-layout', 'perf-tab-layout', 'order-expanded', 'monthly-expanded', 'price-info-expanded', 'order-view-active', 'holdings-view-active', 'hide-order-panel');
     grid.classList.add('analysis-expanded');
   }
 
