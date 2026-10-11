@@ -994,7 +994,7 @@ function updateStatsTitleAccountNo(result) {
   const statsTitle = document.getElementById('statsTitle');
   const currentStatsMode = (typeof statsDisplayMode !== 'undefined' ? statsDisplayMode : (window.statsDisplayMode || 'chart'));
   if (statsTitle && currentStatsMode === 'table') {
-    statsTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+    statsTitle.innerHTML = `💳 계좌 정보${displayAcct}`;
   }
   const periodTitle = document.getElementById('periodTitle');
   const grid = document.getElementById('mainGrid');
@@ -1003,7 +1003,7 @@ function updateStatsTitleAccountNo(result) {
     if (window.homeMidViewMode === 'stats') {
       periodTitle.innerHTML = '📄 성과 지표';
     } else {
-      periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+      periodTitle.innerHTML = `💳 계좌 정보${displayAcct}`;
     }
   }
 }
@@ -1166,18 +1166,18 @@ function buildBalanceHtml(result, broker) {
   const yearProfitHtml = formatProfitWithRate(yearRow?.profit, yearRow?.rate, !!yearRow);
   const totalProfitHtml = formatProfitWithRate(totalProfit, totalYield, hasComb);
 
-  let html = '<div style="display:flex; flex-direction:column; gap:1px; padding:2px; box-sizing:border-box; width:100%;">';
+  let html = '<div style="display:flex; flex-direction:column; gap:0px; padding:1px 2px 1px 2px; box-sizing:border-box; width:100%;">';
 
   // ⭐️ 1) 상단: 가로 요약 바 (최상단 총자산/총수익은 10.5px, 하단 서브 8개 항목은 10.0px)
   html += `
     <style>
-      .stats-stock-table { font-family: inherit; margin-top: 3px; }
+      .stats-stock-table { font-family: inherit; margin-top: 1px; }
       .stats-stock-table th {
         font-size: 11px !important;
         font-weight: 700 !important;
         color: var(--text-muted, #94a3b8) !important;
         font-family: inherit;
-        padding: 3px 2px !important;
+        padding: 2px 2px !important;
         border-top: 1px solid rgba(100, 116, 139, 0.25) !important;
         border-bottom: 1px solid rgba(100, 116, 139, 0.25) !important;
       }
@@ -1185,12 +1185,12 @@ function buildBalanceHtml(result, broker) {
         border-top: 1px solid rgba(15, 23, 42, 0.15) !important;
         border-bottom: 1px solid rgba(15, 23, 42, 0.15) !important;
       }
-      .stats-stock-table td { font-size: 10.5px !important; font-family: inherit; padding: 3px 2px !important; }
+      .stats-stock-table td { font-size: 10.5px !important; font-family: inherit; padding: 2px 2px !important; }
 
       .stats-balance-summary-card {
         width: 100%;
-        margin-top: 1px;
-        margin-bottom: 2px;
+        margin-top: 0px;
+        margin-bottom: 0px;
         font-family: inherit;
         -webkit-text-size-adjust: 100% !important;
         text-size-adjust: 100% !important;
@@ -1202,14 +1202,15 @@ function buildBalanceHtml(result, broker) {
       .summary-4col-row-table {
         width: 100%;
         border-collapse: separate !important;
-        border-spacing: 1px 1px !important;
+        border-spacing: 1px 0px !important;
         table-layout: fixed;
         font-family: inherit;
       }
       .summary-4col-row-table td {
-        padding: 3px 6px !important;
+        padding: 2px 4px !important;
         font-family: inherit;
         background: transparent !important;
+        line-height: 1.2 !important;
       }
       .summary-lbl {
         display: inline-block;
@@ -1228,6 +1229,10 @@ function buildBalanceHtml(result, broker) {
         font-weight: 700 !important;
         font-family: inherit;
         line-height: 1.2;
+        color: var(--text-muted, #94a3b8) !important;
+      }
+      body.light-mode .summary-val {
+        color: #64748b !important;
       }
     </style>
     <div class="stats-balance-summary-card">
@@ -1245,7 +1250,7 @@ function buildBalanceHtml(result, broker) {
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
                 <span class="summary-lbl" style="white-space:nowrap;">총자산:</span>
                 <span style="display:flex; align-items:baseline; gap:3px; margin-left:auto;">
-                  <span class="summary-val" style="color:var(--text, #ffffff);">${usd(totalAsset)}</span>
+                  <span class="summary-val">${usd(totalAsset)}</span>
                 </span>
               </div>
             </td>
@@ -1258,13 +1263,13 @@ function buildBalanceHtml(result, broker) {
             <td style="background:transparent !important; border:none !important; box-shadow:none !important;">
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
                 <span class="summary-lbl" style="white-space:nowrap;">예수금:</span>
-                <span style="margin-left:auto;"><span class="summary-val" style="color:var(--text, #ffffff);">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</span></span>
+                <span style="margin-left:auto;"><span class="summary-val">${usd(broker === "ls" ? (totalAsset - evalAmt) : usdCash)}</span></span>
               </div>
             </td>
             <td style="background:transparent !important; border:none !important; box-shadow:none !important;">
               <div style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
                 <span class="summary-lbl" style="white-space:nowrap;">주문가능:</span>
-                <span style="margin-left:auto;"><span class="summary-val" style="color:var(--text, #ffffff);">${usd(buyingPower)}</span></span>
+                <span style="margin-left:auto;"><span class="summary-val">${usd(buyingPower)}</span></span>
               </div>
             </td>
           </tr>
@@ -1328,7 +1333,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
   if (!table) table = document.getElementById('homeAccountTable') || document.getElementById('statsTable');
   if (!table) return;
   const broker = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
-  const brokerLabel = broker === "ls" ? "LS" : "키움";
+  const brokerLabel = broker === "ls" ? "LS" : (broker === "meritz" ? "메리츠" : "키움");
 
   // 1) 캐시된 데이터가 있거나 이미 화면에 현재 브로커 데이터가 출력되어 있다면
   //    빈 화면('조회 중...')으로 덮어쓰지 않고 즉시 표시 또는 기존 화면을 유지(Stale-While-Revalidate)
@@ -1499,7 +1504,7 @@ function syncHomeMidViewDisplay() {
     }
     const displayAcct = window.lastAccountNo ? ` <span class="stats-profit-rate">(${window.lastAccountNo})</span>` : '';
     if (periodTitle) {
-      periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+      periodTitle.innerHTML = `💳 계좌 정보${displayAcct}`;
       periodTitle.style.cursor = 'pointer';
       periodTitle.title = '클릭 또는 좌우 스와이프: 성과 지표 전환';
     }

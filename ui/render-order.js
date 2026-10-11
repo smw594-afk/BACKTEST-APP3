@@ -493,7 +493,7 @@ function getVmMatchMarkup(order, slotNum) {
 
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
   const vm = rawVm.filter(v => {
-    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? 'kiwoom' : 'ls'));
+    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 1 ? 'kiwoom' : (Number(v.slot) <= 6 ? 'meritz' : 'ls')));
     if (b !== activeBr) return false;
     if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
     return true;
@@ -580,7 +580,7 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
   if (currentPhase === 'reserved') {
     if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
       const activeVmOrders = cache.vmOrders.filter(v => {
-        const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? "kiwoom" : "ls"));
+        const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 1 ? "kiwoom" : (Number(v.slot) <= 6 ? "meritz" : "ls")));
         if (b !== activeBr) return false;
         if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
         return true;
@@ -825,14 +825,17 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
     const sideText = ((o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0]) + statusBadge;
     return `<tr><td class="${cls}" style="width:40%; text-align:center;">${sideText}</td><td class="${cls}" style="width:34%; text-align:center;">${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:26%; text-align:center;">${o[3]}주</td></tr>`;
   }).join('')
-    // 📤 App3: 통합 주문 전송 버튼 (활성 브로커 키움 1~6 / LS 7~12 기준)
+    // 📤 App3: 통합 주문 전송 버튼 (활성 브로커 키움 1 / 메리츠 2~6 / LS 7~12 기준)
     + (window.BrokerService && sortedOrders.length > 0 ? (() => {
-      const isKiwoom = window.BrokerService.activeBroker === 'kiwoom';
-      const brokerName = isKiwoom ? '키움' : 'LS';
+      const activeBr = window.BrokerService.activeBroker;
+      const isKiwoom = activeBr === 'kiwoom';
+      const isMeritz = activeBr === 'meritz';
+      const brokerName = isKiwoom ? '키움' : (isMeritz ? '메리츠' : 'LS');
+      const grad = isKiwoom ? '#10b981, #047857' : (isMeritz ? '#f97316, #ea580c' : '#a855f7, #7e22ce');
       return `<tr><td colspan="3" style="padding:8px 4px; text-align:center;">
         <button id="btnSubmitCombinedOrders" onclick="window.submitCombinedOrdersToBroker()"
           style="width:100%; padding:8px 10px; border:none; border-radius:8px; cursor:pointer;
-                 background:linear-gradient(135deg, ${isKiwoom ? '#10b981, #047857' : '#a855f7, #7e22ce'});
+                 background:linear-gradient(135deg, ${grad});
                  color:#fff; font-size:12px; font-weight:800; letter-spacing:0.2px; box-shadow:0 2px 6px rgba(0,0,0,0.3);">
           📤 ${brokerName} 통합주문 전송 (총 ${sortedOrders.length}건)
         </button>
@@ -921,16 +924,20 @@ function renderOrderTableSlot(orders, slotNum) {
     const sideText = ((o[1] === 'MOC' || o[1] === 'LOC') ? o[1] + o[0] : o[0]) + statusBadge;
     return `<tr><td class="${cls}" style="width:40%; text-align:center;">${sideText}</td><td class="${cls}" style="width:34%; text-align:center;">$${Number(o[2]).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="${cls}" style="width:26%; text-align:center;">${o[3]}주</td></tr>`;
   }).join('')
-    // 📤 App3: per-slot REST submit row (키움 슬롯1~6 / LS 슬롯7~12 — BrokerService가 판정)
+    // 📤 App3: per-slot REST submit row (키움 슬롯1 / 메리츠 슬롯2~6 / LS 슬롯7~12 — BrokerService가 판정)
     // ⚠️ 이 버튼이 주문이 나가는 유일한 경로다. 비우면 주문 전송 수단이 사라진다.
     + (window.BrokerService ? (() => {
-      const isKiwoom = window.BrokerService.brokerForSlot(slotNum) === 'kiwoom';
+      const br = window.BrokerService.brokerForSlot(slotNum);
+      const isKiwoom = br === 'kiwoom';
+      const isMeritz = br === 'meritz';
+      const brokerName = isKiwoom ? '키움' : (isMeritz ? '메리츠' : 'LS');
+      const grad = isKiwoom ? '#10b981, #047857' : (isMeritz ? '#f97316, #ea580c' : '#a855f7, #7e22ce');
       return `<tr><td colspan="3" style="padding:6px 4px; text-align:center;">
         <button onclick="window.submitSlotOrdersToBroker(${slotNum})"
           style="width:100%; padding:6px 8px; border:none; border-radius:6px; cursor:pointer;
-                 background:linear-gradient(135deg, ${isKiwoom ? '#10b981, #047857' : '#a855f7, #7e22ce'});
+                 background:linear-gradient(135deg, ${grad});
                  color:#fff; font-size:11px; font-weight:800; letter-spacing:0.2px;">
-          📤 ${isKiwoom ? '키움' : 'LS'} 슬롯${slotNum} 주문전송
+          📤 ${brokerName} 슬롯${slotNum} 주문전송
         </button>
       </td></tr>`;
     })() : '');
@@ -1345,7 +1352,7 @@ window.getCombinedOrderEvaluationData = function() {
   // 3. VM Orders (VM 통합 주문표)
   const vmRawOrders = (Array.isArray(cache.vmOrders) ? cache.vmOrders : []).filter(v => {
     if (!v) return false;
-    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? 'kiwoom' : 'ls'));
+    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 1 ? 'kiwoom' : (Number(v.slot) <= 6 ? 'meritz' : 'ls')));
     return b === activeBr;
   });
   let vmCombined = [];
@@ -1448,7 +1455,7 @@ window.getCombinedOrderEvaluationData = function() {
           const details = cache.marketCloseResult.report?.details || [];
           const activeDetails = details.filter(r => {
             if (!r) return false;
-            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'kiwoom' : 'ls'));
+            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 1 ? 'kiwoom' : (Number(r.slot) <= 6 ? 'meritz' : 'ls')));
             return b === activeBr;
           });
           activeDetails.forEach(item => {
@@ -1479,7 +1486,7 @@ window.getCombinedOrderEvaluationData = function() {
             : (Array.isArray(cache.executed.results) ? cache.executed.results : []);
           const activeList = list.filter(r => {
             if (!r) return false;
-            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'kiwoom' : 'ls'));
+            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 1 ? 'kiwoom' : (Number(r.slot) <= 6 ? 'meritz' : 'ls')));
             return b === activeBr;
           });
           allBrokerOrders = activeList.map(item => ({
@@ -2256,11 +2263,12 @@ function buildSheetVerificationBodyContent(vmRes) {
     const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
     if (!app?.active && !vm?.active) continue;
 
-    activeCount++;
-    const isKiwoom = window.BrokerService ? window.BrokerService.brokerForSlot(slot) === 'kiwoom' : slot <= 6;
-    const brokerTag = isKiwoom
+    const br = window.BrokerService ? window.BrokerService.brokerForSlot(slot) : (slot <= 1 ? 'kiwoom' : (slot <= 6 ? 'meritz' : 'ls'));
+    const brokerTag = br === 'kiwoom'
       ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">키움</span>'
-      : '<span style="background:rgba(168,85,247,0.2); color:#a855f7; border:1px solid #a855f7; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">LS</span>';
+      : (br === 'meritz'
+        ? '<span style="background:rgba(249,115,22,0.2); color:#f97316; border:1px solid #f97316; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">메리츠</span>'
+        : '<span style="background:rgba(168,85,247,0.2); color:#a855f7; border:1px solid #a855f7; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">LS</span>');
 
     const sheet = vm.sheetActual || {
       date: vm.date,

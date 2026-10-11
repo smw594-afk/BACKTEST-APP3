@@ -19,9 +19,9 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxUSDds-kN5QQL9cvuNeSJu
 // 쓰기(로그인/입출금/자동저장)는 그대로 GAS_URL을 사용한다.
 const BACKTEST_LOG_SPREADSHEET_ID = "1SrDC8Gkm8ztodtvt_oAOSEQMHE2U-CphetIMz7qWqQY";
 const APP_VERSION = "3.642";
-// 2026-08-06: 6→12 확장. 슬롯1~6=키움, 슬롯7~12=LS.
+// 2026-08-06: 6→12 확장. 2026-10-12 메리츠 추가: 슬롯 1=키움, 슬롯 2~6=메리츠, 슬롯 7~12=LS.
 // 브로커 판정은 BrokerService.brokerForSlot(services/broker-service.js)이 단일 기준이며,
-// 서버 쪽 짝(proxy/broker3-proxy.js의 KIWOOM_MAX_SLOT, daily-backtest3.js의 BROKER_OF)과
+// 서버 쪽 짝(proxy/broker3-proxy.js의 KIWOOM_MAX_SLOT/MERITZ_MAX_SLOT, daily-backtest3.js의 BROKER_OF)과
 // 경계값을 **항상 함께** 유지해야 한다.
 const MAX_SLOTS = window.MAX_SLOTS || 12;
 window.MAX_SLOTS = MAX_SLOTS;
@@ -1925,11 +1925,11 @@ function updatePeriodTitle() {
 
   const isBacktest = !!(window.isManualBacktestMode || (grid && grid.classList.contains('backtest-view-layout')));
 
-  // ⭐️ 홈 화면(!window.isStatsMode)에서 백테스트가 아닐 때만 중단 섹션이 '📡 계좌 정보'
+  // ⭐️ 홈 화면(!window.isStatsMode)에서 백테스트가 아닐 때만 중단 섹션이 '💳 계좌 정보'
   //    백테스트 실행 시에는 홈화면 중단에 계좌정보 대신 기존 '📅 월별 자산 증감' 표시
   if (!window.isStatsMode && !isBacktest) {
     const displayAcct = window.lastAccountNo ? ` <span class="stats-profit-rate">(${window.lastAccountNo})</span>` : '';
-    periodTitle.innerHTML = `📡 계좌 정보${displayAcct}`;
+    periodTitle.innerHTML = `💳 계좌 정보${displayAcct}`;
     periodTitle.style.cursor = 'default';
     periodTitle.title = '계좌 정보';
     return;
@@ -2806,6 +2806,28 @@ window.updateStatsPieChart = function(explicitTarget) {
       totalProfit = Number(statusData.totalProfit !== undefined ? statusData.totalProfit : (totalAssets - realPrincipal));
     }
   } else {
+    // ⭐️ statusData가 없을 때 (해당 브로커에 활성 슬롯/설정이 없을 때 직전 브로커 잔상 제거)
+    const legendContainer = document.getElementById('statsChartLegend');
+    if (legendContainer) {
+      legendContainer.innerHTML = '<div class="analysis-legend-value" style="color:var(--text-muted); font-size:11px; text-align:center; padding:15px; width:100%;">데이터가 없습니다.</div>';
+    }
+    const canvas = document.getElementById('statsPieChart');
+    if (canvas) {
+      const existingChart = (typeof Chart !== 'undefined' && typeof Chart.getChart === 'function')
+        ? Chart.getChart(canvas)
+        : (typeof statsPieChartInstance !== 'undefined' ? statsPieChartInstance : null);
+      if (existingChart) {
+        try { existingChart.destroy(); } catch (err) { }
+        if (typeof statsPieChartInstance !== 'undefined') statsPieChartInstance = null;
+      }
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    const subProfitEl = document.getElementById('statsSubStrategyProfitability');
+    if (subProfitEl) {
+      subProfitEl.innerHTML = '';
+      subProfitEl.className = 'stats-sub-strat-profit-container hidden';
+    }
     return;
   }
 
@@ -2838,7 +2860,7 @@ window.updateStatsPieChart = function(explicitTarget) {
 
     const otherProfit = acctData ? Number(acctData.otherProfit || 0) : 0;
     if (otherProfit > 0) {
-      chartLabels.push('계좌 기타수익');
+      chartLabels.push('계좌 기타');
       chartData.push(otherProfit);
       chartColors.push('#06b6d4'); // 기타수익 시안/청록색
     }
@@ -2986,8 +3008,8 @@ window.updateStatsPieChart = function(explicitTarget) {
     const otherProfit = acctData ? Number(acctData.otherProfit || 0) : 0;
     if (otherProfit !== 0 || (acctData && acctData.hasData)) {
       legendRows.push({
-        label: '계좌 기타수익',
-        customValue: `<span style="color: #06b6d4;">수익 ${formatChartMoney(otherProfit, true)}<span class="stats-profit-rate" style="color: #06b6d4 !important;">(${formatPct(otherProfit, realPrincipal, 1)})</span></span>`,
+        label: '계좌 기타',
+        customValue: `<span style="color: #06b6d4;">${formatChartMoney(otherProfit, true)}</span>`,
         isBold: otherProfit > 0,
         inDonut: otherProfit > 0,
         donutColor: '#06b6d4',
@@ -3575,11 +3597,11 @@ async function pushTodayOrders(freshBySlot) {
     if (!myUserId) return { ok: false, reason: "userId 없음" };
 
     // ⭐️ [통합 주문표 단일 발주] 개별 슬롯별로 따로 발주하지 않고,
-    // 동일 브로커(키움 슬롯 1~6 / LS 슬롯 7~12) 그룹별로 주문들을 모아 퉁치기(run_tungchigi_master)를 실행한 뒤
+    // 동일 브로커(키움 슬롯 1 / 메리츠 슬롯 2~6 / LS 슬롯 7~12) 그룹별로 주문들을 모아 퉁치기(run_tungchigi_master)를 실행한 뒤
     // 통합 주문표(1개 티켓)로 단일화하여 VM에 전송/예약합니다. (예수금 이중잠김 및 개별 튕김 원천 방지)
-    const rawOrdersByBroker = { kiwoom: [], ls: [] };
-    const tickerByBroker = { kiwoom: "", ls: "" };
-    const repSlotByBroker = { kiwoom: 1, ls: 7 };
+    const rawOrdersByBroker = { kiwoom: [], meritz: [], ls: [] };
+    const tickerByBroker = { kiwoom: "", meritz: "", ls: "" };
+    const repSlotByBroker = { kiwoom: 1, meritz: 2, ls: 7 };
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
@@ -3587,7 +3609,7 @@ async function pushTodayOrders(freshBySlot) {
       const res = (typeof getBestResult === 'function') ? getBestResult(rawRes, i) : rawRes;
       if (!res) continue;
       const symbol = String(getSlotConfig(i)?.basics?.ticker || "").toUpperCase();
-      const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "kiwoom" : "ls");
+      const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 1 ? "kiwoom" : (i <= 6 ? "meritz" : "ls"));
       if (symbol) tickerByBroker[broker] = symbol;
       if (!repSlotByBroker[broker]) repSlotByBroker[broker] = i;
 
@@ -3606,10 +3628,10 @@ async function pushTodayOrders(freshBySlot) {
     const orders = [];
     const tungFn = typeof window.run_tungchigi_master === "function" ? window.run_tungchigi_master : null;
 
-    for (const br of ["kiwoom", "ls"]) {
+    for (const br of ["kiwoom", "meritz", "ls"]) {
       const rawList = rawOrdersByBroker[br];
       const symbol = tickerByBroker[br] || "SOXL";
-      const repSlot = repSlotByBroker[br] || (br === "kiwoom" ? 1 : 7);
+      const repSlot = repSlotByBroker[br] || (br === "kiwoom" ? 1 : (br === "meritz" ? 2 : 7));
       if (!rawList || rawList.length === 0) continue;
 
       const combined = tungFn ? tungFn(rawList) : rawList;

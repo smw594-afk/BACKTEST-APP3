@@ -72,17 +72,18 @@ function escapeTradeHistoryHtml(value) {
 }
 async function toggleView() {
   const broker = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
-  const fillsMode = broker === 'ls' ? 'ls' : 'kiwoom';
+  const fillsMode = (broker === 'ls' || broker === 'meritz') ? broker : 'kiwoom';
   historyViewMode = historyViewMode === 'strategy' ? fillsMode : 'strategy';
 
   const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
   if (title) {
     title.textContent = historyViewMode === 'ls' ? '📋 LS증권 매매내역'
+      : historyViewMode === 'meritz' ? '📋 메리츠증권 매매내역'
       : historyViewMode === 'kiwoom' ? '📋 키움증권 매매내역' : '📜 실전 매도 내역';
   }
 
   const thead = document.querySelector('#historyTable thead');
-  if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
+  if (historyViewMode === 'kiwoom' || historyViewMode === 'meritz' || historyViewMode === 'ls') {
     if (thead) thead.innerHTML = kiwoomHistoryTheadHtml();
     return renderBrokerFills(historyViewMode);
   }
@@ -157,7 +158,27 @@ function renderBrokerFillsRowsHtml(broker, rows) {
       statusColor = '#ef4444'; // 불일치/취소와 동일한 빨간색
     }
 
-    const timePart = r.time || r.cntr_tm || r.ord_tm || '-';
+    // ⭐️ 체결 시간 포맷팅: 년/월/일 + 시:분:초 (좁은 칸 가독성 최적화)
+    const rawTime = String(r.time || r.cntr_tm || r.ord_tm || '-').trim();
+    const mDateRaw = String(r.marketDate || r.date || '').replace(/[^0-9]/g, '');
+    const mDateShort = mDateRaw.length === 8 ? `${mDateRaw.slice(4, 6)}/${mDateRaw.slice(6, 8)}` : '';
+    let displayTime = rawTime;
+    let fullTimeTitle = rawTime;
+
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/.test(rawTime)) {
+      const parts = rawTime.split(/\s+/);
+      const dp = parts[0].split('-');
+      displayTime = `${dp[1]}/${dp[2]} ${parts[1]}`;
+      fullTimeTitle = rawTime;
+    } else if (/^\d{6}$/.test(rawTime)) {
+      const hhmmss = `${rawTime.slice(0, 2)}:${rawTime.slice(2, 4)}:${rawTime.slice(4, 6)}`;
+      displayTime = mDateShort ? `${mDateShort} ${hhmmss}` : hhmmss;
+      fullTimeTitle = (r.marketDate ? `${r.marketDate} ` : '') + hhmmss;
+    } else if (mDateShort && r.timeKst) {
+      displayTime = `${mDateShort} ${r.timeKst}`;
+      fullTimeTitle = (r.marketDate ? `${r.marketDate} ` : '') + r.timeKst;
+    }
+
     const feeVal = Number(r.tdy_trde_cmsn || r.fee) || 0;
     const pnlVal = Number(r.rlzt_pl || r.pnl) || 0;
 
@@ -174,7 +195,7 @@ function renderBrokerFillsRowsHtml(broker, rows) {
       <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${statusColor}; white-space:nowrap;">${statusStr}</td>
       <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor}; white-space:nowrap;">${isBuy ? '매수' : '매도'}</td>
       <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">${r.symbol || r.stk_nm || (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : 'SOXL')}</td>
-      <td style="width:13%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor}; white-space:nowrap;">${timePart}</td>
+      <td style="width:13%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor}; white-space:nowrap;" title="${escapeTradeHistoryHtml(fullTimeTitle)}">${displayTime}</td>
       <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${textColor};">$${buyPric.toFixed(2)}</td>
       <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor};">$${cntrPric.toFixed(2)}</td>
       <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px; color:${tradeColor};">${qty.toLocaleString()}주</td>
@@ -204,7 +225,7 @@ async function renderBrokerFills(broker) {
   brokerFillsDisplayLimit = 20; // ⭐️ 조회 시 20개로 초기화
   lastBrokerFillsRows = [];
   lastBrokerFillsBroker = broker;
-  const label = broker === 'ls' ? 'LS증권' : '키움증권';
+  const label = broker === 'ls' ? 'LS증권' : (broker === 'meritz' ? '메리츠증권' : '키움증권');
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
   const textMuted = isLight ? '#64748b' : '#94a3b8';
   const theadBorderCol = isLight ? 'rgba(15, 23, 42, 0.1)' : 'rgba(255, 255, 255, 0.07)';
@@ -572,7 +593,7 @@ function renderDBTradeHistory() {
 
       // 슬롯의 실제 브로커(키움 1~3 / LS 4~6) 체결과 행 단위로 대조한 상태.
       const rowBroker = BR ? BR.brokerForSlot(slot) : "kiwoom";
-      const rowBrokerLabel = rowBroker === "ls" ? "LS" : "키움";
+      const rowBrokerLabel = rowBroker === "ls" ? "LS" : (rowBroker === "meritz" ? "메리츠" : "키움");
       const rawSellDate = String(t.sellDate || t.sell_date || "");
       const normalizedSellDateForLookup = normalizeDateKey(rawSellDate);
       const buyDateStr = String(t.buyDate || t.buy_date || "");
@@ -877,11 +898,14 @@ function getClosePriceOnDate(dateStr, slotNum) {
 //    현재 로직에 맞춰 다시 작성했다.
 function syncHistoryViewModeToBroker() {
   const broker = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
-  const wantMode = broker === 'ls' ? 'ls' : 'kiwoom';
-  if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
+  const wantMode = (broker === 'ls' || broker === 'meritz') ? broker : 'kiwoom';
+  if (historyViewMode === 'kiwoom' || historyViewMode === 'meritz' || historyViewMode === 'ls') {
     historyViewMode = wantMode;
     const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
-    if (title) title.textContent = wantMode === 'ls' ? '📋 LS증권 매매내역' : '📋 키움증권 매매내역';
+    if (title) {
+      title.textContent = wantMode === 'ls' ? '📋 LS증권 매매내역'
+        : (wantMode === 'meritz' ? '📋 메리츠증권 매매내역' : '📋 키움증권 매매내역');
+    }
     renderBrokerFills(wantMode);
   } else {
     lastTradeHistoryRenderSignature = '';
@@ -897,7 +921,7 @@ function loadMoreTradeHistory() {
       historyDisplayLimit = Math.min(historyDisplayLimit + 20, totalTradesCount);
       renderDBTradeHistory();
     }
-  } else if (historyViewMode === 'kiwoom' || historyViewMode === 'ls') {
+  } else if (historyViewMode === 'kiwoom' || historyViewMode === 'meritz' || historyViewMode === 'ls') {
     if (brokerFillsDisplayLimit < lastBrokerFillsRows.length) {
       brokerFillsDisplayLimit = Math.min(brokerFillsDisplayLimit + 20, lastBrokerFillsRows.length);
       renderBrokerFillsRowsHtml(historyViewMode, lastBrokerFillsRows);

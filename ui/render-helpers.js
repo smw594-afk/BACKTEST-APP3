@@ -104,7 +104,7 @@ function getDateHighlightClass(dateValue) {
 function updateStatsTitleByMode() {
   const statsTitle = document.getElementById('statsTitle');
   if (!statsTitle) return;
-  statsTitle.innerHTML = statsDisplayMode === 'chart' ? '💼 자산현황' : '📡 계좌 정보';
+  statsTitle.innerHTML = statsDisplayMode === 'chart' ? '💼 자산현황' : '💳 계좌 정보';
 }
 
 function syncCurrencyUI() {
@@ -189,6 +189,20 @@ function updateSortOrder(val) {
 function getUserManualPrincipal(targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
   const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const curr = getManualPrincipalCurrency(broker);
+
+  // ⭐️ KRW 모드인 경우: 사용자가 입력한 KRW 원금을 최신 환율로 동적 환산하여 반환
+  if (curr === 'KRW') {
+    const krwVal = localStorage.getItem(`vtotal3_manual_principal_krw_${broker}_${uid}`);
+    if (krwVal !== null && krwVal !== '') {
+      const krwNum = Number(krwVal);
+      if (!isNaN(krwNum) && krwNum > 0) {
+        const fx = (window.currentFXRate && window.currentFXRate > 0) ? window.currentFXRate : (window.currencyService?.getCurrentFXRate() || 1450);
+        return Math.round(krwNum / fx);
+      }
+    }
+  }
+
   const val = localStorage.getItem(`vtotal3_manual_principal_${broker}_${uid}`);
   if (val !== null && val !== '') {
     const num = Number(val);
@@ -303,6 +317,51 @@ function getDefaultEstimatedPrincipal(targetBroker) {
   return 0;
 }
 
+function getManualPrincipalCurrency(targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  return localStorage.getItem(`vtotal3_manual_principal_curr_${broker}_${uid}`) || 'USD';
+}
+
+function setManualPrincipalCurrency(curr, targetBroker) {
+  const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  localStorage.setItem(`vtotal3_manual_principal_curr_${broker}_${uid}`, curr || 'USD');
+}
+
+function handleManualPrincipalCurrencyChange(newCurr) {
+  const broker = (window.BrokerService?.activeBroker) || 'kiwoom';
+  const input = document.getElementById('manualEstimatedPrincipal');
+  const fx = (window.currentFXRate && window.currentFXRate > 0) ? window.currentFXRate : (window.currencyService?.getCurrentFXRate() || 1450);
+
+  const prevCurr = getManualPrincipalCurrency(broker);
+  setManualPrincipalCurrency(newCurr, broker);
+
+  if (input && input.value) {
+    const rawNum = Number(String(input.value).replace(/[^0-9.-]/g, '')) || 0;
+    if (rawNum > 0) {
+      if (newCurr === 'KRW' && prevCurr !== 'KRW') {
+        // USD -> KRW 환산
+        const krwVal = Math.round(rawNum * fx);
+        input.value = Number(krwVal).toLocaleString();
+        input.placeholder = "예: 30,000,000";
+      } else if (newCurr === 'USD' && prevCurr !== 'USD') {
+        // KRW -> USD 환산
+        const usdVal = Math.round(rawNum / fx);
+        input.value = Number(usdVal).toLocaleString();
+        input.placeholder = "예: 20,000";
+      }
+    }
+  } else if (input) {
+    input.placeholder = (newCurr === 'KRW') ? "예: 30,000,000" : "예: 20,000";
+  }
+
+  syncManualPrincipalInput(broker);
+  if (input && input.value) {
+    updateManualEstimatedPrincipal(input.value, broker);
+  }
+}
+
 function getManualEstimatedPrincipal(targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
   // ⭐️ 사용자 입력시 사용자 입력값을 최우선으로 하며 유지
@@ -315,52 +374,92 @@ function getManualEstimatedPrincipal(targetBroker) {
 function syncManualPrincipalInput(targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
   const input = document.getElementById('manualEstimatedPrincipal');
+  const currSelect = document.getElementById('manualPrincipalCurrency');
   if (!input) return;
 
-  const userVal = getUserManualPrincipal(broker);
-  const isUserManual = userVal > 0;
-  const finalVal = isUserManual ? userVal : getDefaultEstimatedPrincipal(broker);
-  const brokerName = broker === 'ls' ? 'LS증권' : '키움증권';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const curr = getManualPrincipalCurrency(broker);
+  if (currSelect) currSelect.value = curr;
 
-  input.value = finalVal > 0 ? Number(finalVal).toLocaleString() : '';
+  const userValUSD = getUserManualPrincipal(broker);
+  const isUserManual = userValUSD > 0;
+  const finalValUSD = isUserManual ? userValUSD : getDefaultEstimatedPrincipal(broker);
+  const brokerName = broker === 'meritz' ? '메리츠' : (broker === 'ls' ? 'LS증권' : '키움증권');
+  const fx = (window.currentFXRate && window.currentFXRate > 0) ? window.currentFXRate : (window.currencyService?.getCurrentFXRate() || 1450);
 
-  if (isUserManual) {
-    input.title = `[${brokerName}] 사용자 지정 원금: $${Number(userVal).toLocaleString()} (지우면 기본값으로 자동 전환)`;
+  if (curr === 'KRW') {
+    input.placeholder = "예: 30,000,000";
+    const savedKrw = localStorage.getItem(`vtotal3_manual_principal_krw_${broker}_${uid}`);
+    const hasSavedKrw = savedKrw !== null && savedKrw !== '' && !isNaN(Number(savedKrw)) && Number(savedKrw) > 0;
+    const finalValKRW = hasSavedKrw ? Number(savedKrw) : (finalValUSD > 0 ? Math.round(finalValUSD * fx) : 0);
+    input.value = finalValKRW > 0 ? Number(finalValKRW).toLocaleString() : '';
+    if (isUserManual) {
+      input.title = `[${brokerName}] 사용자 지정 원금: ₩${Number(finalValKRW).toLocaleString()} (최신 환율 USD 환산: $${Number(userValUSD).toLocaleString()}) (지우면 기본값으로 자동 전환)`;
+    } else {
+      const rtVal = getRealtimeOperatingPrincipal(broker);
+      const srcName = rtVal > 0 ? '실시간 운영현황 원금' : '초기자산';
+      input.title = `[${brokerName}] ${srcName} 기본값: ₩${Number(finalValKRW).toLocaleString()} (USD: $${Number(finalValUSD).toLocaleString()}) (직접 수정 가능)`;
+    }
   } else {
-    const rtVal = getRealtimeOperatingPrincipal(broker);
-    const srcName = rtVal > 0 ? '실시간 운영현황 원금' : '초기자산';
-    input.title = `[${brokerName}] ${srcName} 기본값: $${Number(finalVal).toLocaleString()} (직접 수정 가능)`;
+    input.placeholder = "예: 20,000";
+    input.value = finalValUSD > 0 ? Number(finalValUSD).toLocaleString() : '';
+    if (isUserManual) {
+      input.title = `[${brokerName}] 사용자 지정 원금: $${Number(userValUSD).toLocaleString()} (지우면 기본값으로 자동 전환)`;
+    } else {
+      const rtVal = getRealtimeOperatingPrincipal(broker);
+      const srcName = rtVal > 0 ? '실시간 운영현황 원금' : '초기자산';
+      input.title = `[${brokerName}] ${srcName} 기본값: $${Number(finalValUSD).toLocaleString()} (직접 수정 가능)`;
+    }
   }
 }
 
 function updateManualEstimatedPrincipal(val, targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
   const cleanStr = String(val === undefined || val === null ? '' : val).trim();
-  const num = Number(cleanStr.replace(/[^0-9.-]/g, '')) || 0;
+  const rawNum = Number(cleanStr.replace(/[^0-9.-]/g, '')) || 0;
   const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
-  const brokerName = broker === 'ls' ? 'LS증권' : '키움증권';
+  const brokerName = broker === 'meritz' ? '메리츠' : (broker === 'ls' ? 'LS증권' : '키움증권');
+  const curr = getManualPrincipalCurrency(broker);
+  const fx = (window.currentFXRate && window.currentFXRate > 0) ? window.currentFXRate : (window.currencyService?.getCurrentFXRate() || 1450);
+
+  // ⭐️ KRW 통화 입력 시 현재 최신 환율로 USD 환산하여 저장
+  const usdNum = (curr === 'KRW')
+    ? (rawNum > 0 ? Math.round(rawNum / fx) : 0)
+    : (rawNum > 0 ? rawNum : 0);
 
   const userVal = getUserManualPrincipal(broker);
   const defaultVal = getDefaultEstimatedPrincipal(broker);
 
   // 사용자가 아직 직접 입력한 적이 없고(기본값 모드), 현재 입력값이 기본값과 동일하면 저장하지 않고 기본값 유지
-  if (userVal <= 0 && num > 0 && Math.round(num) === Math.round(defaultVal)) {
+  if (userVal <= 0 && usdNum > 0 && Math.round(usdNum) === Math.round(defaultVal)) {
     syncManualPrincipalInput(broker);
     return;
   }
 
-  if (cleanStr !== '' && num > 0) {
-    localStorage.setItem(`vtotal3_manual_principal_${broker}_${uid}`, String(num));
-    if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 $${num.toLocaleString()}로 설정되었습니다.`);
+  if (cleanStr !== '' && (curr === 'KRW' ? rawNum > 0 : usdNum > 0)) {
+    if (curr === 'KRW') {
+      localStorage.setItem(`vtotal3_manual_principal_krw_${broker}_${uid}`, String(rawNum));
+      localStorage.setItem(`vtotal3_manual_principal_${broker}_${uid}`, String(usdNum));
+      if (typeof showToast === 'function') {
+        showToast(`[${brokerName}] 원금이 ₩${rawNum.toLocaleString()} (최신 환율 USD 환산: $${usdNum.toLocaleString()})로 설정되었습니다.`);
+      }
+    } else {
+      localStorage.setItem(`vtotal3_manual_principal_${broker}_${uid}`, String(usdNum));
+      localStorage.removeItem(`vtotal3_manual_principal_krw_${broker}_${uid}`);
+      if (typeof showToast === 'function') {
+        showToast(`[${brokerName}] 원금이 $${usdNum.toLocaleString()}로 설정되었습니다.`);
+      }
+    }
   } else {
     localStorage.removeItem(`vtotal3_manual_principal_${broker}_${uid}`);
+    localStorage.removeItem(`vtotal3_manual_principal_krw_${broker}_${uid}`);
     if (broker === 'kiwoom') localStorage.removeItem(`vtotal3_manual_principal_${uid}`);
     if (typeof showToast === 'function') showToast(`[${brokerName}] 원금이 기본값으로 초기화되었습니다.`);
   }
 
   syncManualPrincipalInput(broker);
 
-  // 자산현황 및 계좌정보 즉시 리프레시
+  // 자산현황 및 계좌정보 즉시 리프레시 (환산된 USD 원금 기반으로 도넛차트, 총원금, 수익률 즉시 재계산)
   if (typeof renderKiwoomBalanceOnStatsTable === 'function') {
     renderKiwoomBalanceOnStatsTable();
   }
@@ -369,6 +468,9 @@ function updateManualEstimatedPrincipal(val, targetBroker) {
   }
   if (typeof window.updateStatsPieChart === 'function' && window.updateStatsPieChart !== updateStatsPieChart) {
     window.updateStatsPieChart();
+  }
+  if (typeof window.renderHomeAccountTable === 'function') {
+    window.renderHomeAccountTable();
   }
 }
 
@@ -509,6 +611,9 @@ window.updateFontSize = updateFontSize;
 window.getManualEstimatedPrincipal = getManualEstimatedPrincipal;
 window.updateManualEstimatedPrincipal = updateManualEstimatedPrincipal;
 window.getUserManualPrincipal = getUserManualPrincipal;
+window.getManualPrincipalCurrency = getManualPrincipalCurrency;
+window.setManualPrincipalCurrency = setManualPrincipalCurrency;
+window.handleManualPrincipalCurrencyChange = handleManualPrincipalCurrencyChange;
 window.getRealtimeOperatingPrincipal = getRealtimeOperatingPrincipal;
 window.getInitialAssetTotal = getInitialAssetTotal;
 window.getDefaultEstimatedPrincipal = getDefaultEstimatedPrincipal;

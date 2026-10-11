@@ -18,9 +18,9 @@
 (function () {
   "use strict";
 
-  const CACHE_MS = 60000; // 1분 캐시 (키움·LS 공통 1분 주기 갱신)
-  const BROKERS = ["kiwoom", "ls"];
-  const BROKER_LABEL = { kiwoom: "🟢 키움", ls: "🟣 LS증권" };
+  const CACHE_MS = 60000; // 1분 캐시 (키움·메리츠·LS 공통 1분 주기 갱신)
+  const BROKERS = ["kiwoom", "meritz", "ls"];
+  const BROKER_LABEL = { kiwoom: "🟢 키움", meritz: "🟠 메리츠", ls: "🟣 LS증권" };
 
   const fillsCache = {};   // broker → { at, data }
   const fillsPromise = {};
@@ -112,7 +112,7 @@
   // 체결 대조가 엉뚱한 브로커 계좌를 보게 됐다.
   const brokerForSlot = (slot) => (window.BrokerService
     ? window.BrokerService.brokerForSlot(slot)
-    : (Number(slot) <= 6 ? "kiwoom" : "ls"));
+    : (Number(slot) <= 1 ? "kiwoom" : (Number(slot) <= 6 ? "meritz" : "ls")));
 
   // ─────────── cached proxy reads ───────────
   async function getFills(broker, force = false) {
@@ -322,7 +322,7 @@
     const maxSlots = window.MAX_SLOTS || 12;
     for (let s = 1; s <= maxSlots; s++) {
       if (typeof window.isSlotActive === 'function' && !window.isSlotActive(s)) continue;
-      const sBroker = window.BrokerService ? window.BrokerService.brokerForSlot(s) : (s <= 6 ? 'kiwoom' : 'ls');
+      const sBroker = window.BrokerService ? window.BrokerService.brokerForSlot(s) : (s <= 1 ? 'kiwoom' : (s <= 6 ? 'meritz' : 'ls'));
       if (sBroker !== targetBroker) continue;
 
       const sTicker = normSymbol(window.slotConfigs?.[s]?.basics?.ticker || '');
@@ -597,7 +597,7 @@
       data = { success: false, error: e.message };
     }
     if (seq !== panelRenderSeq) return; // 최신 요청만 반영 (뷰 전환 중 덮어쓰기 방지)
-    const other = active === "kiwoom" ? "ls" : "kiwoom";
+    const others = BROKERS.filter(b => b !== active).map(b => BROKER_LABEL[b]).join(" / ");
     container.innerHTML = `
       <div style="display:flex; justify-content:flex-end; margin:2px 4px 4px 0;">
         <button onclick="window.BrokerReconcile.invalidate(); window.BrokerReconcile.renderBrokerAccountTable(this.closest('#statsTable') || document.getElementById('statsTable'))"
@@ -605,7 +605,7 @@
       </div>
       ${accountSectionHtml(active, data)}
       <div style="text-align:center; font-size:10px; color:#64748b; padding:4px 0 8px;">
-        상단 ${BROKER_LABEL[other]} 전환은 좌측 상단 브로커 버튼에서
+        상단 ${others} 전환은 좌측 상단 브로커 버튼에서
       </div>`;
   }
 
@@ -661,6 +661,8 @@ window.toggleGcpBotEngine = async function() {
       btn.innerText = "⏳ 처리 중...";
       if (active === "kiwoom") {
         await window.BrokerService.setKiwoomAutoOrder(!isStopping);
+      } else if (active === "meritz") {
+        await window.BrokerService.setMeritzAutoOrder(!isStopping);
       } else {
         await window.BrokerService.setLsAutoOrder(!isStopping);
       }

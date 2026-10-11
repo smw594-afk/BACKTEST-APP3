@@ -158,8 +158,8 @@
   <script src="ui/state-manager.js?v=cf_v1787732256753" defer></script>
   <script src="ui/event-handlers.js?v=cf_v1788012492560" defer></script>
   <script src="services/push-notification-service.js?v=cf_v20260930_01" defer></script>
-  <script src="services/broker-service.js?v=cf_v20261003_02" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v20260929_01" defer></script>
+  <script src="services/broker-service.js?v=cf_v20261012_03" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v20261012_01" defer></script>
   <script src="services/config-manager.js?v=cf_v20261002_14" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
   <script src="services/stats-config.js?v=cf_v1787732256753" defer></script>
@@ -196,7 +196,7 @@
   <div class="settings-overlay hidden" id="settingsScreen" onclick="if(event.target === this) toggleSettings()">
     <div class="settings-modal">
       <h3>⚙️ 투자 설정</h3>
-      <!-- 슬롯 1~6 = 키움, 7~12 = LS증권 (broker-service.js의 brokerForSlot과 동일 규칙).
+      <!-- 슬롯 1 = 키움, 2~6 = 메리츠, 7~12 = LS증권 (broker-service.js의 brokerForSlot과 동일 규칙).
            2026-08-06 6→12 확장: 활성 브로커의 6개 그룹만 보이고 나머지는 숨긴다
            (BrokerService.applySettingsTabVisibility()가 표시/숨김을 담당).
            버튼 id는 기존 `tabSlot{N}` 규약을 그대로 유지해야 switchSettingsTab /
@@ -206,10 +206,15 @@
            절반만 차지한다. block + width:100%로 전체 폭을 쓰게 한다. -->
       <div style="display:block; width:100%; margin-bottom:12px;" id="settingsTabContainer">
         <div id="settingsTabGroupKiwoom" style="width:100%;">
-          <div style="font-size:10px; font-weight:800; color:#10b981; text-align:center; padding:2px 0; margin-bottom:4px; border-bottom:1px solid rgba(16,185,129,0.3);">🟢 키움 (슬롯 1~6)</div>
-          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:4px;">
+          <div style="font-size:10px; font-weight:800; color:#10b981; text-align:center; padding:2px 0; margin-bottom:4px; border-bottom:1px solid rgba(16,185,129,0.3);">🟢 키움 (슬롯 1)</div>
+          <div style="display:grid; grid-template-columns:repeat(1, 1fr); gap:4px;">
             <button id="tabSlot1" onclick="switchSettingsTab(1)" class="btn-action"
               style="height:32px; font-size:11px; background:linear-gradient(135deg, #6366f1, #4f46e5);">투자법 1</button>
+          </div>
+        </div>
+        <div id="settingsTabGroupMeritz" style="display:none; width:100%;">
+          <div style="font-size:10px; font-weight:800; color:#f97316; text-align:center; padding:2px 0; margin-bottom:4px; border-bottom:1px solid rgba(249,115,22,0.3);">🟠 메리츠 (슬롯 2~6)</div>
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:4px;">
             <button id="tabSlot2" onclick="switchSettingsTab(2)" class="btn-action"
               style="height:32px; font-size:11px; background:rgba(51,65,85,0.8);">투자법 2</button>
             <button id="tabSlot3" onclick="switchSettingsTab(3)" class="btn-action"
@@ -317,8 +322,14 @@
           </div>
         </div>
         <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:6px; margin-bottom:2px; width:100%; box-sizing:border-box;">
-          <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">원금</label>
-            <input type="text" id="manualEstimatedPrincipal" placeholder="예: 20,000" onchange="updateManualEstimatedPrincipal(this.value)" onblur="updateManualEstimatedPrincipal(this.value)" style="width: 100%; min-width: 0; box-sizing: border-box; text-align: right; padding: 2px 6px; font-size: 11px; height: 26px; border-radius: 4px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); background: var(--bg-card, #1e293b); color: var(--text, #fff);">
+          <div class="input-group" style="margin-bottom:0; display:flex; align-items:center; gap:3px;">
+            <label style="width: 40px; flex-shrink: 0;">원금</label>
+            <select id="manualPrincipalCurrency" onchange="handleManualPrincipalCurrencyChange(this.value)"
+              style="width: 50px; flex-shrink: 0; padding: 2px 2px; font-size: 11px; height: 26px; border-radius: 4px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); background: var(--bg-card, #1e293b); color: var(--text, #fff); font-weight: 700; cursor: pointer;">
+              <option value="USD" selected>USD</option>
+              <option value="KRW">KRW</option>
+            </select>
+            <input type="text" id="manualEstimatedPrincipal" placeholder="예: 20,000" onchange="updateManualEstimatedPrincipal(this.value)" onblur="updateManualEstimatedPrincipal(this.value)" style="flex: 1; min-width: 0; box-sizing: border-box; text-align: right; padding: 2px 6px; font-size: 11px; height: 26px; border-radius: 4px; border: 1px solid var(--border-color, rgba(255,255,255,0.15)); background: var(--bg-card, #1e293b); color: var(--text, #fff);">
           </div>
           <div class="input-group" style="margin-bottom:0;"><label style="width: 40px; flex-shrink: 0;">폰트</label>
             <select id="fontSizeSelect" onchange="updateFontSize(this.value)" style="width: 100%; min-width: 0;">
@@ -480,7 +491,7 @@
     <!-- 내역 모드 상단: 계좌 정보 / 성과 탭 중단1: 년별 성과 -->
     <div class="card panel-monthly hidden" id="panelMonthly">
       <div class="section-header swipe-handler" id="monthlyHeader">
-        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="계좌 정보">📡 계좌 정보</h2>
+        <h2 id="periodTitle" class="period-toggle" onclick="togglePeriodView()" title="계좌 정보">💳 계좌 정보</h2>
         <button id="btnPeriodMode" onclick="togglePeriodDisplayMode()" class="btn-icon-sub" title="차트/테이블 전환"
           style="font-size:20px; display:none !important; align-items:center; justify-content:center; margin-left:auto;">
           <span id="icoPeriodMode">🔢</span>
@@ -710,7 +721,7 @@
     <div class="top-left">
       <div id="ledLamp" class="led-lamp"></div>
       <div class="user-id-box" id="userDisplayHeader" onclick="confirmLogout()" title="클릭하여 로그아웃" style="white-space:nowrap; overflow:hidden; text-overflow:clip; max-width:100%; display:inline-block;">로딩중...</div>
-      <!-- 🟢 키움 / 🟣 LS 선택 버튼 (broker-service.js switchBrokerMode가 갱신) -->
+      <!-- 🟢 키움 / 🟠 메리츠 / 🟣 LS 선택 버튼 (broker-service.js switchBrokerMode가 갱신) -->
       <button id="btnSingleBrokerNav" onclick="window.BrokerService && window.BrokerService.openBrokerSelectPopup()"
         style="margin-left:6px; border:none; border-radius:6px; padding:3px 8px; font-weight:700; font-size:11px; cursor:pointer; background:linear-gradient(135deg,#10b981,#059669); color:#000; white-space:nowrap; position:relative; z-index:10;">🟢 키움 <span style="font-size:9px;">▼</span></button>
     </div>
@@ -1215,19 +1226,19 @@
   <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v20261003_04" defer></script>
+  <script src="ui/render-order.js?v=cf_v20261012_01" defer></script>
   <script src="ui/render-holdings.js?v=cf_v20261002_09" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20261003_20" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v20260926_01" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20261012_01" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v20261012_02" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
   <script src="ui/render-toggles.js?v=cf_v20261003_03" defer></script>
-  <script src="ui/render-helpers.js?v=cf_v20261003_03" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v20261012_02" defer></script>
   <script src="ui/render-notifications.js?v=cf_v20261003_02" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20261003_07" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20261005_01" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20261003_33" defer></script>
+  <script src="script.js?v=cf_v20261012_02" defer></script>
 
 
 </body>

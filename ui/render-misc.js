@@ -289,7 +289,7 @@ function showOrderView() {
 
   // 홈화면 기본 3단:
   // 상단: 💼 자산현황 (panelStats - 도넛 파이차트 및 범례)
-  // 중단: 📡 계좌 정보 (panelMonthly - 실전 계좌 테이블)
+  // 중단: 💳 계좌 정보 (panelMonthly - 실전 계좌 테이블)
   // 하단: 📈 성과추이 (panelChart - 성과추이 그래프)
   if (statsView) {
     statsView.classList.remove('hidden');
