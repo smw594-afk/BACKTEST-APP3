@@ -1730,6 +1730,10 @@ function confirmLogout() {
   if (confirm("로그아웃 하시겠습니까?")) {
     localStorage.removeItem('vtotal3_auth');
     localStorage.removeItem('vtotal3_id');
+    if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === 'function') {
+      window.BrokerReconcile.invalidate();
+    }
+    window.lastAccountNo = "";
     try {
       location.reload();
     } catch (e) {

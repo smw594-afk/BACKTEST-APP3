@@ -947,6 +947,16 @@ async function handleLogin() {
     const res = await loginResp.json();
     if (res.result === "success") {
       localStorage.setItem('vtotal3_auth', 'true'); localStorage.setItem('vtotal3_id', id); if (typeof myUserId !== 'undefined') myUserId = id; window.myUserId = id;
+      // ⭐️ 로그인 사용자 변경 시 증권사 계좌 캐시 및 화면 잔상 즉시 리셋
+      if (window.BrokerReconcile && typeof window.BrokerReconcile.invalidate === 'function') {
+        window.BrokerReconcile.invalidate();
+      }
+      window.lastAccountNo = "";
+      const homeTable = document.getElementById('homeAccountTable') || document.getElementById('statsTable');
+      if (homeTable) {
+        homeTable.innerHTML = '';
+        if (homeTable.dataset) { delete homeTable.dataset.broker; delete homeTable.dataset.userId; }
+      }
       try {
         await enterAppDirectly();
       } catch (initErr) {

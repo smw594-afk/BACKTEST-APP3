@@ -1025,7 +1025,8 @@ function buildBalanceHtml(result, broker) {
 
   const normalizedHoldings = holdings.map(h => {
     const symbol = h.symbol || (h.stk_cd ? h.stk_cd.replace(/^A/, '') : '') || h.ticker || h.stk_nm || '-';
-    const qty = Math.round(Number(h.qty || h.rmnd_qty || h.cqty || 0));
+    const rawQty = Number(h.qty || h.rmnd_qty || h.cqty || 0);
+    const qty = Number.isInteger(rawQty) ? rawQty : Math.round(rawQty * 10000) / 10000;
     const avgPrice = Number(h.avgPrice || h.pur_pric || h.pavg || 0);
     const currPrice = Number(h.currentPrice || h.cur_prc || h.price || 0);
     const pnlVal = Number(h.evalPnlUsd || h.evltv_prft || h.pnl || 0);
@@ -1322,7 +1323,7 @@ function buildBalanceHtml(result, broker) {
       html += `<td style="font-weight:700; color:var(--text, #fda4af); text-align:center;">${h.symbol}</td>`;
       html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">$${h.avgPrice.toFixed(2)}</td>`;
       html += `<td style="text-align:center;">$${h.currPrice.toFixed(2)}</td>`;
-      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">${h.qty.toLocaleString()}주</td>`;
+      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">${Number(h.qty).toLocaleString(undefined, { maximumFractionDigits: 4 })}주</td>`;
       html += `<td style="text-align:center;">$${h.valuation.toFixed(2)}</td>`;
       html += `<td style="font-weight:700; color:${color}; text-align:center;">${prefix}${profitRate.toFixed(1)}%</td>`;
       html += `<td style="font-weight:700; color:${color}; text-align:center;">${pnlStr}</td>`;
@@ -1341,15 +1342,17 @@ async function renderKiwoomBalanceOnStatsTable(table) {
   const broker = window.BrokerService ? window.BrokerService.activeBroker : "kiwoom";
   const brokerLabel = broker === "ls" ? "LS" : (broker === "meritz" ? "메리츠" : "키움");
 
-  // 1) 캐시된 데이터가 있거나 이미 화면에 현재 브로커 데이터가 출력되어 있다면
-  //    빈 화면('조회 중...')으로 덮어쓰지 않고 즉시 표시 또는 기존 화면을 유지(Stale-While-Revalidate)
+  const currentUid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+    ? window.BrokerService.getUserId()
+    : (localStorage.getItem("vtotal3_id") || "smw594");
   const cached = window.BrokerReconcile?.getCachedBalance ? window.BrokerReconcile.getCachedBalance(broker) : null;
-  const alreadyRenderedSameBroker = (table.dataset?.broker === broker && table.querySelector('.stats-balance-summary-card'));
+  const alreadyRenderedSameBroker = (table.dataset?.broker === broker && table.dataset?.userId === currentUid && table.querySelector('.stats-balance-summary-card'));
 
   if (cached && cached.success !== false) {
     table.innerHTML = buildBalanceHtml(cached, broker);
     if (!table.dataset) table.dataset = {};
     table.dataset.broker = broker;
+    table.dataset.userId = currentUid;
     updateStatsTitleAccountNo(cached);
     const selector = document.getElementById('statsMetricSelector');
     if (selector && (window.statsDisplayMode || statsDisplayMode) === 'chart') {
@@ -1375,6 +1378,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
 
     if (!result || result.success === false) {
       const errMsg = (result && result.error) || "계좌 데이터를 가져오지 못했습니다.";
+      const isUnregistered = !!(result && (result.unregistered || String(result.error || "").includes("등록되지 않았습니다") || String(result.error || "").includes("미등록")));
       const isMaint = window.BrokerService && typeof window.BrokerService.isMaintenanceError === 'function' && window.BrokerService.isMaintenanceError(errMsg);
       if (isMaint) {
         window.BrokerService.showMaintenancePopup(broker, errMsg);
@@ -1389,15 +1393,23 @@ async function renderKiwoomBalanceOnStatsTable(table) {
           </div>`;
         if (!table.dataset) table.dataset = {};
         table.dataset.broker = broker;
+        table.dataset.userId = currentUid;
         return;
       }
-      if (table.querySelector('.stats-balance-summary-card') && table.dataset && table.dataset.broker === broker) {
+      // ⭐️ 키 미등록 상태이거나 사용자가 변경된 경우 기존 화면을 유지하지 않고 명확한 안내 화면 표시
+      if (!isUnregistered && table.querySelector('.stats-balance-summary-card') && table.dataset && table.dataset.broker === broker && table.dataset.userId === currentUid) {
         console.warn(`[${brokerLabel} 잔고 갱신 실패 (기존 화면 유지)]:`, result?.error);
         return;
       }
-      table.innerHTML = `<div style="padding:20px; color:#f43f5e; text-align:center; font-size:11px;">${brokerLabel} API 연동 실패<br/><span style="font-size:9.5px; opacity:0.8;">사유: ${errMsg}</span></div>`;
+      // 키 미등록 시에는 계좌번호 타이틀도 초기화
+      if (isUnregistered) {
+        window.lastAccountNo = "";
+        updateStatsTitleAccountNo(null);
+      }
+      table.innerHTML = `<div style="padding:20px; color:${isUnregistered ? '#38bdf8' : '#f43f5e'}; text-align:center; font-size:11px;">${brokerLabel} ${isUnregistered ? '🔑 API 키 미등록' : 'API 연동 실패'}<br/><span style="font-size:9.5px; opacity:0.8; margin-top:4px; display:inline-block;">사유: ${errMsg}</span>${isUnregistered ? '<br/><span style="display:inline-block; margin-top:8px; font-size:10px; color:#94a3b8;">투자 설정 ⚙️ → [🔐 브로커 API 키]에서 API 키를 등록하세요.</span>' : ''}</div>`;
       if (!table.dataset) table.dataset = {};
       table.dataset.broker = broker;
+      table.dataset.userId = currentUid;
       return;
     }
 
@@ -1405,6 +1417,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
     table.innerHTML = buildBalanceHtml(result, broker);
     if (!table.dataset) table.dataset = {};
     table.dataset.broker = broker;
+    table.dataset.userId = currentUid;
     updateStatsTitleAccountNo(result);
 
     const selector = document.getElementById('statsMetricSelector');

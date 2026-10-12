@@ -29,19 +29,19 @@
 
   function getCachedBalance(broker) {
     const target = broker || (window.BrokerService ? window.BrokerService.activeBroker : "kiwoom");
+    const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+      ? window.BrokerService.getUserId()
+      : (localStorage.getItem("vtotal3_id") || "smw594");
     const c = balanceCache[target];
-    if (c && c.data) return c.data;
+    if (c && c.data && c.uid === uid) return c.data;
     // 📸 [스냅샷 캐시]: 메모리 캐시가 없더라도 로컬 스토리지에 저장된 마지막 계좌 스냅샷 즉시 반환
     try {
-      const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
-        ? window.BrokerService.getUserId()
-        : (localStorage.getItem("vtotal3_id") || "smw594");
       const snapKey = `vtotal3_balance_snap_${target}_${uid}`;
       const snapStr = localStorage.getItem(snapKey);
       if (snapStr) {
         const snap = JSON.parse(snapStr);
         if (snap && snap.success !== false) {
-          balanceCache[target] = { at: 0, data: snap }; // 메모리 캐시에도 적재
+          balanceCache[target] = { at: 0, data: snap, uid }; // 메모리 캐시에도 적재
           return snap;
         }
       }
@@ -134,8 +134,11 @@
 
   async function getBalance(broker) {
     const now = Date.now();
+    const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+      ? window.BrokerService.getUserId()
+      : (localStorage.getItem("vtotal3_id") || "smw594");
     const c = balanceCache[broker];
-    if (c && now - c.at < CACHE_MS) return c.data;
+    if (c && c.uid === uid && now - c.at < CACHE_MS) return c.data;
     if (!balancePromise[broker]) {
       balancePromise[broker] = window.BrokerService.fetchOverseasBalance(broker)
         .finally(() => { balancePromise[broker] = null; });
@@ -151,12 +154,9 @@
       };
     }
     if (data && data.success !== false) {
-      balanceCache[broker] = { at: Date.now(), data };
+      balanceCache[broker] = { at: Date.now(), data, uid };
       // 📸 [스냅샷 영구 저장]: 로딩 전 선표시를 위해 로컬 스토리지에 마지막 정상 계좌 데이터 영구 보관
       try {
-        const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
-          ? window.BrokerService.getUserId()
-          : (localStorage.getItem("vtotal3_id") || "smw594");
         const snapKey = `vtotal3_balance_snap_${broker}_${uid}`;
         localStorage.setItem(snapKey, JSON.stringify(data));
       } catch (e) {
@@ -168,6 +168,7 @@
 
   function invalidate() {
     BROKERS.forEach(b => { fillsCache[b] = null; balanceCache[b] = null; });
+    window.lastAccountNo = "";
     state.ready = false;
     state.failed = false;
     state.rows = [];
@@ -482,7 +483,8 @@
 
     const rows = holdings.length
       ? holdings.map(h => {
-        const qty = Math.round(Number(h.qty) || 0);
+        const rawQty = Number(h.qty) || 0;
+        const qty = Number.isInteger(rawQty) ? rawQty : Math.round(rawQty * 10000) / 10000;
         const avgPrice = Number(h.avgPrice || 0);
         const currPrice = Number(h.currentPrice || 0);
         const pnl = Number(h.evalPnlUsd || 0);
@@ -491,7 +493,7 @@
 
         return `<tr style="border-bottom:1px solid var(--card-border, #334155);">
             <td style="padding:10px 8px; font-weight:700; color:var(--text, #f8fafc);">${escapeHtml(h.symbol)}</td>
-            <td style="padding:10px 8px; text-align:right; color:var(--text, #cbd5e1);">${qty.toLocaleString()}주</td>
+            <td style="padding:10px 8px; text-align:right; color:var(--text, #cbd5e1);">${qty.toLocaleString(undefined, { maximumFractionDigits: 4 })}주</td>
             <td style="padding:10px 8px; text-align:right; color:var(--text-muted, #94a3b8);">${usd(avgPrice)}</td>
             <td style="padding:10px 8px; text-align:right; color:var(--text, #f8fafc);">${usd(currPrice)}</td>
             <td style="padding:10px 8px; text-align:right; color:${color}; font-weight:700;">${pnl < 0 ? "-" : ""}${usd(Math.abs(pnl))}</td>

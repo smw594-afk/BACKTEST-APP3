@@ -1519,7 +1519,10 @@ window.getCombinedOrderEvaluationData = function() {
           const activeList = list.filter(r => {
             if (!r) return false;
             const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'meritz' : (Number(r.slot) <= 11 ? 'ls' : 'kiwoom')));
-            return b === activeBr;
+            if (b !== activeBr) return false;
+            // ⚠️ FAILED(발주 실패/증권사 거부) 건은 증권사 미체결 목록에 포함시키지 않음 (포함 시 실패 주문이 일치로 오판됨)
+            if (r.status === 'FAILED' || r.error) return false;
+            return true;
           });
           allBrokerOrders = activeList.map(item => ({
             ...item,

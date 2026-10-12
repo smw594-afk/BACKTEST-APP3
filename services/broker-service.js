@@ -827,11 +827,19 @@ window.BrokerService = {
     try {
       const perm = window.PushNotificationService.getPermission();
       if (perm === "granted") {
-        const isSub = await window.PushNotificationService.isSubscribed();
-        if (!isSub) {
-          console.log(`[WebPush] 기본값 ON 정책: [${userId}] 푸시 자동 구독 등록 진행...`);
+        const sub = await window.PushNotificationService.getSubscription();
+        if (!sub) {
+          console.log(`[WebPush] 기본값 ON 정책: [${userId}] 푸시 자동 신규 구독 진행...`);
           await window.PushNotificationService.subscribe();
-          console.log(`[WebPush] 기본값 ON 정책: [${userId}] 푸시 자동 구독 등록 완료`);
+          console.log(`[WebPush] 기본값 ON 정책: [${userId}] 푸시 자동 신규 구독 완료`);
+        } else {
+          // ⭐️ 브라우저에 이미 구독이 있더라도 현재 userId로 VM에 반드시 동기화(재등록)
+          // (계정 전환 시 sbg594 등 새 사용자에 푸시 엔드포인트가 등록되지 않는 누락 방지)
+          await this.brokerFetch('/api/user/push-subscription', 'POST', {
+            userId,
+            subscription: sub.toJSON()
+          });
+          console.log(`[WebPush] [${userId}] 브라우저 푸시 구독 VM 동기화 완료`);
         }
       }
     } catch (e) {
