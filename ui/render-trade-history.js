@@ -10,6 +10,57 @@ let lastBrokerFillsRows = [];
 let lastBrokerFillsBroker = '';
 let historyViewMode = 'strategy'; // 기본은 실전 매도내역 (내역모드 진입 시 항상 이 화면)
 
+// 🛡️ [40영업일 가드] 최근 40영업일(달력 약 60일) 컷오프 날짜 계산
+function getCutoffTradingDay(tradingDaysCount = 40) {
+  try {
+    let allMarketDates = new Set();
+    const maxSlots = (typeof MAX_SLOTS !== 'undefined' ? MAX_SLOTS : 12);
+    for (let i = 1; i <= maxSlots; i++) {
+      const res = window.lastBTResults?.[i];
+      if (res && Array.isArray(res.chartDates)) {
+        res.chartDates.forEach(d => {
+          const k = typeof normalizeDateKey === 'function' ? normalizeDateKey(d) : String(d).trim();
+          if (k) allMarketDates.add(k);
+        });
+      }
+    }
+    const sortedDates = Array.from(allMarketDates).sort();
+    if (sortedDates.length >= tradingDaysCount) {
+      return sortedDates[sortedDates.length - tradingDaysCount];
+    }
+  } catch (e) { }
+
+  try {
+    const now = new Date();
+    const nyTimeStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+    let cur = new Date(nyTimeStr);
+    let counted = 0;
+    let cutoff = "";
+    const isHolidayFn = (typeof isUSMarketHoliday === 'function') ? isUSMarketHoliday : (typeof window !== 'undefined' && window.dateHelpers?.isUSMarketHoliday);
+
+    for (let i = 0; i < 200 && counted < tradingDaysCount; i++) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      const ymd = `${y}-${m}-${d}`;
+      const dow = cur.getDay();
+
+      const isWeekend = (dow === 0 || dow === 6);
+      const isHoliday = isHolidayFn ? isHolidayFn(ymd) : false;
+
+      if (!isWeekend && !isHoliday) {
+        counted++;
+        cutoff = ymd;
+      }
+      cur.setDate(cur.getDate() - 1);
+    }
+    return cutoff;
+  } catch (e) {
+    const d = new Date(Date.now() - 60 * 86400000);
+    return typeof normalizeDateKey === 'function' ? normalizeDateKey(d) : d.toISOString().split('T')[0];
+  }
+}
+
 // 실전 매도내역(strategy) 표의 thead (index.html 정적 헤더와 동일: 일치 컬럼 포함 10열)
 function strategyHistoryTheadHtml() {
   const isLight = typeof document !== 'undefined' && document.body && document.body.classList.contains('light-mode');
@@ -371,14 +422,47 @@ function renderDBTradeHistory() {
       if (isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
         const res = lastBTResults[i];
         if (res) {
-          let trades = Array.isArray(res.trades) ? res.trades : [];
-          if (res.isSynced && !res.tradesFromSheet && res.dailyStates && res.dailyStates.length > 0) {
-            const reconstructedTrades = reconstructRealTrades(buildTradeLogsFromDailyStates(res.dailyStates), i);
-            if (reconstructedTrades.length >= trades.length) {
-              trades = reconstructedTrades;
-              res.trades = reconstructedTrades;
+          const slotCfg = (typeof slotConfigs !== 'undefined' && slotConfigs?.[i]) || (typeof window !== 'undefined' && window.slotConfigs?.[i]);
+          const slotStartDate = slotCfg?.basics?.startDate ? normalizeDateKey(slotCfg.basics.startDate) : "";
+
+          // 1) 현재 투자법 운용 기간 (sellDate >= slotStartDate) 매매: res.trades에서 추출 (정확한 현재 전략 데이터)
+          let currentStratTrades = Array.isArray(res.trades) ? res.trades : [];
+          if (slotStartDate) {
+            currentStratTrades = currentStratTrades.filter(t => {
+              const sellD = normalizeDateKey(t.sellDate || t.sell_date);
+              return sellD && sellD >= slotStartDate;
+            });
+          }
+
+          // 2) 투자설정 시작일 이전 (sellDate < slotStartDate) 매매: 시트 보유 꾸러미 증감(방법 2)으로 정밀 복원
+          let pastReconstructedTrades = [];
+          const sheetLogs = (window.lastMyPerfData && window.lastMyPerfData[`strat${i}`]?.logs)
+            || (res.sheetLogs && res.sheetLogs.length > 0 ? res.sheetLogs : null)
+            || (res.dailyStates && buildTradeLogsFromDailyStates(res.dailyStates))
+            || null;
+
+          if (sheetLogs && sheetLogs.length > 0) {
+            const allReconstructed = reconstructRealTrades(sheetLogs, i);
+            if (slotStartDate) {
+              pastReconstructedTrades = allReconstructed.filter(t => {
+                const sellD = normalizeDateKey(t.sellDate || t.sell_date);
+                return sellD && sellD < slotStartDate;
+              });
+            } else if (currentStratTrades.length === 0) {
+              pastReconstructedTrades = allReconstructed;
             }
           }
+
+          // 만약 sheetLogs로부터 복원하지 못했더라도, res.trades에 이미 시작일 이전 거래가 남아있다면 보존
+          if (pastReconstructedTrades.length === 0 && slotStartDate && Array.isArray(res.trades)) {
+            pastReconstructedTrades = res.trades.filter(t => {
+              const sellD = normalizeDateKey(t.sellDate || t.sell_date);
+              return sellD && sellD < slotStartDate;
+            });
+          }
+
+          // 3) 과거 시트 복원 매매 + 현재 투자법 매매 병합
+          let trades = pastReconstructedTrades.concat(currentStratTrades);
 
           const slotTrades = trades.map(t => {
             let finalPrice = parseFloat(t.sellPrice || t.sell_price) || 0;
@@ -393,7 +477,7 @@ function renderDBTradeHistory() {
             return {
               ...t,
               slotNum: i,
-              ticker: window.slotConfigs?.[i]?.basics?.ticker || "",
+              ticker: (slotCfg?.basics?.ticker) || window.slotConfigs?.[i]?.basics?.ticker || t.ticker || "SOXL",
               sellPrice: finalPrice,
               sell_price: finalPrice
             };
@@ -404,9 +488,19 @@ function renderDBTradeHistory() {
         }
       }
     }
+    // 🛡️ [40영업일 가드] 최근 40영업일(달력 약 60일) 이내 청산된 매도 내역만 유지 (투자법 변경 시 과거 매매 대조 왜곡 방지)
+    const cutoff40TradingDays = getCutoffTradingDay(40);
+    if (cutoff40TradingDays) {
+      allTrades = allTrades.filter(t => {
+        const rawSell = String(t.sellDate || t.sell_date || "");
+        const normalizedSell = normalizeDateKey(rawSell);
+        if (!normalizedSell) return false;
+        return normalizedSell >= cutoff40TradingDays;
+      });
+    }
 
     if (allTrades.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px; color:#64748b;">매매 내역이 없습니다</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px; color:#64748b;">최근 40영업일 내 매매 내역이 없습니다</td></tr>`;
       return;
     }
 
@@ -699,7 +793,7 @@ function renderDBTradeHistory() {
       const stockName = t.ticker || "-";
       const mismatchCellColor = isMismatch ? (isLight ? '#b91c1c' : '#ef4444') : textColor;
 
-      return `<tr style="border-bottom: 1px solid ${borderCol};">
+      return `<tr class="${isTodaySell ? 'date-sync-highlight-row' : ''}" data-sell-date="${sellDateNorm}" style="border-bottom: 1px solid ${borderCol};">
         <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:10px; font-weight:${reconcileWeight}; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
         <td style="width:9%; padding:2px 1px; text-align:center; color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; font-size:10px;">#${slot}</td>
         <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${stockName}</td>
@@ -746,12 +840,29 @@ function reconstructRealTrades(logs, slotNum) {
   if (!logs || logs.length === 0) return [];
 
   const sortedLogs = logs.map(r => {
-    let dt = parseDateStr(r[0]);
-    let jsonStr = r[3] || "{}";
-    let parsed = {};
-    try { parsed = JSON.parse(jsonStr); } catch(e) {}
-    return { date: dt, holdings: parsed.holdings || [] };
-  }).filter(l => l.date).sort((a, b) => a.date.localeCompare(b.date));
+    if (Array.isArray(r)) {
+      let dt = parseDateStr(r[0]);
+      let jsonStr = r[3] || "{}";
+      let parsed = {};
+      if (typeof jsonStr === "object" && jsonStr !== null) {
+        parsed = jsonStr;
+      } else {
+        try { parsed = JSON.parse(jsonStr); } catch(e) {}
+      }
+      return { date: dt, holdings: parsed.holdings || [] };
+    } else if (r && typeof r === "object") {
+      let dt = parseDateStr(r.date);
+      let holdings = r.holdings;
+      if (!holdings && r.json) {
+        try {
+          const parsed = typeof r.json === "object" ? r.json : JSON.parse(r.json);
+          holdings = parsed.holdings;
+        } catch(e) {}
+      }
+      return { date: dt, holdings: holdings || [] };
+    }
+    return null;
+  }).filter(l => l && l.date).sort((a, b) => a.date.localeCompare(b.date));
 
   const reconstructed = [];
 
@@ -766,53 +877,67 @@ function reconstructRealTrades(logs, slotNum) {
     const curHoldings = curLog.holdings;
     const nextHoldings = nextLog.holdings;
 
-    const curMap = {};
-    curHoldings.forEach(item => {
-      const k = `${getBuyDate(item)}_${getMode(item)}_${getTier(item)}`;
-      if (!curMap[k]) {
-        curMap[k] = {
-          buyDate: getBuyDate(item),
-          mode: item.mode,
-          tier: item.tier,
-          qty: 0,
-          buy_price: parseFloat(item.buy_price || item.buyPrice || 0)
-        };
+    // ⭐️ [방법 2: 시트 꾸러미 날짜별 보유수량 증감 추적 복원]
+    const curLots = [];
+    (curHoldings || []).forEach(item => {
+      const bDate = normalizeDateKey(item.buyDate || item.buy_date || curLog.date);
+      const mode = String(item.mode || "").trim();
+      const tier = String(item.tier || "").trim();
+      const qty = parseFloat(item.qty || 0);
+      const buyPrice = parseFloat(item.buy_price || item.buyPrice || 0);
+      if (qty > 0) {
+        curLots.push({ bDate, mode, tier, qty, buyPrice, rawItem: item });
       }
-      curMap[k].qty += parseFloat(item.qty || 0);
     });
 
-    const nextMap = {};
-    nextHoldings.forEach(item => {
-      const k = `${getBuyDate(item)}_${getMode(item)}_${getTier(item)}`;
-      if (!nextMap[k]) {
-        nextMap[k] = { qty: 0 };
+    const nextLots = [];
+    (nextHoldings || []).forEach(item => {
+      const bDate = normalizeDateKey(item.buyDate || item.buy_date || nextLog.date);
+      const mode = String(item.mode || "").trim();
+      const tier = String(item.tier || "").trim();
+      const qty = parseFloat(item.qty || 0);
+      const buyPrice = parseFloat(item.buy_price || item.buyPrice || 0);
+      if (qty > 0) {
+        nextLots.push({ bDate, mode, tier, qty, buyPrice, remainingQty: qty });
       }
-      nextMap[k].qty += parseFloat(item.qty || 0);
     });
 
-    Object.keys(curMap).forEach(k => {
-      const curItem = curMap[k];
-      const nextItem = nextMap[k];
+    curLots.forEach(cur => {
+      // 1단계: (진입일 + 모드 + 티어) 완전 일치 잔고 매칭
+      let matchedNext = nextLots.find(n => n.bDate === cur.bDate && n.mode === cur.mode && n.tier === cur.tier && n.remainingQty > 0);
+      // 2단계: 투자법 변경 시 모드/티어 표기 변경 대응 (진입일 동일 잔고 승계)
+      if (!matchedNext) {
+        matchedNext = nextLots.find(n => n.bDate === cur.bDate && n.remainingQty > 0);
+      }
 
-      const curQty = curItem.qty;
-      const nextQty = nextItem ? nextItem.qty : 0;
-
-      const soldQty = curQty - nextQty;
+      let soldQty = 0;
+      if (matchedNext) {
+        if (matchedNext.remainingQty >= cur.qty) {
+          matchedNext.remainingQty -= cur.qty;
+          soldQty = 0;
+        } else {
+          soldQty = cur.qty - matchedNext.remainingQty;
+          matchedNext.remainingQty = 0;
+        }
+      } else {
+        // 익일에 해당 buyDate 잔고 완전 소멸 -> 전량 매도
+        soldQty = cur.qty;
+      }
 
       if (soldQty > 0 && !isNaN(soldQty)) {
-        const buyDate = curItem.buyDate || curLog.date;
+        const buyDate = cur.bDate || curLog.date;
         const sellDate = nextLog.date;
 
-        let buyPrice = Number(getClosePriceOnDate(buyDate, slotNum) || curItem.buy_price || 0);
+        let buyPrice = Number(getClosePriceOnDate(buyDate, slotNum) || cur.buyPrice || 0);
         let sellPrice = Number(getClosePriceOnDate(sellDate, slotNum) || 0);
 
-        if (buyPrice === 0 || isNaN(buyPrice)) buyPrice = Number(curItem.buy_price || 0);
+        if (buyPrice === 0 || isNaN(buyPrice)) buyPrice = Number(cur.buyPrice || 0);
         if (sellPrice === 0 || isNaN(sellPrice)) {
           try {
-            const stratName = slotConfigs[slotNum]?.basics?.strategy || "";
-            const modeData = MASTER_STRATEGIES[stratName]?.modes[curItem.mode];
+            const stratName = (typeof slotConfigs !== 'undefined' && slotConfigs?.[slotNum]?.basics?.strategy) || "";
+            const modeData = (typeof MASTER_STRATEGIES !== 'undefined' && MASTER_STRATEGIES?.[stratName]?.modes?.[cur.mode]);
             if (modeData) {
-              const sellPct = modeData.sell[curItem.tier - 1] || modeData.sell[0];
+              const sellPct = modeData.sell[Number(cur.tier) - 1] || modeData.sell[0];
               sellPrice = Math.ceil((buyPrice * (1 + sellPct) * 100) - 0.000001) / 100;
             } else {
               sellPrice = buyPrice;
@@ -822,7 +947,7 @@ function reconstructRealTrades(logs, slotNum) {
           }
         }
 
-        const cfg = slotConfigs[slotNum];
+        const cfg = typeof slotConfigs !== 'undefined' ? slotConfigs[slotNum] : null;
         const fBuy = (cfg && cfg.basics) ? (parseFloat(cfg.basics.fBase) || 0) / 100 : 0.0008;
         const fSec = (cfg && cfg.basics) ? (parseFloat(cfg.basics.fSec) || 0) / 100 : 0.0000278;
 
@@ -839,8 +964,8 @@ function reconstructRealTrades(logs, slotNum) {
           slotNum: slotNum,
           buyDate: buyDate,
           sellDate: sellDate,
-          mode: curItem.mode,
-          tier: curItem.tier,
+          mode: cur.mode,
+          tier: cur.tier,
           buyPrice: buyPrice,
           sellPrice: sellPrice,
           qty: soldQty,
@@ -942,3 +1067,4 @@ window.UI.tradeHistory.loadMore = loadMoreTradeHistory;
 window.toggleView = toggleView;
 window.toggleTradeHistoryView = toggleView;
 window.UI.tradeHistory.toggleHistoryView = toggleView;
+window.reconstructRealTrades = reconstructRealTrades;

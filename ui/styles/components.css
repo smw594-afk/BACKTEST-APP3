@@ -1009,28 +1009,35 @@ h2:hover {
 }
 
 /* 기준일에 실제 매수·매도된 행은 셀 배경색으로도 구분한다. */
+#combinedHoldingsBody .date-sync-highlight-row > td,
+#combinedHoldingsTable .date-sync-highlight-row > td,
+#combinedHoldingsSlot .date-sync-highlight-row > td,
 #combinedHoldingsView #combinedHoldingsBody .date-sync-highlight-row > td,
-#dualOrderContainer [id^="holdingsBody"] .date-sync-highlight-row > td {
-  background: rgba(100, 116, 139, 0.22) !important;
-}
-
+#dualHoldingsContainer [id^="holdingsBody"] .date-sync-highlight-row > td,
+[id^="holdingsBody"] .date-sync-highlight-row > td,
 #historyTableBody .date-sync-highlight-row > td {
   background: rgba(100, 116, 139, 0.22) !important;
 }
 
 /* 통합 보유현황 */
+#combinedHoldingsTable,
+#combinedHoldingsSlot .data-table,
 #combinedHoldingsView .data-table {
   border-collapse: separate !important;
   border-spacing: 1px 1px !important;
   width: 100% !important;
 }
 
+#combinedHoldingsTable th,
+#combinedHoldingsSlot .data-table th,
 #combinedHoldingsView .data-table th {
   border: none !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
   font-size: 11px !important;
 }
 
+#combinedHoldingsTable td,
+#combinedHoldingsSlot .data-table td,
 #combinedHoldingsView .data-table td {
   color: var(--text);
   border: none !important;
@@ -1038,10 +1045,14 @@ h2:hover {
   font-size: var(--app-font-size, 10.5px) !important;
 }
 
+#combinedHoldingsTable tr td:first-child,
+#combinedHoldingsSlot .data-table tr td:first-child,
 #combinedHoldingsView .data-table tr td:first-child {
   border-radius: 3px 0 0 3px;
 }
 
+#combinedHoldingsTable tr td:last-child,
+#combinedHoldingsSlot .data-table tr td:last-child,
 #combinedHoldingsView .data-table tr td:last-child {
   border-radius: 0 3px 3px 0;
 }

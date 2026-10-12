@@ -1707,6 +1707,8 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
     const { dataInit, dataPerf } = serverResult;
 
     lastMyPerfData = dataPerf;
+    window.lastMyPerfData = dataPerf;
+    if (window.stateManager) window.stateManager.setLastMyPerfData(dataPerf);
     perfLastCheckTime = new Date().getTime();
 
     const syncSlotWithSheet = async (confData, perfSlotData, slotNum, priceData) => {
@@ -1860,6 +1862,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
 
           let mergedSnap = {
             ...realData,
+            sheetLogs: (perfSlotData && Array.isArray(perfSlotData.logs)) ? perfSlotData.logs : [],
             currentStrat: confData.basics.strategy,
             summary: isEngineNewer ? {
               ...pureEngineRes.summary,

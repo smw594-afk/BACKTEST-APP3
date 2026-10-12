@@ -820,6 +820,11 @@ function renderRealtimeStatusTable(table) {
       return formattedValue;
     }
     if (m.type === 'color') {
+      if (m.key === 'depletion') {
+        let num = Number(v);
+        let str = (Math.abs(num) * 100).toFixed(1) + '%';
+        return `<span style="color:#fbbf24 !important; font-weight:700;">${str}</span>`;
+      }
       let num = Number(v);
       if (m.pct) {
         let str = (Math.abs(num) * 100).toFixed(1) + '%';
@@ -871,7 +876,8 @@ function renderRealtimeStatusTable(table) {
     { key: 'calmar', label: '칼마비율', type: 'raw' },
     { key: 'realPrincipal', label: '원금', type: 'fmt' },
     { key: 'base', label: '갱신금', type: 'fmt' },
-    { key: 'cash', label: '예수금', type: 'fmt' }
+    { key: 'cash', label: '예수금', type: 'fmt' },
+    { key: 'depletion', label: '진행율', type: 'color', pct: true }
   ];
 
   const metricsList = [...baseMetricsList];

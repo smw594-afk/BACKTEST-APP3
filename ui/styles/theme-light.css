@@ -142,11 +142,15 @@ body.light-mode #historyTable td {
   background: rgba(0, 0, 0, 0.02) !important;
 }
 
+body.light-mode #combinedHoldingsTable th,
+body.light-mode #combinedHoldingsSlot .data-table th,
 body.light-mode #combinedHoldingsView .data-table th {
   border: none !important;
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
 }
 
+body.light-mode #combinedHoldingsTable td,
+body.light-mode #combinedHoldingsSlot .data-table td,
 body.light-mode #combinedHoldingsView .data-table td {
   border: none !important;
   background: rgba(0, 0, 0, 0.02) !important;
@@ -179,8 +183,13 @@ body.light-mode .val-minus {
 }
 
 /* 기준일 매수·매도 행 강조: 라이트 모드 기본 셀 배경보다 우선 적용 (App2와 100% 일치) */
+body.light-mode #combinedHoldingsBody .date-sync-highlight-row > td,
+body.light-mode #combinedHoldingsTable .date-sync-highlight-row > td,
+body.light-mode #combinedHoldingsSlot .date-sync-highlight-row > td,
 body.light-mode #combinedHoldingsView #combinedHoldingsBody .date-sync-highlight-row > td,
-body.light-mode #dualOrderContainer [id^="holdingsBody"] .date-sync-highlight-row > td,
+body.light-mode #dualHoldingsContainer [id^="holdingsBody"] .date-sync-highlight-row > td,
+body.light-mode [id^="holdingsBody"] .date-sync-highlight-row > td,
+body.light-mode #historyTableBody .date-sync-highlight-row > td,
 body.light-mode #historyTable #historyTableBody .date-sync-highlight-row > td {
   background: rgba(100, 116, 139, 0.12) !important;
 }

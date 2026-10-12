@@ -19,7 +19,7 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxUSDds-kN5QQL9cvuNeSJu
 // 쓰기(로그인/입출금/자동저장)는 그대로 GAS_URL을 사용한다.
 const BACKTEST_LOG_SPREADSHEET_ID = "1SrDC8Gkm8ztodtvt_oAOSEQMHE2U-CphetIMz7qWqQY";
 const APP_VERSION = "3.642";
-// 2026-08-06: 6→12 확장. 2026-10-12 메리츠 추가: 슬롯 1=키움, 슬롯 2~6=메리츠, 슬롯 7~12=LS.
+// 2026-08-06: 6→12 확장. 2026-10-12 개편: 메리츠 1~6, LS 7~11, 키움 12.
 // 브로커 판정은 BrokerService.brokerForSlot(services/broker-service.js)이 단일 기준이며,
 // 서버 쪽 짝(proxy/broker3-proxy.js의 KIWOOM_MAX_SLOT/MERITZ_MAX_SLOT, daily-backtest3.js의 BROKER_OF)과
 // 경계값을 **항상 함께** 유지해야 한다.
@@ -337,7 +337,8 @@ function applyPrimaryDateHighlight() {
   document.querySelectorAll(selectors.join(',')).forEach((cell) => {
     const row = cell.closest('tr');
     if (row) {
-      row.classList.toggle('date-sync-highlight-row', normalizeHighlightDate(cell.textContent) === primaryDate);
+      const rowDate = row.getAttribute('data-buy-date') || row.getAttribute('data-sell-date') || normalizeHighlightDate(cell.textContent);
+      row.classList.toggle('date-sync-highlight-row', rowDate === primaryDate);
     }
   });
 
@@ -3022,6 +3023,24 @@ window.updateStatsPieChart = function(explicitTarget) {
       : (realPrincipal > 0 ? totalProfit / realPrincipal : 0);
     const combTotalYieldSign = combTotalYield > 0 ? '+' : (combTotalYield < 0 ? '-' : '');
 
+    // ⭐️ [진행율] 통합 주문표 최하단 PG와 100% 동일한 산출 로직
+    const combSummary = typeof window.calculateCombinedSummary === 'function' ? window.calculateCombinedSummary() : null;
+    const baseDepVal = combSummary ? ((combSummary.depletion || 0) * 100).toFixed(1) + '%' : "0.0%";
+    const activeSlotPgs = [];
+    for (let i = 1; i <= (window.MAX_SLOTS || 12); i++) {
+      if (typeof window.isSlotActive === 'function' && window.isSlotActive(i)) {
+        const slotRes = typeof window.getBestResult === 'function' ? window.getBestResult(window.lastBTResults?.[i], i) : null;
+        const sData = window.UI?.stats?.getDisplayStatusData ? window.UI.stats.getDisplayStatusData(slotRes, i) : null;
+        let slotPgStr = "-";
+        if (sData && sData.depletion !== undefined && sData.depletion !== null) {
+          slotPgStr = (Math.abs(Number(sData.depletion || 0)) * 100).toFixed(1) + "%";
+        }
+        activeSlotPgs.push(slotPgStr);
+      }
+    }
+    const slotPgsText = activeSlotPgs.length > 0 ? `(${activeSlotPgs.join(', ')})` : '';
+    const pgCustomVal = `<span style="color:#fbbf24 !important; font-weight:700;">${baseDepVal}</span><span style="color:var(--text); opacity:0.95; margin-left:2px; font-weight:600; font-size:calc(var(--app-font-size, 10.5px) - 0.5px);">${slotPgsText}</span>`;
+
     legendRows.push(
       { label: '계좌 총원금', value: realPrincipal, isBold: true, inDonut: true, donutColor: '#7c3aed', tone: 'principal', color: '#c084fc' },
       { 
@@ -3034,9 +3053,15 @@ window.updateStatsPieChart = function(explicitTarget) {
       { label: '월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
       { label: '일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
       { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
-      { label: '예수금', value: cash, isBold: false, tone: 'cash' }
+      { label: '예수금', value: cash, isBold: false, tone: 'cash' },
+      { label: '진행율', customValue: pgCustomVal, isBold: false, tone: 'plain' }
     );
   } else {
+    const slotDepVal = (statusData && statusData.depletion !== undefined && statusData.depletion !== null)
+      ? (Math.abs(Number(statusData.depletion || 0)) * 100).toFixed(1) + "%"
+      : "-";
+    const slotPgCustomVal = `<span style="color:#fbbf24 !important; font-weight:700;">${slotDepVal}</span>`;
+
     legendRows.push(
       { label: '원금', value: realPrincipal, isBold: true, inDonut: true, donutColor: '#7c3aed', tone: 'principal', color: '#c084fc' },
       { 
@@ -3052,7 +3077,8 @@ window.updateStatsPieChart = function(explicitTarget) {
       { label: '월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
       { label: '일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
       { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
-      { label: '예수금', value: cash, isBold: false, tone: 'cash' }
+      { label: '예수금', value: cash, isBold: false, tone: 'cash' },
+      { label: '진행율', customValue: slotPgCustomVal, isBold: false, tone: 'plain' }
     );
   }
 
@@ -3072,7 +3098,7 @@ window.updateStatsPieChart = function(explicitTarget) {
         return `
           <div class="stats-asset-legend-row stats-asset-header" style="display: flex; justify-content: space-between; align-items: center; width: ${assetLegendWidth}; min-width: ${assetLegendWidth}; padding: 2px 6px; box-sizing: border-box; height: auto; background: transparent; border-radius: 0;">
             <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: left; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${row.label}</span>
-            <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: right; width: 116px; flex-shrink: 0; letter-spacing: -0.3px;">${row.customValue}</span>
+            <span style="font-weight: 800; font-size: var(--app-font-size, 10.5px); color: var(--text-muted); text-align: right; width: auto; min-width: 116px; flex-shrink: 0; letter-spacing: -0.3px;">${row.customValue}</span>
           </div>
         `;
       }
@@ -3088,7 +3114,7 @@ window.updateStatsPieChart = function(explicitTarget) {
           <div style="display: flex; align-items: center; min-width: 0; flex: 1;">
             <span class="stats-asset-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${labelColor}; font-size: var(--app-font-size, 10.5px); font-weight: ${labelWeight} !important; flex: 1; text-align: left;">${row.label}</span>
           </div>
-          <b style="color: ${valColor}; font-size: ${isEmphasized ? 'calc(var(--app-font-size, 10.5px) + 0.3px)' : 'var(--app-font-size, 10.5px)'}; font-weight: ${valWeight} !important; white-space: nowrap; width: 116px; flex-shrink: 0; text-align: right; display: flex; justify-content: flex-end; align-items: center; letter-spacing: -0.3px;">
+          <b style="color: ${valColor}; font-size: ${isEmphasized ? 'calc(var(--app-font-size, 10.5px) + 0.3px)' : 'var(--app-font-size, 10.5px)'}; font-weight: ${valWeight} !important; white-space: nowrap; width: auto; min-width: 116px; flex-shrink: 0; text-align: right; display: flex; justify-content: flex-end; align-items: center; letter-spacing: -0.3px;">
             ${row.customValue || `${formatChartMoney(row.value, true)}${row.pctBase ? `(${formatPct(row.value, row.pctBase, row.pctDigits || 0)})` : ''}`}
           </b>
         </div>
@@ -3597,11 +3623,11 @@ async function pushTodayOrders(freshBySlot) {
     if (!myUserId) return { ok: false, reason: "userId 없음" };
 
     // ⭐️ [통합 주문표 단일 발주] 개별 슬롯별로 따로 발주하지 않고,
-    // 동일 브로커(키움 슬롯 1 / 메리츠 슬롯 2~6 / LS 슬롯 7~12) 그룹별로 주문들을 모아 퉁치기(run_tungchigi_master)를 실행한 뒤
+    // 동일 브로커(메리츠 슬롯 1~6 / LS 슬롯 7~11 / 키움 슬롯 12) 그룹별로 주문들을 모아 퉁치기(run_tungchigi_master)를 실행한 뒤
     // 통합 주문표(1개 티켓)로 단일화하여 VM에 전송/예약합니다. (예수금 이중잠김 및 개별 튕김 원천 방지)
     const rawOrdersByBroker = { kiwoom: [], meritz: [], ls: [] };
     const tickerByBroker = { kiwoom: "", meritz: "", ls: "" };
-    const repSlotByBroker = { kiwoom: 1, meritz: 2, ls: 7 };
+    const repSlotByBroker = { meritz: 1, ls: 7, kiwoom: 12 };
 
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (!isSlotActive(i)) continue;
@@ -3609,7 +3635,7 @@ async function pushTodayOrders(freshBySlot) {
       const res = (typeof getBestResult === 'function') ? getBestResult(rawRes, i) : rawRes;
       if (!res) continue;
       const symbol = String(getSlotConfig(i)?.basics?.ticker || "").toUpperCase();
-      const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 1 ? "kiwoom" : (i <= 6 ? "meritz" : "ls"));
+      const broker = window.BrokerService ? window.BrokerService.brokerForSlot(i) : (i <= 6 ? "meritz" : (i <= 11 ? "ls" : "kiwoom"));
       if (symbol) tickerByBroker[broker] = symbol;
       if (!repSlotByBroker[broker]) repSlotByBroker[broker] = i;
 
@@ -3631,7 +3657,7 @@ async function pushTodayOrders(freshBySlot) {
     for (const br of ["kiwoom", "meritz", "ls"]) {
       const rawList = rawOrdersByBroker[br];
       const symbol = tickerByBroker[br] || "SOXL";
-      const repSlot = repSlotByBroker[br] || (br === "kiwoom" ? 1 : (br === "meritz" ? 2 : 7));
+      const repSlot = repSlotByBroker[br] || (br === "meritz" ? 1 : (br === "ls" ? 7 : 12));
       if (!rawList || rawList.length === 0) continue;
 
       const combined = tungFn ? tungFn(rawList) : rawList;

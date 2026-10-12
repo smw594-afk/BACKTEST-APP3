@@ -208,7 +208,9 @@ function updateOrderHeaderUI() {
   const titleEl = document.getElementById('orderTitle');
   const statusEl = document.getElementById('orderStatusText');
   const orderCompareBtn = document.getElementById('btnOrderCompare');
+  const orderCompareInOrderBtn = document.getElementById('btnOrderCompareInOrder');
   const sheetVerifyBtn = document.getElementById('btnSheetVerify');
+  const sheetVerifyInOrderBtn = document.getElementById('btnSheetVerifyInOrder');
   const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
   const settingsBtn = document.getElementById('btnSettings');
   const orderSettingsBtn = document.getElementById('btnOrderSettings');
@@ -239,7 +241,9 @@ function updateOrderHeaderUI() {
   if (statusEl) statusEl.innerHTML = statusText;
 
   if (orderCompareBtn) orderCompareBtn.style.display = 'flex';
+  if (orderCompareInOrderBtn) orderCompareInOrderBtn.style.display = 'flex';
   if (sheetVerifyBtn) sheetVerifyBtn.style.display = 'flex';
+  if (sheetVerifyInOrderBtn) sheetVerifyInOrderBtn.style.display = 'flex';
   if (rankingBTBtn) rankingBTBtn.style.display = 'flex';
   if (settingsBtn) settingsBtn.style.display = 'flex';
   if (orderSettingsBtn) orderSettingsBtn.style.display = 'flex';

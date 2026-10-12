@@ -239,9 +239,43 @@ function orderTableDateStr() {
 }
 
 function isUSMarketClosedToday() {
+  const now = new Date();
+
+  // 1. 한국 시간(KST) 기준 파싱
+  const kstParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul", hour12: false, weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+  }).formatToParts(now);
+  const kstWd = (kstParts.find(p => p.type === "weekday") || {}).value || "";
+  const kstHh = Number((kstParts.find(p => p.type === "hour") || {}).value || 0) % 24;
+  const kstMm = Number((kstParts.find(p => p.type === "minute") || {}).value || 0);
+  const kstMins = kstHh * 60 + kstMm;
+
+  // ⭐️ [한국 투자자 시점 시차 보정]
+  // 한국 시간 06:20 ~ 24:00은 "오늘 밤 열릴 미국 세션"을 확인/준비/예약하는 낮 시간대입니다.
+  // 미국 현지가 아직 시차로 인해 전날 밤이더라도, 오늘 밤 열릴 미국 세션의 개장 여부를 판정합니다.
+  if (kstMins >= 6 * 60 + 20) {
+    if (kstWd === "Sat") return { isClosed: true, reason: "주말(토)" };
+    if (kstWd === "Sun") return { isClosed: true, reason: "주말(일)" };
+
+    // 한국 기준 월~금: 오늘 밤 미국장이 열리는 날 (미국 당일 거래일 = 한국 당일 날짜)
+    const ky = (kstParts.find(p => p.type === "year") || {}).value || "";
+    const km = (kstParts.find(p => p.type === "month") || {}).value || "";
+    const kd = (kstParts.find(p => p.type === "day") || {}).value || "";
+    const tonightYmd = `${ky}-${km}-${kd}`;
+
+    const isHol = typeof window.isUSMarketHoliday === "function"
+      ? window.isUSMarketHoliday(tonightYmd)
+      : (typeof isUSMarketHoliday === "function" ? isUSMarketHoliday(tonightYmd) : false);
+    if (isHol) return { isClosed: true, reason: "미국 공휴일(휴장)" };
+
+    // 오늘 밤 미국장은 정상 개장일!
+    return { isClosed: false, reason: "" };
+  }
+
+  // ⭐️ 한국 시간 새벽(00:00 ~ 06:20): 전날 저녁 시작된 미국장이 현재 장중/마감 진행 중인 시간대
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York", hour12: false, weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
-  }).formatToParts(new Date());
+  }).formatToParts(now);
   const wd = (parts.find(p => p.type === "weekday") || {}).value || "";
   const hh = Number((parts.find(p => p.type === "hour") || {}).value || 0) % 24;
   const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
@@ -493,7 +527,7 @@ function getVmMatchMarkup(order, slotNum) {
 
   const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
   const vm = rawVm.filter(v => {
-    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 1 ? 'kiwoom' : (Number(v.slot) <= 6 ? 'meritz' : 'ls')));
+    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? 'meritz' : (Number(v.slot) <= 11 ? 'ls' : 'kiwoom')));
     if (b !== activeBr) return false;
     if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
     return true;
@@ -580,7 +614,7 @@ function getOrderStatusBadgeMarkup(order, slotNum) {
   if (currentPhase === 'reserved') {
     if (cache.lastUpdated > 0 && Array.isArray(cache.vmOrders) && cache.vmOrders.length > 0) {
       const activeVmOrders = cache.vmOrders.filter(v => {
-        const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 1 ? "kiwoom" : (Number(v.slot) <= 6 ? "meritz" : "ls")));
+        const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? "meritz" : (Number(v.slot) <= 11 ? "ls" : "kiwoom")));
         if (b !== activeBr) return false;
         if (slotNum !== undefined && Number(v.slot) !== Number(slotNum)) return false;
         return true;
@@ -1053,14 +1087,12 @@ function refreshOrderViewUI() {
   }
 
   // 주문표일치 / 시트일치 버튼 제어: 주문표 패널 표시 시 활성화
-  const btnOrderCompare = document.getElementById('btnOrderCompare');
-  if (btnOrderCompare) {
-    btnOrderCompare.style.display = 'flex';
-  }
-  const btnSheetVerify = document.getElementById('btnSheetVerify');
-  if (btnSheetVerify) {
-    btnSheetVerify.style.display = 'flex';
-  }
+  document.querySelectorAll('#btnOrderCompare, #btnOrderCompareInOrder').forEach(btn => {
+    btn.style.display = 'flex';
+  });
+  document.querySelectorAll('#btnSheetVerify, #btnSheetVerifyInOrder').forEach(btn => {
+    btn.style.display = 'flex';
+  });
 
   // 확대 아이콘 제어: 보유현황 모드(!window.isOrderView)일 때는 전체적으로 숨김
   const btnExpand = document.getElementById('btnExpandOrder');
@@ -1352,7 +1384,7 @@ window.getCombinedOrderEvaluationData = function() {
   // 3. VM Orders (VM 통합 주문표)
   const vmRawOrders = (Array.isArray(cache.vmOrders) ? cache.vmOrders : []).filter(v => {
     if (!v) return false;
-    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 1 ? 'kiwoom' : (Number(v.slot) <= 6 ? 'meritz' : 'ls')));
+    const b = v.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(v.slot) : (Number(v.slot) <= 6 ? 'meritz' : (Number(v.slot) <= 11 ? 'ls' : 'kiwoom')));
     return b === activeBr;
   });
   let vmCombined = [];
@@ -1455,7 +1487,7 @@ window.getCombinedOrderEvaluationData = function() {
           const details = cache.marketCloseResult.report?.details || [];
           const activeDetails = details.filter(r => {
             if (!r) return false;
-            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 1 ? 'kiwoom' : (Number(r.slot) <= 6 ? 'meritz' : 'ls')));
+            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'meritz' : (Number(r.slot) <= 11 ? 'ls' : 'kiwoom')));
             return b === activeBr;
           });
           activeDetails.forEach(item => {
@@ -1486,7 +1518,7 @@ window.getCombinedOrderEvaluationData = function() {
             : (Array.isArray(cache.executed.results) ? cache.executed.results : []);
           const activeList = list.filter(r => {
             if (!r) return false;
-            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 1 ? 'kiwoom' : (Number(r.slot) <= 6 ? 'meritz' : 'ls')));
+            const b = r.broker || (window.BrokerService ? window.BrokerService.brokerForSlot(r.slot) : (Number(r.slot) <= 6 ? 'meritz' : (Number(r.slot) <= 11 ? 'ls' : 'kiwoom')));
             return b === activeBr;
           });
           allBrokerOrders = activeList.map(item => ({
@@ -1895,21 +1927,23 @@ window.compareOrderBookManual = async function() {
 
 // 📊 시트 검증 버튼 상태 관리 ('시트확인중', '시트일치', '시트불일치')
 window.updateSheetVerifyButton = function(status, reason) {
-  const btn = document.getElementById('btnSheetVerify');
-  if (!btn) return;
-  if (status === 'checking' || status === 'syncing') {
-    btn.innerHTML = '시트확인중';
-    btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
-    btn.title = status === 'syncing' ? '구글 시트 데이터 동기화(로그인)가 진행 중입니다...' : '구글 시트와 앱의 데이터를 검증 중입니다...';
-  } else if (status === 'matched') {
-    btn.innerHTML = '시트일치';
-    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-    btn.title = '모든 활성 슬롯의 시트 데이터가 앱과 100% 일치합니다.';
-  } else if (status === 'mismatched') {
-    btn.innerHTML = '시트불일치';
-    btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
-    btn.title = reason ? `시트 데이터 불일치 (${reason})` : '시트 데이터와 앱의 데이터가 일치하지 않는 슬롯이 있습니다.';
-  }
+  const btns = document.querySelectorAll('#btnSheetVerify, #btnSheetVerifyInOrder');
+  if (!btns || btns.length === 0) return;
+  btns.forEach(btn => {
+    if (status === 'checking' || status === 'syncing') {
+      btn.innerHTML = '시트확인중';
+      btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      btn.title = status === 'syncing' ? '구글 시트 데이터 동기화(로그인)가 진행 중입니다...' : '구글 시트와 앱의 데이터를 검증 중입니다...';
+    } else if (status === 'matched') {
+      btn.innerHTML = '시트일치';
+      btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      btn.title = '모든 활성 슬롯의 시트 데이터가 앱과 100% 일치합니다.';
+    } else if (status === 'mismatched') {
+      btn.innerHTML = '시트불일치';
+      btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+      btn.title = reason ? `시트 데이터 불일치 (${reason})` : '시트 데이터와 앱의 데이터가 일치하지 않는 슬롯이 있습니다.';
+    }
+  });
 };
 
 window.isHoldingsMatchForVerification = function(arr1, arr2) {
@@ -2263,7 +2297,7 @@ function buildSheetVerificationBodyContent(vmRes) {
     const vm = vmRes.slotStates.find(s => s.slot === slot) || { slot, active: false, holdings: [] };
     if (!app?.active && !vm?.active) continue;
 
-    const br = window.BrokerService ? window.BrokerService.brokerForSlot(slot) : (slot <= 1 ? 'kiwoom' : (slot <= 6 ? 'meritz' : 'ls'));
+    const br = window.BrokerService ? window.BrokerService.brokerForSlot(slot) : (slot <= 6 ? 'meritz' : (slot <= 11 ? 'ls' : 'kiwoom'));
     const brokerTag = br === 'kiwoom'
       ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">키움</span>'
       : (br === 'meritz'
@@ -2660,12 +2694,15 @@ window.submitCombinedOrdersToBroker = async function() {
 
 // ⭐️ [단일 일치 판정] 통합 주문표 헤더 제목 및 [일치확인] 버튼 상태를 VM/앱/증권사 대조 결과에 따라 일괄 동기화
 function updateCombinedOrderMatchStatus(opts = {}) {
-  const btn = document.getElementById('btnOrderCompare');
+  const compareBtns = document.querySelectorAll('#btnOrderCompare, #btnOrderCompareInOrder');
   const titleEl = document.getElementById('combinedOrderPanelTitle');
-  const orderPanel = document.getElementById('panelOrder');
-  if (btn && orderPanel && (orderPanel.classList.contains('hidden') || orderPanel.style.display === 'none')) {
-    btn.style.display = 'none';
-  }
+  const setBtns = (html, bg, title) => {
+    compareBtns.forEach(b => {
+      b.innerHTML = html;
+      b.style.background = bg;
+      if (title) b.title = title;
+    });
+  };
   const cache = window.orderStatusCache || {};
   const activeBr = (window.BrokerService && typeof window.BrokerService.activeBroker === 'string' && window.BrokerService.activeBroker.length > 1) 
     ? window.BrokerService.activeBroker : 'kiwoom';
@@ -2690,11 +2727,7 @@ function updateCombinedOrderMatchStatus(opts = {}) {
     if (cache.hasEverLoaded && !opts.forceLoadingUi) {
       return;
     }
-    if (btn) {
-      btn.innerHTML = '확인중';
-      btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
-      btn.title = 'VM/앱/증권사 주문 데이터를 확인 중입니다...';
-    }
+    setBtns('확인중', 'linear-gradient(135deg, #64748b, #475569)', 'VM/앱/증권사 주문 데이터를 확인 중입니다...');
     if (titleEl) {
       titleEl.innerHTML = '통합 주문표 <span style="color:#94a3b8; font-size:11px; font-weight:700;">(확인중)</span>';
     }
@@ -2706,10 +2739,7 @@ function updateCombinedOrderMatchStatus(opts = {}) {
 
   // 앱 슬롯별 백테스트 계산이 진행 중인 경우 불일치가 아닌 계산중으로 표시
   if (evalData.isPendingCalculation) {
-    if (btn) {
-      btn.innerHTML = '계산중';
-      btn.style.background = 'linear-gradient(135deg, #64748b, #475569)';
-    }
+    setBtns('계산중', 'linear-gradient(135deg, #64748b, #475569)', '주문표 백테스트 계산이 진행 중입니다...');
     if (titleEl) {
       titleEl.innerHTML = '통합 주문표 <span style="color:#94a3b8; font-size:11px; font-weight:700;">(계산중)</span>';
     }
@@ -2778,17 +2808,12 @@ function updateCombinedOrderMatchStatus(opts = {}) {
     } catch(e) { console.error("Log eval error", e); }
 
   // Update UI Elements
-  if (btn) {
-    if (isHoliday) {
-      btn.innerHTML = '휴장일';
-      btn.style.background = 'linear-gradient(135deg, #8b5cf6, #6d28d9)';
-    } else if (isAllMatched) {
-      btn.innerHTML = '주문표일치';
-      btn.style.background = 'linear-gradient(135deg, #10b981, #047857)';
-    } else {
-      btn.innerHTML = '주문표불일치';
-      btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
-    }
+  if (isHoliday) {
+    setBtns('휴장일', 'linear-gradient(135deg, #8b5cf6, #6d28d9)', '미국 증시 휴장일입니다.');
+  } else if (isAllMatched) {
+    setBtns('주문표일치', 'linear-gradient(135deg, #10b981, #047857)', 'VM/앱/증권사 주문표가 일치합니다.');
+  } else {
+    setBtns('주문표불일치', 'linear-gradient(135deg, #ef4444, #b91c1c)', 'VM/앱/증권사 주문표에 불일치가 있습니다.');
   }
 
   if (titleEl) {

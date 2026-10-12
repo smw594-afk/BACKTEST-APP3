@@ -28,7 +28,7 @@ window.BrokerService = {
     return this.setAutoOrder("ls", enabled);
   },
 
-  // 설정 화면의 슬롯 탭을 활성 브로커 것만 보이게 한다(키움=1 / 메리츠=2~6 / LS=7~12).
+  // 설정 화면의 슬롯 탭을 활성 브로커 것만 보이게 한다(메리츠=1~6 / LS=7~11 / 키움=12).
   // ⚠️ 표시만 바꾸면 안 된다 — 지금 열려 있는 탭(activeSettingsTab)이 반대 브로커 슬롯이면
   //    사용자에게 보이지 않는 슬롯에 설정이 저장된다. 그래서 현재 브로커의 첫 슬롯으로 옮긴다.
   applySettingsTabVisibility() {
@@ -132,12 +132,12 @@ window.BrokerService = {
           btn.style.color = "#000";
           btn.style.boxShadow = "0 2px 6px rgba(16,185,129,0.4)";
         } else if (broker === "meritz") {
-          btn.innerHTML = '🟠 메리츠 <span style="font-size:9px;">▼</span>';
+          btn.innerHTML = '🟢 메리츠 <span style="font-size:9px;">▼</span>';
           btn.style.background = "linear-gradient(135deg, #f97316, #ea580c)";
           btn.style.color = "#fff";
           btn.style.boxShadow = "0 2px 6px rgba(249,115,22,0.4)";
         } else {
-          btn.innerHTML = '🟣 LS <span style="font-size:9px;">▼</span>';
+          btn.innerHTML = '🟢 LS <span style="font-size:9px;">▼</span>';
           btn.style.background = "linear-gradient(135deg, #a855f7, #7e22ce)";
           btn.style.color = "#fff";
           btn.style.boxShadow = "0 2px 6px rgba(168,85,247,0.4)";
@@ -287,25 +287,25 @@ window.BrokerService = {
         <p style="font-size:12px; color:#94a3b8; margin-bottom:14px;">사용하실 증권사 모드를 선택해 주세요.</p>
 
         <div style="display:flex; flex-direction:column; gap:10px;">
-          <!-- 키움증권 선택 버튼 -->
-          <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('kiwoom');" 
-            style="padding:12px; border-radius:10px; background:${active === 'kiwoom' ? 'linear-gradient(135deg, #10b981, #059669)' : '#0f172a'}; color:${active === 'kiwoom' ? '#000' : '#fff'}; border:2px solid ${active === 'kiwoom' ? '#10b981' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
-            <span>🟢 키움증권 모드 (슬롯 1)</span>
-            ${active === 'kiwoom' ? '<span style="font-size:11px; background:#000; color:#10b981; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
-          </button>
-
           <!-- 메리츠증권 선택 버튼 -->
           <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('meritz');" 
             style="padding:12px; border-radius:10px; background:${active === 'meritz' ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#0f172a'}; color:#fff; border:2px solid ${active === 'meritz' ? '#f97316' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
-            <span>🟠 메리츠 모드 (슬롯 2~6)</span>
+            <span>🟢 메리츠 모드 (슬롯 1~6)</span>
             ${active === 'meritz' ? '<span style="font-size:11px; background:#fff; color:#ea580c; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
 
           <!-- LS증권 선택 버튼 -->
           <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('ls');" 
             style="padding:12px; border-radius:10px; background:${active === 'ls' ? 'linear-gradient(135deg, #a855f7, #7e22ce)' : '#0f172a'}; color:#fff; border:2px solid ${active === 'ls' ? '#a855f7' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
-            <span>🟣 LS증권 모드 (슬롯 7~12)</span>
+            <span>🟢 LS증권 모드 (슬롯 7~11)</span>
             ${active === 'ls' ? '<span style="font-size:11px; background:#fff; color:#a855f7; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
+          </button>
+
+          <!-- 키움증권 선택 버튼 -->
+          <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('kiwoom');" 
+            style="padding:12px; border-radius:10px; background:${active === 'kiwoom' ? 'linear-gradient(135deg, #10b981, #059669)' : '#0f172a'}; color:${active === 'kiwoom' ? '#000' : '#fff'}; border:2px solid ${active === 'kiwoom' ? '#10b981' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+            <span>🟢 키움증권 모드 (슬롯 12)</span>
+            ${active === 'kiwoom' ? '<span style="font-size:11px; background:#000; color:#10b981; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
         </div>
       </div>
@@ -342,8 +342,8 @@ window.BrokerService = {
     const brokerName = isMeritz ? "메리츠증권" : (isLs ? "LS증권" : "키움증권");
     const brokerColor = isMeritz ? "#f97316" : (isLs ? "#a855f7" : "#10b981");
     const altBroker = targetBroker === "kiwoom" ? "meritz" : "kiwoom";
-    const altBrokerName = altBroker === "meritz" ? "🟠 메리츠증권" : "🟢 키움증권";
-    const altBrokerSlots = altBroker === "meritz" ? "슬롯 2~6" : "슬롯 1";
+    const altBrokerName = altBroker === "meritz" ? "🟢 메리츠증권" : "🟢 키움증권";
+    const altBrokerSlots = altBroker === "meritz" ? "슬롯 1~6" : "슬롯 12";
 
     // 점검 스케줄 상세 안내
     const maintInfo = isMeritz ? {
@@ -419,17 +419,19 @@ window.BrokerService = {
   },
 
   // ⚠️ 슬롯 → 브로커 판정의 단일 진실 공급원.
-  // 2026-10-12 메리츠 추가: 슬롯 1=키움, 슬롯 2~6=메리츠, 슬롯 7~12=LS.
-  // 서버 쪽 짝: proxy/broker3-proxy.js의 KIWOOM_MAX_SLOT/MERITZ_MAX_SLOT, daily-backtest3.js의 BROKER_OF.
+  // 2026-10-12 개편: 슬롯 1~6=메리츠, 슬롯 7~11=LS, 슬롯 12=키움.
+  // 서버 쪽 짝: proxy/broker3-proxy.js의 brokerForSlot, daily-backtest3.js의 BROKER_OF.
   // 경계값은 항상 함께 바꾼다.
-  KIWOOM_MAX_SLOT: 1,
-  MERITZ_MAX_SLOT: 6,
+  MERITZ_SLOTS: [1, 2, 3, 4, 5, 6],
+  LS_SLOTS: [7, 8, 9, 10, 11],
+  KIWOOM_SLOTS: [12],
 
   brokerForSlot(slot) {
     const s = Number(slot);
-    if (s <= this.KIWOOM_MAX_SLOT) return "kiwoom";
-    if (s <= this.MERITZ_MAX_SLOT) return "meritz";
-    return "ls";
+    if (s >= 1 && s <= 6) return "meritz";
+    if (s >= 7 && s <= 11) return "ls";
+    if (s === 12) return "kiwoom";
+    return "meritz";
   },
 
   // 그 브로커가 쓰는 슬롯 번호 목록(설정 화면 탭 표시 등에 사용)
@@ -644,25 +646,25 @@ window.BrokerService = {
         </h3>
         <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">AppSecret은 브라우저에 저장하지 않고 GCP VM에만 보관됩니다(골든 룰 5).</p>
 
-        <!-- 브로커 선택 탭: 키움/메리츠/LS 각각 따로 등록한다 -->
+        <!-- 브로커 선택 탭: 메리츠/LS/키움 각각 따로 등록한다 -->
         <div style="display:flex; gap:8px; margin-bottom:14px;">
-          <button onclick="window.BrokerService.openBrokerKeyModal('kiwoom')"
-            style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
-                   border:2px solid ${broker === 'kiwoom' ? '#10b981' : '#334155'};
-                   background:${broker === 'kiwoom' ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f172a'}; color:#fff;">
-            🟢 키움 (슬롯1)
-          </button>
           <button onclick="window.BrokerService.openBrokerKeyModal('meritz')"
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
                    border:2px solid ${broker === 'meritz' ? '#f97316' : '#334155'};
                    background:${broker === 'meritz' ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#0f172a'}; color:#fff;">
-            🟠 메리츠 (슬롯2~6)
+            🟢 메리츠 (슬롯1~6)
           </button>
           <button onclick="window.BrokerService.openBrokerKeyModal('ls')"
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
                    border:2px solid ${broker === 'ls' ? '#a855f7' : '#334155'};
                    background:${broker === 'ls' ? 'linear-gradient(135deg,#a855f7,#7e22ce)' : '#0f172a'}; color:#fff;">
-            🟣 LS증권 (슬롯7~12)
+            🟢 LS증권 (슬롯7~11)
+          </button>
+          <button onclick="window.BrokerService.openBrokerKeyModal('kiwoom')"
+            style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
+                   border:2px solid ${broker === 'kiwoom' ? '#10b981' : '#334155'};
+                   background:${broker === 'kiwoom' ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f172a'}; color:#fff;">
+            🟢 키움 (슬롯12)
           </button>
         </div>
 
@@ -786,6 +788,27 @@ window.BrokerService = {
         return;
       }
       await this.refreshBotStatusInModal(broker);
+
+      // ⭐️ [VM 주문 예약 즉시 동기화] 봇 가동 시 오늘자 주문표를 즉시 계산하여 VM에 예약
+      if (enabled) {
+        if (el) el.innerHTML += `<div id="bot-order-sync-msg" style="color:#60a5fa; font-size:11px; margin-top:4px;">⏳ VM 주문표 자동 예약 중...</div>`;
+        try {
+          let pushCount = 0;
+          if (typeof window.pushTodayOrders === "function") {
+            const pushRes = await window.pushTodayOrders();
+            if (pushRes && pushRes.ok) pushCount = pushRes.count || 0;
+          }
+          if (typeof window.triggerVmRecalc === "function") {
+            window.triggerVmRecalc();
+          }
+          const syncEl = document.getElementById("bot-order-sync-msg");
+          if (syncEl) syncEl.innerHTML = `<span style="color:#4ade80;">✅ VM 주문 예약 완료 (${pushCount}건)</span>`;
+        } catch (err) {
+          console.warn("[BotToggle] VM 주문 예약 중 오류 (비치명적):", err);
+          const syncEl = document.getElementById("bot-order-sync-msg");
+          if (syncEl) syncEl.innerHTML = `<span style="color:#f59e0b;">⚠️ VM 주문 예약 건너뜀 (${err.message})</span>`;
+        }
+      }
     } catch (e) {
       if (el) el.textContent = "실패: " + e.message;
     }

@@ -198,7 +198,7 @@ function renderCombinedHoldings() {
       reconcileCell = window.BrokerReconcile.cellHtml(st, isPrimaryDate);
     }
 
-    return `<tr>${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
+    return `<tr class="${isPrimaryDate ? 'date-sync-highlight-row' : ''}" data-buy-date="${buyDateNorm}">${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 
   container.innerHTML = tableRows;
@@ -240,6 +240,7 @@ function renderTableSlot(inv, stratName, slotNum) {
   });
 
   const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
+  const primaryDate = typeof getPrimaryStrategyDisplayDate === 'function' ? getPrimaryStrategyDisplayDate() : '';
   tbody.innerHTML = sortedInv.map(o => {
     let sellPriceStr = "-";
     let stopDateStr = typeof window.getStopLossEstimatedDate === "function" ? window.getStopLossEstimatedDate(o, o.stratName) : "-";
@@ -286,6 +287,11 @@ function renderTableSlot(inv, stratName, slotNum) {
       }
     }
 
+    const buyDateNorm = typeof window.normalizeHighlightDate === 'function'
+      ? window.normalizeHighlightDate(buyDateStr || o.buyDate || o.buy_date)
+      : (typeof normalizeHighlightDate === 'function' ? normalizeHighlightDate(buyDateStr || o.buyDate || o.buy_date) : '');
+    const isPrimaryDate = Boolean(primaryDate && buyDateNorm && buyDateNorm === primaryDate);
+
     const displayMode = modeMap[o.mode] || o.mode;
 
     let profitStr = "-";
@@ -311,7 +317,7 @@ function renderTableSlot(inv, stratName, slotNum) {
       buyPriceStr = "$" + Number(o.buy_price).toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
-    return `<tr><td style="color:${window.SLOT_COLORS[(slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
+    return `<tr class="${isPrimaryDate ? 'date-sync-highlight-row' : ''}" data-buy-date="${buyDateNorm}"><td style="color:${window.SLOT_COLORS[(slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 
   if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();

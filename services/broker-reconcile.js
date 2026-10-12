@@ -112,7 +112,7 @@
   // 체결 대조가 엉뚱한 브로커 계좌를 보게 됐다.
   const brokerForSlot = (slot) => (window.BrokerService
     ? window.BrokerService.brokerForSlot(slot)
-    : (Number(slot) <= 1 ? "kiwoom" : (Number(slot) <= 6 ? "meritz" : "ls")));
+    : (Number(slot) <= 6 ? "meritz" : (Number(slot) <= 11 ? "ls" : "kiwoom")));
 
   // ─────────── cached proxy reads ───────────
   async function getFills(broker, force = false) {
@@ -322,7 +322,7 @@
     const maxSlots = window.MAX_SLOTS || 12;
     for (let s = 1; s <= maxSlots; s++) {
       if (typeof window.isSlotActive === 'function' && !window.isSlotActive(s)) continue;
-      const sBroker = window.BrokerService ? window.BrokerService.brokerForSlot(s) : (s <= 1 ? 'kiwoom' : (s <= 6 ? 'meritz' : 'ls'));
+      const sBroker = window.BrokerService ? window.BrokerService.brokerForSlot(s) : (s <= 6 ? 'meritz' : (s <= 11 ? 'ls' : 'kiwoom'));
       if (sBroker !== targetBroker) continue;
 
       const sTicker = normSymbol(window.slotConfigs?.[s]?.basics?.ticker || '');
@@ -334,7 +334,15 @@
       if (!res) continue;
 
       // 1) 매도 수량 합산: res.trades에서 청산일이 targetDate인 건
-      const trades = Array.isArray(res.trades) ? res.trades : [];
+      let trades = Array.isArray(res.trades) ? res.trades : [];
+      if (trades.length === 0 && window.lastMyPerfData?.[`strat${s}`]?.logs) {
+        if (typeof window.reconstructRealTrades === 'function') {
+          trades = window.reconstructRealTrades(window.lastMyPerfData[`strat${s}`].logs, s);
+        } else if (window.UI?.tradeHistory?.reconstructRealTrades) {
+          trades = window.UI.tradeHistory.reconstructRealTrades(window.lastMyPerfData[`strat${s}`].logs, s);
+        }
+      }
+
       trades.forEach(t => {
         const sDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(t.sellDate || t.sell_date || '') : (t.sellDate || '');
         if (sDate === targetDate) {
@@ -342,12 +350,22 @@
         }
       });
 
-      // 2) 매수 수량 합산: res.inv에서 진입일이 targetDate인 건
+      // 2) 매수 수량 합산:
+      // A) 현재 보유 중인 꾸러미(res.inv) 중 진입일이 targetDate인 건
       const inv = Array.isArray(res.inv) ? res.inv : [];
       inv.forEach(h => {
         const bDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(h.buyDate || h.buy_date || '') : (h.buyDate || '');
         if (bDate === targetDate) {
           appBuyQty += Math.round(Number(h.qty || 0));
+        }
+      });
+
+      // B) ⭐️ [과거 매매 상계 복원] 과거에 매수했다가 이미 매도 청산된 거래(trades) 중 진입일이 targetDate인 건도 매수 수량으로 합산!
+      // (과거에 진입하여 나중에 매도된 수량은 res.inv에 없고 trades에만 있으므로, 이를 더해야 당일 퉁치기 상계 수량이 정확히 산출됨)
+      trades.forEach(t => {
+        const bDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(t.buyDate || t.buy_date || '') : (t.buyDate || '');
+        if (bDate === targetDate) {
+          appBuyQty += Math.round(Number(t.qty || 0));
         }
       });
     }
@@ -666,9 +684,17 @@ window.toggleGcpBotEngine = async function() {
       } else {
         await window.BrokerService.setLsAutoOrder(!isStopping);
       }
+      if (!isStopping) {
+        if (typeof window.pushTodayOrders === "function") {
+          await window.pushTodayOrders();
+        }
+        if (typeof window.triggerVmRecalc === "function") {
+          window.triggerVmRecalc();
+        }
+      }
       btn.innerText = isStopping ? "▶️ GCP 봇 엔진 가동" : "⏸️ GCP 봇 엔진 정지";
       btn.style.background = isStopping ? "#10b981" : "#ef4444";
-      alert(isStopping ? "GCP 봇 엔진이 정지되었습니다." : "GCP 봇 엔진이 가동되었습니다.");
+      alert(isStopping ? "GCP 봇 엔진이 정지되었습니다." : "GCP 봇 엔진이 가동되었으며, 당일 주문이 VM에 예약되었습니다.");
     } catch(e) {
       alert("봇 엔진 상태 변경 실패: " + e.message);
       if (btn) btn.innerText = isStopping ? "⏸️ GCP 봇 엔진 정지" : "▶️ GCP 봇 엔진 가동";
