@@ -552,6 +552,7 @@ function renderDBTradeHistory() {
       const groupKey = `${broker}|${ticker}|${normalizedSellDate}`;
       if (!groupedByTicker.has(groupKey)) groupedByTicker.set(groupKey, []);
       groupedByTicker.get(groupKey).push({
+        slotNum: t.slotNum,
         buyDate: String(t.buyDate || t.buy_date || ""),
         qty: Number(t.qty || 0)
       });
@@ -561,14 +562,14 @@ function renderDBTradeHistory() {
       const [broker, ticker, normalizedSellDate] = groupKey.split('|');
       if (!reconcileState || !reconcileState.ready) {
         rows.forEach(r => {
-          const rowKey = `${groupKey}|${r.buyDate}`;
+          const rowKey = `${groupKey}|${r.buyDate}|${r.slotNum}`;
           sellStatusByRowKey.set(rowKey, { status: (reconcileState && reconcileState.failed) ? 'unknown' : 'loading', mismatchQty: 0 });
         });
         return;
       }
       if (!reconcileState.coveredDates.has(`${broker}|${normalizedSellDate}`)) {
         rows.forEach(r => {
-          const rowKey = `${groupKey}|${r.buyDate}`;
+          const rowKey = `${groupKey}|${r.buyDate}|${r.slotNum}`;
           sellStatusByRowKey.set(rowKey, { status: 'pending', mismatchQty: 0 });
         });
         return;
@@ -576,7 +577,7 @@ function renderDBTradeHistory() {
 
       // 매도 날짜에 신규 매수와 상계(퉁치기)된 수량을 합산 (당일 및 과거 거래일 공통)
       const totalNetted = typeof window.getNettedQtyForTickerDate === 'function'
-        ? window.getNettedQtyForTickerDate(ticker, normalizedSellDate, broker)
+        ? window.getNettedQtyForTickerDate(ticker, normalizedSellDate, broker, true)
         : 0;
 
       const live = reconcileState.sell.get(`${broker}|${ticker}|${normalizedSellDate}`);
@@ -586,38 +587,44 @@ function renderDBTradeHistory() {
 
       if (liveTotal <= 0) {
         rows.forEach(r => {
-          const rowKey = `${groupKey}|${r.buyDate}`;
+          const rowKey = `${groupKey}|${r.buyDate}|${r.slotNum}`;
           sellStatusByRowKey.set(rowKey, { status: 'mismatch', mismatchQty: r.qty });
         });
         return;
       }
 
-      // 진입일 역순으로 정렬하여 최신부터 매도 수량 차감
-      rows.sort((a, b) => b.buyDate.localeCompare(a.buyDate));
-      let remainingLiveQty = liveTotal;
+      // 3) 일 단위(그룹 단위) 대조 상태 결정:
+      let groupStatus = 'match';
+      let overQty = 0;
+      let mismatchQty = 0;
 
-      rows.forEach(r => {
-        const rowKey = `${groupKey}|${r.buyDate}`;
-        const rowQty = Math.round(r.qty);
-        if (remainingLiveQty >= rowQty) {
-          sellStatusByRowKey.set(rowKey, { status: 'match', mismatchQty: 0, isNetted: totalNetted > 0, nettedQty: totalNetted });
-          remainingLiveQty -= rowQty;
-        } else if (remainingLiveQty > 0) {
-          sellStatusByRowKey.set(rowKey, { status: 'mismatch', mismatchQty: rowQty - remainingLiveQty });
-          remainingLiveQty = 0;
-        } else {
-          sellStatusByRowKey.set(rowKey, { status: 'mismatch', mismatchQty: rowQty });
-        }
-      });
-
-      // 실제 매도가 앱 예상 합계보다 많으면(=과매도) 남은 초과분을 첫 행에 표시한다.
-      // 위 루프는 "예상보다 적게 팔린 경우"만 잡아서, 과매도는 전부 일치로 새어나갔다.
-      if (remainingLiveQty > 0 && rows.length) {
-        const firstKey = `${groupKey}|${rows[0].buyDate}`;
-        sellStatusByRowKey.set(firstKey, {
-          status: 'oversold', overQty: remainingLiveQty, appQty: appTotal, liveQty: liveTotal
-        });
+      // ⭐️ 10/12처럼 계획 매도(106주)가 상계 수량(totalNetted)으로 100% 충족된 경우:
+      // 브로커의 추가 수동 매도 1주와 무관하게 계획 매도는 전량 '일치(✓)'!
+      if (totalNetted > 0 && totalNetted >= appTotal) {
+        groupStatus = 'match';
+      } else if (liveTotal > appTotal) {
+        groupStatus = 'oversold';
+        overQty = liveTotal - appTotal;
+      } else if (liveTotal < appTotal) {
+        groupStatus = 'mismatch';
+        mismatchQty = appTotal - liveTotal;
+      } else {
+        groupStatus = 'match';
       }
+
+      // 4) 통합 보유현황처럼 해당 날짜 그룹의 모든 행에 일 단위 상태를 일관되게 부여!
+      rows.forEach(r => {
+        const rowKey = `${groupKey}|${r.buyDate}|${r.slotNum}`;
+        sellStatusByRowKey.set(rowKey, {
+          status: groupStatus,
+          overQty: overQty,
+          mismatchQty: mismatchQty,
+          isNetted: totalNetted > 0,
+          nettedQty: totalNetted,
+          appQty: appTotal,
+          liveQty: liveTotal
+        });
+      });
     });
 
     totalTradesCount = allTrades.length;
@@ -691,7 +698,7 @@ function renderDBTradeHistory() {
       const rawSellDate = String(t.sellDate || t.sell_date || "");
       const normalizedSellDateForLookup = normalizeDateKey(rawSellDate);
       const buyDateStr = String(t.buyDate || t.buy_date || "");
-      const rowKeyLookup = `${rowBroker}|${stripA(t.ticker)}|${normalizedSellDateForLookup}|${buyDateStr}`;
+      const rowKeyLookup = `${rowBroker}|${stripA(t.ticker)}|${normalizedSellDateForLookup}|${buyDateStr}|${slot}`;
       let rowStatusObj = sellStatusByRowKey.get(rowKeyLookup) || { status: 'pending', mismatchQty: 0 };
 
       // ⚠️ 2026-08-04: 당일 청산 거래(진입일=청산일)의 경우, 브로커 매수 체결과 대조한다.
@@ -743,11 +750,15 @@ function renderDBTradeHistory() {
       const borderCol = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)';
 
       let reconcile, rowBg;
+      const isOverbuy = rowStatus === 'overbuy';
       if (rowStatus === 'match') {
         reconcile = { text: '일치', icon: '✓', color: isLight ? '#1d4ed8' : '#3b82f6' };
         rowBg = 'background:transparent;'; // ⭐️ 과거 일치 건에 전체 음영을 주지 않는다 (당일 청산 건만 강조)
       } else if (isOversold) {
         reconcile = { text: `${Math.round(rowStatusObj.overQty || 0)}과매도`, icon: '', color: '#f59e0b' };
+        rowBg = 'background:transparent;';
+      } else if (isOverbuy) {
+        reconcile = { text: `${Math.round(rowStatusObj.overQty || 0)}과매수`, icon: '', color: '#f59e0b' };
         rowBg = 'background:transparent;';
       } else if (rowStatus === 'pending' || rowStatus === 'loading' || rowStatus === 'unknown') {
         reconcile = { text: '보류', icon: '△', color: textMuted };

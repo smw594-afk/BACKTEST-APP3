@@ -195,6 +195,16 @@ function renderCombinedHoldings() {
         ? window.getNettedQtyForTickerDate(symbol, buyDate, broker)
         : 0;
       const st = window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay, nettedQty);
+      
+      // ⭐️ 대조 상태 정상 반영:
+      // 1) 계획 수량 이상 확보된 경우 (overbuy):
+      //    - 당일 매수 행(isPrimaryDate): 초과분 표기 ('11과매수' 등)
+      //    - 과거 매수 행(!isPrimaryDate): 계획 수량 이상 확보되었으므로 정상 '일치(✓)'
+      // 2) 계획 수량보다 부족한 경우(mismatch), 조회 범위 밖인 경우(pending):
+      //    - 당일/과거 불문하고 원래 상태 그대로 유지! (LS/키움 미체결 및 보류 정상 복원)
+      if (!isPrimaryDate && st.status === 'overbuy') {
+        st.status = 'match';
+      }
       reconcileCell = window.BrokerReconcile.cellHtml(st, isPrimaryDate);
     }
 
@@ -390,11 +400,28 @@ function updateCombinedHoldingsSummary() {
     if (sortedDates.length > 0) summaryBaseDate = sortedDates[sortedDates.length - 1];
   }
 
-  // 해당 날짜의 매수 수량과 전체 수량 계산 (날짜 정규화 비교로 2자리/4자리 연도 불일치 해결)
-  const normSummaryDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(summaryBaseDate) : summaryBaseDate;
+  // 해당 날짜의 매수 수량과 전체 수량 계산 (날짜 정규화 비교로 2자리/4자리 연도 및 구분자 불일치 완전 해결)
+  const normDateFn = (v) => {
+    if (!v) return "";
+    const s = String(v).trim();
+    if (typeof window.normalizeDateKey === 'function') return window.normalizeDateKey(s);
+    if (window.BrokerReconcile && typeof window.BrokerReconcile.normalizeDateKey === 'function') return window.BrokerReconcile.normalizeDateKey(s);
+    const parts = s.split(/[-/.]/).map(p => p.trim()).filter(Boolean);
+    if (parts.length === 3) {
+      let [y, mo, d] = parts;
+      if (y.length <= 2) y = "20" + y.padStart(2, "0");
+      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+    const digits = s.replace(/[^0-9]/g, "");
+    if (digits.length === 8) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+    if (digits.length === 6) return `20${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4, 6)}`;
+    return s;
+  };
+
+  const normSummaryDate = normDateFn(summaryBaseDate);
   const matchedHoldings = normSummaryDate ? allHoldings.filter(h => {
     const rawHDate = String(h.buyDate || h.buy_date || '');
-    const normHDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(rawHDate) : rawHDate;
+    const normHDate = normDateFn(rawHDate);
     return normHDate === normSummaryDate;
   }) : [];
 

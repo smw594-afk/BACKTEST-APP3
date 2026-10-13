@@ -767,6 +767,8 @@ function showPerfView() {
 
   window.UI.order.refreshOrderViewUI();
   updateOrderHeaderUI();
+  const rankingBTBtn = document.getElementById('btnOrderRankingBacktest');
+  if (rankingBTBtn) rankingBTBtn.style.display = 'none';
 
   if (window.myChart) {
     setTimeout(() => {

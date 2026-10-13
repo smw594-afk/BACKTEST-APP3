@@ -32,7 +32,7 @@ window.BrokerService = {
   // ⚠️ 표시만 바꾸면 안 된다 — 지금 열려 있는 탭(activeSettingsTab)이 반대 브로커 슬롯이면
   //    사용자에게 보이지 않는 슬롯에 설정이 저장된다. 그래서 현재 브로커의 첫 슬롯으로 옮긴다.
   applySettingsTabVisibility() {
-    const broker = this.activeBroker || "kiwoom";
+    const broker = this.activeBroker || "meritz";
     const groups = {
       kiwoom: "settingsTabGroupKiwoom",
       meritz: "settingsTabGroupMeritz",
@@ -127,17 +127,17 @@ window.BrokerService = {
       const btn = document.getElementById("btnSingleBrokerNav");
       if (btn) {
         if (broker === "kiwoom") {
-          btn.innerHTML = '🟢 키움 <span style="font-size:9px;">▼</span>';
-          btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
-          btn.style.color = "#000";
-          btn.style.boxShadow = "0 2px 6px rgba(16,185,129,0.4)";
-        } else if (broker === "meritz") {
-          btn.innerHTML = '🟢 메리츠 <span style="font-size:9px;">▼</span>';
+          btn.innerHTML = '키움 <span style="font-size:9px;">▼</span>';
           btn.style.background = "linear-gradient(135deg, #f97316, #ea580c)";
           btn.style.color = "#fff";
           btn.style.boxShadow = "0 2px 6px rgba(249,115,22,0.4)";
+        } else if (broker === "meritz") {
+          btn.innerHTML = '메리츠 <span style="font-size:9px;">▼</span>';
+          btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
+          btn.style.color = "#000";
+          btn.style.boxShadow = "0 2px 6px rgba(16,185,129,0.4)";
         } else {
-          btn.innerHTML = '🟢 LS <span style="font-size:9px;">▼</span>';
+          btn.innerHTML = 'LS <span style="font-size:9px;">▼</span>';
           btn.style.background = "linear-gradient(135deg, #a855f7, #7e22ce)";
           btn.style.color = "#fff";
           btn.style.boxShadow = "0 2px 6px rgba(168,85,247,0.4)";
@@ -268,7 +268,7 @@ window.BrokerService = {
     const old = document.getElementById("broker-select-popup-modal");
     if (old) old.remove();
 
-    const active = this.activeBroker || "kiwoom";
+    const active = this.activeBroker || "meritz";
 
     const modal = document.createElement("div");
     modal.id = "broker-select-popup-modal";
@@ -289,9 +289,9 @@ window.BrokerService = {
         <div style="display:flex; flex-direction:column; gap:10px;">
           <!-- 메리츠증권 선택 버튼 -->
           <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('meritz');" 
-            style="padding:12px; border-radius:10px; background:${active === 'meritz' ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#0f172a'}; color:#fff; border:2px solid ${active === 'meritz' ? '#f97316' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+            style="padding:12px; border-radius:10px; background:${active === 'meritz' ? 'linear-gradient(135deg, #10b981, #059669)' : '#0f172a'}; color:${active === 'meritz' ? '#000' : '#fff'}; border:2px solid ${active === 'meritz' ? '#10b981' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
             <span>🟢 메리츠 모드 (슬롯 1~6)</span>
-            ${active === 'meritz' ? '<span style="font-size:11px; background:#fff; color:#ea580c; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
+            ${active === 'meritz' ? '<span style="font-size:11px; background:#000; color:#10b981; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
 
           <!-- LS증권 선택 버튼 -->
@@ -303,9 +303,9 @@ window.BrokerService = {
 
           <!-- 키움증권 선택 버튼 -->
           <button onclick="document.getElementById('broker-select-popup-modal')?.remove(); window.BrokerService.switchBrokerMode('kiwoom');" 
-            style="padding:12px; border-radius:10px; background:${active === 'kiwoom' ? 'linear-gradient(135deg, #10b981, #059669)' : '#0f172a'}; color:${active === 'kiwoom' ? '#000' : '#fff'}; border:2px solid ${active === 'kiwoom' ? '#10b981' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+            style="padding:12px; border-radius:10px; background:${active === 'kiwoom' ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#0f172a'}; color:#fff; border:2px solid ${active === 'kiwoom' ? '#f97316' : '#334155'}; font-size:14px; font-weight:700; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
             <span>🟢 키움증권 모드 (슬롯 12)</span>
-            ${active === 'kiwoom' ? '<span style="font-size:11px; background:#000; color:#10b981; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
+            ${active === 'kiwoom' ? '<span style="font-size:11px; background:#fff; color:#ea580c; padding:2px 6px; border-radius:4px; font-weight:800;">선택됨 ✓</span>' : ''}
           </button>
         </div>
       </div>
@@ -326,7 +326,7 @@ window.BrokerService = {
   },
 
   showMaintenancePopup(broker, errorMsg, force = false) {
-    const targetBroker = broker || this.activeBroker || "kiwoom";
+    const targetBroker = broker || this.activeBroker || "meritz";
     const now = Date.now();
     if (!force && this._lastMaintPopup && this._lastMaintPopup[targetBroker] && (now - this._lastMaintPopup[targetBroker] < 30000)) {
       return;
@@ -340,7 +340,7 @@ window.BrokerService = {
     const isMeritz = targetBroker === "meritz";
     const isLs = targetBroker === "ls";
     const brokerName = isMeritz ? "메리츠증권" : (isLs ? "LS증권" : "키움증권");
-    const brokerColor = isMeritz ? "#f97316" : (isLs ? "#a855f7" : "#10b981");
+    const brokerColor = isMeritz ? "#10b981" : (isLs ? "#a855f7" : "#f97316");
     const altBroker = targetBroker === "kiwoom" ? "meritz" : "kiwoom";
     const altBrokerName = altBroker === "meritz" ? "🟢 메리츠증권" : "🟢 키움증권";
     const altBrokerSlots = altBroker === "meritz" ? "슬롯 1~6" : "슬롯 12";
@@ -398,7 +398,7 @@ window.BrokerService = {
         </div>
         <div style="display:flex; flex-direction:column; gap:8px;">
           <button onclick="document.getElementById('broker-maintenance-notice-modal')?.remove(); window.BrokerService.switchBrokerMode('${altBroker}');"
-            style="padding:10px; border-radius:8px; background:${altBroker === 'meritz' ? 'linear-gradient(135deg, #f97316, #ea580c)' : (altBroker === 'kiwoom' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #a855f7, #7e22ce)')}; color:${altBroker === 'kiwoom' ? '#000' : '#fff'}; border:none; font-size:12.5px; font-weight:700; cursor:pointer;">
+            style="padding:10px; border-radius:8px; background:${altBroker === 'meritz' ? 'linear-gradient(135deg, #10b981, #059669)' : (altBroker === 'kiwoom' ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'linear-gradient(135deg, #a855f7, #7e22ce)')}; color:${altBroker === 'meritz' ? '#000' : '#fff'}; border:none; font-size:12.5px; font-weight:700; cursor:pointer;">
             ${altBrokerName} 모드로 전환 (${altBrokerSlots})
           </button>
           <button onclick="document.getElementById('broker-maintenance-notice-modal')?.remove();"
@@ -410,7 +410,7 @@ window.BrokerService = {
     `;
     document.body.appendChild(modal);
   },
-  activeBroker: "kiwoom",
+  activeBroker: "meritz",
 
   getApiBase() {
     const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -628,8 +628,8 @@ window.BrokerService = {
     if (oldModal) oldModal.remove();
 
     const title = broker === "kiwoom"
-      ? "🟢 키움증권 해외주식 API 키 설정"
-      : (broker === "meritz" ? "🟠 메리츠증권 해외주식 API 키 설정" : "🟣 LS증권 해외주식 API 키 설정");
+      ? "🟠 키움증권 해외주식 API 키 설정"
+      : (broker === "meritz" ? "🟢 메리츠증권 해외주식 API 키 설정" : "🟣 LS증권 해외주식 API 키 설정");
     const saved = this.getSavedKeys(broker);
 
     const modal = document.createElement("div");
@@ -650,8 +650,8 @@ window.BrokerService = {
         <div style="display:flex; gap:8px; margin-bottom:14px;">
           <button onclick="window.BrokerService.openBrokerKeyModal('meritz')"
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
-                   border:2px solid ${broker === 'meritz' ? '#f97316' : '#334155'};
-                   background:${broker === 'meritz' ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#0f172a'}; color:#fff;">
+                   border:2px solid ${broker === 'meritz' ? '#10b981' : '#334155'};
+                   background:${broker === 'meritz' ? 'linear-gradient(135deg,#10b981,#059669)' : '#0f172a'}; color:${broker === 'meritz' ? '#000' : '#fff'};">
             🟢 메리츠 (슬롯1~6)
           </button>
           <button onclick="window.BrokerService.openBrokerKeyModal('ls')"
@@ -662,9 +662,9 @@ window.BrokerService = {
           </button>
           <button onclick="window.BrokerService.openBrokerKeyModal('kiwoom')"
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
-                   border:2px solid ${broker === 'kiwoom' ? '#10b981' : '#334155'};
-                   background:${broker === 'kiwoom' ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f172a'}; color:#fff;">
-            🟢 키움 (슬롯12)
+                   border:2px solid ${broker === 'kiwoom' ? '#f97316' : '#334155'};
+                   background:${broker === 'kiwoom' ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#0f172a'}; color:#fff;">
+            🟠 키움 (슬롯12)
           </button>
         </div>
 
@@ -1000,7 +1000,7 @@ window.BrokerService = {
   const paint = () => {
     try {
       const saved = localStorage.getItem("vtotal3_active_broker");
-      const initialBroker = (saved === "ls" || saved === "meritz") ? saved : "kiwoom";
+      const initialBroker = (saved === "ls" || saved === "kiwoom" || saved === "meritz") ? saved : "meritz";
       window.BrokerService.switchBrokerMode(initialBroker, true);
     } catch (e) { console.warn("[BrokerService] init:", e.message); }
   };

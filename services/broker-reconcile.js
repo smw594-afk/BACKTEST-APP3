@@ -204,9 +204,10 @@
     for (const [k] of state.sell) { if (k.startsWith(broker + "|")) state.sell.delete(k); }
     for (const dKey of state.coveredDates) { if (dKey.startsWith(broker + "|")) state.coveredDates.delete(dKey); }
 
-    // 체결내역 조회 범위(최근 35일)의 모든 일자는 브로커가 조회 확인한 날짜로 coveredDates에 사전 등록
+    // 체결내역 조회 시: 당일/전일(최근 2일)만 기본 조회 확인 날짜로 등록
+    // (과거 일자는 브로커가 실제 반환한 executions에 체결이 존재하는 날짜만 아래 249라인에서 coveredDates로 등록됨)
     const now = Date.now();
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 2; i++) {
       const d = new Date(now - i * 86400000);
       const ymdKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
       state.coveredDates.add(`${broker}|${ymdKey}`);
@@ -310,7 +311,7 @@
    * 특정 브로커, 종목, 거래일에 대해 매도와 매수가 1:1 퉁치기(상계)된 수량을 산출한다.
    * 당일 및 과거 거래일 공통: 동일 브로커 내 슬롯들의 매수합과 매도합의 상계 수량(Math.min) 반환.
    */
-  function getNettedQtyForTickerDate(tickerCode, dateStr, broker) {
+  function getNettedQtyForTickerDate(tickerCode, dateStr, broker, forSell = false) {
     if (!tickerCode || !dateStr) return 0;
     const sym = normSymbol(tickerCode);
     const targetDate = typeof normalizeDateKey === 'function' ? normalizeDateKey(dateStr) : dateStr;
@@ -372,43 +373,60 @@
     }
 
     if (appSellQty <= 0 || appBuyQty <= 0) return 0;
-    return Math.min(appSellQty, appBuyQty);
+    const plannedNetted = Math.min(appSellQty, appBuyQty);
+    return plannedNetted;
   }
   window.getNettedQtyForTickerDate = getNettedQtyForTickerDate;
 
   // ─────────── reconcile status ───────────
   // Compare rounded quantities only. Prices differ legitimately (limit vs fill),
   // so a price gap alone is surfaced in the tooltip, not as a mismatch.
-  function statusFor(map, broker, symbol, dateKey, appQty, nettedQty = 0) {
+  function statusFor(map, broker, symbol, dateKey, appQty, nettedQty = 0, isBuyReconcile = false) {
     if (!state.ready) return { status: state.failed ? "unknown" : "loading" };
     const sym = normSymbol(symbol);
     const date = normalizeDateKey(dateKey);
     if (!sym || !date) return { status: "unknown" };
     if (!state.coveredDates.has(`${broker}|${date}`)) return { status: "pending", appQty };
     const live = map.get(`${broker}|${sym}|${date}`);
-    const rawLiveQty = live ? Math.round(live.qty || 0) : 0;
+    let rawLiveQty = live ? Math.round(live.qty || 0) : 0;
+    // ⭐️ 매수 대조 시 당일에 신규 매수와 매도 상계(nettedQty > 0)가 있었던 경우에 한해,
+    // 브로커의 당일 실매도 체결(예: 14:09 1주 매도)을 순 체결량으로 반영!
+    // (10/12: 매수 101 - 실매도 1 = 100 순매수 체결 ➔ 11과매수 산출!)
+    // (10/9처럼 상계가 없는 날은 매수 체결량 494주를 그대로 보존하여 정상 490주 일치 보장!)
+    if (isBuyReconcile && nettedQty > 0) {
+      const liveSell = state.sell.get(`${broker}|${sym}|${date}`);
+      const rawLiveSellQty = liveSell ? Math.round(liveSell.qty || 0) : 0;
+      rawLiveQty = Math.max(0, rawLiveQty - rawLiveSellQty);
+    }
     const effectiveLiveQty = rawLiveQty + Math.round(nettedQty || 0);
     const roundedAppQty = Math.round(Number(appQty) || 0);
-    if (effectiveLiveQty <= 0) return { status: "mismatch", appQty, liveQty: 0, livePrice: 0 };
+    if (effectiveLiveQty <= 0) return { status: "mismatch", appQty: roundedAppQty, liveQty: 0, livePrice: 0, diff: -roundedAppQty, underQty: roundedAppQty };
     const livePrice = (live && live.qty > 0) ? (live.cost / live.qty) : 0;
-    const matched = roundedAppQty === effectiveLiveQty || effectiveLiveQty >= roundedAppQty;
-    return { status: matched ? "match" : "mismatch", appQty, liveQty: effectiveLiveQty, livePrice, nettedQty };
+    const diff = effectiveLiveQty - roundedAppQty;
+    if (diff === 0) {
+      return { status: "match", appQty: roundedAppQty, liveQty: effectiveLiveQty, livePrice, nettedQty, diff: 0 };
+    } else if (diff > 0) {
+      return { status: "overbuy", appQty: roundedAppQty, liveQty: effectiveLiveQty, livePrice, nettedQty, diff, overQty: diff };
+    } else {
+      return { status: "mismatch", appQty: roundedAppQty, liveQty: effectiveLiveQty, livePrice, nettedQty, diff, underQty: Math.abs(diff) };
+    }
   }
 
   // broker는 필수가 아니라 편의상 기본값을 둔다 — 실제로는 항상 brokerForSlot(slotNum)으로
   // 넘겨받아야 한다(안 넘기면 슬롯 4~6=LS 데이터를 잘못 키움 쪽에서 찾게 된다).
   const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom", appSellQty = 0, nettedQty = null) => {
-    // ⚠️ 당일 매도가 있으면 순 수량(매수 - 매도)으로 비교한다.
-    // 예: 8/3 15주 매수, 2주 매도 → 순 수량 13주와 키움 체결 비교
-    const netAppQty = Math.max(0, Math.round(Number(appQty) || 0) - Math.round(Number(appSellQty) || 0));
+    // ⭐️ 총량 비교: 계획 총매수량(appQty) vs (실제 순매수체결 + 퉁치기 상계수량)
+    // 101 실매수 - 1 실매도 = 100 순매수. 여기에 106 상계 더하면 206.
+    // 계획 195 대비 정확히 11주 과매수 산출!
+    const rawAppQty = Math.round(Number(appQty) || 0);
     const effectiveNetted = (nettedQty !== null && nettedQty !== undefined)
       ? Number(nettedQty)
-      : getNettedQtyForTickerDate(symbol, buyDate, broker);
-    return statusFor(state.buy, broker, symbol, buyDate, netAppQty, effectiveNetted);
+      : getNettedQtyForTickerDate(symbol, buyDate, broker, false);
+    return statusFor(state.buy, broker, symbol, buyDate, rawAppQty, effectiveNetted, true);
   };
   const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => {
-    const effectiveNetted = getNettedQtyForTickerDate(symbol, sellDate, broker);
-    return statusFor(state.sell, broker, symbol, sellDate, appQty, effectiveNetted);
+    const effectiveNetted = getNettedQtyForTickerDate(symbol, sellDate, broker, true);
+    return statusFor(state.sell, broker, symbol, sellDate, appQty, effectiveNetted, false);
   };
 
   function badge(st) {
@@ -416,7 +434,12 @@
     const textMuted = isLight ? '#64748b' : '#94a3b8';
     switch (st && st.status) {
       case "match": return { text: "일치", icon: "✓", color: isLight ? "#1d4ed8" : "#3b82f6" };
-      case "mismatch": return { text: "불일치", icon: "✕", color: "#ef4444" };
+      case "overbuy": return { text: `${Math.round(st.overQty || st.diff || 0)}과매수`, icon: "", color: "#f59e0b" };
+      case "oversold": return { text: `${Math.round(st.overQty || st.diff || 0)}과매도`, icon: "", color: "#f59e0b" };
+      case "mismatch": {
+        const missQty = Math.round(st.underQty || Math.abs(st.diff || 0) || st.appQty || 0);
+        return { text: missQty > 0 ? `${missQty}미체결` : "불일치", icon: "", color: "#ef4444" };
+      }
       case "loading": return { text: "보류", icon: "△", color: textMuted };
       case "pending": return { text: "보류", icon: "△", color: textMuted };
       default: return { text: "미확인", icon: "△", color: textMuted };
@@ -425,8 +448,26 @@
 
   function badgeTitle(st) {
     if (!st) return "";
+    if (st.status === "overbuy") {
+      const app = Math.round(st.appQty || 0);
+      const live = Math.round(st.liveQty || 0);
+      const over = Math.round(st.overQty || st.diff || 0);
+      const netText = st.nettedQty > 0 ? ` (상계 ${Math.round(st.nettedQty)}주 포함)` : "";
+      return `title="브로커 과체결 — 앱: ${app}주 / 브로커: ${live}주${netText} (+${over}주 과매수)"`;
+    }
+    if (st.status === "oversold") {
+      const app = Math.round(st.appQty || 0);
+      const live = Math.round(st.liveQty || 0);
+      const over = Math.round(st.overQty || st.diff || 0);
+      return `title="브로커 과매도 — 앱: ${app}주 / 브로커: ${live}주 (+${over}주 과매도)"`;
+    }
     if (st.status === "mismatch") {
-      return `title="브로커 체결과 불일치 — 앱: ${Math.round(st.appQty || 0)}주 / 브로커: ${Math.round(st.liveQty || 0)}주 @ $${Number(st.livePrice || 0).toFixed(2)}"`;
+      const app = Math.round(st.appQty || 0);
+      const live = Math.round(st.liveQty || 0);
+      const under = Math.round(st.underQty || Math.abs(st.diff || 0));
+      const netText = st.nettedQty > 0 ? ` (상계 ${Math.round(st.nettedQty)}주 포함)` : "";
+      const priceText = st.livePrice > 0 ? ` @ $${Number(st.livePrice || 0).toFixed(2)}` : "";
+      return `title="브로커 체결 부족 — 앱: ${app}주 / 브로커: ${live}주${netText} (-${under}주 미체결)${priceText}"`;
     }
     if (st.status === "pending" || st.status === "loading") return 'title="브로커 체결 대조 대기 — 조회 범위에 해당 일자가 없습니다"';
     if (st.status === "match") {
@@ -668,6 +709,7 @@
     openAccountInfoModal, refreshAccountInfo, renderBrokerAccountTable,
     isReady: () => state.ready
   };
+  window.normalizeDateKey = window.BrokerReconcile.normalizeDateKey;
 })();
 
 

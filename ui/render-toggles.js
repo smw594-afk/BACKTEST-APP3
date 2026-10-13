@@ -244,7 +244,8 @@ function updateOrderHeaderUI() {
   if (orderCompareInOrderBtn) orderCompareInOrderBtn.style.display = 'flex';
   if (sheetVerifyBtn) sheetVerifyBtn.style.display = 'flex';
   if (sheetVerifyInOrderBtn) sheetVerifyInOrderBtn.style.display = 'flex';
-  if (rankingBTBtn) rankingBTBtn.style.display = 'flex';
+  const isPerfActive = document.getElementById('btnPerfShow')?.classList.contains('active');
+  if (rankingBTBtn) rankingBTBtn.style.display = isPerfActive ? 'none' : 'flex';
   if (settingsBtn) settingsBtn.style.display = 'flex';
   if (orderSettingsBtn) orderSettingsBtn.style.display = 'flex';
 

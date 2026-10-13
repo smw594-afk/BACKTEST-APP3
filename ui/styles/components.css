@@ -674,7 +674,6 @@ h2:hover {
 
 .stats-profit-rate {
   font-size: calc(100% - 2px) !important;
-  font-weight: inherit !important;
   opacity: 0.8 !important;
   line-height: 1;
 }
@@ -1238,8 +1237,9 @@ h2:hover {
 }
 
 .stats-asset-principal b,
-.stats-asset-principal-val {
-  color: #c084fc !important;
+.stats-asset-principal-val,
+.stats-asset-principal .stats-asset-label {
+  color: #967BB6 !important;
 }
 
 .stats-asset-total {

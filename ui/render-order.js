@@ -865,7 +865,7 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
       const isKiwoom = activeBr === 'kiwoom';
       const isMeritz = activeBr === 'meritz';
       const brokerName = isKiwoom ? '키움' : (isMeritz ? '메리츠' : 'LS');
-      const grad = isKiwoom ? '#10b981, #047857' : (isMeritz ? '#f97316, #ea580c' : '#a855f7, #7e22ce');
+      const grad = isKiwoom ? '#f97316, #ea580c' : (isMeritz ? '#10b981, #059669' : '#a855f7, #7e22ce');
       return `<tr><td colspan="3" style="padding:8px 4px; text-align:center;">
         <button id="btnSubmitCombinedOrders" onclick="window.submitCombinedOrdersToBroker()"
           style="width:100%; padding:8px 10px; border:none; border-radius:8px; cursor:pointer;
@@ -908,7 +908,7 @@ function renderCombinedOrderBook(allRawOrders, alreadyCombined = false) {
 
     let slotPgsStr = "";
     if (activeSlotPgs.length > 0) {
-      slotPgsStr = `<span style="color: var(--text) !important; font-weight: 700; opacity: 0.95; margin-left: 2px;">(${activeSlotPgs.join(', ')})</span>`;
+      slotPgsStr = `<span class="stats-profit-rate" style="color: var(--text) !important; font-weight:700; margin-left: 2px;">(${activeSlotPgs.join(', ')})</span>`;
     }
 
     depletionVal = `${baseDepVal}${activeSlotPgs.length > 0 ? `(${activeSlotPgs.join(', ')})` : ''}`;
@@ -965,7 +965,7 @@ function renderOrderTableSlot(orders, slotNum) {
       const isKiwoom = br === 'kiwoom';
       const isMeritz = br === 'meritz';
       const brokerName = isKiwoom ? '키움' : (isMeritz ? '메리츠' : 'LS');
-      const grad = isKiwoom ? '#10b981, #047857' : (isMeritz ? '#f97316, #ea580c' : '#a855f7, #7e22ce');
+      const grad = isKiwoom ? '#f97316, #ea580c' : (isMeritz ? '#10b981, #059669' : '#a855f7, #7e22ce');
       return `<tr><td colspan="3" style="padding:6px 4px; text-align:center;">
         <button onclick="window.submitSlotOrdersToBroker(${slotNum})"
           style="width:100%; padding:6px 8px; border:none; border-radius:6px; cursor:pointer;
@@ -2302,9 +2302,9 @@ function buildSheetVerificationBodyContent(vmRes) {
 
     const br = window.BrokerService ? window.BrokerService.brokerForSlot(slot) : (slot <= 6 ? 'meritz' : (slot <= 11 ? 'ls' : 'kiwoom'));
     const brokerTag = br === 'kiwoom'
-      ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">키움</span>'
+      ? '<span style="background:rgba(249,115,22,0.2); color:#f97316; border:1px solid #f97316; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">키움</span>'
       : (br === 'meritz'
-        ? '<span style="background:rgba(249,115,22,0.2); color:#f97316; border:1px solid #f97316; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">메리츠</span>'
+        ? '<span style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid #10b981; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">메리츠</span>'
         : '<span style="background:rgba(168,85,247,0.2); color:#a855f7; border:1px solid #a855f7; font-size:10px; font-weight:800; padding:1px 5px; border-radius:4px;">LS</span>');
 
     const sheet = vm.sheetActual || {
@@ -2605,10 +2605,9 @@ window.submitCombinedOrdersToBroker = async function() {
     return;
   }
 
-  const broker = window.BrokerService.activeBroker || 'kiwoom';
-  const isKiwoom = broker === 'kiwoom';
-  const brokerLabel = isKiwoom ? '키움증권' : 'LS증권';
-  const slotRange = isKiwoom ? '1~6' : '7~12';
+  const broker = window.BrokerService?.activeBroker || 'meritz';
+  const brokerLabel = broker === 'meritz' ? '메리츠증권' : (broker === 'ls' ? 'LS증권' : '키움증권');
+  const slotRange = broker === 'meritz' ? '1~6' : (broker === 'ls' ? '7~11' : '12');
 
   const symbol = (typeof getSoleActiveTicker === 'function' ? getSoleActiveTicker() : '') || 'SOXL';
 

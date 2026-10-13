@@ -269,6 +269,12 @@ body.light-mode .stats-asset-legend-row:not(.stats-asset-header) > * {
   background: rgba(0, 0, 0, 0.02) !important;
 }
 
+body.light-mode .stats-asset-principal b,
+body.light-mode .stats-asset-principal-val,
+body.light-mode .stats-asset-principal .stats-asset-label {
+  color: #967BB6 !important;
+}
+
 body.light-mode .stats-asset-header {
   border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
 }
