@@ -2758,10 +2758,10 @@ window.openOrderTimeSettingsModal = async function() {
       if (getD(partsKst) !== getD(partsNy)) diff += 24;
       const isDst = (diff === 13);
 
-      // 접수 가능 시간 (프리마켓 오픈 ~ 장마감 15분 전)
+      // 접수 가능 시간 (프리마켓 오픈 ~ 장마감 1시간 전인 04:00 KST)
       const allowedHours = isDst 
         ? [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4] 
-        : [19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
+        : [19, 20, 21, 22, 23, 0, 1, 2, 3, 4];
 
       return {
         diffHours: diff,
@@ -2770,7 +2770,7 @@ window.openOrderTimeSettingsModal = async function() {
         openTimeKst: isDst ? "22:30" : "23:30",
         openMinsKst: isDst ? (22 * 60 + 30) : (23 * 60 + 30),
         startKst: isDst ? "18:00" : "19:00",
-        endKst: isDst ? "04:45" : "05:45",
+        endKst: "04:00",
         allowedHours,
         diffMinDefault: isDst ? 90 : 150, // 21:00 기준 개장 전 분
         presets: isDst ? [
@@ -2788,7 +2788,7 @@ window.openOrderTimeSettingsModal = async function() {
     } catch (_) {
       return {
         diffHours: 13, isDst: true, dstLabel: "서머타임 (13시간 차이)",
-        openTimeKst: "22:30", openMinsKst: 1350, startKst: "18:00", endKst: "04:45",
+        openTimeKst: "22:30", openMinsKst: 1350, startKst: "18:00", endKst: "04:00",
         allowedHours: [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4],
         diffMinDefault: 90,
         presets: [
@@ -2932,13 +2932,12 @@ window.openOrderTimeSettingsModal = async function() {
     const nyStr = `${String(nyH).padStart(2, "0")}:${String(nyM).padStart(2, "0")}`;
     previewNy.textContent = `${nyStr} ET`;
 
-    // 04시(또는 05시) 마감 시간 초과 검사
-    const maxHour = dst.isDst ? 4 : 5;
-    const isExceeded = (h === maxHour && m > 45);
+    // 04시 정각 마감 시간 초과 검사 (키움 20분 전 마감 및 3사 안전 접수를 위해 익일 04:00 정각 상한)
+    const isExceeded = (h === 4 && m > 0);
     if (isExceeded) {
-      warningText.textContent = `⚠️ 장마감 15분 전(${dst.endKst} KST)까지만 주문이 가능합니다. (45분으로 조정됩니다)`;
+      warningText.textContent = `⚠️ 증권사 LOC 접수 안전을 위해 익일 ${dst.endKst} KST 정각까지만 설정 가능합니다. (00분으로 조정됩니다)`;
       warningText.style.display = "block";
-      selM.value = 45;
+      selM.value = 0;
       return updatePreview();
     } else {
       warningText.style.display = "none";
@@ -2982,6 +2981,7 @@ window.openOrderTimeSettingsModal = async function() {
     presetBtns.forEach(b => {
       const bKst = b.getAttribute("data-kst");
       const isMatched = (bKst === kstStr);
+      b.classList.toggle("is-active", isMatched);
       const subEl = b.querySelector(".preset-sub");
       if (isMatched) {
         b.style.background = "rgba(2,132,199,0.15)";

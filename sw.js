@@ -30,7 +30,7 @@ self.addEventListener('push', (event) => {
     // badge 속성을 제외하면 안드로이드 시스템이 앱 컬러 아이콘을 정상 표시합니다.
     vibrate: [200, 100, 200],
     data: {
-      url: data.url || './index.html',
+      url: data.url || './index.html?view=log',
       timestamp: Date.now()
     },
     requireInteraction: !!data.requireInteraction,
@@ -48,19 +48,24 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './index.html';
+  let rawUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './index.html?view=log';
+  if (!rawUrl.includes('view=log') && !rawUrl.includes('action=open_log')) {
+    rawUrl += (rawUrl.includes('?') ? '&' : '?') + 'view=log';
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url && 'focus' in client) {
-          if (client.url.includes('index.html') || client.url.endsWith('/')) {
-            return client.focus();
-          }
+          // 이미 열려 있는 창이 있으면 포커스 후 로그 모달 열기 메시지 전송
+          try {
+            client.postMessage({ type: 'OPEN_GCP_LOGS_MODAL' });
+          } catch (e) {}
+          return client.focus();
         }
       }
       if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+        return self.clients.openWindow(rawUrl);
       }
     })
   );

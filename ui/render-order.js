@@ -106,6 +106,9 @@ async function _refreshOrderStatusCacheInner(force, reqSeq, isManual = false) {
             window.orderStatusCache.vmSavedAt = resP.savedAt || 0;
             window.orderStatusCache.executed = resP.executed || null;
             window.orderStatusCache.marketCloseResult = resP.marketCloseResult || null;
+            if (resP.scheduler && resP.scheduler.orderTimeKst && userId) {
+              localStorage.setItem(`vtotal3_order_time_${userId}`, resP.scheduler.orderTimeKst);
+            }
           }
         } catch (e) {}
       }
@@ -324,13 +327,23 @@ function nyMarketPhaseForOrderCompare() {
   const mm = Number((parts.find(p => p.type === "minute") || {}).value || 0);
   const mins = hh * 60 + mm;
 
-  // 1. 주문/장중 시간: VM 주문 후 ~ 장 마감 전 (09:20 ~ 16:00 ET)
-  if (mins >= 9 * 60 + 20 && mins < 16 * 60) return "order";
+  // 유저의 설정 주문시간(KST -> ET 환산)
+  const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
+  const orderTimeKst = (userId && localStorage.getItem(`vtotal3_order_time_${userId}`)) || "21:00";
+  const [kh, km] = orderTimeKst.split(":").map(Number);
+  const now = new Date();
+  const nyH = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, hour: "2-digit" }).format(now));
+  const kstH = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour12: false, hour: "2-digit" }).format(now));
+  const diffHours = (kstH - nyH + 24) % 24;
+  const orderNyMins = (((kh || 0) * 60 + (km || 0)) - diffHours * 60 + 24 * 60) % (24 * 60);
+
+  // 1. 주문/장중 시간: VM 주문 시각 ~ 장 마감 전 (orderNyMins ~ 16:00 ET)
+  if (mins >= orderNyMins && mins < 16 * 60) return "order";
 
   // 2. 장마감 후 ~ VM 주문표 생성/정산 시간 (16:00 ~ 17:20 ET): 체결/정산 대조
   if (mins >= 16 * 60 && mins < 17 * 60 + 20) return "closed";
 
-  // 3. 예약 시간: VM 주문표 생성 완료 후 ~ VM 주문 전 (17:20 ~ 익일 09:20 ET)
+  // 3. 예약 시간: VM 주문표 생성 완료 후 ~ VM 주문 전 (17:20 ~ 익일 orderNyMins ET)
   return "reserved";
 }
 
@@ -1333,16 +1346,24 @@ window.getCombinedOrderEvaluationData = function() {
   
   const tungFn = typeof window.run_tungchigi_master === 'function' ? window.run_tungchigi_master : (typeof combineOrders === 'function' ? combineOrders : null);
 
-  // 1. KST Time offsets
+  // 1. KST Time offsets & Dynamic User Order Time
   const now = new Date();
   const nowEtStr = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, hour: "2-digit" }).format(now);
   const nowKstStr = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour12: false, hour: "2-digit" }).format(now);
   const diffHours = (Number(nowKstStr) - Number(nowEtStr) + 24) % 24;
 
+  const userId = window.myUserId || localStorage.getItem('vtotal3_id') || '';
+  const orderTimeKst = (userId && localStorage.getItem(`vtotal3_order_time_${userId}`)) || "21:00";
+  const [okh, okm] = orderTimeKst.split(":").map(Number);
+  const orderNyMins = (((okh || 0) * 60 + (okm || 0)) - diffHours * 60 + 24 * 60) % (24 * 60);
+  const orderNyH = Math.floor(orderNyMins / 60);
+  const orderNyM = orderNyMins % 60;
+  const nyOrderTimeStr = `${String(orderNyH).padStart(2, '0')}:${String(orderNyM).padStart(2, '0')}`;
+
   const fmtTime = (h, m) => `${String((h + diffHours) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  const kstOrderStr = `${fmtTime(9, 20)} ~ ${fmtTime(16, 0)}`;
+  const kstOrderStr = `${orderTimeKst} ~ ${fmtTime(16, 0)}`;
   const kstClosedStr = `${fmtTime(16, 0)} ~ ${fmtTime(17, 20)}`;
-  const kstReservedStr = `${fmtTime(17, 20)} ~ ${fmtTime(9, 20)}`;
+  const kstReservedStr = `${fmtTime(17, 20)} ~ ${orderTimeKst}`;
 
   // ⭐️ [앱 초기 로딩 가드] 모든 활성 슬롯의 백테스트가 완료되었는지 확인
   let anyActiveSlotPending = false;
@@ -1601,6 +1622,7 @@ window.getCombinedOrderEvaluationData = function() {
     kstOrderStr,
     kstClosedStr,
     kstReservedStr,
+    nyOrderTimeStr,
     appMap,
     vmMap,
     brMap,
@@ -1825,6 +1847,7 @@ window.compareOrderBookManual = async function() {
   const kstOrderStr = evalData.kstOrderStr;
   const kstClosedStr = evalData.kstClosedStr;
   const kstReservedStr = evalData.kstReservedStr;
+  const nyOrderTimeStr = evalData.nyOrderTimeStr || "09:20";
   const modalId = 'orderCompareManualModal';
 
   const modalHtml = `
@@ -1847,7 +1870,7 @@ window.compareOrderBookManual = async function() {
             <div id="orderCompareTimeCards" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; text-align:center;">
               <div id="orderCompareTimeCard1" style="border:1px solid var(--card-border, rgba(255,255,255,0.07)); border-radius:6px; padding:5px 2px;">
                 <div style="font-weight:bold; color:#0ea5e9; font-size:11px;">1. 주문시간</div>
-                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">09:20 ~ 16:00 ET</div>
+                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">${nyOrderTimeStr} ~ 16:00 ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstOrderStr})</div>
               </div>
               <div id="orderCompareTimeCard2" style="border:1px solid var(--card-border, rgba(255,255,255,0.07)); border-radius:6px; padding:5px 2px;">
@@ -1857,7 +1880,7 @@ window.compareOrderBookManual = async function() {
               </div>
               <div id="orderCompareTimeCard3" style="border:1px solid var(--card-border, rgba(255,255,255,0.07)); border-radius:6px; padding:5px 2px;">
                 <div style="font-weight:bold; color:#f59e0b; font-size:11px;">3. 예약시간</div>
-                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">17:20 ~ 09:20 ET</div>
+                <div style="font-size:10px; color:var(--text, #fff); margin-top:2px;">17:20 ~ ${nyOrderTimeStr} ET</div>
                 <div style="font-size:10px; color:var(--text-muted); font-weight:600;">(한국 ${kstReservedStr})</div>
               </div>
             </div>

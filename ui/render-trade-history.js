@@ -76,7 +76,7 @@ function strategyHistoryTheadHtml() {
     + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">진입가</th>'
     + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">청산가</th>'
     + '<th style="width:7%; padding:2px 1px; text-align:center; font-size:11px;">수량</th>'
-    + '<th style="width:14%; padding:2px 1px; text-align:center; font-size:11px; white-space:nowrap;">수익금</th></tr>';
+    + '<th style="width:14%; padding:2px 1px; text-align:center; font-size:11px; white-space:nowrap;">T수익금</th></tr>';
 }
 
 function kiwoomHistoryTheadHtml() {

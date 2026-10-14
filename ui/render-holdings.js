@@ -31,7 +31,7 @@ function renderCombinedHoldings() {
         res.inv.forEach((h, hIdx) => {
           const qty = parseFloat(h.qty) || 0;
           const buyPrice = parseFloat(String(h.buy_price || h.buyPrice || "0").replace(/[^0-9.-]/g, "")) || 0;
-          profit = (currPrice - buyPrice) * qty;
+          const profit = (currPrice - buyPrice) * qty;
 
           // 진입일과 같은 날에 청산된 거래 찾기 (당일 합산 계산용)
           const buyDateStr = String(h.buyDate || h.buy_date || "").trim();

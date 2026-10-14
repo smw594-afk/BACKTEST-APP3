@@ -830,7 +830,7 @@ function shouldAutoRefresh() {
   return false;
 }
 
-// 2026-08-04: GCP 주문시간(개장 10분 전 = NY 09:20) 이후 첫 갱신 여부 추적
+// GCP 유저별 주문시간(KST -> ET) 이후 첫 갱신 여부 추적
 function shouldForceFirstRefreshAfterOrderTime() {
   if (!myUserId) return false;
   const now = new Date();
@@ -840,9 +840,17 @@ function shouldForceFirstRefreshAfterOrderTime() {
   const nyDateObj = new Date(nyTimeStr);
   const nyHour = nyDateObj.getHours();
   const nyMin = nyDateObj.getMinutes();
+  const currentNyMins = nyHour * 60 + nyMin;
 
-  // GCP 주문 시간(09:20 NY) 이후인지 확인
-  const isAfterOrderTime = (nyHour > 9 || (nyHour === 9 && nyMin >= 20));
+  // 유저의 설정 주문시간(KST -> ET 환산)
+  const userOrderKst = localStorage.getItem('vtotal3_order_time_' + myUserId) || '21:00';
+  const [kh, km] = userOrderKst.split(':').map(Number);
+  const kstHour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit' }).format(now));
+  const diffHours = (kstHour - nyHour + 24) % 24;
+  const orderNyMins = (((kh || 0) * 60 + (km || 0)) - diffHours * 60 + 24 * 60) % (24 * 60);
+
+  // 주문 시간 이후인지 확인
+  const isAfterOrderTime = currentNyMins >= orderNyMins;
 
   if (isAfterOrderTime) {
     const lastFreshKey = 'vtotal3_last_order_refresh_' + myUserId;
@@ -3017,8 +3025,8 @@ window.updateStatsPieChart = function(explicitTarget) {
     const otherProfit = acctData ? Number(acctData.otherProfit || 0) : 0;
     if (otherProfit !== 0 || (acctData && acctData.hasData)) {
       legendRows.push({
-        label: '계좌 기타',
-        customValue: `<span style="color: #06b6d4;">${formatChartMoney(otherProfit, true)}</span>`,
+        label: '계좌 기타<span class="stats-profit-rate">(수익률)</span>',
+        customValue: `<span style="color: #06b6d4;">${formatChartMoney(otherProfit, true)}<span class="stats-profit-rate" style="color:#06b6d4 !important;">(${formatPct(otherProfit, realPrincipal, 1)})</span></span>`,
         isBold: otherProfit > 0,
         inDonut: otherProfit > 0,
         donutColor: '#06b6d4',
@@ -3052,14 +3060,14 @@ window.updateStatsPieChart = function(explicitTarget) {
     legendRows.push(
       { label: '계좌 총원금', value: realPrincipal, isBold: true, inDonut: true, donutColor: '#967BB6', tone: 'principal', color: '#967BB6' },
       { 
-        label: '총수익<span class="stats-profit-rate">(수익률)</span>', 
+        label: '총투자수익<span class="stats-profit-rate">(수익률)</span>', 
         customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}<span class="stats-profit-rate">(${combTotalYieldSign}${(Math.abs(combTotalYield) * 100).toFixed(1)}%)</span>`, totalProfit), 
         isBold: false,
         tone: 'profit' 
       },
-      { label: '년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
-      { label: '월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
-      { label: '일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
+      { label: '년투자수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
+      { label: '월투자수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
+      { label: '일투자수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
       { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
       { label: '예수금', value: cash, isBold: false, tone: 'cash' },
       { label: '진행율', customValue: pgCustomVal, isBold: false, tone: 'plain' }
@@ -3073,7 +3081,7 @@ window.updateStatsPieChart = function(explicitTarget) {
     legendRows.push(
       { label: '원금', value: realPrincipal, isBold: true, inDonut: true, donutColor: '#967BB6', tone: 'principal', color: '#967BB6' },
       { 
-        label: '총수익<span class="stats-profit-rate">(수익률)</span>', 
+        label: '총투자수익<span class="stats-profit-rate">(수익률)</span>', 
         customValue: colorizeProfitValue(`${formatChartMoney(totalProfit, true)}<span class="stats-profit-rate">(${formatPct(totalProfit, realPrincipal, 1)})</span>`, totalProfit), 
         isBold: totalProfit > 0,
         inDonut: totalProfit > 0,
@@ -3081,9 +3089,9 @@ window.updateStatsPieChart = function(explicitTarget) {
         tone: 'profit',
         color: '#60a5fa'
       },
-      { label: '년수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
-      { label: '월수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
-      { label: '일수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
+      { label: '년투자수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestYearRow), isBold: false, tone: 'profit' },
+      { label: '월투자수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestMonthRow), isBold: false, tone: 'profit' },
+      { label: '일투자수익<span class="stats-profit-rate">(수익률)</span>', customValue: formatPeriodLegendValue(latestDayRow), isBold: false, tone: 'profit' },
       { label: '평가금', value: evalVal, isBold: false, tone: 'eval' },
       { label: '예수금', value: cash, isBold: false, tone: 'cash' },
       { label: '진행율', customValue: slotPgCustomVal, isBold: false, tone: 'plain' }
@@ -3610,23 +3618,29 @@ window.renderChart = function() {
 //    VM으로 올라간다. 저장 경로에서는 반드시 방금 결과를 넘길 것.
 async function pushTodayOrders(freshBySlot) {
   try {
-    // 주문표는 "개장 15분 전(09:15 ET)"까지만 바꿀 수 있다. VM 스케줄러가 09:20 ET
-    // (개장 10분 전)에 집어가기 때문이다. 서버(broker3-proxy)도 같은 컷오프를 강제하므로
-    // 두 값을 함께 유지할 것.
-    // ⚠️ 반드시 뉴욕 시각으로 판정한다 — 서머타임 때문에 KST로 고정하면(여름 22:15 /
-    //    겨울 23:15) 계절마다 한 시간 어긋난다.
+    // 🛡️ [장중 주문시간대 및 정산시간대 앱 푸시 전면 차단] 유저별 발주 5분 전 ~ 17:20 ET
+    // 유저가 설정한 주문시간(기본 21:00 KST)을 ET로 환산하여, 발주 5분 전부터 장 마감 및 정산 완료(17:20 ET)까지
+    // 앱이 임의로 VM의 당일 주문표를 덮어쓰지 못하도록 차단합니다. (서버 broker3-proxy와 동일 컷오프 유지)
+    const nowDate = new Date();
     const nyNow = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit"
-    }).formatToParts(new Date());
+    }).formatToParts(nowDate);
     const nyHh = Number((nyNow.find(p => p.type === "hour") || {}).value || 0) % 24;
     const nyMm = Number((nyNow.find(p => p.type === "minute") || {}).value || 0);
     const nyMins = nyHh * 60 + nyMm;
-    // 🛡️ [장중 주문시간대 및 정산시간대 앱 푸시 전면 차단] 09:15 ET ~ 17:20 ET (한국 22:15 ~ 06:20 KST)
-    // 09:20 ET에 이미 VM 자동주문 스케줄러가 오늘 주문표를 가져가 증권사에 실전 발주를 완료했으므로,
-    // 장중(09:20~16:00 ET) 및 정산(16:00~17:20 ET) 시간대에는 앱이 임의로 VM의 당일 주문표를 덮어쓰지 못하도록 차단합니다.
-    if (nyMins >= 9 * 60 + 15 && nyMins < 17 * 60 + 20) {
-      console.log(`[OrderSync] 주문 및 정산 시간대(09:15~17:20 ET, 현재 ET ${nyHh}:${String(nyMm).padStart(2, "0")})이므로 당일 주문표 유지를 위해 저장을 건너뜁니다.`);
-      return { ok: false, reason: "주문 및 장마감 정산 시간대(09:15~17:20 ET)에는 당일 발주 주문표가 보존되므로 덮어쓰지 않습니다." };
+
+    const userOrderKst = (myUserId && localStorage.getItem(`vtotal3_order_time_${myUserId}`)) || "21:00";
+    const [kh, km] = userOrderKst.split(":").map(Number);
+    const kstHh = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour12: false, hour: "2-digit" }).format(nowDate));
+    const diffHours = (kstHh - nyHh + 24) % 24;
+    const userNyMins = (((kh || 0) * 60 + (km || 0)) - diffHours * 60 + 24 * 60) % (24 * 60);
+    const cutoffMin = userNyMins - 5;
+
+    // 이미 VM 자동주문 스케줄러가 오늘 주문표를 가져가 증권사에 실전 발주를 완료했거나 발주 직전이므로,
+    // 발주 5분 전부터 정산(17:20 ET) 시간대에는 앱이 임의로 VM의 당일 주문표를 덮어쓰지 못하도록 차단합니다.
+    if (nyMins >= cutoffMin && nyMins < 17 * 60 + 20) {
+      console.log(`[OrderSync] 주문 및 정산 시간대(발주 5분 전~17:20 ET, 현재 ET ${nyHh}:${String(nyMm).padStart(2, "0")})이므로 당일 주문표 유지를 위해 저장을 건너뜁니다.`);
+      return { ok: false, reason: "주문 및 장마감 정산 시간대(발주 5분 전~17:20 ET)에는 당일 발주 주문표가 보존되므로 덮어쓰지 않습니다." };
     }
     if (!myUserId) return { ok: false, reason: "userId 없음" };
 
@@ -3798,5 +3812,44 @@ async function triggerVmRecalc() {
 }
 window.triggerVmRecalc = triggerVmRecalc;
 
+// ── 웹푸시 알림 클릭 시 자동 로그 모달 오픈 핸들러 ──
+// 사용자가 폰에서 알림을 클릭했을 때만 로그 화면을 띄우고, 앱 아이콘을 눌러 일반 실행 시에는 홈화면만 유지합니다.
+function initNotificationLogOpener() {
+  // 1. 이미 앱이 백그라운드에 켜져 있을 때 알림을 클릭한 경우 (ServiceWorker postMessage 수신)
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'OPEN_GCP_LOGS_MODAL') {
+        if (typeof window.openGcpLogsModal === 'function') {
+          window.openGcpLogsModal();
+        }
+      }
+    });
+  }
 
+  // 2. 앱이 종료되어 있다가 알림 클릭으로 새로 열린 경우 (?view=log 또는 ?action=open_log)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('view') === 'log' || urlParams.get('action') === 'open_log' || window.location.hash === '#log') {
+      // URL 파라미터 정리: 뒤로가기나 새로고침 시 다시 열리지 않고 일반 홈화면이 유지되도록 함
+      const cleanUrl = window.location.pathname + (window.location.hash && window.location.hash !== '#log' ? window.location.hash : '');
+      window.history.replaceState(null, '', cleanUrl || window.location.pathname);
 
+      const tryOpen = (retry = 0) => {
+        if (typeof window.openGcpLogsModal === 'function') {
+          window.openGcpLogsModal();
+        } else if (retry < 15) {
+          setTimeout(() => tryOpen(retry + 1), 250);
+        }
+      };
+      setTimeout(() => tryOpen(0), 450);
+    }
+  } catch (e) {
+    console.warn('[NotificationClick] URL 확인 실패:', e);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initNotificationLogOpener);
+} else {
+  initNotificationLogOpener();
+}

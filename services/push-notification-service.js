@@ -41,7 +41,7 @@
       this.isSupported = true;
 
       try {
-        const reg = await navigator.serviceWorker.register('./sw.js?v=cf_v20260924_03');
+        const reg = await navigator.serviceWorker.register('./sw.js?v=cf_v20261014_01');
         try { await reg.update(); } catch(e) {}
         this.swRegistration = reg;
         console.log('[WebPush] Service Worker 등록 완료:', reg.scope);
