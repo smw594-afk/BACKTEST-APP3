@@ -289,5 +289,63 @@ body.light-mode .stats-stock-table td {
   border: none !important;
 }
 
+/* ⭐️ 주문시간 설정 모달 라이트 모드 오버라이드 */
+body.light-mode #orderTimeModalOverlay .order-time-modal {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 20px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+body.light-mode #orderTimeModalOverlay .order-time-header {
+  background: #f8fafc !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-mode #orderTimeModalOverlay .order-time-footer {
+  background: #f8fafc !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-mode #orderTimeModalOverlay .order-time-market-card {
+  background: #f0f9ff !important;
+  border-color: #bae6fd !important;
+}
+
+body.light-mode #orderTimeModalOverlay .order-time-set-box {
+  background: #f8fafc !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-mode #orderTimeModalOverlay select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #0284c7 !important;
+}
+
+body.light-mode #orderTimeModalOverlay .btn-preset-time:not(.is-active) {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-mode #orderTimeModalOverlay .btn-preset-time.is-active {
+  background: #e0f2fe !important;
+  color: #0284c7 !important;
+  border-color: #0284c7 !important;
+}
+
+body.light-mode #orderTimeModalOverlay #orderTimePreviewCard {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+body.light-mode #orderTimeModalOverlay #btnOrderTimeCancel {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+
 
 

@@ -582,6 +582,29 @@ window.BrokerService = {
     return await this.brokerFetch(`/api/user/${broker}-key/autoorder`, "POST", { userId, enabled: !!enabled });
   },
 
+  // ─────────── 사용자별 자동 주문시간 (KST) ───────────
+  async getUserOrderTime(userId = this.getUserId()) {
+    try {
+      const res = await this.brokerFetch(`/api/user/order-time?userId=${encodeURIComponent(userId)}`, "GET");
+      if (res && res.success && res.orderTimeKst) {
+        localStorage.setItem(`vtotal3_order_time_${userId}`, res.orderTimeKst);
+        return res;
+      }
+    } catch (e) {
+      console.warn(`[주문시간 조회 실패] ${userId}:`, e.message);
+    }
+    const cached = localStorage.getItem(`vtotal3_order_time_${userId}`) || "21:00";
+    return { success: false, userId, orderTimeKst: cached };
+  },
+
+  async setUserOrderTime(userId = this.getUserId(), orderTimeKst = "21:00") {
+    const res = await this.brokerFetch(`/api/user/order-time`, "POST", { userId, orderTimeKst });
+    if (res && res.success) {
+      localStorage.setItem(`vtotal3_order_time_${userId}`, res.orderTimeKst);
+    }
+    return res;
+  },
+
   async deleteKey(broker = this.activeBroker) {
     const userId = this.getUserId();
     return await this.brokerFetch(`/api/user/${broker}-key`, "DELETE", { userId });

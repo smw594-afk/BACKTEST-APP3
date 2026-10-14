@@ -2729,3 +2729,361 @@ window.openGcpLogsModal = function() {
 
   loadLogs();
 };
+
+
+// // ── 사용자별 미국주식 자동 주문시간 설정 모달 (App3) ──
+window.openOrderTimeSettingsModal = async function() {
+  let ov = document.getElementById("orderTimeModalOverlay");
+  if (ov) ov.remove();
+
+  const userId = window.myUserId || localStorage.getItem("vtotal3_id") || "smw594";
+
+  // KST와 ET 간 시차 계산 및 서머타임(EDT vs EST) 판정
+  const getDstInfo = () => {
+    try {
+      const now = new Date();
+      const partsNy = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York", hour12: false,
+        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+      }).formatToParts(now);
+      const partsKst = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Seoul", hour12: false,
+        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+      }).formatToParts(now);
+
+      const getH = (p) => Number((p.find(x => x.type === "hour") || {}).value || 0) % 24;
+      const getD = (p) => Number((p.find(x => x.type === "day") || {}).value || 0);
+
+      let diff = getH(partsKst) - getH(partsNy);
+      if (getD(partsKst) !== getD(partsNy)) diff += 24;
+      const isDst = (diff === 13);
+
+      // 접수 가능 시간 (프리마켓 오픈 ~ 장마감 15분 전)
+      const allowedHours = isDst 
+        ? [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4] 
+        : [19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
+
+      return {
+        diffHours: diff,
+        isDst,
+        dstLabel: isDst ? "서머타임 (13시간 차이)" : "겨울 표준시 (14시간 차이)",
+        openTimeKst: isDst ? "22:30" : "23:30",
+        openMinsKst: isDst ? (22 * 60 + 30) : (23 * 60 + 30),
+        startKst: isDst ? "18:00" : "19:00",
+        endKst: isDst ? "04:45" : "05:45",
+        allowedHours,
+        diffMinDefault: isDst ? 90 : 150, // 21:00 기준 개장 전 분
+        presets: isDst ? [
+          { label: "3시간 전", kst: "19:30" },
+          { label: "2시간 전", kst: "20:30" },
+          { label: "1시간 전", kst: "21:30" },
+          { label: "10분 전", kst: "22:20" }
+        ] : [
+          { label: "3시간 전", kst: "20:30" },
+          { label: "2시간 전", kst: "21:30" },
+          { label: "1시간 전", kst: "22:30" },
+          { label: "10분 전", kst: "23:20" }
+        ]
+      };
+    } catch (_) {
+      return {
+        diffHours: 13, isDst: true, dstLabel: "서머타임 (13시간 차이)",
+        openTimeKst: "22:30", openMinsKst: 1350, startKst: "18:00", endKst: "04:45",
+        allowedHours: [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4],
+        diffMinDefault: 90,
+        presets: [
+          { label: "3시간 전", kst: "19:30" },
+          { label: "2시간 전", kst: "20:30" },
+          { label: "1시간 전", kst: "21:30" },
+          { label: "10분 전", kst: "22:20" }
+        ]
+      };
+    }
+  };
+
+  const dst = getDstInfo();
+
+  // 기본값 21:00 (한국시간 21시 정각)
+  let currentOrderTime = localStorage.getItem(`vtotal3_order_time_${userId}`) || "21:00";
+  let [curH, curM] = currentOrderTime.split(":").map(Number);
+  if (isNaN(curH) || !dst.allowedHours.includes(curH)) {
+    curH = 21;
+    curM = 0;
+  }
+  if (isNaN(curM)) curM = 0;
+
+  ov = document.createElement("div");
+  ov.id = "orderTimeModalOverlay";
+  ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(3px);padding:14px;";
+  ov.innerHTML = `
+    <div class="settings-modal order-time-modal" style="background:var(--card,#ffffff);color:var(--text,#0f172a);border:1px solid var(--card-border,rgba(0,0,0,0.14));border-radius:14px;width:min(94vw,430px);display:flex;flex-direction:column;box-shadow:0 25px 35px -5px rgba(0,0,0,0.4);font-size:13px;overflow:hidden;">
+      <!-- 모달 헤더 -->
+      <div class="order-time-header" style="padding:14px 18px;border-bottom:1px solid var(--card-border,rgba(0,0,0,0.1));display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.03);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;font-weight:700;color:var(--text,#0f172a);">⏰ 자동 주문시간 설정</span>
+          <span style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(2,132,199,0.12);color:#0284c7;font-weight:700;border:1px solid rgba(2,132,199,0.25);">계정: ${userId}</span>
+        </div>
+        <button id="btnOrderTimeClose" style="border:none;background:transparent;color:var(--text-muted,#64748b);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+      </div>
+
+      <!-- 모달 본문 -->
+      <div style="padding:18px;display:flex;flex-direction:column;gap:14px;">
+        <!-- 미국 장 상태 안내 카드 -->
+        <div class="order-time-market-card" style="background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.2);border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.55;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-weight:700;color:#0284c7;">🇺🇸 증권사 접수 가능 시간 안내</span>
+            <span style="font-size:10.5px;color:#0369a1;background:rgba(2,132,199,0.12);padding:2px 8px;border-radius:4px;font-weight:700;">${dst.dstLabel}</span>
+          </div>
+          <div style="color:var(--text,#1e293b);">
+            • 주문 접수 가능: 한국 <b style="color:#0284c7;font-weight:700;">${dst.startKst} ~ 익일 ${dst.endKst}</b> (프리마켓/정규장)<br>
+            • 정규장 개장: 뉴욕 09:30 ET / 한국 <b style="color:#0284c7;font-weight:700;">${dst.openTimeKst}</b><br>
+            • 기본 발주 시간: 한국 <b style="color:#0284c7;font-weight:800;">21:00</b> (개장 1시간 30분 전)
+          </div>
+        </div>
+
+        <!-- 시간 선택 컨트롤 (시 / 분 드롭다운) -->
+        <div class="order-time-set-box" style="background:rgba(0,0,0,0.03);border:1px solid var(--card-border,rgba(0,0,0,0.1));border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text,#0f172a);display:flex;justify-content:space-between;align-items:center;">
+            <span>🇰🇷 한국 시간 (KST) 설정 <span style="font-size:10.5px;color:#0284c7;font-weight:600;">(접수 가능 시간대 전용)</span></span>
+            <span id="orderTimeSyncBadge" style="font-size:10.5px;color:var(--text-muted,#64748b);font-weight:600;">서버 동기화 중...</span>
+          </div>
+          
+          <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+            <!-- 시(Hour) 선택: 접수 가능한 시간대만 표시 -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <select id="selOrderHour" style="background:var(--card,#ffffff);color:var(--text,#0f172a);border:1.5px solid #0284c7;border-radius:8px;font-size:22px;font-weight:700;padding:6px 12px;outline:none;cursor:pointer;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                ${dst.allowedHours.map(h => `<option value="${h}" ${h === curH ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
+              </select>
+              <span style="font-size:12px;font-weight:700;color:var(--text,#0f172a);">시</span>
+            </div>
+
+            <span style="font-size:24px;font-weight:800;color:var(--text,#0f172a);margin-bottom:20px;">:</span>
+
+            <!-- 분(Minute) 선택 -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <select id="selOrderMin" style="background:var(--card,#ffffff);color:var(--text,#0f172a);border:1.5px solid #0284c7;border-radius:8px;font-size:22px;font-weight:700;padding:6px 12px;outline:none;cursor:pointer;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                ${Array.from({length: 60}, (_, i) => `<option value="${i}" ${i === curM ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('')}
+              </select>
+              <span style="font-size:12px;font-weight:700;color:var(--text,#0f172a);">분</span>
+            </div>
+          </div>
+
+          <!-- 기본값 및 간편 프리셋 버튼 -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:700;color:var(--text,#0f172a);">⚡ 간편 프리셋:</span>
+              <button type="button" id="btnPresetDefault" class="btn-preset-time" data-kst="21:00" style="background:var(--card,#ffffff);border:1px solid var(--card-border,rgba(0,0,0,0.15));color:var(--text,#0f172a);padding:3px 8px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;">⭐ 기본값 (21:00)</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;">
+              ${dst.presets.map(p => `
+                <button type="button" class="btn-preset-time" data-kst="${p.kst}" style="background:var(--card,#ffffff);border:1px solid var(--card-border,rgba(0,0,0,0.15));color:var(--text,#0f172a);padding:6px 2px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.05);line-height:1.3;">
+                  ${p.label}<br><span class="preset-sub" style="font-size:10px;color:var(--text-muted,#64748b);font-weight:600;">${p.kst}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 실시간 변환 프리뷰 카드 -->
+        <div id="orderTimePreviewCard" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:700;color:#059669;font-size:12.5px;">🕒 발주 시점 요약</span>
+            <span id="previewTimingBadge" style="font-size:11.5px;font-weight:800;color:#047857;background:rgba(16,185,129,0.15);padding:2px 8px;border-radius:4px;">-</span>
+          </div>
+          <div style="font-size:12px;color:var(--text,#0f172a);line-height:1.6;font-weight:600;">
+            • 한국 시각: <b id="previewKstText" style="color:#0284c7;font-weight:800;">21:00 KST</b><br>
+            • 뉴욕 시각: <b id="previewNyText" style="color:#d97706;font-weight:800;">08:00 ET</b>
+          </div>
+          <div id="orderTimeWarningText" style="font-size:11px;color:#ef4444;font-weight:700;display:none;margin-top:2px;"></div>
+        </div>
+      </div>
+
+      <!-- 모달 푸터 버튼 -->
+      <div class="order-time-footer" style="padding:12px 18px;border-top:1px solid var(--card-border,rgba(0,0,0,0.1));display:flex;justify-content:flex-end;gap:8px;background:rgba(0,0,0,0.03);">
+        <button id="btnOrderTimeCancel" style="border:1px solid var(--card-border,rgba(0,0,0,0.15));background:var(--card,#ffffff);color:var(--text,#0f172a);padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;">취소</button>
+        <button id="btnOrderTimeSave" style="border:none;background:linear-gradient(135deg,#0284c7,#0369a1);color:#ffffff;padding:8px 18px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;display:flex;align-items:center;gap:4px;box-shadow:0 2px 4px rgba(2,132,199,0.3);">💾 주문시간 저장</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+
+  const selH = ov.querySelector("#selOrderHour");
+  const selM = ov.querySelector("#selOrderMin");
+  const previewTiming = ov.querySelector("#previewTimingBadge");
+  const previewKst = ov.querySelector("#previewKstText");
+  const previewNy = ov.querySelector("#previewNyText");
+  const warningText = ov.querySelector("#orderTimeWarningText");
+  const syncBadge = ov.querySelector("#orderTimeSyncBadge");
+  const btnSave = ov.querySelector("#btnOrderTimeSave");
+  const presetBtns = ov.querySelectorAll(".btn-preset-time");
+
+  const updatePreview = () => {
+    const h = Number(selH.value);
+    const m = Number(selM.value);
+    const kstStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    previewKst.textContent = `${kstStr} KST`;
+
+    // 뉴욕 시각 환산
+    let nyTotalMins = (h * 60 + m) - (dst.diffHours * 60);
+    while (nyTotalMins < 0) nyTotalMins += 24 * 60;
+    nyTotalMins = nyTotalMins % (24 * 60);
+    const nyH = Math.floor(nyTotalMins / 60);
+    const nyM = nyTotalMins % 60;
+    const nyStr = `${String(nyH).padStart(2, "0")}:${String(nyM).padStart(2, "0")}`;
+    previewNy.textContent = `${nyStr} ET`;
+
+    // 04시(또는 05시) 마감 시간 초과 검사
+    const maxHour = dst.isDst ? 4 : 5;
+    const isExceeded = (h === maxHour && m > 45);
+    if (isExceeded) {
+      warningText.textContent = `⚠️ 장마감 15분 전(${dst.endKst} KST)까지만 주문이 가능합니다. (45분으로 조정됩니다)`;
+      warningText.style.display = "block";
+      selM.value = 45;
+      return updatePreview();
+    } else {
+      warningText.style.display = "none";
+    }
+
+    // 개장 시간과의 차이
+    let chosenMins = h * 60 + m;
+    // 자정 넘은 시간(00시~04시)은 개장일 익일
+    if (h < 12) chosenMins += 24 * 60;
+    const openMins = dst.openMinsKst;
+    const diffToOpen = openMins - chosenMins;
+
+    if (diffToOpen > 0) {
+      const diffH = Math.floor(diffToOpen / 60);
+      const diffM = diffToOpen % 60;
+      let timingStr = "개장 ";
+      if (diffH > 0) timingStr += `${diffH}시간 `;
+      if (diffM > 0 || diffH === 0) timingStr += `${diffM}분 `;
+      timingStr += "전";
+      previewTiming.textContent = timingStr;
+      previewTiming.style.color = "#047857";
+      previewTiming.style.background = "rgba(16,185,129,0.15)";
+    } else if (diffToOpen === 0) {
+      previewTiming.textContent = "개장 정각";
+      previewTiming.style.color = "#b45309";
+      previewTiming.style.background = "rgba(245,158,11,0.15)";
+    } else {
+      const afterMins = Math.abs(diffToOpen);
+      const afterH = Math.floor(afterMins / 60);
+      const afterM = afterMins % 60;
+      let timingStr = "개장 ";
+      if (afterH > 0) timingStr += `${afterH}시간 `;
+      if (afterM > 0 || afterH === 0) timingStr += `${afterM}분 `;
+      timingStr += "후";
+      previewTiming.textContent = timingStr;
+      previewTiming.style.color = "#b91c1c";
+      previewTiming.style.background = "rgba(239,68,68,0.15)";
+    }
+
+    // 프리셋 버튼 활성 상태 하이라이트
+    presetBtns.forEach(b => {
+      const bKst = b.getAttribute("data-kst");
+      const isMatched = (bKst === kstStr);
+      const subEl = b.querySelector(".preset-sub");
+      if (isMatched) {
+        b.style.background = "rgba(2,132,199,0.15)";
+        b.style.borderColor = "#0284c7";
+        b.style.color = "#0284c7";
+        if (subEl) subEl.style.color = "#0284c7";
+      } else {
+        b.style.background = "var(--card,#ffffff)";
+        b.style.borderColor = "var(--card-border,rgba(0,0,0,0.15))";
+        b.style.color = "var(--text,#0f172a)";
+        if (subEl) subEl.style.color = "var(--text-muted,#64748b)";
+      }
+    });
+  };
+
+  selH.onchange = updatePreview;
+  selM.onchange = updatePreview;
+
+  // 프리셋 버튼 핸들러
+  presetBtns.forEach(btn => {
+    btn.onclick = () => {
+      const kst = btn.getAttribute("data-kst");
+      if (!kst) return;
+      const [ph, pm] = kst.split(":").map(Number);
+      selH.value = ph;
+      selM.value = pm;
+      updatePreview();
+    };
+  });
+
+  // 서버에서 최신 설정값 조회
+  (async () => {
+    try {
+      if (window.BrokerService && typeof window.BrokerService.getUserOrderTime === "function") {
+        const info = await window.BrokerService.getUserOrderTime(userId);
+        if (info && info.orderTimeKst) {
+          const [sh, sm] = info.orderTimeKst.split(":").map(Number);
+          if (!isNaN(sh) && !isNaN(sm) && dst.allowedHours.includes(sh)) {
+            selH.value = sh;
+            selM.value = sm;
+            updatePreview();
+            syncBadge.textContent = "✓ 서버 일치";
+            syncBadge.style.color = "#047857";
+            return;
+          }
+        }
+      }
+      syncBadge.textContent = "✓ 로컬 기준";
+    } catch (_) {
+      syncBadge.textContent = "로컬 기준";
+    }
+  })();
+
+  updatePreview();
+
+  // 닫기 및 취소
+  const closeModal = () => ov.remove();
+  ov.querySelector("#btnOrderTimeClose").onclick = closeModal;
+  ov.querySelector("#btnOrderTimeCancel").onclick = closeModal;
+  ov.addEventListener("click", (e) => { if (e.target === ov) closeModal(); });
+
+  // 저장 버튼
+  btnSave.onclick = async () => {
+    const h = Number(selH.value);
+    const m = Number(selM.value);
+    const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+    btnSave.disabled = true;
+    btnSave.innerHTML = `⏳ 저장 중...`;
+
+    try {
+      let res = null;
+      if (window.BrokerService && typeof window.BrokerService.setUserOrderTime === "function") {
+        res = await window.BrokerService.setUserOrderTime(userId, timeStr);
+      } else {
+        const base = typeof getProxyBase === "function" ? getProxyBase() : (window.BROKER3_PROXY_BASE || "http://136.118.250.225:8080");
+        const resp = await fetch(`${base}/api/user/order-time`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": userId,
+            "x-app-key": window.BROKER_APP_KEY || "",
+            "x-proxy-token": window.BROKER_PROXY_TOKEN || ""
+          },
+          body: JSON.stringify({ userId, orderTimeKst: timeStr })
+        });
+        res = await resp.json();
+      }
+
+      if (res && (res.success || res.ok)) {
+        localStorage.setItem(`vtotal3_order_time_${userId}`, timeStr);
+        alert(`[주문시간 설정 완료]\n\n계정 [${userId}]의 미국주식 자동 주문시간이 한국시간 ${timeStr}로 저장되었습니다.`);
+        closeModal();
+      } else {
+        throw new Error((res && (res.error || res.reason)) || "서버 응답 오류");
+      }
+    } catch (err) {
+      alert(`[주문시간 저장 실패]\n\n${err.message}`);
+    } finally {
+      btnSave.disabled = false;
+      btnSave.innerHTML = `💾 주문시간 저장`;
+    }
+  };
+};
+
