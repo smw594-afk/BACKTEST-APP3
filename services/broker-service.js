@@ -432,7 +432,7 @@ window.BrokerService = {
     if (s >= 1 && s <= 6) return "meritz";
     if (s >= 7 && s <= 11) return "ls";
     if (s === 12) return "kiwoom";
-    return "meritz";
+    return null; // ⚠️ 유효 슬롯(1~12) 외에는 절대 fallback 브로커를 반환하지 않는다
   },
 
   // 그 브로커가 쓰는 슬롯 번호 목록(설정 화면 탭 표시 등에 사용)
@@ -500,11 +500,17 @@ window.BrokerService = {
 
   async sendOverseasOrder({ slot, broker: targetBroker, symbol, qty, price, side, ordType = "LIMIT" }) {
     const broker = targetBroker || (slot ? this.brokerForSlot(slot) : this.activeBroker);
+    if (!broker) {
+      return { success: false, error: `유효하지 않은 슬롯(${slot}) 또는 브로커입니다.` };
+    }
     return await this.brokerFetch(`/api/broker/${broker}/order`, "POST", { symbol, qty, price: Number(price).toFixed(2), side, ordType });
   },
 
   async cancelOverseasOrder(slot, orderNo) {
     const broker = this.brokerForSlot(slot);
+    if (!broker) {
+      return { success: false, error: `유효하지 않은 슬롯(${slot})입니다.` };
+    }
     return await this.brokerFetch(`/api/broker/${broker}/cancel`, "POST", { orderNo });
   },
 
