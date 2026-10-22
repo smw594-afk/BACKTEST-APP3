@@ -67,16 +67,16 @@ function strategyHistoryTheadHtml() {
   const borderCol = isLight ? 'rgba(15, 23, 42, 0.1)' : 'rgba(255, 255, 255, 0.07)';
   const textMuted = isLight ? '#64748b' : '#94a3b8';
   return `<tr style="border-bottom:1px solid ${borderCol}; color:${textMuted}; font-weight:700;">`
-    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">일치</th>'
-    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">슬롯</th>'
-    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">종목</th>'
-    + '<th style="width:11%; padding:2px 1px; text-align:center; font-size:11px;">진입일</th>'
-    + '<th style="width:11%; padding:2px 1px; text-align:center; font-size:11px;">청산일</th>'
-    + '<th style="width:9%; padding:2px 1px; text-align:center; font-size:11px;">모드/T</th>'
-    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">진입가</th>'
-    + '<th style="width:10%; padding:2px 1px; text-align:center; font-size:11px;">청산가</th>'
-    + '<th style="width:7%; padding:2px 1px; text-align:center; font-size:11px;">수량</th>'
-    + '<th style="width:14%; padding:2px 1px; text-align:center; font-size:11px; white-space:nowrap;">T수익금</th></tr>';
+    + '<th style="width:52px; text-align:center;">일치</th>'
+    + '<th style="text-align:center;">슬롯</th>'
+    + '<th style="text-align:center;">종목</th>'
+    + '<th style="text-align:center;">진입일</th>'
+    + '<th style="text-align:center;">청산일</th>'
+    + '<th style="text-align:center;">모드/T</th>'
+    + '<th style="text-align:center;">진입가</th>'
+    + '<th style="text-align:center;">청산가</th>'
+    + '<th style="text-align:center;">수량</th>'
+    + '<th style="text-align:center;">T수익금</th></tr>';
 }
 
 function kiwoomHistoryTheadHtml() {
@@ -673,6 +673,11 @@ function renderDBTradeHistory() {
       ? window.getPrimaryStrategyDisplayDate()
       : (typeof getPrimaryStrategyDisplayDate === 'function' ? getPrimaryStrategyDisplayDate() : '');
 
+    if (allTrades.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="table-empty-cell" style="text-align:center; padding:20px; color:#64748b;">매매 내역이 없습니다</td></tr>';
+      return;
+    }
+
     let html = visibleTrades.map(t => {
       const slot = t.slotNum;
       // ⚠️ 2026-07-31: parseDateStr()은 문자열 끝의 "-"를 malformed 날짜 구분자로 보고
@@ -685,12 +690,19 @@ function renderDBTradeHistory() {
       let buyDate = rawBuyDateVal ? parseDateStr(rawBuyDateVal) : "-";
       let sellDate = rawSellDateVal ? parseDateStr(rawSellDateVal) : "-";
 
-      if (buyDate && buyDate.includes('-') && buyDate.length === 10) {
-        buyDate = buyDate.substring(2);
-      }
-      if (sellDate && sellDate.includes('-') && sellDate.length === 10) {
-        sellDate = sellDate.substring(2);
-      }
+      const toSlashDate = (d) => {
+        if (!d || d === "-") return "-";
+        const parts = String(d).split('-');
+        if (parts.length === 3) {
+          const yy = parts[0].slice(-2);
+          const mm = parseInt(parts[1], 10);
+          const dd = parseInt(parts[2], 10);
+          return `${yy}/${mm}/${dd}`;
+        }
+        return d;
+      };
+      const buyDateSlash = toSlashDate(buyDate);
+      const sellDateSlash = toSlashDate(sellDate);
 
       // 슬롯의 실제 브로커(키움 1~3 / LS 4~6) 체결과 행 단위로 대조한 상태.
       const rowBroker = BR ? BR.brokerForSlot(slot) : "kiwoom";
@@ -805,16 +817,16 @@ function renderDBTradeHistory() {
       const mismatchCellColor = isMismatch ? (isLight ? '#b91c1c' : '#ef4444') : textColor;
 
       return `<tr class="${isTodaySell ? 'date-sync-highlight-row' : ''}" data-sell-date="${sellDateNorm}" style="border-bottom: 1px solid ${borderCol};">
-        <td style="width:9%; padding:2px 1px; text-align:center; color:${reconcile.color}; font-size:10px; font-weight:${reconcileWeight}; white-space:nowrap;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
-        <td style="width:9%; padding:2px 1px; text-align:center; color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; font-size:10px;">#${slot}</td>
-        <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${stockName}</td>
-        <td style="width:11%; padding:2px 1px; text-align:center; font-size:10px;">${buyDate}</td>
-        <td class="sell-price" style="width:11%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${sellDate}</td>
-        <td style="width:9%; padding:2px 1px; text-align:center; font-size:10px;">${mode}/T${tier}</td>
-        <td style="width:10%; padding:2px 1px; text-align:center; font-size:10px;">${buyPriceStr}</td>
-        <td class="sell-price" style="width:10%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${sellPriceStr}</td>
-        <td class="sell-price" style="width:7%; padding:2px 1px; text-align:center; font-size:10px; ${mmStyle}" ${mmTitle}>${qty}</td>
-        <td style="width:14%; padding:2px 1px; text-align:center; font-size:10px; white-space:nowrap;" class="${profitClass}">${profitStr}</td>
+        <td style="color:${reconcile.color}; font-size:10px; font-weight:${reconcileWeight}; white-space:nowrap; text-align:center; padding:2px 1px;" ${reconcileTitle}>${reconcile.icon} ${reconcile.text}</td>
+        <td style="color:${SLOT_COLORS[(slot-1)%SLOT_COLORS.length]}; font-weight:700; text-align:center;">#${slot}</td>
+        <td style="text-align:center;">${stockName}</td>
+        <td style="text-align:center;">${buyDateSlash}</td>
+        <td class="sell-price" style="text-align:center; ${mmStyle}" ${mmTitle}>${sellDateSlash}</td>
+        <td style="text-align:center;">${mode}/T${tier}</td>
+        <td style="text-align:center;">${buyPriceStr}</td>
+        <td class="sell-price" style="text-align:center; ${mmStyle}" ${mmTitle}>${sellPriceStr}</td>
+        <td class="sell-price" style="text-align:center; ${mmStyle}" ${mmTitle}>${qty}</td>
+        <td style="text-align:center; white-space:nowrap;" class="${profitClass}">${profitStr}</td>
       </tr>`;
     }).join('');
 

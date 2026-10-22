@@ -330,7 +330,7 @@ function applyPrimaryDateHighlight() {
   if (!primaryDate) return;
 
   const selectors = [
-    '#combinedHoldingsBody tr td:nth-child(3)',
+    '#combinedHoldingsBody tr td:nth-child(4)',
     '[id^="holdingsBody"] tr td:nth-child(2)',
     '#historyTableBody tr:not([data-market-date]) td:nth-child(5)'
   ];
@@ -507,6 +507,8 @@ function setLED(status) {
   const lamp = document.getElementById('ledLamp');
   if (!lamp) return;
   lamp.className = 'led-lamp';
+  lamp.style.background = '';
+  lamp.style.boxShadow = '';
   if (status === 'on') lamp.classList.add('led-on');
   else if (status === 'loading') lamp.classList.add('led-loading');
   else if (status === 'off' || status === 'error') { lamp.style.background = '#ef4444'; lamp.style.boxShadow = '0 0 10px #ef4444'; }
@@ -2530,6 +2532,10 @@ function handleDeposit() {
     alert("처리 실패: 네트워크를 확인하세요.");
     setLED('error');
     if (btn) btn.innerHTML = orgText;
+    setTimeout(() => {
+      if (typeof isPriceLoaded !== 'undefined') setLED(isPriceLoaded ? 'on' : 'off');
+      else setLED('on');
+    }, 5000); // 5초 후 LED 상태 자동 복구
   });
 }
 
@@ -3572,10 +3578,11 @@ function updateChartRatesDisplay() {
       if (rate < 0) return "#ef4444";
       return "var(--text)";
     };
-    const yVal = (rates && rates.y !== undefined) ? Number(rates.y) : 0;
-    const mVal = (rates && rates.m !== undefined) ? Number(rates.m) : 0;
-    const dVal = (rates && rates.d !== undefined) ? Number(rates.d) : 0;
-    const ddVal = (rates && rates.dd !== undefined) ? Number(rates.dd) : 0;
+    const clean = (v) => Math.abs(v) < 0.05 ? 0 : v;
+    const yVal = clean((rates && rates.y !== undefined) ? Number(rates.y) : 0);
+    const mVal = clean((rates && rates.m !== undefined) ? Number(rates.m) : 0);
+    const dVal = clean((rates && rates.d !== undefined) ? Number(rates.d) : 0);
+    const ddVal = clean((rates && rates.dd !== undefined) ? Number(rates.dd) : 0);
     // 항목 사이 구분기호(|) 없이 공백으로만 띄운다.
     const seg = (label, val, color, sign) =>
       '<span style="color:var(--text);">' + label + ':</span>' +
@@ -3584,7 +3591,7 @@ function updateChartRatesDisplay() {
       seg('Y', yVal, getColor(yVal), yVal > 0 ? "+" : ""),
       seg('M', mVal, getColor(mVal), mVal > 0 ? "+" : ""),
       seg('D', dVal, getColor(dVal), dVal > 0 ? "+" : ""),
-      seg('DD', ddVal, getColor(-ddVal), ddVal > 0 ? "-" : "")
+      seg('DD', ddVal, getColor(ddVal), ddVal > 0 ? "+" : "")
     // 간격은 이 span 하나로만 준다. 컨테이너(#chartRatesDisplay)의 flex gap은 0으로
     // 맞춰둬야 하며, gap이 남아 있으면 여기서 아무리 줄여도 넓어 보인다.
     ].join('<span style="display:inline-block; width:0.5ch;"></span>');
@@ -3822,14 +3829,30 @@ function initNotificationLogOpener() {
         if (typeof window.openGcpLogsModal === 'function') {
           window.openGcpLogsModal();
         }
+      } else if (event.data && event.data.type === 'OPEN_DEPOSIT_WARNING_MODAL') {
+        if (window.BrokerService && typeof window.BrokerService.openDepositWarningModal === 'function') {
+          window.BrokerService.openDepositWarningModal(event.data.payload);
+        }
       }
     });
   }
 
-  // 2. 앱이 종료되어 있다가 알림 클릭으로 새로 열린 경우 (?view=log 또는 ?action=open_log)
+  // 2. 앱이 종료되어 있다가 알림 클릭으로 새로 열린 경우
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('view') === 'log' || urlParams.get('action') === 'open_log' || window.location.hash === '#log') {
+    if (urlParams.get('view') === 'deposit_warning' || urlParams.get('action') === 'deposit_warning') {
+      const cleanUrl = window.location.pathname + (window.location.hash || '');
+      window.history.replaceState(null, '', cleanUrl || window.location.pathname);
+
+      const tryOpenDeposit = (retry = 0) => {
+        if (window.BrokerService && typeof window.BrokerService.openDepositWarningModal === 'function') {
+          window.BrokerService.openDepositWarningModal();
+        } else if (retry < 15) {
+          setTimeout(() => tryOpenDeposit(retry + 1), 250);
+        }
+      };
+      setTimeout(() => tryOpenDeposit(0), 450);
+    } else if (urlParams.get('view') === 'log' || urlParams.get('action') === 'open_log' || window.location.hash === '#log') {
       // URL 파라미터 정리: 뒤로가기나 새로고침 시 다시 열리지 않고 일반 홈화면이 유지되도록 함
       const cleanUrl = window.location.pathname + (window.location.hash && window.location.hash !== '#log' ? window.location.hash : '');
       window.history.replaceState(null, '', cleanUrl || window.location.pathname);

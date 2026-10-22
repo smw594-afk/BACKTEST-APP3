@@ -74,7 +74,7 @@ function renderCombinedHoldings() {
   const modeMap = { 'Middle': 'Mid1', 'Middle2': 'Mid2', 'Middle3': 'Mid3', 'SF': 'SF', 'AG': 'AG' };
 
   if (allHoldings.length === 0) {
-    container.innerHTML = "<tr><td colspan='9' class='table-empty-cell'>통합 보유 현황이 없습니다</td></tr>";
+    container.innerHTML = "<tr><td colspan='10' class='table-empty-cell'>통합 보유 현황이 없습니다</td></tr>";
     return;
   }
 
@@ -174,6 +174,7 @@ function renderCombinedHoldings() {
     const isPrimaryDate = Boolean(primaryDate && buyDateNorm && buyDateNorm === primaryDate);
 
     const symbol = window.slotConfigs?.[o.slotNum]?.basics?.ticker || o.ticker || "";
+    const stockName = String(symbol || "-").trim().toUpperCase();
     let reconcileCell = '<td style="text-align:center;color:#94a3b8;font-size:10px;">-</td>';
     if (window.BrokerReconcile) {
       const broker = window.BrokerReconcile.brokerForSlot(o.slotNum);
@@ -208,7 +209,7 @@ function renderCombinedHoldings() {
       reconcileCell = window.BrokerReconcile.cellHtml(st, isPrimaryDate);
     }
 
-    return `<tr class="${isPrimaryDate ? 'date-sync-highlight-row' : ''}" data-buy-date="${buyDateNorm}">${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
+    return `<tr class="${isPrimaryDate ? 'date-sync-highlight-row' : ''}" data-buy-date="${buyDateNorm}">${reconcileCell}<td style="color:${window.SLOT_COLORS[(o.slotNum - 1) % window.SLOT_COLORS.length]}; font-weight:700;">#${o.slotNum}</td><td>${stockName}</td><td style="color:#8b5cf6;">${buyDateStr}</td><td>${stopDateStr}</td><td>${displayMode}/T${o.tier}</td><td style="color:#8b5cf6;">${buyPriceStr}</td><td class="hide-on-cover">${sellPriceStr}</td><td style="color:#8b5cf6;">${o.qty}</td><td class="${profitClass}">${profitStr}</td></tr>`;
   }).join('');
 
   container.innerHTML = tableRows;

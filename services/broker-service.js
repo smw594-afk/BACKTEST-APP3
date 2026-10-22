@@ -1,6 +1,7 @@
 /**
- * App 3 Broker Service Manager (Kiwoom + LS Securities)
- * Slots 1~3 = Kiwoom, Slots 4~6 = LS Securities
+ * App 3 Broker Service Manager (Meritz + LS + Kiwoom)
+ * Slots 1~6 = Meritz, Slots 7~11 = LS Securities, Slot 12 = Kiwoom
+ * 2026-10-12 개편: 메리츠 1~6, LS 7~11, 키움 12
  * Supports Local Storage Key Pre-filling & VM Proxy Sync
  */
 
@@ -667,7 +668,6 @@ window.BrokerService = {
           <span>${title}</span>
           <span onclick="document.getElementById('broker-key-modal').remove()" style="cursor:pointer; font-size:20px; color:#94a3b8;">&times;</span>
         </h3>
-        <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">AppSecret은 브라우저에 저장하지 않고 GCP VM에만 보관됩니다(골든 룰 5).</p>
 
         <!-- 브로커 선택 탭: 메리츠/LS/키움 각각 따로 등록한다 -->
         <div style="display:flex; gap:8px; margin-bottom:14px;">
@@ -681,7 +681,7 @@ window.BrokerService = {
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
                    border:2px solid ${broker === 'ls' ? '#a855f7' : '#334155'};
                    background:${broker === 'ls' ? 'linear-gradient(135deg,#a855f7,#7e22ce)' : '#0f172a'}; color:#fff;">
-            🟢 LS증권 (슬롯7~11)
+            🟢 LS (슬롯7~11)
           </button>
           <button onclick="window.BrokerService.openBrokerKeyModal('kiwoom')"
             style="flex:1; padding:8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700;
@@ -691,16 +691,18 @@ window.BrokerService = {
           </button>
         </div>
 
-        <!-- 예수금 부족 경고 팝업 ON/OFF 스위치 -->
+        <!-- 예수금 부족 경고 알림 ON/OFF 스위치 및 테스트 -->
         <div id="broker-deposit-warning-box" style="display:flex; align-items:center; justify-content:space-between;
              background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:8px; margin-top:4px;">
           <div>
-            <div style="font-size:13px; font-weight:700; color:#f8fafc;">⚠️ 예수금 부족 경고 팝업</div>
+            <div style="font-size:13px; font-weight:700; color:#f8fafc;">⚠️ 예수금 부족 경고 알림</div>
             <div id="broker-deposit-warning-status" style="font-size:11px; color:#94a3b8; margin-top:2px;">
-              ${localStorage.getItem('vtotal3_ignore_deposit_warning') === 'true' ? 'OFF (팝업 차단됨)' : 'ON (예수금 체크 팝업 표시)'}
+              ${localStorage.getItem('vtotal3_ignore_deposit_warning') === 'true' ? 'OFF (알림 차단됨)' : 'ON (예수금 체크 및 푸시 알림)'}
             </div>
           </div>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button onclick="window.BrokerService.sendDepositTestFromModal()" id="btnDepositTest"
+              style="padding:4px 8px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid #f59e0b; background:#78350f; color:#fde68a;">테스트</button>
             <button onclick="localStorage.setItem('vtotal3_ignore_deposit_warning', 'false'); window.BrokerService.openBrokerKeyModal('${broker}');"
               style="padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;
                      border:1px solid ${localStorage.getItem('vtotal3_ignore_deposit_warning') !== 'true' ? '#10b981' : '#334155'};
@@ -716,7 +718,7 @@ window.BrokerService = {
         <div id="broker-webpush-box" style="display:flex; align-items:center; justify-content:space-between;
              background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:8px; margin-top:4px;">
           <div>
-            <div style="font-size:13px; font-weight:700; color:#f8fafc;">🔔 브라우저 푸시 알림 (원장 대조 결과)</div>
+            <div style="font-size:13px; font-weight:700; color:#f8fafc;">🔔 브라우저 푸시 알림</div>
             <div id="broker-webpush-status" style="font-size:11px; color:#94a3b8; margin-top:2px;">상태 확인 중...</div>
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
@@ -878,7 +880,7 @@ window.BrokerService = {
 
     if (!window.PushNotificationService || !window.PushNotificationService.isSupported) {
       const msg = typeof window !== 'undefined' && window.location.protocol === 'file:'
-        ? '로컬 파일(file://) 환경에서는 지원되지 않습니다 (HTTPS 접속 필요)'
+        ? '로컬 파일(file://) 환경에서는 지원되지 않습니다'
         : '이 브라우저는 웹 푸시를 지원하지 않습니다';
       el.innerHTML = `<span style="color:#94a3b8;">${msg}</span>`;
       if (onBtn) onBtn.disabled = true;
@@ -958,6 +960,66 @@ window.BrokerService = {
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "테스트"; }
     }
+  },
+
+  async sendDepositTestFromModal() {
+    const btn = document.getElementById("btnDepositTest");
+    if (btn) { btn.disabled = true; btn.textContent = "발송 중..."; }
+    try {
+      const isSub = await window.PushNotificationService.isSubscribed();
+      if (!isSub) {
+        alert("브라우저 푸시 알림이 꺼져 있습니다.\n아래 '🔔 브라우저 푸시 알림'의 ON 버튼을 먼저 눌러 알림을 허용해주세요.");
+        return;
+      }
+      const userId = this.getUserId();
+      const res = await this.brokerFetch('/api/user/test-deposit-push', 'POST', { userId });
+      if (!res || !res.success) {
+        throw new Error(res?.error || '테스트 알림 발송 실패');
+      }
+      // 로컬 화면에서도 바로 팝업 확인 가능하도록 팝업 띄움
+      this.openDepositWarningModal({
+        detailLines: "• 키움: 필요 $694.40 > 주문가능 $500.00 (약 $194.40 부족) [테스트]\n• 스마트폰/PC 상단 알림 배너를 클릭해도 이 팝업이 바로 열립니다."
+      });
+      alert("⚠️ 예수금 부족 테스트 알림이 발송되었습니다!\n잠시 후 스마트폰/PC 상단에 뜨는 푸시 알림을 탭하면 이 경고 팝업이 다시 열립니다.");
+    } catch (e) {
+      alert("테스트 알림 실패: " + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "테스트"; }
+    }
+  },
+
+  openDepositWarningModal(payload) {
+    const existing = document.getElementById('deposit-warning-modal');
+    if (existing) existing.remove();
+
+    let detailText = (payload && payload.detailLines) || '';
+    if (!detailText) {
+      detailText = '• 키움: 필요 금액 대비 주문가능 금액(예수금) 부족\n• 상세 내역은 상단 [📜 로그] 메뉴에서 확인하실 수 있습니다.';
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'deposit-warning-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:100002; backdrop-filter:blur(3px);';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:440px; width:90%; padding:22px; background:#1e293b; color:#f8fafc; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5); border:1px solid #f59e0b;" onclick="event.stopPropagation()">
+        <h3 style="margin-top:0; font-size:17px; font-weight:700; color:#fbbf24; display:flex; align-items:center; justify-content:space-between;">
+          <span>⚠️ 매수 예수금 부족 경고 알림</span>
+          <span onclick="document.getElementById('deposit-warning-modal').remove()" style="cursor:pointer; font-size:20px; color:#94a3b8;">&times;</span>
+        </h3>
+        <p style="font-size:13px; color:#cbd5e1; line-height:1.5; margin:10px 0;">당일 주문표 생성 완료 후 증권사 잔고를 점검한 결과, 매수 필요 금액보다 주문가능 예수금이 부족한 증권사가 감지되었습니다.</p>
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin:12px 0; font-family:monospace; font-size:12.5px; color:#fef08a; line-height:1.6; white-space:pre-wrap;">${detailText}</div>
+        <p style="font-size:12px; color:#f87171; font-weight:700; margin:8px 0 16px 0;">※ 21:00 발주 전까지 해당 증권사 계좌로 달러를 충전/환전해 주세요. (미충전 시 증권사에서 매수 주문이 거부됩니다)</p>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button onclick="if(typeof openGcpLogsModal==='function') openGcpLogsModal(); document.getElementById('deposit-warning-modal').remove();"
+            style="padding:8px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid #0284c7; background:#0369a1; color:#fff;">📜 발주 로그 보기</button>
+          <button onclick="document.getElementById('deposit-warning-modal').remove()"
+            style="padding:8px 16px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:#d97706; color:#fff;">확인 완료</button>
+        </div>
+      </div>
+    `;
+    modal.onclick = () => modal.remove();
+    document.body.appendChild(modal);
   },
 
   async saveModalKeys(broker) {

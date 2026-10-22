@@ -48,22 +48,23 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  let rawUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './index.html?view=log';
-  if (!rawUrl.includes('view=log') && !rawUrl.includes('action=open_log')) {
+  const notifData = (event.notification && event.notification.data) || {};
+  let rawUrl = notifData.url || './index.html?view=log';
+  const isDepositWarning = (notifData.type === 'DEPOSIT_WARNING' || rawUrl.includes('deposit_warning'));
+
+  if (!isDepositWarning && !rawUrl.includes('view=') && !rawUrl.includes('action=')) {
     rawUrl += (rawUrl.includes('?') ? '&' : '?') + 'view=log';
   }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url && 'focus' in client) {
-          // 이미 열려 있는 창이 있으면 포커스 후 로그 모달 열기 메시지 전송
-          try {
-            client.postMessage({ type: 'OPEN_GCP_LOGS_MODAL' });
-          } catch (e) {}
-          return client.focus();
-        }
-      }
+      // 이미 열려 있는 창에 알림 종류에 맞게 모달 열기 메시지 전송 후 첫 번째 탭 포커스
+      const candidates = clientList.filter(c => c.url && 'focus' in c);
+      const msgType = isDepositWarning ? 'OPEN_DEPOSIT_WARNING_MODAL' : 'OPEN_GCP_LOGS_MODAL';
+      candidates.forEach(c => {
+        try { c.postMessage({ type: msgType, payload: notifData }); } catch (e) {}
+      });
+      if (candidates.length) return candidates[0].focus();
       if (self.clients.openWindow) {
         return self.clients.openWindow(rawUrl);
       }
