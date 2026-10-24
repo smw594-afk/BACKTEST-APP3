@@ -215,9 +215,12 @@ function renderCombinedHoldings() {
   container.innerHTML = tableRows;
 
   // fire-and-forget: fills land async, then this re-renders itself once with real statuses
-  if (window.BrokerReconcile && !window.BrokerReconcile.isReady() && !window.__isRefreshingCombinedHoldings) {
+  // (숨겨진 패널에서는 불필요한 3사 네트워크 요청을 유발하지 않고, 활성 브로커만 지정해 조회한다)
+  const isHoldingsVisible = !!(window.isStatsMode || window.isOrderView === false);
+  if (isHoldingsVisible && window.BrokerReconcile && !window.BrokerReconcile.isReady() && !window.__isRefreshingCombinedHoldings) {
     window.__isRefreshingCombinedHoldings = true;
-    window.BrokerReconcile.refreshFills(() => {
+    const activeBr = (window.BrokerService && window.BrokerService.activeBroker) || "meritz";
+    window.BrokerReconcile.refreshFills(activeBr, () => {
       window.__isRefreshingCombinedHoldings = false;
       renderCombinedHoldings();
     });
@@ -365,19 +368,43 @@ function updateCombinedHoldingsSummary() {
   const summaryEl = document.getElementById('combinedHoldingsSummary');
   if (!summaryEl) return;
 
+  const viewMode = window.currentHoldingsViewMode || 'combined';
   let allHoldings = [];
-  for (let i = 1; i <= window.MAX_SLOTS; i++) {
-    if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
-      const res = window.getBestResult(window.lastBTResults[i], i);
-      if (res && res.inv) {
-        if (Array.isArray(res.inv)) allHoldings.push(...res.inv);
+
+  if (viewMode !== 'combined') {
+    const slotNum = parseInt(viewMode.replace('slot', ''), 10);
+    const res = (typeof window.getBestResult === 'function')
+      ? window.getBestResult(window.lastBTResults[slotNum], slotNum)
+      : window.lastBTResults[slotNum];
+    if (res && res.inv && Array.isArray(res.inv)) {
+      allHoldings = [...res.inv];
+    }
+  } else {
+    for (let i = 1; i <= window.MAX_SLOTS; i++) {
+      if (window.isSlotActive(i) && (!window.BrokerService || window.BrokerService.isSlotForBroker(i))) {
+        const res = (typeof window.getBestResult === 'function')
+          ? window.getBestResult(window.lastBTResults[i], i)
+          : window.lastBTResults[i];
+        if (res && res.inv) {
+          if (Array.isArray(res.inv)) allHoldings.push(...res.inv);
+        }
       }
     }
   }
 
   // 기준 날짜: 주가 데이터의 마지막 날짜 (미장 종가 기준)
   let summaryBaseDate = '';
-  if (typeof window.getPrimaryStrategyDisplayDate === 'function') {
+  if (viewMode !== 'combined') {
+    const slotNum = parseInt(viewMode.replace('slot', ''), 10);
+    const d = window.globalMainDataSlot?.[slotNum] || (slotNum === 1 ? window.globalMainData : null);
+    if (d && d.dates && d.dates.length > 0) {
+      const lastDate = d.dates[d.dates.length - 1];
+      if (lastDate && window.formatDateNY) {
+        summaryBaseDate = window.formatDateNY(lastDate);
+      }
+    }
+  }
+  if (!summaryBaseDate && typeof window.getPrimaryStrategyDisplayDate === 'function') {
     summaryBaseDate = window.getPrimaryStrategyDisplayDate();
   }
   if (!summaryBaseDate) {

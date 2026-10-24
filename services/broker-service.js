@@ -146,6 +146,15 @@ window.BrokerService = {
       }
     } catch (e) { console.warn("[BrokerService] btn update error:", e); }
 
+    // ⚡ 초기 부팅(isInitial=true) 시에는 브로커 상태/버튼/탭 표시만 복원하고 즉시 종료한다.
+    // (초기 데이터 로드·선조회·주문표/시트 대조는 enterAppDirectly()가 순서대로 수행하므로,
+    //  여기서 캐시를 날리고 refreshFills/refreshOrderStatusCache(true, true)/checkSheetVerificationStatus를
+    //  중복 호출하면 부팅 시 3개 증권사 TR과 시트 검증 요청이 한꺼번에 폭주한다.)
+    if (isInitial) {
+      if (window.orderStatusCache) window.orderStatusCache.activeBroker = broker;
+      return;
+    }
+
     // 1. orderStatusCache 초기화 및 전환된 브로커 캐시 리셋
     // ⚠️ 전체 대조 맵(state.buy)은 보존하여 화면 깜빡임을 방지하되,
     //    전환된 브로커의 fills/balance 캐시는 비워 서버에서 최신 체결을 즉시 다시 가져오게 한다!
@@ -503,7 +512,8 @@ window.BrokerService = {
     if (!broker) {
       return { success: false, error: `유효하지 않은 슬롯(${slot}) 또는 브로커입니다.` };
     }
-    return await this.brokerFetch(`/api/broker/${broker}/order`, "POST", { symbol, qty, price: Number(price).toFixed(2), side, ordType });
+    const userId = this.getUserId();
+    return await this.brokerFetch(`/api/broker/${broker}/order`, "POST", { userId, symbol, qty, price: Number(price).toFixed(2), side, ordType });
   },
 
   async cancelOverseasOrder(slot, orderNo) {
@@ -511,7 +521,8 @@ window.BrokerService = {
     if (!broker) {
       return { success: false, error: `유효하지 않은 슬롯(${slot})입니다.` };
     }
-    return await this.brokerFetch(`/api/broker/${broker}/cancel`, "POST", { orderNo });
+    const userId = this.getUserId();
+    return await this.brokerFetch(`/api/broker/${broker}/cancel`, "POST", { userId, orderNo });
   },
 
   // 조회 계열은 VM이 증권사 TR을 여러 번 호출한다(체결내역은 일자별 TR).
@@ -535,7 +546,8 @@ window.BrokerService = {
   async fetchUnfilledOrders(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const timeout = broker === "ls" ? 30000 : 20000;
-    const res = await this._dedupFetch(`unfilled_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/unfilled`, "GET", null, timeout));
+    const userId = this.getUserId();
+    const res = await this._dedupFetch(`unfilled_${broker}_${userId}`, () => this.brokerFetch(`/api/broker/${broker}/unfilled?userId=${encodeURIComponent(userId)}`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
       this.showMaintenancePopup(broker, res.error);
     }
@@ -545,7 +557,8 @@ window.BrokerService = {
   async fetchOverseasBalance(broker = this.activeBroker) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     const timeout = broker === "ls" ? 30000 : 25000;
-    const res = await this._dedupFetch(`balance_${broker}`, () => this.brokerFetch(`/api/broker/${broker}/balance`, "GET", null, timeout));
+    const userId = this.getUserId();
+    const res = await this._dedupFetch(`balance_${broker}_${userId}`, () => this.brokerFetch(`/api/broker/${broker}/balance?userId=${encodeURIComponent(userId)}`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
       this.showMaintenancePopup(broker, res.error);
     }
@@ -554,13 +567,14 @@ window.BrokerService = {
 
   async fetchOverseasFills(broker = this.activeBroker, days = null, force = false) {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
-    // ⭐️ 35영업일(손절 기준일) 완전 커버를 위해 달력 60일(약 42~45영업일) 기본값 사용
-    // VM 로컬 파일 영구저장소 연동으로 과거 일자는 0ms 즉시 반환되므로 타임아웃 없음
-    const defaultDays = 60;
+    // ⚡ 기본 체결 조회 일수: 부팅 및 주문표 대조는 최근 3일치만 빠르게 조회(0.1초)
+    // 과거 60일치 전체 내역은 매매내역 화면(history) 진입 시에만 명시적으로 days=60을 전달받아 조회함
+    const defaultDays = 3;
     const d = Number(days) || defaultDays;
     const forceParam = force ? "&force=1" : "";
     const timeout = broker === "ls" ? 60000 : 40000;
-    const res = await this._dedupFetch(`fills_${broker}_${d}_${force ? 1 : 0}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}${forceParam}`, "GET", null, timeout));
+    const userId = this.getUserId();
+    const res = await this._dedupFetch(`fills_${broker}_${userId}_${d}_${force ? 1 : 0}`, () => this.brokerFetch(`/api/broker/${broker}/fills?days=${d}&userId=${encodeURIComponent(userId)}${forceParam}`, "GET", null, timeout));
     if (res && res.success === false && this.isMaintenanceError(res.error)) {
       this.showMaintenancePopup(broker, res.error);
     }

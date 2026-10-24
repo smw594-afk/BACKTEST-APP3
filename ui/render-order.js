@@ -90,7 +90,7 @@ async function _refreshOrderStatusCacheInner(force, reqSeq, isManual = false) {
     };
     fetchBalTask().catch(() => {});
 
-    let canUseVmFastPath = false;
+    let canUseVmFastPath = !isBrokerPhase;
 
     // 2. VM 예약 주문 및 발주/체결 검증 보고서 조회
     const fetchVmTask = async () => {
@@ -148,7 +148,7 @@ async function _refreshOrderStatusCacheInner(force, reqSeq, isManual = false) {
       }
     };
 
-    // 3. 증권사 미체결 / 체결 내역 조회 (Fast Path 불가 시 또는 수동 강제 조회 시 병렬 실행)
+    // 3. 증권사 미체결 / 체결 내역 조회 (Fast Path 불가 시 또는 수동 강제 조회 시에만 실행)
     const fetchBrokerTask = async () => {
       // ⭐️ 이미 VM 검증 보고서로 Fast Path 완료된 상태이고 수동 강제 조회가 아니라면 무거운 실시간 TR 생략
       if (canUseVmFastPath && !isManual) {
@@ -190,8 +190,14 @@ async function _refreshOrderStatusCacheInner(force, reqSeq, isManual = false) {
       if (typeof window.refreshOrderViewUI === 'function') window.refreshOrderViewUI();
     };
 
-    // ⭐️ VM 예약/검증 조회와 증권사 주문 조회를 병렬(Promise.all)로 동시 실행
-    await Promise.all([fetchVmTask(), fetchBrokerTask()]);
+    // ⭐️ 먼저 가벼운 VM 예약/검증 보고서(pending)를 확인해 canUseVmFastPath를 판정하고,
+    //    Fast Path가 불가능하거나 수동 새로고침(isManual)일 때만 무거운 증권사 실시간 TR(unfilled/fills)을 호출한다.
+    //    (기존에는 Promise.all로 동시 시작하여 fetchVmTask가 끝나기 전에 fetchBrokerTask가 canUseVmFastPath=false를 읽고 무조건 실행되는 레이스 버그가 있었음)
+    await fetchVmTask();
+    if (reqSeq !== _roscReqSeq) return;
+    if (!canUseVmFastPath || isManual) {
+      await fetchBrokerTask();
+    }
     if (reqSeq !== _roscReqSeq) return;
 
     window.orderStatusCache.brokerOrdersChecked = true;
@@ -1294,7 +1300,8 @@ window.submitSlotOrdersToBroker = async function (slotNum) {
   //    서버(broker3-proxy의 sanitizeOrders3)도 slot 번호로 같은 판정을 하므로 경계가 어긋나면
   //    화면과 다른 계좌로 주문이 나간다.
   const broker = window.BrokerService.brokerForSlot(slotNum);
-  const brokerLabel = broker === "kiwoom" ? "키움" : "LS증권";
+  if (!broker) { alert(`유효하지 않은 슬롯(${slotNum})입니다.`); return; }
+  const brokerLabel = broker === "kiwoom" ? "키움" : (broker === "meritz" ? "메리츠" : "LS");
 
   // 실전/모의를 주문 직전에 서버에서 확인해 팝업에 명시한다.
   // 실전이면 이 확인 팝업이 유일한 안전장치이므로(자동주문 스케줄러 없음) 문구를 강하게.
@@ -2221,6 +2228,8 @@ window.checkSheetVerificationStatus = async function(forceNetwork = false) {
   }
 
   // 2) ⚡ 초고속 Fast Path 2: 브라우저 메모리에 이미 로드된 구글 시트 로그(lastMyPerfData)로 즉각 검증 (0.001초!)
+  //    (방금 backtest-log-init으로 최신 시트 원본을 받아왔으므로, 수동 강제 검증(forceNetwork=true)이 아닐 때는
+  //     VM에 또 /api/orders/verify-sheet 네트워크 요청을 중복 발주하지 않고 즉시 완료한다.)
   if (!forceNetwork) {
     const localRes = window.generateLocalSheetVerificationRes ? window.generateLocalSheetVerificationRes() : null;
     if (localRes && localRes.ok && Array.isArray(localRes.slotStates)) {
@@ -2228,22 +2237,6 @@ window.checkSheetVerificationStatus = async function(forceNetwork = false) {
       window.__lastSheetVerificationTime = Date.now();
       const isMatched = window.evaluateSheetVerificationResult(localRes);
       window.updateSheetVerifyButton(isMatched ? 'matched' : 'mismatched');
-
-      // 백그라운드에서 조용히 VM 최신 스냅샷 동기화 (UI 대기/깜빡임 없음)
-      const now = Date.now();
-      if (now - (window.__lastSheetVerificationServerTime || 0) > 60000) {
-        window.__lastSheetVerificationServerTime = now;
-        (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(false) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}`).then(r => r.json()))
-          .then(vmRes => {
-            if (vmRes && vmRes.ok && Array.isArray(vmRes.slotStates)) {
-              window.__lastSheetVerificationVmRes = vmRes;
-              window.__lastSheetVerificationTime = Date.now();
-              const bgMatched = window.evaluateSheetVerificationResult(vmRes);
-              window.updateSheetVerifyButton(bgMatched ? 'matched' : 'mismatched');
-            }
-          })
-          .catch(() => {});
-      }
       return isMatched;
     }
   }
@@ -2251,7 +2244,7 @@ window.checkSheetVerificationStatus = async function(forceNetwork = false) {
   // 3) 폴백: 로컬 시트 데이터도 아직 준비되지 않았거나 사용자가 명시적으로 새로고침한 경우에만 VM 대기
   window.updateSheetVerifyButton('checking');
   try {
-    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceNetwork) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceNetwork ? '&force=1' : ''}`).then(r => r.json()));
+    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceNetwork) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceNetwork ? '&force=1' : ''}`, { headers: { 'x-app-key': window.BROKER_APP_KEY || '', 'x-user-id': window.myUserId || '' } }).then(r => r.json()));
     
     if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
       window.updateSheetVerifyButton('mismatched', vmRes?.reason || 'VM 응답 오류');
@@ -2566,7 +2559,7 @@ window.openSheetVerificationModal = async function(forceReload = false) {
     if (isSyncing && window.initDataFuture) {
       try { await window.initDataFuture; } catch (e) {}
     }
-    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceReload) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceReload ? '&force=1' : ''}`).then(r => r.json()));
+    const vmRes = await (window.BrokerService?.fetchSheetVerification ? window.BrokerService.fetchSheetVerification(forceReload) : fetch(`${window.WORKER3_URL || 'https://autumn-limit-001e-3.smw594.workers.dev'}/api/orders/verify-sheet?userId=${encodeURIComponent(window.myUserId || '')}${forceReload ? '&force=1' : ''}`, { headers: { 'x-app-key': window.BROKER_APP_KEY || '', 'x-user-id': window.myUserId || '' } }).then(r => r.json()));
 
     if (!vmRes || !vmRes.ok || !Array.isArray(vmRes.slotStates)) {
       throw new Error(vmRes?.reason || vmRes?.error || "VM 응답 데이터 형식이 올바르지 않습니다.");

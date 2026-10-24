@@ -163,9 +163,9 @@ function toggleHoldingsView(dir) {
   let idx = modes.indexOf(window.currentHoldingsViewMode);
   if (idx === -1) idx = 0;
 
-  if (dir === 'left') {
+  if (dir === 'left' || dir === 1 || dir > 0) {
     idx = (idx + 1) % modes.length;
-  } else if (dir === 'right') {
+  } else if (dir === 'right' || dir === -1 || dir < 0) {
     idx = (idx - 1 + modes.length) % modes.length;
   } else {
     idx = (idx + 1) % modes.length;
@@ -194,9 +194,12 @@ function toggleHoldingsView(dir) {
     const res = (typeof getBestResult === 'function') ? getBestResult(lastBTResults[slotNum], slotNum) : lastBTResults[slotNum];
     const stratName = (res && res.currentStrat) || (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
     const nameEl = document.getElementById('holdingsSlot' + slotNum + 'Name');
-    if (nameEl) nameEl.textContent = stratName + ' 보유현황';
-    if (res && res.inv && window.UI?.holdings?.renderTableSlot) {
-      window.UI.holdings.renderTableSlot(res.inv, stratName, slotNum);
+    if (nameEl) {
+      // 상단 헤더(#holdingsTitle)에 슬롯 및 전략명이 명확히 표시되므로 내부 중복 라벨은 숨김
+      nameEl.style.display = 'none';
+    }
+    if (window.UI?.holdings?.renderTableSlot) {
+      window.UI.holdings.renderTableSlot(res ? (res.inv || []) : [], stratName, slotNum);
     }
   }
 
@@ -268,9 +271,11 @@ function updateHoldingsHeaderUI() {
     const res = (typeof getBestResult === 'function') ? getBestResult(lastBTResults[slotNum], slotNum) : lastBTResults[slotNum];
     const stratName = (res && res.currentStrat) || (window.slotConfigs && window.slotConfigs[slotNum]?.basics?.strategy) || `투자법 ${slotNum}`;
     const formattedName = window.formatStrategyNameWithSmallParentheses ? window.formatStrategyNameWithSmallParentheses(stratName) : stratName;
-    titleText = `📦 ${formattedName} 보유현황`;
+    const prefix = String(formattedName).includes('슬롯') ? '' : `슬롯${slotNum} `;
+    titleText = `📦 ${prefix}${formattedName} 보유현황`;
   }
   titleEl.innerHTML = titleText;
+  titleEl.title = "클릭 또는 좌우 스와이프로 통합/슬롯별 보유현황 전환";
 
   if (summaryEl && typeof window.UI?.holdings?.updateCombinedHoldingsSummary === 'function') {
     window.UI.holdings.updateCombinedHoldingsSummary();

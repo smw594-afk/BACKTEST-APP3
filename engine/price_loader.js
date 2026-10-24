@@ -50,7 +50,7 @@ const priceLoader = {
         const p1 = neededStartDate
           ? Math.floor(neededStartDate.getTime() / 1000)
           : Math.floor((now.getTime() - 450 * 24 * 60 * 60 * 1000) / 1000);
-        const p2 = Math.floor(now.getTime() / 1000);
+        const p2 = Math.floor(now.getTime() / 3600000) * 3600;
         const symbols = "SOXL,SOXX,TQQQ,QQQ,KRW=X";
 
         const url = `${WORKER3_URL}/api/prices?symbols=${encodeURIComponent(symbols)}&p1=${p1}&p2=${p2}`;

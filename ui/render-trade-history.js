@@ -290,9 +290,9 @@ async function renderBrokerFills(broker) {
   try {
     let data = null;
     if (window.BrokerReconcile && window.BrokerReconcile.getFills) {
-      data = await window.BrokerReconcile.getFills(broker);
+      data = await window.BrokerReconcile.getFills(broker, false, 60);
     } else if (window.BrokerService && window.BrokerService.fetchOverseasFills) {
-      data = await window.BrokerService.fetchOverseasFills(broker);
+      data = await window.BrokerService.fetchOverseasFills(broker, 60);
     }
 
     if (!data || data.success === false) {

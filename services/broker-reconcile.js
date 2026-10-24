@@ -115,19 +115,51 @@
     : (Number(slot) <= 6 ? "meritz" : (Number(slot) <= 11 ? "ls" : "kiwoom")));
 
   // ─────────── cached proxy reads ───────────
-  async function getFills(broker, force = false) {
-    const now = Date.now();
-    const c = fillsCache[broker];
-    if (!force && c && now - c.at < CACHE_MS) return c.data;
-    if (!fillsPromise[broker]) {
-      fillsPromise[broker] = window.BrokerService.fetchOverseasFills(broker, null, force)
-        .finally(() => { fillsPromise[broker] = null; });
+  function hydrateFillsSnapshots() {
+    try {
+      const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+        ? window.BrokerService.getUserId()
+        : (localStorage.getItem("vtotal3_id") || "smw594");
+      let hydratedAny = false;
+      for (const br of BROKERS) {
+        const snapStr = localStorage.getItem(`vtotal3_fills_snap_${br}_${uid}`);
+        if (snapStr) {
+          const snap = JSON.parse(snapStr);
+          if (snap && snap.success !== false) {
+            if (!fillsCache[br]) fillsCache[br] = { at: 0, data: snap, uid };
+            ingest(br, snap);
+            hydratedAny = true;
+          }
+        }
+      }
+      if (hydratedAny) state.ready = true;
+    } catch (e) {
+      console.warn("[BrokerReconcile] hydrateFillsSnapshots error:", e);
     }
-    const data = await fillsPromise[broker];
+  }
+
+  async function getFills(broker, force = false, days = null) {
+    const now = Date.now();
+    const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
+      ? window.BrokerService.getUserId()
+      : (localStorage.getItem("vtotal3_id") || "smw594");
+    const c = fillsCache[broker];
+    if (!force && c && c.uid === uid && now - c.at < CACHE_MS && (!days || c.days >= days)) return c.data;
+    const pKey = `${broker}_${days || 3}`;
+    if (!fillsPromise[pKey]) {
+      fillsPromise[pKey] = window.BrokerService.fetchOverseasFills(broker, days, force)
+        .finally(() => { fillsPromise[pKey] = null; });
+    }
+    const data = await fillsPromise[pKey];
     if (data && data.success !== false) {
-      fillsCache[broker] = { at: Date.now(), data };
+      fillsCache[broker] = { at: Date.now(), data, uid, days: days || 3 };
       ingest(broker, data);
       state.ready = true;
+      try {
+        localStorage.setItem(`vtotal3_fills_snap_${broker}_${uid}`, JSON.stringify(data));
+      } catch (e) {
+        console.warn("[BrokerReconcile] fills snapshot save error:", e);
+      }
     }
     return data;
   }
@@ -252,12 +284,21 @@
     });
   }
 
+  hydrateFillsSnapshots();
+
   const onDoneCallbacks = [];
   let refreshPromise = null;
-  async function refreshFills(targetBroker, onDone) {
-    if (typeof targetBroker === "function") {
+  async function refreshFills(targetBroker, onDone, force = false, days = null) {
+    if (typeof targetBroker === "boolean") {
+      force = targetBroker;
+      targetBroker = null;
+    } else if (typeof targetBroker === "function") {
+      if (typeof onDone === "boolean") force = onDone;
       onDone = targetBroker;
       targetBroker = null;
+    } else if (typeof onDone === "boolean") {
+      force = onDone;
+      onDone = null;
     }
     if (typeof onDone === "function") onDoneCallbacks.push(onDone);
     if (refreshPromise) return await refreshPromise;
@@ -271,13 +312,19 @@
 
     refreshPromise = (async () => {
       try {
-        // 통합 보유현황은 전체 슬롯(키움+LS)을 대조하므로 양쪽 브로커를 병렬(Promise.allSettled)로 조회
-        const brokersToFetch = targetBroker ? [targetBroker, ...(BROKERS.filter(b => b !== targetBroker))] : BROKERS;
+        // ⚡ 모든 화면은 현재 활성 브로커(activeBroker) 슬롯만 표시하므로,
+        //    명시적으로 'all'을 지정한 경우가 아니면 활성(또는 지정된) 브로커 1개만 조회한다.
+        const activeBr = (window.BrokerService && window.BrokerService.activeBroker)
+          || localStorage.getItem("vtotal3_active_broker")
+          || "meritz";
+        const brokersToFetch = targetBroker === "all"
+          ? BROKERS
+          : [targetBroker || activeBr];
         let anyOk = false;
 
         const tasks = brokersToFetch.map(async (br) => {
           try {
-            const d = await getFills(br, true);
+            const d = await getFills(br, force, days);
             if (d && d.success !== false) {
               anyOk = true;
               state.ready = true;

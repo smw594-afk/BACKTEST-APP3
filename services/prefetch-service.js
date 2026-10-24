@@ -75,7 +75,7 @@ const prefetchService = {
       // 2) Worker3 주가 데이터
       const now = Date.now();
       const p1 = Math.floor((now - 450 * 24 * 60 * 60 * 1000) / 1000);
-      const p2 = Math.floor(now / 1000);
+      const p2 = Math.floor(now / 3600000) * 3600;
       const symbols = "SOXL,SOXX,TQQQ,QQQ,KRW=X";
       const priceUrl = `${WORKER3_URL_EARLY}/api/prices?symbols=${encodeURIComponent(symbols)}&p1=${p1}&p2=${p2}`;
       this.pricePromise = fetchWithTimeout(priceUrl)
@@ -88,26 +88,34 @@ const prefetchService = {
     }
   },
 
-  // 프리페치된 데이터 가져오기
+  // 프리페치된 데이터 가져오기 (ultraEarlyFetch 자동 연동)
   getInitData() {
+    if (!this.initPromise && window.__ultraEarlyFetch?.initPromise) {
+      this.initPromise = window.__ultraEarlyFetch.initPromise;
+    }
     return this.initPromise;
   },
 
   getPriceData() {
+    if (!this.pricePromise && window.__ultraEarlyFetch?.pricePromise) {
+      this.pricePromise = window.__ultraEarlyFetch.pricePromise;
+    }
     return this.pricePromise;
   },
 
   // 프리페치 결과를 Promise에서 가져오기 (한 번만)
   async consumeInitData() {
-    const data = await this.initPromise;
+    const p = this.getInitData();
     this.initPromise = null;
-    return data;
+    if (window.__ultraEarlyFetch) window.__ultraEarlyFetch.initPromise = null;
+    return await p;
   },
 
   async consumePriceData() {
-    const data = await this.pricePromise;
+    const p = this.getPriceData();
     this.pricePromise = null;
-    return data;
+    if (window.__ultraEarlyFetch) window.__ultraEarlyFetch.pricePromise = null;
+    return await p;
   }
 };
 
@@ -120,3 +128,4 @@ window.__earlyFetch = {
 };
 
 window.prefetchService = prefetchService;
+prefetchService.startEarlyPrefetch();

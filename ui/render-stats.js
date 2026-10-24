@@ -1317,14 +1317,14 @@ function buildBalanceHtml(result, broker) {
       const isPlus = profitRate >= 0;
       const color = isPlus ? (isLight ? '#1d4ed8' : '#10b981') : (isLight ? '#b91c1c' : '#f43f5e');
       const prefix = isPlus ? '+' : '';
-      const pnlStr = (h.pnlVal < 0 ? '-' : '') + '$' + Math.abs(h.pnlVal).toFixed(2);
+      const pnlStr = (h.pnlVal < 0 ? '-' : '') + usd(Math.abs(h.pnlVal));
 
       html += '<tr>';
       html += `<td style="font-weight:700; color:var(--text, #fda4af); text-align:center;">${h.symbol}</td>`;
-      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">$${h.avgPrice.toFixed(2)}</td>`;
-      html += `<td style="text-align:center;">$${h.currPrice.toFixed(2)}</td>`;
+      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">${usd(h.avgPrice)}</td>`;
+      html += `<td style="text-align:center;">${usd(h.currPrice)}</td>`;
       html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">${Number(h.qty).toLocaleString(undefined, { maximumFractionDigits: 4 })}주</td>`;
-      html += `<td style="text-align:center;">$${h.valuation.toFixed(2)}</td>`;
+      html += `<td style="text-align:center;">${usd(h.valuation)}</td>`;
       html += `<td style="font-weight:700; color:${color}; text-align:center;">${prefix}${profitRate.toFixed(1)}%</td>`;
       html += `<td style="font-weight:700; color:${color}; text-align:center;">${pnlStr}</td>`;
       html += '</tr>';

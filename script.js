@@ -2444,39 +2444,62 @@ window.addEventListener('DOMContentLoaded', () => {
 
   setupHistorySwipeDirect();
 
-  // 📦 보유현황 헤더 좌우 스와이프 리스너 & 드래그 스크롤
+  // 📦 보유현황 좌우 스와이프 리스너 (통합 ↔ 슬롯별 보유현황 전환, 실전 매도 내역 스와이프와 동일 규격)
   const setupHoldingsSwipeDirect = () => {
-    const header = document.getElementById('holdingsHeader');
-    if (!header) return;
+    const panel = document.getElementById('panelHoldings');
+    if (!panel) return;
+
     let startX = 0;
     let startY = 0;
+    let isDragging = false;
 
-    header.addEventListener('touchstart', (e) => {
+    panel.addEventListener('touchstart', (e) => {
       if (e.touches && e.touches.length > 0) {
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
       }
     }, { passive: true });
 
-    header.addEventListener('touchend', (e) => {
+    panel.addEventListener('touchend', (e) => {
       if (!e.changedTouches || e.changedTouches.length === 0) return;
       const endX = e.changedTouches[0].clientX;
       const endY = e.changedTouches[0].clientY;
-      const diffX = endX - startX;
-      const diffY = endY - startY;
+      handleHoldingsSwipe(startX, startY, endX, endY);
+    }, { passive: true });
+
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('select') || e.target.closest('a') || e.target.closest('input')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    });
+
+    panel.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      handleHoldingsSwipe(startX, startY, e.clientX, e.clientY);
+    });
+
+    panel.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+
+    function handleHoldingsSwipe(sX, sY, eX, eY) {
+      const diffX = eX - sX;
+      const diffY = eY - sY;
       if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 35) {
-        if (window.UI?.toggles?.toggleHoldingsView) {
-          window.UI.toggles.toggleHoldingsView(diffX < 0 ? 1 : -1);
+        const toggleFn = window.UI?.toggles?.toggleHoldingsView || window.toggleHoldingsView;
+        if (typeof toggleFn === 'function') {
+          // 좌측으로 스와이프(diffX < 0): 다음 슬롯 (통합 -> 슬롯1 -> ...)
+          // 우측으로 스와이프(diffX > 0): 이전 슬롯 (... -> 슬롯1 -> 통합)
+          toggleFn(diffX < 0 ? 'left' : 'right');
           if (navigator.vibrate) navigator.vibrate(8);
         }
       }
-    }, { passive: true });
+    }
   };
 
   setupHoldingsSwipeDirect();
-  if (typeof setupDragScrollX === 'function') {
-    setupDragScrollX('dualHoldingsContainer');
-  }
 });
 
 

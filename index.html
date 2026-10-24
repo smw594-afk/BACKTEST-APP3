@@ -11,6 +11,8 @@
     // 로컬 프록시 베이스는 broker-service.js가 location.hostname으로 자동 판단 (8788)
   </script>
   <meta charset="UTF-8">
+  <link rel="preconnect" href="https://autumn-limit-001e-3.smw594.workers.dev" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -25,7 +27,7 @@
     if (window.location.protocol.startsWith('http')) {
       const ml = document.createElement('link');
       ml.rel = 'manifest';
-      ml.href = 'manifest.json?v=cf_v20260917_04';
+      ml.href = 'manifest.json?v=cf_v20261024_02';
       document.head.appendChild(ml);
     }
   </script>
@@ -103,7 +105,7 @@
 
         const now = Date.now();
         const p1 = Math.floor((now - 450 * 24 * 60 * 60 * 1000) / 1000);
-        const p2 = Math.floor(now / 1000);
+        const p2 = Math.floor(now / 3600000) * 3600;
         const symbols = "SOXL,SOXX,TQQQ,QQQ,KRW=X";
         const priceUrl = WORKER3_URL_ULTRA + "/api/prices?symbols=" + encodeURIComponent(symbols) + "&p1=" + p1 + "&p2=" + p2;
         const pricePromise = fetchWithTimeout(priceUrl).then(r => r.json()).catch(e => {
@@ -152,14 +154,14 @@
   <!-- Phase 2: Services (currency, export, prefetch) -->
   <script src="services/currency-service.js?v=cf_v1787732256753" defer></script>
   <script src="services/export-service.js?v=cf_v1787732256753" defer></script>
-  <script src="services/prefetch-service.js?v=cf_v1787732256753" defer></script>
+  <script src="services/prefetch-service.js?v=cf_v20261024_01" defer></script>
   <!-- Phase 3: UI Layer (layout, state, events) -->
   <script src="ui/layout-detector.js?v=cf_v1787732256753" defer></script>
   <script src="ui/state-manager.js?v=cf_v1787732256753" defer></script>
   <script src="ui/event-handlers.js?v=cf_v1788012492560" defer></script>
   <script src="services/push-notification-service.js?v=cf_v20261020_01" defer></script>
-  <script src="services/broker-service.js?v=cf_v20261022_04" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v20261013_07" defer></script>
+  <script src="services/broker-service.js?v=cf_v20261024_01" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v20261023_06" defer></script>
   <script src="services/config-manager.js?v=cf_v20261002_14" defer></script>
   <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
   <script src="services/stats-config.js?v=cf_v1787732256753" defer></script>
@@ -1231,23 +1233,23 @@
     }
   </script>
 
-  <script src="engine/price_loader.js?v=cf_v20260910_02" defer></script>
+  <script src="engine/price_loader.js?v=cf_v20261024_01" defer></script>
   <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v20261014_08" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v20261021_02" defer></script>
+  <script src="ui/render-order.js?v=cf_v20261023_05" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v20261023_05" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20261014_01" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v20261021_01" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20261024_01" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v20261023_06" defer></script>
   <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
-  <script src="ui/render-toggles.js?v=cf_v20261013_01" defer></script>
+  <script src="ui/render-toggles.js?v=cf_v20261023_01" defer></script>
   <script src="ui/render-helpers.js?v=cf_v20261012_02" defer></script>
   <script src="ui/render-notifications.js?v=cf_v20261003_02" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20261014_08" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20261023_05" defer></script>
   <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20261022_01" defer></script>
+  <script src="script.js?v=cf_v20261023_01" defer></script>
 
 
 </body>
