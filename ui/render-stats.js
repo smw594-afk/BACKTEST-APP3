@@ -1067,7 +1067,7 @@ function buildBalanceHtml(result, broker) {
     }
   }
   const totalAsset = cashAsset + evalAmt;
-  const usd = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const usd = (v) => "$" + Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // ⭐️ 실시간 운영현황 통합 합산 데이터 (원금, 일수익, 월수익, 년수익, 총수익)
   const curDailyData = (typeof globalCombinedDailyData !== 'undefined' && globalCombinedDailyData) || window.globalCombinedDailyData || [];
@@ -1289,13 +1289,13 @@ function buildBalanceHtml(result, broker) {
   // ⭐️ 2) 하단: 종목별 잔고 테이블 (종목명, 평단가, 현재가, 수량, 평가금, 수익률, 평가손익)
   html += '<table class="data-table stats-stock-table" style="width:100%; border-collapse:separate !important; border-spacing:1px 1px !important; margin-bottom:2px; table-layout:fixed;">';
   html += '<colgroup>';
+  html += '<col style="width:14%;">';
+  html += '<col style="width:13%;">';
+  html += '<col style="width:13%;">';
+  html += '<col style="width:12%;">';
+  html += '<col style="width:17%;">';
+  html += '<col style="width:13%;">';
   html += '<col style="width:18%;">';
-  html += '<col style="width:14%;">';
-  html += '<col style="width:14%;">';
-  html += '<col style="width:12%;">';
-  html += '<col style="width:15%;">';
-  html += '<col style="width:12%;">';
-  html += '<col style="width:15%;">';
   html += '</colgroup>';
   html += '<thead><tr>';
   html += '<th style="text-align:center;">종목명</th>';
@@ -1317,16 +1317,17 @@ function buildBalanceHtml(result, broker) {
       const isPlus = profitRate >= 0;
       const color = isPlus ? (isLight ? '#1d4ed8' : '#10b981') : (isLight ? '#b91c1c' : '#f43f5e');
       const prefix = isPlus ? '+' : '';
-      const pnlStr = (h.pnlVal < 0 ? '-' : '') + usd(Math.abs(h.pnlVal));
+      const roundedPnl = Math.round((Number(h.pnlVal) || 0) * 100) / 100;
+      const pnlStr = (roundedPnl < 0 ? '-' : '') + usd(Math.abs(roundedPnl));
 
       html += '<tr>';
-      html += `<td style="font-weight:700; color:var(--text, #fda4af); text-align:center;">${h.symbol}</td>`;
-      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">${usd(h.avgPrice)}</td>`;
-      html += `<td style="text-align:center;">${usd(h.currPrice)}</td>`;
-      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center;">${Number(h.qty).toLocaleString(undefined, { maximumFractionDigits: 4 })}주</td>`;
-      html += `<td style="text-align:center;">${usd(h.valuation)}</td>`;
-      html += `<td style="font-weight:700; color:${color}; text-align:center;">${prefix}${profitRate.toFixed(1)}%</td>`;
-      html += `<td style="font-weight:700; color:${color}; text-align:center;">${pnlStr}</td>`;
+      html += `<td style="font-weight:700; color:var(--text, #fda4af); text-align:center; white-space:nowrap;">${h.symbol}</td>`;
+      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center; white-space:nowrap;">${usd(h.avgPrice)}</td>`;
+      html += `<td style="text-align:center; white-space:nowrap;">${usd(h.currPrice)}</td>`;
+      html += `<td style="font-weight:700; color:#8b5cf6; text-align:center; white-space:nowrap;">${Number(h.qty).toLocaleString("en-US", { maximumFractionDigits: 4 })}주</td>`;
+      html += `<td style="text-align:center; white-space:nowrap;">${usd(h.valuation)}</td>`;
+      html += `<td style="font-weight:700; color:${color}; text-align:center; white-space:nowrap;">${prefix}${profitRate.toFixed(1)}%</td>`;
+      html += `<td style="font-weight:700; color:${color}; text-align:center; white-space:nowrap;">${pnlStr}</td>`;
       html += '</tr>';
     });
   }

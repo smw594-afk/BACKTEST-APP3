@@ -72,10 +72,10 @@ const prefetchService = {
           return fetchFromGas();
         });
 
-      // 2) Worker3 주가 데이터
+      // 2) Worker3 주가 데이터 (p1·p2 모두 1시간 버킷으로 고정하여 브라우저 HTTP 캐시 적중률 100% 보장)
       const now = Date.now();
-      const p1 = Math.floor((now - 450 * 24 * 60 * 60 * 1000) / 1000);
       const p2 = Math.floor(now / 3600000) * 3600;
+      const p1 = p2 - 450 * 86400;
       const symbols = "SOXL,SOXX,TQQQ,QQQ,KRW=X";
       const priceUrl = `${WORKER3_URL_EARLY}/api/prices?symbols=${encodeURIComponent(symbols)}&p1=${p1}&p2=${p2}`;
       this.pricePromise = fetchWithTimeout(priceUrl)

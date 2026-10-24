@@ -145,7 +145,7 @@
       : (localStorage.getItem("vtotal3_id") || "smw594");
     const c = fillsCache[broker];
     if (!force && c && c.uid === uid && now - c.at < CACHE_MS && (!days || c.days >= days)) return c.data;
-    const pKey = `${broker}_${days || 3}`;
+    const pKey = `${broker}_${uid}_${days || 3}_${force ? 1 : 0}`;
     if (!fillsPromise[pKey]) {
       fillsPromise[pKey] = window.BrokerService.fetchOverseasFills(broker, days, force)
         .finally(() => { fillsPromise[pKey] = null; });
@@ -171,13 +171,14 @@
       : (localStorage.getItem("vtotal3_id") || "smw594");
     const c = balanceCache[broker];
     if (c && c.uid === uid && now - c.at < CACHE_MS) return c.data;
-    if (!balancePromise[broker]) {
-      balancePromise[broker] = window.BrokerService.fetchOverseasBalance(broker)
-        .finally(() => { balancePromise[broker] = null; });
+    const bKey = `${broker}_${uid}`;
+    if (!balancePromise[bKey]) {
+      balancePromise[bKey] = window.BrokerService.fetchOverseasBalance(broker)
+        .finally(() => { balancePromise[bKey] = null; });
     }
     // 키 등록 여부는 VM이 판별한다(키는 VM에만 저장 — 골든 룰 5).
     // VM이 "키 미등록" 400을 주면 그 메시지가 그대로 error로 표시된다.
-    let data = await balancePromise[broker];
+    let data = await balancePromise[bKey];
     if (!data) {
       data = {
         success: false,
