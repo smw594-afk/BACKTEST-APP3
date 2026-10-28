@@ -109,8 +109,10 @@ function updateStatsTitleByMode() {
 
 function syncCurrencyUI() {
   const btns = document.querySelectorAll('.btn-currency-toggle, #btnCurrencyToggle');
-  const ICON_USD = `<img src="https://flagcdn.com/w40/us.png" style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
-  const ICON_KRW = `<img src="https://flagcdn.com/w40/kr.png" style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
+  const FLAG_USD_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAVBAMAAADGNLEtAAAALVBMVEX////GU3LZjKGzGUINM2PsxtAYPWotT3hed5enma46WoBPa46zGkMkR3Jrgp+6ntXWAAAAiklEQVQY02Nwc0lJcQMSxghgw+CRVdaWkVXWooQEGFxaPLxKWjxcGJCBn1fJExAWRAJglUuAKlEEPdyXgA1A0e62LTu9bFt2CopF3iCh9LItKE5yX5tVe31tVgmq9pL0NLcy95RQJMAAdiUQo2ifCQUoKrECY0xgw6CEBWDXLogFYBfECrBahM1JAItMTcEiMDpsAAAAAElFTkSuQmCC";
+  const FLAG_KRW_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAbCAMAAAA5zj1cAAAAvVBMVEX///8AR6DNLjrt7e6cnJwKCgoaGhrY2NiMjIxAQEB5eXmvr6+8vLyEhIQdQ5IgICCYmJivMUn59vfExMQ6OjrGxsaJiYlkZGReXl5wcHDQR1P55OYMT6TyyczH1ur+/f0RERGVlZWhoaEhISFoiLzZ4/HmvsZnOWx7n84HRZzlk5rOND/FLj3109XOMT3Ozs5HR0ff398zMzMgXqyFNl3dcXmWkrfkjpVKPXvCgpUmYq65zOXIqLuwvtqfudvB4UIoAAABKklEQVQ4y7WTWXeCMBCFmZCEQEBRW8oiKuC+Vbvv//9nFdLIaRPl+GDvS3KG73CTmRvD+D9Zpl4zLb02vHN6aq3nXOkgawfU/fNT06WsjVVuTzjB5PZ36ZpkJA9UczvahXb0s082XbHe2OFONccFpgGtvifLGCH0mFTeDqe5Yo75yCduuUlXSGiVCnOfcuWUlmeH5TLdIqltKsw9vUGsvHI3RrXiypydaPr0QHXWCG0apvMksRYsZmjZAI4fJFfq5bkBnMNsLTmA1wZwALCQGMDHCai6tfEGtVrDo7eWfRz0a/DzaB/rydTkVxUz4o+UyeQFo5mYtTm/B+iP38WsXZqpQbMjzg7pmUwMmR7GtejuyzT6ah59grU8Gqzw9IR7esLPfzNnv8KL6RtMsRLeZtvj3wAAAABJRU5ErkJggg==";
+  const ICON_USD = `<img src="${FLAG_USD_B64}" style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
+  const ICON_KRW = `<img src="${FLAG_KRW_B64}" style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">`;
 
   btns.forEach(btn => {
     btn.style.alignItems = "center"; btn.style.justifyContent = "center";

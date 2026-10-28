@@ -180,22 +180,26 @@ function renderCombinedHoldings() {
       const broker = window.BrokerReconcile.brokerForSlot(o.slotNum);
       const buyDate = o.buyDate || o.buy_date;
       
-      // 당일 해당 브로커, 종목의 통합 보유수량 합계를 구한다
+      // 당일 해당 브로커, 종목의 통합 보유수량 합계 및 종목 전체 보유수량 합계
       let totalAppQtyForDay = 0;
       let totalAppSellQtyForDay = 0;
+      let totalAppQtyForSym = 0;
       allHoldings.forEach(h => {
         const hSymbol = window.slotConfigs?.[h.slotNum]?.basics?.ticker || h.ticker || "";
         const hBroker = window.BrokerReconcile.brokerForSlot(h.slotNum);
-        if (hSymbol === symbol && (h.buyDate || h.buy_date) === buyDate && hBroker === broker) {
-          totalAppQtyForDay += Number(h.qty) || 0;
-          totalAppSellQtyForDay += Number(h.sellQtyToday) || 0;
+        if (hSymbol === symbol && hBroker === broker) {
+          totalAppQtyForSym += Number(h.qty) || 0;
+          if ((h.buyDate || h.buy_date) === buyDate) {
+            totalAppQtyForDay += Number(h.qty) || 0;
+            totalAppSellQtyForDay += Number(h.sellQtyToday) || 0;
+          }
         }
       });
       
       const nettedQty = typeof window.getNettedQtyForTickerDate === 'function'
         ? window.getNettedQtyForTickerDate(symbol, buyDate, broker)
         : 0;
-      const st = window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay, nettedQty);
+      const st = window.BrokerReconcile.holdingStatus(symbol, buyDate, totalAppQtyForDay, broker, totalAppSellQtyForDay, nettedQty, totalAppQtyForSym);
       
       // ⭐️ 대조 상태 정상 반영:
       // 1) 계획 수량 이상 확보된 경우 (overbuy):
@@ -216,14 +220,24 @@ function renderCombinedHoldings() {
 
   // fire-and-forget: fills land async, then this re-renders itself once with real statuses
   // (숨겨진 패널에서는 불필요한 3사 네트워크 요청을 유발하지 않고, 활성 브로커만 지정해 조회한다)
-  const isHoldingsVisible = !!(window.isStatsMode || window.isOrderView === false);
-  if (isHoldingsVisible && window.BrokerReconcile && !window.BrokerReconcile.isReady() && !window.__isRefreshingCombinedHoldings) {
-    window.__isRefreshingCombinedHoldings = true;
+  const holdingsEl = document.getElementById('panelHoldings');
+  const isHoldingsVisible = holdingsEl && !holdingsEl.classList.contains('hidden') && holdingsEl.style.display !== 'none';
+  if (isHoldingsVisible && window.BrokerReconcile && !window.__isRefreshingCombinedHoldings) {
     const activeBr = (window.BrokerService && window.BrokerService.activeBroker) || "meritz";
-    window.BrokerReconcile.refreshFills(activeBr, () => {
-      window.__isRefreshingCombinedHoldings = false;
-      renderCombinedHoldings();
-    });
+    const fillsCacheEntry = window.BrokerReconcile.getFillsCache ? window.BrokerReconcile.getFillsCache(activeBr) : null;
+    const needsFetch = !fillsCacheEntry || (fillsCacheEntry.days || 0) < 30 || (Date.now() - (fillsCacheEntry.at || 0) > 60000);
+    if (needsFetch) {
+      window.__isRefreshingCombinedHoldings = true;
+      window.BrokerReconcile.refreshFills(activeBr, () => {
+        window.__isRefreshingCombinedHoldings = false;
+        renderCombinedHoldings();
+      }, false, 30);
+    }
+    if (!window.BrokerReconcile.getCachedBalance(activeBr)) {
+      window.BrokerReconcile.getBalance(activeBr).then(() => {
+        renderCombinedHoldings();
+      }).catch(() => {});
+    }
   }
   if (typeof applyPrimaryDateHighlight === 'function') applyPrimaryDateHighlight();
   if (typeof updateCombinedHoldingsSummary === 'function') updateCombinedHoldingsSummary();

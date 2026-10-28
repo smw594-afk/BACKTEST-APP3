@@ -22,7 +22,15 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#000000">
   <meta name="apple-mobile-web-app-title" content="A-QUANT">
-  <link rel="manifest" href="manifest.json?v=cf_v20261024_03">
+    <script>
+    // file:// 로컬 테스트 시 CORS net::ERR_FAILED 방지, http/https(깃허브/스마트폰)에서만 manifest 로드
+    if (window.location.protocol.startsWith('http')) {
+      const ml = document.createElement('link');
+      ml.rel = 'manifest';
+      ml.href = 'manifest.json?v=cf_v20261024_04';
+      document.head.appendChild(ml);
+    }
+  </script>
   <link rel="apple-touch-icon" sizes="180x180" href="images/logo-square-180-v2.png?v=4">
   <link rel="apple-touch-icon" sizes="192x192" href="images/logo-square-192-v2.png?v=4">
   <link rel="apple-touch-icon" sizes="512x512" href="images/logo-square-512-v2.png?v=4">
@@ -149,14 +157,10 @@
   <script src="services/prefetch-service.js?v=cf_v20261024_02" defer></script>
   <!-- Phase 3: UI Layer (layout, state, events) -->
   <script src="ui/layout-detector.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/state-manager.js?v=cf_v1787732256753" defer></script>
-  <script src="ui/event-handlers.js?v=cf_v1788012492560" defer></script>
   <script src="services/push-notification-service.js?v=cf_v20261020_01" defer></script>
   <script src="services/broker-service.js?v=cf_v20261024_01" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v20261024_01" defer></script>
-  <script src="services/config-manager.js?v=cf_v20261002_14" defer></script>
-  <!-- data-sync.js 제거됨: script.js와 동명이지만 스키마가 다른 옛 사본(미사용)이었음 -->
-  <script src="services/stats-config.js?v=cf_v1787732256753" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v20261027_02" defer></script>
+  <script src="services/rebalance-simulator.js?v=cf_v20261027_02" defer></script>
   <!-- UI Helpers (Performance icons, analysis) -->
   <script src="ui/helpers/performance-icons.js?v=cf_v1787732256753" defer></script>
   <script src="ui/render-performance-analysis.js?v=cf_v1788348354155" defer></script>
@@ -250,6 +254,7 @@
               <option value="">-- 선택 안 함 --</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -421,6 +426,7 @@
             <option value="SOXX">SOXX</option>
             <option value="TQQQ">TQQQ</option>
             <option value="QQQ">QQQ</option>
+            <option value="KRW=X">환율</option>
           </select>
           <button class="btn-icon-sub" onclick="toggleSettings()" title="설정"
             style="font-size:18px; width:28px; height:24px; flex-shrink:0;">⚙️</button>
@@ -648,7 +654,7 @@
         <div id="historyActionArea" style="margin-left:auto; display:flex; gap:8px;">
           <button id="btnCurrencyToggle" onclick="toggleCurrencyMode()"
             style="background: none; color: var(--text); border: none; outline: none; padding: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-right: 0px; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: none;">
-            <img src="https://flagcdn.com/w40/kr.png"
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAbCAMAAAA5zj1cAAAAvVBMVEX///8AR6DNLjrt7e6cnJwKCgoaGhrY2NiMjIxAQEB5eXmvr6+8vLyEhIQdQ5IgICCYmJivMUn59vfExMQ6OjrGxsaJiYlkZGReXl5wcHDQR1P55OYMT6TyyczH1ur+/f0RERGVlZWhoaEhISFoiLzZ4/HmvsZnOWx7n84HRZzlk5rOND/FLj3109XOMT3Ozs5HR0ff398zMzMgXqyFNl3dcXmWkrfkjpVKPXvCgpUmYq65zOXIqLuwvtqfudvB4UIoAAABKklEQVQ4y7WTWXeCMBCFmZCEQEBRW8oiKuC+Vbvv//9nFdLIaRPl+GDvS3KG73CTmRvD+D9Zpl4zLb02vHN6aq3nXOkgawfU/fNT06WsjVVuTzjB5PZ36ZpkJA9UczvahXb0s082XbHe2OFONccFpgGtvifLGCH0mFTeDqe5Yo75yCduuUlXSGiVCnOfcuWUlmeH5TLdIqltKsw9vUGsvHI3RrXiypydaPr0QHXWCG0apvMksRYsZmjZAI4fJFfq5bkBnMNsLTmA1wZwALCQGMDHCai6tfEGtVrDo7eWfRz0a/DzaB/rydTkVxUz4o+UyeQFo5mYtTm/B+iP38WsXZqpQbMjzg7pmUwMmR7GtejuyzT6ah59grU8Gqzw9IR7esLPfzNnv8KL6RtMsRLeZtvj3wAAAABJRU5ErkJggg=="
               style="width:16px; height:12px; border-radius:2px; margin-right:5px; flex-shrink:0; box-shadow: 0 0 2px rgba(0,0,0,0.5);">KRW
           </button>
         </div>
@@ -752,6 +758,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M" selected>1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -772,6 +779,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)" selected>2M3D2(1.0)</option>
@@ -792,6 +800,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -812,6 +821,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P" selected>2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -832,6 +842,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -852,6 +863,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -872,6 +884,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -892,6 +905,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -912,6 +926,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -932,6 +947,7 @@
               <option value="">없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -952,6 +968,7 @@
               <option value="" selected>없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -972,6 +989,7 @@
               <option value="" selected>없음</option>
               <option value="정지">정지</option>
               <option value="1M">1M</option>
+              <option value="1MV(1.0)">1MV(1.0)</option>
               <option value="1M3D1F">1M3D1F</option>
               <option value="2M3D1-1P">2M3D1-1P</option>
               <option value="2M3D2(1.0)">2M3D2(1.0)</option>
@@ -1019,6 +1037,13 @@
 
         <div class="input-group"><label>초기자산</label><input type="text" id="qInitialCash" onchange="saveQuickConfigToLocal()"></div>
         <div class="input-group"><label>갱신금</label><input type="text" id="qRenewCash" onchange="saveQuickConfigToLocal()"></div>
+        <div class="input-group"><label>리밸런싱</label>
+          <select id="qRebalance" style="border-color:#ec4899;" onchange="saveQuickConfigToLocal()">
+            <option value="none" selected>미사용</option>
+            <option value="renew">년초 리밸런싱 (투자갱신금)</option>
+            <option value="equal">년초 리밸런싱</option>
+          </select>
+        </div>
         <div class="input-group"><label>수수료(%)</label><input type="number" id="qFBase" value="0.08" step="any" onchange="saveQuickConfigToLocal()"></div>
         <div class="input-group"><label>SEC(%)</label><input type="number" id="qFSec" value="0.00278" step="any" onchange="saveQuickConfigToLocal()"></div>
 
@@ -1226,22 +1251,22 @@
   </script>
 
   <script src="engine/price_loader.js?v=cf_v20261024_02" defer></script>
-  <script src="engine/strategies.js?v=cf_v1788842600000" defer></script>
+  <script src="engine/strategies.js?v=cf_v20261028_01" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
   <script src="ui/render-order.js?v=cf_v20261023_05" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v20261023_05" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v20261027_06" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20261024_02" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20261028_01" defer></script>
   <script src="ui/render-trade-history.js?v=cf_v20261023_06" defer></script>
-  <script src="ui/render-price-info.js?v=cf_v1787732256753" defer></script>
+  <script src="ui/render-price-info.js?v=cf_v20261027_01" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
   <script src="ui/render-toggles.js?v=cf_v20261023_01" defer></script>
-  <script src="ui/render-helpers.js?v=cf_v20261012_02" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v20261024_03" defer></script>
   <script src="ui/render-notifications.js?v=cf_v20261003_02" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20261023_05" defer></script>
-  <script src="ui/index.js?v=cf_v1787732256753" defer></script>
-  <script src="script.js?v=cf_v20261023_01" defer></script>
+  <script src="ui/render-heatmap.js?v=cf_v20261028_01" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20261027_01" defer></script>
+  <script src="script.js?v=cf_v20261027_02" defer></script>
 
 
 </body>

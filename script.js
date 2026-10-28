@@ -220,11 +220,8 @@ window.ensureChartLoaded = ensureChartLoaded;
 // 이 섹션은 ui/*.js 모듈들이 script.js의 전역 변수에 접근할 수 있도록 합니다.
 // script.js가 로드될 때까지 UI 모듈들이 미리 준비할 수 있도록 합니다.
 
-function formatStrategyNameWithSmallParentheses(name) {
-  if (!name) return '';
-  return name.replace(/\(([^)]+)\)/g, '<span class="stats-profit-rate">($1)</span>');
-}
-window.formatStrategyNameWithSmallParentheses = formatStrategyNameWithSmallParentheses;
+// formatStrategyNameWithSmallParentheses는 ui/render-helpers.js에 선언됨
+var formatStrategyNameWithSmallParentheses = window.formatStrategyNameWithSmallParentheses;
 
 // 글로벌 상태 변수
 let myUserId = localStorage.getItem("vtotal3_id") || "smw594";
@@ -489,7 +486,7 @@ async function forceUpdateApp() {
 }
 
 function togglePriceInfoTicker() {
-  const tickers = ['total', 'SOXL', 'TQQQ', 'SOXX', 'QQQ'];
+  const tickers = ['total', 'SOXL', 'SOXX', 'TQQQ', 'QQQ', 'KRW=X'];
   const currentTicker = window.priceInfoTicker || 'total';
   const currentIndex = tickers.indexOf(currentTicker);
   const nextIndex = (currentIndex + 1) % tickers.length;
@@ -1086,6 +1083,7 @@ function saveQuickConfigToLocal() {
     endDate: document.getElementById('qEndDate').value,
     initialCash: document.getElementById('qInitialCash').value,
     renewCash: document.getElementById('qRenewCash').value,
+    rebalance: document.getElementById('qRebalance') ? document.getElementById('qRebalance').value : 'none',
     fBase: document.getElementById('qFBase').value,
     fSec: document.getElementById('qFSec').value
   };
@@ -1109,6 +1107,7 @@ function loadQuickConfigFromLocal() {
       if (config.endDate !== undefined) document.getElementById('qEndDate').value = config.endDate;
       if (config.initialCash !== undefined) document.getElementById('qInitialCash').value = config.initialCash;
       if (config.renewCash !== undefined) document.getElementById('qRenewCash').value = config.renewCash;
+      if (config.rebalance !== undefined && document.getElementById('qRebalance')) document.getElementById('qRebalance').value = config.rebalance;
       if (config.fBase !== undefined) document.getElementById('qFBase').value = config.fBase;
       if (config.fSec !== undefined) document.getElementById('qFSec').value = config.fSec;
       setupQuickCashAutoFill();
@@ -1833,6 +1832,35 @@ async function runEngine() {
     Array.from({ length: MAX_SLOTS }, (_, i) => i + 1).map(i => executeSlot(slotConfigs[i], isSlotActive(i), i))
   );
 
+  // ⭐️ 백테스트 통합 설정의 리밸런싱 시뮬레이션 계산
+  window.cachedRebalanceResult = null;
+  const qRebEl = document.getElementById('qRebalance');
+  const rebMode = qRebEl ? qRebEl.value : 'none';
+  if (rebMode && rebMode !== 'none' && window.RebalanceSimulator && priceData) {
+    try {
+      const activeList = [];
+      for (let sIdx = 1; sIdx <= MAX_SLOTS; sIdx++) {
+        const c = isManualBacktestMode ? simulationConfigs[sIdx] : slotConfigs[sIdx];
+        if (c && c.basics && c.basics.strategy && c.basics.strategy !== "") {
+          activeList.push({
+            slotNum: sIdx,
+            config: c,
+            stratName: c.basics.strategy,
+            initialCash: c.basics.initialCash,
+            renewCash: c.basics.renewCash,
+            fBase: c.basics.fBase,
+            fSec: c.basics.fSec
+          });
+        }
+      }
+      if (activeList.length >= 2) {
+        window.cachedRebalanceResult = window.RebalanceSimulator.simulateRebalancedPortfolio(activeList, priceData, rebMode);
+      }
+    } catch (rebErr) {
+      console.error("리밸런싱 시뮬레이션 계산 오류:", rebErr);
+    }
+  }
+
   restoreBtn();
   triggerIconAnim('icoRun');
 
@@ -2280,7 +2308,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const diffY = eY - sY;
       
       if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
-        const tickers = ['total', 'SOXL', 'SOXX', 'TQQQ', 'QQQ'];
+        const tickers = ['total', 'SOXL', 'SOXX', 'TQQQ', 'QQQ', 'KRW=X'];
         const currentTicker = window.priceInfoTicker || 'total';
         let currentIndex = tickers.indexOf(currentTicker);
         if (currentIndex === -1) currentIndex = 0;

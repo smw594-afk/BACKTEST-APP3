@@ -429,12 +429,68 @@
   // ─────────── reconcile status ───────────
   // Compare rounded quantities only. Prices differ legitimately (limit vs fill),
   // so a price gap alone is surfaced in the tooltip, not as a mismatch.
-  function statusFor(map, broker, symbol, dateKey, appQty, nettedQty = 0, isBuyReconcile = false) {
+  // ⭐️ 브로커별 특정 종목의 앱 내 전체 슬롯 보유수량 합산 함수
+  function getTotalAppHoldingQty(symbol, broker) {
+    const sym = normSymbol(symbol);
+    const targetBroker = broker || (window.BrokerService ? window.BrokerService.activeBroker : 'meritz');
+    let totalQty = 0;
+    const maxSlots = window.MAX_SLOTS || 12;
+    for (let sNum = 1; sNum <= maxSlots; sNum++) {
+      const b = brokerForSlot(sNum);
+      if (b !== targetBroker) continue;
+      const sCfg = window.slotConfigs?.[sNum];
+      const sTicker = normSymbol(sCfg?.basics?.ticker || "");
+      let res = null;
+      if (typeof window.getBestResult === 'function' && window.lastBTResults) {
+        try { res = window.getBestResult(window.lastBTResults[sNum], sNum); } catch (e) {}
+      }
+      if (!res) {
+        res = window.cachedBacktestResults?.[sNum] || window.cachedResults?.[sNum];
+      }
+      if (!res) continue;
+      const inv = Array.isArray(res.inv) ? res.inv : [];
+      inv.forEach(h => {
+        const hTicker = normSymbol(h.ticker || sTicker);
+        if (hTicker === sym) {
+          totalQty += Math.round(Number(h.qty || 0));
+        }
+      });
+    }
+    return totalQty;
+  }
+
+  function statusFor(map, broker, symbol, dateKey, appQty, nettedQty = 0, isBuyReconcile = false, totalAppQtyForSym = null) {
     if (!state.ready) return { status: state.failed ? "unknown" : "loading" };
     const sym = normSymbol(symbol);
     const date = normalizeDateKey(dateKey);
     if (!sym || !date) return { status: "unknown" };
-    if (!state.coveredDates.has(`${broker}|${date}`)) return { status: "pending", appQty };
+    if (!state.coveredDates.has(`${broker}|${date}`)) {
+      // ⭐️ [보류 개선]: 체결내역(executions)의 조회 기간 밖(pending)인 과거 보유 종목이더라도,
+      // 브로커 잔고(balance)에 해당 종목이 정상 보유 중이고 수량이 부합하면 '일치(match)'로 인정!
+      if (isBuyReconcile) {
+        const bal = getCachedBalance(broker);
+        const holdings = (bal && Array.isArray(bal.holdings)) ? bal.holdings : [];
+        const balItem = holdings.find(h => normSymbol(h.symbol || h.ticker || h.stk_cd || h.IsuNo || h.ShtnIsuNo) === sym);
+        if (balItem) {
+          const liveBalQty = Math.round(Number(balItem.qty || balItem.poss_qty || 0));
+          const totalExpected = Math.round(Number(totalAppQtyForSym) || getTotalAppHoldingQty(sym, broker));
+          const roundedAppQty = Math.round(Number(appQty) || 0);
+          if (liveBalQty > 0 && totalExpected > 0) {
+            const diff = liveBalQty - totalExpected;
+            if (diff === 0) {
+              return { status: "match", appQty: roundedAppQty, liveQty: roundedAppQty, diff: 0, fromBalance: true, balTotalQty: liveBalQty };
+            } else if (diff > 0) {
+              return { status: "overbuy", appQty: roundedAppQty, liveQty: liveBalQty, diff, overQty: diff, fromBalance: true, balTotalQty: liveBalQty };
+            } else {
+              return { status: "mismatch", appQty: roundedAppQty, liveQty: liveBalQty, diff, underQty: Math.abs(diff), fromBalance: true, balTotalQty: liveBalQty };
+            }
+          } else if (liveBalQty === 0 && totalExpected > 0) {
+            return { status: "mismatch", appQty: roundedAppQty, liveQty: 0, diff: -totalExpected, underQty: totalExpected, fromBalance: true, balTotalQty: 0 };
+          }
+        }
+      }
+      return { status: "pending", appQty };
+    }
     const live = map.get(`${broker}|${sym}|${date}`);
     let rawLiveQty = live ? Math.round(live.qty || 0) : 0;
     // ⭐️ 매수 대조 시 당일에 신규 매수와 매도 상계(nettedQty > 0)가 있었던 경우에 한해,
@@ -462,7 +518,7 @@
 
   // broker는 필수가 아니라 편의상 기본값을 둔다 — 실제로는 항상 brokerForSlot(slotNum)으로
   // 넘겨받아야 한다(안 넘기면 슬롯 4~6=LS 데이터를 잘못 키움 쪽에서 찾게 된다).
-  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom", appSellQty = 0, nettedQty = null) => {
+  const holdingStatus = (symbol, buyDate, appQty, broker = "kiwoom", appSellQty = 0, nettedQty = null, totalAppQtyForSym = null) => {
     // ⭐️ 총량 비교: 계획 총매수량(appQty) vs (실제 순매수체결 + 퉁치기 상계수량)
     // 101 실매수 - 1 실매도 = 100 순매수. 여기에 106 상계 더하면 206.
     // 계획 195 대비 정확히 11주 과매수 산출!
@@ -470,7 +526,7 @@
     const effectiveNetted = (nettedQty !== null && nettedQty !== undefined)
       ? Number(nettedQty)
       : getNettedQtyForTickerDate(symbol, buyDate, broker, false);
-    return statusFor(state.buy, broker, symbol, buyDate, rawAppQty, effectiveNetted, true);
+    return statusFor(state.buy, broker, symbol, buyDate, rawAppQty, effectiveNetted, true, totalAppQtyForSym);
   };
   const sellStatus = (symbol, sellDate, appQty, broker = "kiwoom") => {
     const effectiveNetted = getNettedQtyForTickerDate(symbol, sellDate, broker, true);
@@ -496,6 +552,17 @@
 
   function badgeTitle(st) {
     if (!st) return "";
+    if (st.fromBalance) {
+      if (st.status === "match") {
+        return `title="브로커 잔고 대조 일치 — 계좌 총 보유수량(${st.balTotalQty || st.liveQty}주)과 앱 보유수량 일치"`;
+      }
+      if (st.status === "overbuy") {
+        return `title="브로커 잔고 과보유 — 계좌 총 보유수량(${st.balTotalQty}주) > 앱(${st.balTotalQty - st.overQty}주) (+${st.overQty}과매수)"`;
+      }
+      if (st.status === "mismatch") {
+        return `title="브로커 잔고 수량 부족 — 계좌 총 보유수량(${st.balTotalQty}주) < 앱 보유수량 (-${st.underQty}미체결)"`;
+      }
+    }
     if (st.status === "overbuy") {
       const app = Math.round(st.appQty || 0);
       const live = Math.round(st.liveQty || 0);
@@ -751,7 +818,7 @@
 
     BROKERS, BROKER_LABEL,
     normalizeMarketDate, normalizeDateKey, normSymbol, brokerForSlot,
-    getFills, getBalance, getCachedBalance, invalidate, invalidateBroker, refreshFills,
+    getFills, getBalance, getCachedBalance, invalidate, invalidateBroker, refreshFills, getFillsCache: (br) => fillsCache[br || (window.BrokerService ? window.BrokerService.activeBroker : "meritz")], getTotalAppHoldingQty,
     state,
     holdingStatus, sellStatus, getNettedQtyForTickerDate, badge, badgeTitle, cellHtml, escapeHtml,
     openAccountInfoModal, refreshAccountInfo, renderBrokerAccountTable,
