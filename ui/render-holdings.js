@@ -225,15 +225,20 @@ function renderCombinedHoldings() {
   if (isHoldingsVisible && window.BrokerReconcile && !window.__isRefreshingCombinedHoldings) {
     const activeBr = (window.BrokerService && window.BrokerService.activeBroker) || "meritz";
     const fillsCacheEntry = window.BrokerReconcile.getFillsCache ? window.BrokerReconcile.getFillsCache(activeBr) : null;
-    const needsFetch = !fillsCacheEntry || (fillsCacheEntry.days || 0) < 30 || (Date.now() - (fillsCacheEntry.at || 0) > 60000);
+    // ⚠️ 실패(키 미등록/통신 오류)로 캐시가 비어도 렌더→재조회→렌더 무한 루프가 되지 않도록 30초 쿨다운
+    const nowTs = Date.now();
+    const needsFetch = (!fillsCacheEntry || (fillsCacheEntry.days || 0) < 30 || (nowTs - (fillsCacheEntry.at || 0) > 60000))
+      && (nowTs - (window.__lastCombinedFillsTry || 0) > 30000);
     if (needsFetch) {
+      window.__lastCombinedFillsTry = nowTs;
       window.__isRefreshingCombinedHoldings = true;
       window.BrokerReconcile.refreshFills(activeBr, () => {
         window.__isRefreshingCombinedHoldings = false;
         renderCombinedHoldings();
       }, false, 30);
     }
-    if (!window.BrokerReconcile.getCachedBalance(activeBr)) {
+    if (!window.BrokerReconcile.getCachedBalance(activeBr) && (nowTs - (window.__lastCombinedBalTry || 0) > 30000)) {
+      window.__lastCombinedBalTry = nowTs;
       window.BrokerReconcile.getBalance(activeBr).then(() => {
         renderCombinedHoldings();
       }).catch(() => {});

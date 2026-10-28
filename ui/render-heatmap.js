@@ -235,7 +235,6 @@
           <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#f8fafc; background:rgba(30,41,59,0.7); border-radius:4px; white-space:nowrap; font-size:11.5px;">${yearLabel}</div></td>
           <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:800; background:${yYieldBg}; color:${yYieldColor}; border-radius:4px; white-space:nowrap; font-size:11.5px;">${yYieldStr}</div></td>
           <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; background:rgba(239,68,68,0.14); color:${yMddColor}; border-radius:4px; white-space:nowrap; font-size:11.5px;">${yMddStr}</div></td>
-          <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:600; color:#f8fafc; background:rgba(30,41,59,0.5); border-radius:4px; white-space:nowrap; font-size:11.5px;">${tradeCountStr}</div></td>
           <td style="padding:0; height:32px; border-right:2px solid rgba(255,255,255,0.15);"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#f8fafc; background:rgba(30,41,59,0.5); border-radius:4px; white-space:nowrap; font-size:11.5px;">${winRateStr}</div></td>
 
           <!-- 우측 월별 히트맵 테이블 (1월 ~ 12월) -->
@@ -271,11 +270,10 @@
             <thead>
               <tr style="color:#94a3b8; font-size:11px; font-weight:700;">
                 <!-- 좌측 헤더 -->
-                <th style="padding:0; height:32px; line-height:32px; width:65px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">연도</th>
-                <th style="padding:0; height:32px; line-height:32px; width:75px; color:#3b82f6; background:rgba(30,41,59,0.9); border-radius:4px;">수익률</th>
-                <th style="padding:0; height:32px; line-height:32px; width:75px; color:#ef4444; background:rgba(30,41,59,0.9); border-radius:4px;">연내 MDD</th>
-                <th style="padding:0; height:32px; line-height:32px; width:55px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">거래</th>
-                <th style="padding:0; height:32px; line-height:32px; width:65px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; border-right:2px solid rgba(255,255,255,0.15);">승률</th>
+                <th style="padding:0; height:32px; line-height:32px; width:48px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">연도</th>
+                <th style="padding:0; height:32px; line-height:32px; width:58px; color:#3b82f6; background:rgba(30,41,59,0.9); border-radius:4px;">수익률</th>
+                <th style="padding:0; height:32px; line-height:32px; width:54px; color:#ef4444; background:rgba(30,41,59,0.9); border-radius:4px;">MDD</th>
+                <th style="padding:0; height:32px; line-height:32px; width:52px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; border-right:2px solid rgba(255,255,255,0.15);">승률</th>
 
                 <!-- 우측 헤더 (1월 ~ 12월) -->
                 <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">1월</th>
@@ -301,8 +299,8 @@
         <!-- 하단 푸터 안내 -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; color:#94a3b8; padding:0 4px; gap:8px;">
           <div style="display:flex; flex-direction:column; gap:2px; line-height:1.4;">
-            <span>※ 월별 수익률은 해당 월 시작 잔고 대비 월말 잔고 변동률 기준이며, 연내 MDD는 해당 연도 내 최대 낙폭입니다.</span>
-            <span>※ 거래횟수 및 승률은 투자법시작일 기준으로 계산된 값으로 투자법 변경등에 따라 데이터가 정확하지 않음.</span>
+            <span>※ 월별 수익률은 해당 월 시작 잔고 대비 월말 잔고 변동률 기준이며, MDD는 해당 연도 내 최대 낙폭입니다.</span>
+            <span>※ 승률은 투자법시작일 기준으로 계산된 값으로 투자법 변경등에 따라 데이터가 정확하지 않음.</span>
           </div>
           <button onclick="window.closeMonthlyHeatmapModal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:#f8fafc; padding:4px 14px; font-weight:700; cursor:pointer; flex-shrink:0;">닫기</button>
         </div>
