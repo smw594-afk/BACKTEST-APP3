@@ -200,7 +200,8 @@
 
     sortedYears.forEach(y => {
       const yStats = extractYearlyStats(currentSource, y);
-      const yearLabel = y; // 연도에서 YTD 제거
+      // yyyy를 yy로 변경 (예: 2024 -> 24)
+      const yearLabel = String(y).length >= 4 ? String(y).slice(-2) : String(y);
 
       const yYieldStr = formatPctText(yStats.yield);
       const yYieldColor = getMetricTextColor(yStats.yield); // +일때 파랑, -값일때만 빨강
@@ -222,7 +223,7 @@
 
         monthCellsHtml += `
           <td style="padding:0; height:32px;">
-            <div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:700; background:${cellBg}; color:${cellColor}; border-radius:4px; min-width:44px; font-size:11.5px; box-sizing:border-box;">
+            <div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:700; background:${cellBg}; color:${cellColor}; border-radius:4px; min-width:4.2em; padding:0 5px; white-space:nowrap; font-size:calc(var(--app-font-size, 10.5px) - 2px); box-sizing:border-box;">
               ${cellText}
             </div>
           </td>
@@ -231,11 +232,11 @@
 
       rowsHtml += `
         <tr style="transition:background 0.15s;">
-          <!-- 좌측 요약 카드 테이블 (글자색상 기본 흰색 #f8fafc, 수익률과 MDD만 +파랑/-빨강, 각 셀 라운드 및 균일 높이 32px) -->
-          <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#f8fafc; background:rgba(30,41,59,0.7); border-radius:4px; white-space:nowrap; font-size:11.5px;">${yearLabel}</div></td>
-          <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:800; background:${yYieldBg}; color:${yYieldColor}; border-radius:4px; white-space:nowrap; font-size:11.5px;">${yYieldStr}</div></td>
-          <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; background:rgba(239,68,68,0.14); color:${yMddColor}; border-radius:4px; white-space:nowrap; font-size:11.5px;">${yMddStr}</div></td>
-          <td style="padding:0; height:32px; border-right:2px solid rgba(255,255,255,0.15);"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#f8fafc; background:rgba(30,41,59,0.5); border-radius:4px; white-space:nowrap; font-size:11.5px;">${winRateStr}</div></td>
+          <!-- 좌측 요약 카드 테이블 (글자 크기 기준 min-width 및 padding) -->
+          <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#f8fafc; background:rgba(30,41,59,0.7); border-radius:4px; min-width:2.8em; padding:0 4px; white-space:nowrap; font-size:calc(var(--app-font-size, 10.5px) - 2px); box-sizing:border-box;">${yearLabel}</div></td>
+          <td style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:800; background:${yYieldBg}; color:${yYieldColor}; border-radius:4px; min-width:4.2em; padding:0 5px; white-space:nowrap; font-size:calc(var(--app-font-size, 10.5px) - 2px); box-sizing:border-box;">${yYieldStr}</div></td>
+          <td class="heatmap-col-mdd" style="padding:0; height:32px;"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; background:rgba(239,68,68,0.14); color:${yMddColor}; border-radius:4px; min-width:4.2em; padding:0 5px; white-space:nowrap; font-size:calc(var(--app-font-size, 10.5px) - 2px); box-sizing:border-box;">${yMddStr}</div></td>
+          <td class="heatmap-col-winrate" style="padding:0; height:32px; border-right:2px solid rgba(255,255,255,0.15);"><div style="height:32px; line-height:32px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#f8fafc; background:rgba(30,41,59,0.5); border-radius:4px; min-width:4.0em; padding:0 5px; white-space:nowrap; font-size:calc(var(--app-font-size, 10.5px) - 2px); box-sizing:border-box;">${winRateStr}</div></td>
 
           <!-- 우측 월별 히트맵 테이블 (1월 ~ 12월) -->
           ${monthCellsHtml}
@@ -244,7 +245,13 @@
     });
 
     overlay.innerHTML = `
-      <div class="settings-modal" style="max-width:1120px; width:98%; max-height:94vh; padding:14px; border-radius:14px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.12); box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); display:flex; flex-direction:column; box-sizing:border-box;">
+      <style>
+        @media (max-width: 720px) {
+          .heatmap-col-winrate { display: none !important; }
+          .heatmap-col-mdd { border-right: 2px solid rgba(255,255,255,0.15) !important; }
+        }
+      </style>
+      <div class="settings-modal" style="width:-moz-fit-content; width:fit-content; max-width:min(860px, 98vw); max-height:94vh; padding:14px; border-radius:14px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.12); box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); display:flex; flex-direction:column; box-sizing:border-box; font-family:'Outfit','Inter',sans-serif; font-size:calc(var(--app-font-size, 10.5px) - 2px); margin:auto;">
         
         <!-- 상단 헤더 -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px; flex-wrap:wrap; gap:8px;">
@@ -265,29 +272,29 @@
         </div>
 
         <!-- 히트맵 테이블 영역 (가로 스크롤 가능, 셀간 여백 border-spacing) -->
-        <div class="slim-scroll" style="flex:1; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.25); padding:8px;">
-          <table style="width:100%; border-collapse:separate; border-spacing:3px 3px; font-size:11.5px; text-align:center; min-width:860px;">
+        <div class="slim-scroll" style="overflow:auto; max-width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.25); padding:6px; box-sizing:border-box;">
+          <table class="heatmap-table" style="border-collapse:separate; border-spacing:3px 3px; font-size:calc(var(--app-font-size, 10.5px) - 2px); text-align:center; table-layout:auto; width:max-content; margin:0 auto;">
             <thead>
-              <tr style="color:#94a3b8; font-size:11px; font-weight:700;">
-                <!-- 좌측 헤더 -->
-                <th style="padding:0; height:32px; line-height:32px; width:48px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">연도</th>
-                <th style="padding:0; height:32px; line-height:32px; width:58px; color:#3b82f6; background:rgba(30,41,59,0.9); border-radius:4px;">수익률</th>
-                <th style="padding:0; height:32px; line-height:32px; width:54px; color:#ef4444; background:rgba(30,41,59,0.9); border-radius:4px;">MDD</th>
-                <th style="padding:0; height:32px; line-height:32px; width:52px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; border-right:2px solid rgba(255,255,255,0.15);">승률</th>
+              <tr style="color:#94a3b8; font-size:calc(var(--app-font-size, 10.5px) - 2px); font-weight:700;">
+<!-- 좌측 헤더 (글자 크기 기준 min-width 및 padding) -->
+                <th style="padding:0 4px; height:32px; line-height:32px; min-width:2.8em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">연도</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#3b82f6; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">수익률</th>
+                <th class="heatmap-col-mdd" style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#ef4444; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">MDD</th>
+                <th class="heatmap-col-winrate" style="padding:0 5px; height:32px; line-height:32px; min-width:4.0em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; border-right:2px solid rgba(255,255,255,0.15); font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">승률</th>
 
                 <!-- 우측 헤더 (1월 ~ 12월) -->
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">1월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">2월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">3월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">4월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">5월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">6월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">7월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">8월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">9월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">10월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">11월</th>
-                <th style="padding:0; height:32px; line-height:32px; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px;">12월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">1월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">2월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">3월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">4월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">5월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">6월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">7월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">8월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">9월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">10월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">11월</th>
+                <th style="padding:0 5px; height:32px; line-height:32px; min-width:4.2em; color:#f8fafc; background:rgba(30,41,59,0.9); border-radius:4px; font-size:calc(var(--app-font-size, 10.5px) - 2px); white-space:nowrap;">12월</th>
               </tr>
             </thead>
             <tbody>
@@ -296,16 +303,34 @@
           </table>
         </div>
 
-        <!-- 하단 푸터 안내 -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; color:#94a3b8; padding:0 4px; gap:8px;">
+<!-- 하단 푸터 안내 문구 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:calc(var(--app-font-size, 10.5px) - 2px); color:#94a3b8; padding:0 4px; gap:8px;">
           <div style="display:flex; flex-direction:column; gap:2px; line-height:1.4;">
-            <span>※ 월별 수익률은 해당 월 시작 잔고 대비 월말 잔고 변동률 기준이며, MDD는 해당 연도 내 최대 낙폭입니다.</span>
-            <span>※ 승률은 투자법시작일 기준으로 계산된 값으로 투자법 변경등에 따라 데이터가 정확하지 않음.</span>
+            <span>※ 월별 수익률은 해당 월 시작 대비 월말 변동률 기준.</span>
+            <span>※ MDD는 해당 연도 내 최대 낙폭</span>
+            <span>※ 승률은 투자설정에 투자법 시작일 기준으로 계산된 값임.</span>
           </div>
-          <button onclick="window.closeMonthlyHeatmapModal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:#f8fafc; padding:4px 14px; font-weight:700; cursor:pointer; flex-shrink:0;">닫기</button>
+          <button onclick="window.closeMonthlyHeatmapModal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:#f8fafc; padding:4px 14px; font-size:calc(var(--app-font-size, 10.5px) - 1px); font-weight:700; cursor:pointer; flex-shrink:0;">닫기</button>
         </div>
       </div>
     `;
+
+    // 넓이가 부족하면 승률 컬럼을 자동으로 숨기는 ResizeObserver
+    if (overlay && typeof ResizeObserver !== 'undefined') {
+      if (overlay.__ro) overlay.__ro.disconnect();
+      overlay.__ro = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const isNarrow = entry.contentRect.width < 720;
+          overlay.querySelectorAll('.heatmap-col-winrate').forEach(el => {
+            el.style.display = isNarrow ? 'none' : '';
+          });
+          overlay.querySelectorAll('.heatmap-col-mdd').forEach(el => {
+            el.style.borderRight = isNarrow ? '2px solid rgba(255,255,255,0.15)' : 'none';
+          });
+        }
+      });
+      overlay.__ro.observe(overlay);
+    }
   }
 
   window.onHeatmapSourceChange = function(newId) {

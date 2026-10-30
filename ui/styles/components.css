@@ -596,64 +596,121 @@ h2:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at top right, #1e1b4b, #020617 60%);
+  background: #000000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 500;
+  z-index: 10000000;
+  pointer-events: auto;
   padding: 20px;
   box-sizing: border-box;
   animation: fadeIn 0.8s ease-out;
 }
 
+.login-input {
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  position: relative;
+  z-index: 10;
+}
+
+.login-btn {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative;
+  z-index: 10;
+}
+
 .login-container .login-inner {
-  background: var(--card);
-  padding: 50px;
-  border-radius: 32px;
+  background: #0b0f19;
+  padding: 44px 32px;
+  border-radius: 28px;
   width: 100%;
-  max-width: 400px;
-  backdrop-filter: blur(30px);
-  border: 1px solid var(--card-border);
+  max-width: 380px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
 }
 
 .login-title {
   font-family: 'Outfit', sans-serif;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: linear-gradient(135deg, #6366f1, #a855f7);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .login-input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--card-border);
-  padding: 16px;
-  border-radius: 14px;
-  color: white;
-  margin-bottom: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 14px;
+  border-radius: 12px;
+  color: #f8fafc;
+  margin-bottom: 14px;
   box-sizing: border-box;
   font-size: 14px;
   outline: none;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.login-input:focus {
+  border-color: #6366f1;
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .login-btn {
   width: 100%;
-  padding: 16px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  padding: 14px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
   border: none;
-  border-radius: 14px;
+  border-radius: 12px;
   color: white;
   font-weight: 700;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 14px;
   transition: all 0.3s;
+}
+
+.google-login-btn {
+  width: 100%;
+  padding: 14px 16px;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
+}
+
+.google-login-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.google-login-btn:active {
+  transform: translateY(0);
+}
+
+.google-login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* 색상 클래스 */

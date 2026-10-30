@@ -30,19 +30,26 @@ function calculateCombinedSummaryEngine(activeResults) {
 
   if (sortedDates.length > 0) {
     let peak = 0, minDraw = 0;
+    // 🚀 [성능 최적화]: 날짜가 정렬되어 있으므로 슬롯별 단일 패스 커서(O(D * S))로 이전 O(D^2 * S) 선형 탐색 병목 해결
+    const slotTrackers = activeResults.map(r => ({
+      dates: r.chartDates || [],
+      balances: r.chartBalances || [],
+      cursor: -1
+    }));
+
     sortedDates.forEach((dt, i) => {
       let dayAsset = 0;
-      activeResults.forEach(r => {
-        if (r.chartDates && r.chartBalances) {
-          let idx = r.chartDates.indexOf(dt);
-          if (idx !== -1) dayAsset += r.chartBalances[idx];
-          else {
-            let lastIdx = -1;
-            for (let j = 0; j < r.chartDates.length; j++) { if (r.chartDates[j] <= dt) lastIdx = j; }
-            if (lastIdx !== -1) dayAsset += r.chartBalances[lastIdx];
-          }
+      for (let sIdx = 0; sIdx < slotTrackers.length; sIdx++) {
+        const tracker = slotTrackers[sIdx];
+        const dates = tracker.dates;
+        const dLen = dates.length;
+        while (tracker.cursor + 1 < dLen && dates[tracker.cursor + 1] <= dt) {
+          tracker.cursor++;
         }
-      });
+        if (tracker.cursor >= 0) {
+          dayAsset += (tracker.balances[tracker.cursor] || 0);
+        }
+      }
       if (dayAsset > peak) peak = dayAsset;
       let draw = peak > 0 ? (dayAsset - peak) / peak : 0;
       if (draw < minDraw) minDraw = draw;
@@ -65,6 +72,9 @@ function calculateCombinedSummaryEngine(activeResults) {
   };
 
   let maxDays = 1;
+  let totalCapitalDays = 0;
+  let totalPrincipalForDays = 0;
+
   activeResults.forEach(r => {
     const sDateStr = (r.summary && r.summary.trueStartDate) ? r.summary.trueStartDate : (r.chartDates && r.chartDates[0]);
     if (sDateStr && r.chartDates && r.chartDates.length > 0) {
@@ -72,10 +82,20 @@ function calculateCombinedSummaryEngine(activeResults) {
       const e = toDateObj(r.chartDates[r.chartDates.length - 1]);
       const d = Math.max(1, Math.round((e - s) / 86400000));
       if (d > maxDays) maxDays = d;
+      const principal = (r.summary && r.summary.realPrincipal) || 0;
+      if (principal > 0) {
+        totalCapitalDays += principal * d;
+        totalPrincipalForDays += principal;
+      }
     }
   });
 
-  const cagrVal = Math.pow(1 + totalYieldCombined, 365 / maxDays) - 1;
+  // 🛡️ [CAGR 정확도 개선]: 슬롯별 운용 기간이 다를 때의 왜곡을 방지하기 위해 자본 가중 운용일수(Capital-Weighted Duration) 적용
+  const effectiveDays = (totalPrincipalForDays > 0)
+    ? Math.max(1, Math.round(totalCapitalDays / totalPrincipalForDays))
+    : maxDays;
+
+  const cagrVal = Math.pow(1 + totalYieldCombined, 365 / effectiveDays) - 1;
   const finalCagr = (isFinite(cagrVal) && !isNaN(cagrVal)) ? cagrVal : totalYieldCombined;
 
   return {
@@ -112,48 +132,59 @@ function generateCombinedPeriodDataEngine(activeResults) {
   let combinedMdds = [];
   let peak = 0;
 
+  // 🚀 [성능 최적화]: 날짜가 정렬되어 있으므로 슬롯별 사전 계산 및 커서 스캔(O(D * S))으로 선형 탐색 제거
+  const slotTrackers = activeResults.map(r => {
+    const dates = r.chartDates || [];
+    const balances = r.chartBalances || [];
+    const inouts = r.chartInout || [];
+    const isSynced = !!r.isSynced;
+    const firstAsset = balances[0] || 0;
+    const firstInout = inouts[0] || 0;
+    const initialCash = (r.summary && r.summary.realPrincipal)
+      ? (r.summary.realPrincipal - (r.summary.inout || 0))
+      : firstAsset;
+
+    return {
+      dates,
+      balances,
+      inouts,
+      isSynced,
+      firstAsset,
+      firstInout,
+      initialCash,
+      cursor: -1
+    };
+  });
+
   sortedDates.forEach(dt => {
     let dayAsset = 0;
     let dayInout = 0;
 
-    activeResults.forEach(r => {
-      if (r.chartDates && r.chartBalances) {
-        let idx = r.chartDates.indexOf(dt);
-        let slotInoutVal = 0;
-        let currentAsset = 0;
+    for (let sIdx = 0; sIdx < slotTrackers.length; sIdx++) {
+      const tracker = slotTrackers[sIdx];
+      const dates = tracker.dates;
+      const dLen = dates.length;
 
-        if (idx !== -1) {
-          currentAsset = r.chartBalances[idx];
-          if (r.isSynced) {
-            let firstAsset = r.chartBalances[0] || 0;
-            let firstInout = r.chartInout ? r.chartInout[0] : 0;
-            let currInout = r.chartInout ? r.chartInout[idx] : 0;
-            slotInoutVal = firstAsset + (currInout - firstInout);
-          } else {
-            let initialCash = r.summary && r.summary.realPrincipal ? (r.summary.realPrincipal - (r.summary.inout || 0)) : (r.chartBalances[0] || 0);
-            slotInoutVal = initialCash + (r.chartInout ? r.chartInout[idx] : 0);
-          }
+      while (tracker.cursor + 1 < dLen && dates[tracker.cursor + 1] <= dt) {
+        tracker.cursor++;
+      }
+
+      if (tracker.cursor >= 0) {
+        const k = tracker.cursor;
+        const currentAsset = tracker.balances[k] || 0;
+        let slotInoutVal = 0;
+
+        if (tracker.isSynced) {
+          const currInout = tracker.inouts[k] || 0;
+          slotInoutVal = tracker.firstAsset + (currInout - tracker.firstInout);
         } else {
-          let lastI = -1;
-          for (let j = 0; j < r.chartDates.length; j++) { if (r.chartDates[j] <= dt) lastI = j; }
-          if (lastI !== -1) {
-            currentAsset = r.chartBalances[lastI];
-            if (r.isSynced) {
-              let firstAsset = r.chartBalances[0] || 0;
-              let firstInout = r.chartInout ? r.chartInout[0] : 0;
-              let currInout = r.chartInout ? r.chartInout[lastI] : 0;
-              slotInoutVal = firstAsset + (currInout - firstInout);
-            } else {
-              let initialCash = r.summary && r.summary.realPrincipal ? (r.summary.realPrincipal - (r.summary.inout || 0)) : (r.chartBalances[0] || 0);
-              slotInoutVal = initialCash + (r.chartInout ? r.chartInout[lastI] : 0);
-            }
-          }
+          slotInoutVal = tracker.initialCash + (tracker.inouts[k] || 0);
         }
 
         dayAsset += currentAsset;
         dayInout += slotInoutVal;
       }
-    });
+    }
 
     combinedBalances.push(dayAsset);
     combinedInouts.push(dayInout);

@@ -15,7 +15,7 @@ const WORKER3_RELAY_BASE = window.WORKER3_URL || "https://autumn-limit-001e-3.sm
 window.BrokerService = {
 
   getUserId() {
-    return localStorage.getItem("vtotal3_id") || localStorage.getItem("user_id") || "smw594";
+    return localStorage.getItem("vtotal3_id") || localStorage.getItem("user_id") || "";
   },
 
 
@@ -471,12 +471,16 @@ window.BrokerService = {
   },
 
   async brokerFetch(endpoint, method = "GET", payload = null, timeoutMs = 8000) {
+    const userId = this.getUserId();
+    if (!userId) {
+      return { success: false, error: "로그인이 필요합니다." };
+    }
     const baseUrl = this.getApiBase();
     const url = `${baseUrl}${endpoint}`;
     const headers = {
       "Content-Type": "application/json",
       "x-app-key": window.BROKER_APP_KEY || "",
-      "x-user-id": this.getUserId()
+      "x-user-id": userId
     };
 
     const controller = new AbortController();
@@ -569,7 +573,7 @@ window.BrokerService = {
     if (typeof broker !== "string" || broker.length <= 1) broker = "kiwoom";
     // ⚡ 기본 체결 조회 일수: 부팅 및 주문표 대조는 최근 3일치만 빠르게 조회(0.1초)
     // 과거 60일치 전체 내역은 매매내역 화면(history) 진입 시에만 명시적으로 days=60을 전달받아 조회함
-    const defaultDays = 3;
+    const defaultDays = 60; // ⭐️ 기본 60일로 일원화 (통합보유/실전매도/매매내역 동일 캐시 공유)
     const d = Number(days) || defaultDays;
     const forceParam = force ? "&force=1" : "";
     const timeout = broker === "ls" ? 60000 : 40000;
@@ -1016,6 +1020,9 @@ window.BrokerService = {
     if (!detailText) {
       detailText = '• 키움: 필요 금액 대비 주문가능 금액(예수금) 부족\n• 상세 내역은 상단 [📜 로그] 메뉴에서 확인하실 수 있습니다.';
     }
+    const safeDetailHtml = String(detailText).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
 
     const modal = document.createElement('div');
     modal.id = 'deposit-warning-modal';
@@ -1028,7 +1035,7 @@ window.BrokerService = {
           <span onclick="document.getElementById('deposit-warning-modal').remove()" style="cursor:pointer; font-size:20px; color:#94a3b8;">&times;</span>
         </h3>
         <p style="font-size:13px; color:#cbd5e1; line-height:1.5; margin:10px 0;">당일 주문표 생성 완료 후 증권사 잔고를 점검한 결과, 매수 필요 금액보다 주문가능 예수금이 부족한 증권사가 감지되었습니다.</p>
-        <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin:12px 0; font-family:monospace; font-size:12.5px; color:#fef08a; line-height:1.6; white-space:pre-wrap;">${detailText}</div>
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin:12px 0; font-family:monospace; font-size:12.5px; color:#fef08a; line-height:1.6; white-space:pre-wrap;">${safeDetailHtml}</div>
         <p style="font-size:12px; color:#f87171; font-weight:700; margin:8px 0 16px 0;">※ 21:00 발주 전까지 해당 증권사 계좌로 달러를 충전/환전해 주세요. (미충전 시 증권사에서 매수 주문이 거부됩니다)</p>
         <div style="display:flex; justify-content:flex-end; gap:8px;">
           <button onclick="if(typeof openGcpLogsModal==='function') openGcpLogsModal(); document.getElementById('deposit-warning-modal').remove();"

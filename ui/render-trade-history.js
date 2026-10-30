@@ -297,14 +297,14 @@ async function renderBrokerFills(broker) {
 
     if (!data || data.success === false) {
       const errMsg = (data && data.error) || "체결내역 응답 없음";
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${label} 해외주식 체결내역 조회 실패<br/><span style="font-size:9.5px;opacity:0.8;">${errMsg}</span></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${escapeTradeHistoryHtml(label)} 해외주식 체결내역 조회 실패<br/><span style="font-size:9.5px;opacity:0.8;">${escapeTradeHistoryHtml(errMsg)}</span></td></tr>`;
       return;
     }
 
     const rows = Array.isArray(data.executions) ? data.executions : (Array.isArray(data.rows) ? data.rows : []);
     if (!rows.length) {
       lastBrokerFillsRows = [];
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:${textMuted};">${label} 해외주식 체결내역이 없습니다</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:${textMuted};">${escapeTradeHistoryHtml(label)} 해외주식 체결내역이 없습니다</td></tr>`;
       return;
     }
 
@@ -313,7 +313,7 @@ async function renderBrokerFills(broker) {
     lastBrokerFillsBroker = broker;
     renderBrokerFillsRowsHtml(broker, lastBrokerFillsRows);
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${label} 해외주식 체결내역 연동 실패<br/><span style="font-size:9.5px;opacity:0.8;">${e.message}</span></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#f43f5e;">${escapeTradeHistoryHtml(label)} 해외주식 체결내역 연동 실패<br/><span style="font-size:9.5px;opacity:0.8;">${escapeTradeHistoryHtml(e.message)}</span></td></tr>`;
   }
 }
 
@@ -378,12 +378,14 @@ async function refreshSellReconcileFills() {
   if (!window.BrokerReconcile) return;
   sellReconcileRefreshInFlight = true;
   try {
-    await window.BrokerReconcile.refreshFills();
+    const activeBr = window.BrokerService ? window.BrokerService.activeBroker : 'meritz';
+    await window.BrokerReconcile.refreshFills(activeBr, null, false, 60);
     sellReconcileRefreshedAt = Date.now();
     if (historyViewMode === 'strategy') {
       lastTradeHistoryRenderSignature = '';
       renderDBTradeHistory();
     }
+    // [Loop Defense] Cross-render call disabled
   } catch (e) {
     console.warn('[매매내역] 체결 대조 데이터 갱신 실패:', e.message);
   } finally {
@@ -392,6 +394,7 @@ async function refreshSellReconcileFills() {
 }
 
 function renderDBTradeHistory() {
+  if (localStorage.getItem('vtotal3_auth') !== 'true') return;
   if (historyViewMode === 'ls') {
     const title = document.getElementById('historyTitle') || document.getElementById('historyModeTitle');
     if (title) title.textContent = '📋 LS증권 매매내역';
@@ -652,17 +655,19 @@ function renderDBTradeHistory() {
     if (signature === lastTradeHistoryRenderSignature && tbody.children.length > 0) return;
     lastTradeHistoryRenderSignature = signature;
 
-    // fire-and-forget: 체결 데이터가 아직 준비되지 않았으면 1회 비동기 조회 후 재렌더링
-    if (BR && !BR.isReady() && !window.__isRefreshingHistoryFills) {
+    // fire-and-forget: 실시간 체결 데이터가 아직 동기화되지 않았으면 1회 비동기 조회 후 재렌더링
+    const activeBrKey = window.BrokerService ? window.BrokerService.activeBroker : 'meritz';
+    const isLiveSynced = BR && typeof BR.isLiveSynced === 'function' ? BR.isLiveSynced(activeBrKey) : false;
+    if (BR && !isLiveSynced && !window.__isRefreshingHistoryFills) {
       window.__isRefreshingHistoryFills = true;
-      const activeBrKey = window.BrokerService ? window.BrokerService.activeBroker : 'kiwoom';
       BR.refreshFills(activeBrKey, () => {
         window.__isRefreshingHistoryFills = false;
         if (historyViewMode === 'strategy') {
           lastTradeHistoryRenderSignature = '';
           renderDBTradeHistory();
         }
-      });
+        // [Loop Defense] Cross-render call disabled
+      }, false, 60);
     }
 
     bindHistoryScrollListener(tbody);

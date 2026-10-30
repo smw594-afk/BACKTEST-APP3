@@ -224,12 +224,12 @@ window.ensureChartLoaded = ensureChartLoaded;
 var formatStrategyNameWithSmallParentheses = window.formatStrategyNameWithSmallParentheses;
 
 // 글로벌 상태 변수
-let myUserId = localStorage.getItem("vtotal3_id") || "smw594";
+let myUserId = localStorage.getItem("vtotal3_id") || "";
 let myChart = null;
 let currentOrderDate = "";
 let isOrderView = (function() {
   try {
-    const uid = localStorage.getItem("vtotal3_id") || "smw594";
+    const uid = localStorage.getItem("vtotal3_id") || "";
     const layout = localStorage.getItem(`vtotal3_active_layout_${uid}`);
     if (layout === 'history' || layout === 'stats') return false;
     const pref = localStorage.getItem(`vtotal3_view_mode_${uid}`);
@@ -973,7 +973,7 @@ function initAppImmediate() {
     document.getElementById('loginScreen').classList.remove('hidden'); 
   }
 
-  // 스플래시 로고 화면 페이드아웃 및 제거 (배경 검은색 템플릿)
+  // 스플래시 로고 화면 페이드아웃 및 제거 (로고 일체형 흰색 템플릿)
   const splash = document.getElementById('appSplashScreen');
   if (splash) {
     splash.style.opacity = '0';
@@ -2790,7 +2790,7 @@ window.updateStatsPieChart = function(explicitTarget) {
     }
   }
 
-  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || '';
   const rawSavedTarget = localStorage.getItem(`vtotal3_stats_pie_target_${uid}`);
   const savedTarget = (rawSavedTarget === 'account') ? 'combined' : rawSavedTarget;
   const grid = document.getElementById('mainGrid');

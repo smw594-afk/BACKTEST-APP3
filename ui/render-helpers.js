@@ -139,8 +139,24 @@ function updateDefaultCurrency(val) {
 }
 
 function updateTheme(val) {
-  if (val === 'light') document.body.classList.add('light-mode');
-  else document.body.classList.remove('light-mode');
+  const docHtml = document.getElementById('docHtml') || document.documentElement;
+  if (val === 'light') {
+    document.body.classList.add('light-mode');
+    if (docHtml) {
+      docHtml.style.backgroundColor = '#f1f5f9';
+      docHtml.style.background = '#f1f5f9';
+    }
+    document.body.style.backgroundColor = '#f1f5f9';
+    document.body.style.background = '#f1f5f9';
+  } else {
+    document.body.classList.remove('light-mode');
+    if (docHtml) {
+      docHtml.style.backgroundColor = '#000000';
+      docHtml.style.background = '#000000';
+    }
+    document.body.style.backgroundColor = '#000000';
+    document.body.style.background = '#000000';
+  }
 
   // Chart.js 캔버스 캐시 무효화 및 강제 재렌더
   window.currentChartSignature = "";
@@ -190,7 +206,7 @@ function updateSortOrder(val) {
 
 function getUserManualPrincipal(targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
-  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || '';
   const curr = getManualPrincipalCurrency(broker);
 
   // ⭐️ KRW 모드인 경우: 사용자가 입력한 KRW 원금을 최신 환율로 동적 환산하여 반환
@@ -321,13 +337,13 @@ function getDefaultEstimatedPrincipal(targetBroker) {
 
 function getManualPrincipalCurrency(targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
-  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || '';
   return localStorage.getItem(`vtotal3_manual_principal_curr_${broker}_${uid}`) || 'USD';
 }
 
 function setManualPrincipalCurrency(curr, targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
-  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || '';
   localStorage.setItem(`vtotal3_manual_principal_curr_${broker}_${uid}`, curr || 'USD');
 }
 
@@ -379,7 +395,7 @@ function syncManualPrincipalInput(targetBroker) {
   const currSelect = document.getElementById('manualPrincipalCurrency');
   if (!input) return;
 
-  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || '';
   const curr = getManualPrincipalCurrency(broker);
   if (currSelect) currSelect.value = curr;
 
@@ -419,7 +435,7 @@ function updateManualEstimatedPrincipal(val, targetBroker) {
   const broker = targetBroker || (window.BrokerService?.activeBroker) || 'kiwoom';
   const cleanStr = String(val === undefined || val === null ? '' : val).trim();
   const rawNum = Number(cleanStr.replace(/[^0-9.-]/g, '')) || 0;
-  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || 'smw594';
+  const uid = (typeof myUserId !== 'undefined' && myUserId) || window.myUserId || localStorage.getItem('vtotal3_id') || '';
   const brokerName = broker === 'meritz' ? '메리츠' : (broker === 'ls' ? 'LS증권' : '키움증권');
   const curr = getManualPrincipalCurrency(broker);
   const fx = (window.currentFXRate && window.currentFXRate > 0) ? window.currentFXRate : (window.currencyService?.getCurrentFXRate() || 1450);

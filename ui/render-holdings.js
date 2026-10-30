@@ -2,7 +2,8 @@
 // script.js에서 보유현황 관련 함수들 분리
 
 function renderCombinedHoldings() {
-  console.log("[renderCombinedHoldings] 함수 호출됨");
+  const isAuth = localStorage.getItem("vtotal3_auth");
+  if (isAuth !== "true") return; // ⭐️ 로그인 전에는 불필요한 백그라운드 렌더링 원천 차단
   // ⚠️ dualOrderContainer 전체를 덮어쓰면 generateDynamicDOM()이 만든 주문표 DOM
   // (combinedOrderView, orderSlot1~N 등)이 통째로 파괴되어 다시 복구되지 않는다.
   // 반드시 통합 보유현황 전용 tbody(combinedHoldingsBody)만 갱신해서 주문표와 완전히 분리한다.
@@ -227,15 +228,16 @@ function renderCombinedHoldings() {
     const fillsCacheEntry = window.BrokerReconcile.getFillsCache ? window.BrokerReconcile.getFillsCache(activeBr) : null;
     // ⚠️ 실패(키 미등록/통신 오류)로 캐시가 비어도 렌더→재조회→렌더 무한 루프가 되지 않도록 30초 쿨다운
     const nowTs = Date.now();
-    const needsFetch = (!fillsCacheEntry || (fillsCacheEntry.days || 0) < 30 || (nowTs - (fillsCacheEntry.at || 0) > 60000))
-      && (nowTs - (window.__lastCombinedFillsTry || 0) > 30000);
+    const isLive = window.BrokerReconcile.isLiveSynced ? window.BrokerReconcile.isLiveSynced(activeBr) : false;
+    const needsFetch = (!isLive || !fillsCacheEntry || (fillsCacheEntry.days || 0) < 30 || (nowTs - (fillsCacheEntry.at || 0) > 60000))
+      && (nowTs - (window.__lastCombinedFillsTry || 0) > 10000);
     if (needsFetch) {
       window.__lastCombinedFillsTry = nowTs;
       window.__isRefreshingCombinedHoldings = true;
       window.BrokerReconcile.refreshFills(activeBr, () => {
         window.__isRefreshingCombinedHoldings = false;
         renderCombinedHoldings();
-      }, false, 30);
+      }, false, 60);
     }
     if (!window.BrokerReconcile.getCachedBalance(activeBr) && (nowTs - (window.__lastCombinedBalTry || 0) > 30000)) {
       window.__lastCombinedBalTry = nowTs;

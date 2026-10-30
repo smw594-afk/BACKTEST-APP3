@@ -31,7 +31,8 @@
     const target = broker || (window.BrokerService ? window.BrokerService.activeBroker : "kiwoom");
     const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
       ? window.BrokerService.getUserId()
-      : (localStorage.getItem("vtotal3_id") || "smw594");
+      : (localStorage.getItem("vtotal3_id") || "");
+    if (!uid) return null;
     const c = balanceCache[target];
     if (c && c.data && c.uid === uid) return c.data;
     // 📸 [스냅샷 캐시]: 메모리 캐시가 없더라도 로컬 스토리지에 저장된 마지막 계좌 스냅샷 즉시 반환
@@ -119,7 +120,8 @@
     try {
       const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
         ? window.BrokerService.getUserId()
-        : (localStorage.getItem("vtotal3_id") || "smw594");
+        : (localStorage.getItem("vtotal3_id") || "");
+    if (!uid) return null;
       let hydratedAny = false;
       for (const br of BROKERS) {
         const snapStr = localStorage.getItem(`vtotal3_fills_snap_${br}_${uid}`);
@@ -127,7 +129,7 @@
           const snap = JSON.parse(snapStr);
           if (snap && snap.success !== false) {
             if (!fillsCache[br]) fillsCache[br] = { at: 0, data: snap, uid };
-            ingest(br, snap);
+            ingest(br, snap, true); // ⭐️ isSnapshot = true
             hydratedAny = true;
           }
         }
@@ -142,24 +144,26 @@
     const now = Date.now();
     const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
       ? window.BrokerService.getUserId()
-      : (localStorage.getItem("vtotal3_id") || "smw594");
+      : (localStorage.getItem("vtotal3_id") || "");
+    if (!uid) return null;
     const c = fillsCache[broker];
     if (!force && c && c.uid === uid && now - c.at < CACHE_MS && (!days || c.days >= days)) return c.data;
-    const pKey = `${broker}_${uid}_${days || 3}_${force ? 1 : 0}`;
+    const pKey = `${broker}_${uid}_${days || 60}_${force ? 1 : 0}`;
     if (!fillsPromise[pKey]) {
       fillsPromise[pKey] = window.BrokerService.fetchOverseasFills(broker, days, force)
         .finally(() => { fillsPromise[pKey] = null; });
     }
     const data = await fillsPromise[pKey];
     if (data && data.success !== false) {
-      fillsCache[broker] = { at: Date.now(), data, uid, days: days || 3 };
-      ingest(broker, data);
+      fillsCache[broker] = { at: Date.now(), data, uid, days: days || 60 };
+      ingest(broker, data, false);
       state.ready = true;
       try {
         localStorage.setItem(`vtotal3_fills_snap_${broker}_${uid}`, JSON.stringify(data));
       } catch (e) {
         console.warn("[BrokerReconcile] fills snapshot save error:", e);
       }
+// [Render Loop Defense] getFills pure data fetch
     }
     return data;
   }
@@ -168,7 +172,8 @@
     const now = Date.now();
     const uid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
       ? window.BrokerService.getUserId()
-      : (localStorage.getItem("vtotal3_id") || "smw594");
+      : (localStorage.getItem("vtotal3_id") || "");
+    if (!uid) return null;
     const c = balanceCache[broker];
     if (c && c.uid === uid && now - c.at < CACHE_MS) return c.data;
     const bKey = `${broker}_${uid}`;
@@ -222,12 +227,12 @@
   // state.coveredDates     : Set<YYYY-MM-DD> — dates the broker actually reported.
   //   A holding whose date is NOT covered is '미확인', never '불일치' — absence of
   //   data must not be rendered as a contradiction.
-  const state = { buy: new Map(), sell: new Map(), coveredDates: new Set(), ready: false, failed: false, rows: [] };
+  const state = { buy: new Map(), sell: new Map(), coveredDates: new Set(), ready: false, failed: false, rows: [], liveSynced: {} };
 
   // ⚠️ 2026-07-30까지 키가 `symbol|date`뿐이라 키움·LS가 같은 종목을 같은 날 매매하면
   //    두 브로커의 체결이 한 칸에 합쳐졌다(수량 합산, 평균가 뒤섞임). 슬롯 1~3=키움,
   //    4~6=LS인데 조회는 항상 브로커별이라 이제 broker를 키에 포함해 완전히 분리한다.
-  function ingest(broker, data) {
+  function ingest(broker, data, isSnapshot = false) {
     const rows = Array.isArray(data && data.executions) ? data.executions
       : (Array.isArray(data && data.rows) ? data.rows : []);
     
@@ -239,11 +244,18 @@
 
     // 체결내역 조회 시: 당일/전일(최근 2일)만 기본 조회 확인 날짜로 등록
     // (과거 일자는 브로커가 실제 반환한 executions에 체결이 존재하는 날짜만 아래 249라인에서 coveredDates로 등록됨)
-    const now = Date.now();
-    for (let i = 0; i < 2; i++) {
-      const d = new Date(now - i * 86400000);
-      const ymdKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-      state.coveredDates.add(`${broker}|${ymdKey}`);
+    // ⭐️ [가짜 미체결 방지]: 실시간 서버 조회일 때만 당일/전일(최근 2일)을 기본 조회 확인 날짜로 등록
+    // 로컬 스냅샷 복원 시에는 당일/전일을 임의로 coveredDates에 넣지 않는다!
+    // (서버에서 실시간 체결을 실제로 수신하기 전까지 당일 거래가 0체결로 오인되어 '60미체결'이 뜨는 버그 원천 차단)
+    if (!isSnapshot) {
+      const now = Date.now();
+      for (let i = 0; i < 2; i++) {
+        const d = new Date(now - i * 86400000);
+        const ymdKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        state.coveredDates.add(`${broker}|${ymdKey}`);
+      }
+      if (!state.liveSynced) state.liveSynced = {};
+      state.liveSynced[broker] = true;
     }
 
     // 1st pass: build symbol map from id / ord_no
@@ -329,10 +341,7 @@
             if (d && d.success !== false) {
               anyOk = true;
               state.ready = true;
-              // 브로커 데이터 수신 즉시 보유현황 화면을 갱신
-              if (window.UI?.holdings?.renderCombinedHoldings) {
-                try { window.UI.holdings.renderCombinedHoldings(); } catch (e) {}
-              }
+// [Render Loop Defense] per-task render disabled
             }
             return d;
           } catch (e) {
@@ -343,6 +352,17 @@
         await Promise.allSettled(tasks);
         state.ready = true;
         state.failed = !anyOk;
+        if (anyOk) {
+          if (window.UI?.holdings?.renderCombinedHoldings) {
+            try { window.UI.holdings.renderCombinedHoldings(); } catch (e) {}
+          }
+          if (window.UI?.tradeHistory?.renderDBTradeHistory && (!window.historyViewMode || window.historyViewMode === 'strategy')) {
+            try {
+              if (typeof window.lastTradeHistoryRenderSignature !== 'undefined') window.lastTradeHistoryRenderSignature = '';
+              window.UI.tradeHistory.renderDBTradeHistory();
+            } catch (e) {}
+          }
+        }
       } finally {
         refreshPromise = null;
         const cbs = onDoneCallbacks.splice(0, onDoneCallbacks.length);
@@ -481,11 +501,9 @@
               return { status: "match", appQty: roundedAppQty, liveQty: roundedAppQty, diff: 0, fromBalance: true, balTotalQty: liveBalQty };
             } else if (diff > 0) {
               return { status: "overbuy", appQty: roundedAppQty, liveQty: liveBalQty, diff, overQty: diff, fromBalance: true, balTotalQty: liveBalQty };
-            } else {
-              return { status: "mismatch", appQty: roundedAppQty, liveQty: liveBalQty, diff, underQty: Math.abs(diff), fromBalance: true, balTotalQty: liveBalQty };
             }
-          } else if (liveBalQty === 0 && totalExpected > 0) {
-            return { status: "mismatch", appQty: roundedAppQty, liveQty: 0, diff: -totalExpected, underQty: totalExpected, fromBalance: true, balTotalQty: 0 };
+            // ⭐️ [가짜 미체결 방지]: 잔고가 부족한 경우(diff < 0)는 최신 체결이 아직 미반영된 과거 잔고 스냅샷일 수 있으므로
+            // 함부로 '미체결'로 오판하지 않고 체결내역 대조 대기(pending, 보류)로 안전하게 처리!
           }
         }
       }
@@ -822,7 +840,8 @@
     state,
     holdingStatus, sellStatus, getNettedQtyForTickerDate, badge, badgeTitle, cellHtml, escapeHtml,
     openAccountInfoModal, refreshAccountInfo, renderBrokerAccountTable,
-    isReady: () => state.ready
+    isReady: () => state.ready,
+    isLiveSynced: (br) => !!(state.liveSynced && state.liveSynced[br || (window.BrokerService ? window.BrokerService.activeBroker : "meritz")])
   };
   window.normalizeDateKey = window.BrokerReconcile.normalizeDateKey;
 })();

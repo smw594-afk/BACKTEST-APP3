@@ -2813,14 +2813,14 @@ function updateCombinedOrderMatchStatus(opts = {}) {
         const logHash = mismatches.join(';');
         if (mismatches.length > 0 && cacheForLog.lastLogHash !== logHash) {
           cacheForLog.lastLogHash = logHash;
-          const userId = window.myUserId || "smw594";
-          const base = typeof getProxyBase === 'function' ? getProxyBase() : (window.BROKER3_PROXY_BASE || "http://136.118.250.225:8080");
-          
-          mismatches.forEach(msg => {
-            if (window.BrokerService && typeof window.BrokerService.pushLog === 'function') {
-              window.BrokerService.pushLog(userId, msg).catch(e => {});
-            }
-          });
+          const userId = window.myUserId || localStorage.getItem("vtotal3_id") || "";
+          if (userId) {
+            mismatches.forEach(msg => {
+              if (window.BrokerService && typeof window.BrokerService.pushLog === 'function') {
+                window.BrokerService.pushLog(userId, msg).catch(e => {});
+              }
+            });
+          }
         }
       }
     } catch(e) { console.error("Log eval error", e); }

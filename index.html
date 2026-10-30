@@ -27,7 +27,7 @@
     if (window.location.protocol.startsWith('http')) {
       const ml = document.createElement('link');
       ml.rel = 'manifest';
-      ml.href = 'manifest.json?v=cf_v20261024_04';
+      ml.href = 'manifest.json?v=cf_v20261029_02';
       document.head.appendChild(ml);
     }
   </script>
@@ -144,13 +144,13 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js?v=cf_v1787732256753" defer></script>
   <link rel="stylesheet" href="ui/styles/core.css?v=cf_v20260917_04">
   <link rel="stylesheet" href="ui/styles/layout.css?v=cf_v20261003_02">
-  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20261021_01">
+  <link rel="stylesheet" href="ui/styles/components.css?v=cf_v20261030_04">
   <link rel="stylesheet" href="ui/styles/theme-light.css?v=cf_v20261014_02">
   <!-- Phase 1: Utils (formatter, date-helpers, calculators) -->
   <script src="utils/formatters.js?v=cf_v1787732256753" defer></script>
   <script src="utils/date-helpers.js?v=cf_v20260912_01" defer></script>
   <script src="utils/period-calculator.js?v=cf_v1787732256753" defer></script>
-  <script src="utils/summary-calculator.js?v=cf_v1787732256753" defer></script>
+  <script src="utils/summary-calculator.js?v=cf_v20261028_01" defer></script>
   <!-- Phase 2: Services (currency, export, prefetch) -->
   <script src="services/currency-service.js?v=cf_v1787732256753" defer></script>
   <script src="services/export-service.js?v=cf_v1787732256753" defer></script>
@@ -158,8 +158,8 @@
   <!-- Phase 3: UI Layer (layout, state, events) -->
   <script src="ui/layout-detector.js?v=cf_v1787732256753" defer></script>
   <script src="services/push-notification-service.js?v=cf_v20261020_01" defer></script>
-  <script src="services/broker-service.js?v=cf_v20261024_01" defer></script>
-  <script src="services/broker-reconcile.js?v=cf_v20261027_02" defer></script>
+  <script src="services/broker-service.js?v=cf_v20261030_02" defer></script>
+  <script src="services/broker-reconcile.js?v=cf_v20261030_04" defer></script>
   <script src="services/rebalance-simulator.js?v=cf_v20261027_02" defer></script>
   <!-- UI Helpers (Performance icons, analysis) -->
   <script src="ui/helpers/performance-icons.js?v=cf_v1787732256753" defer></script>
@@ -168,19 +168,38 @@
 
 <body style="background-color: #000000; background: #000000; color: #f8fafc; margin: 0; padding: 4px;">
 
-  <!-- 앱 시작 스플래시 / 로고 화면 (배경 검은색 #000000) -->
-  <div id="appSplashScreen" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: #000000; color-scheme: only dark; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease-out, visibility 0.4s ease-out;">
+  <!-- 앱 시작 스플래시 / 로고 화면 (로고 색상에 맞춘 배경 검정색 #000000, pointer-events: none으로 클릭 절대 차단 방지) -->
+  <div id="appSplashScreen" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: #000000; color-scheme: only dark; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease-out, visibility 0.4s ease-out; pointer-events: none;">
+  <script>
+    (function() {
+      function removeSplash() {
+        const splash = document.getElementById('appSplashScreen');
+        if (splash) {
+          splash.style.opacity = '0';
+          splash.style.pointerEvents = 'none';
+          setTimeout(() => { if (splash && splash.parentNode) splash.parentNode.removeChild(splash); }, 300);
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(removeSplash, 100));
+      } else {
+        setTimeout(removeSplash, 100);
+      }
+      setTimeout(removeSplash, 800); // 0.8초 안전 타임아웃
+    })();
+  </script>
     <img src="images/logo.png?v=4" alt="Logo" style="width: 120px; height: 120px; border-radius: 24px; border: 0; outline: 0; object-fit: contain; background: #000000;" />
     <div style="margin-top: 18px; font-size: 24px; font-weight: 800; font-family: 'Outfit', 'Inter', sans-serif; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
       A-QUANT<span style="font-size: 18px; opacity: 0.8; margin-left: 2px;">(ST)</span>
     </div>
   </div>
 
-  <div id="loginScreen" class="login-container hidden">
+  <div id="loginScreen" class="login-container hidden" style="z-index: 10000000; pointer-events: auto;">
     <div class="login-inner">
-      <div class="login-title">📄 A-QUANT<span style="font-size: calc(100% - 2px); font-weight: inherit; opacity: 0.8; margin-left: 2px;">(ST)</span> <span id="loginVersion"
-          style="font-size:12px; opacity:0.5; font-weight:400;"></span></div>
-      <p style="font-size:11px; color:#64748b; margin-bottom:15px;">아이디/비번이 시트에 자동 등록됩니다.</p>
+      <img src="images/logo.png?v=4" alt="Logo" style="width: 72px; height: 72px; border-radius: 16px; object-fit: contain; margin-bottom: 12px; background: #000000;" />
+      <div class="login-title">A-QUANT<span style="font-size: calc(100% - 2px); font-weight: inherit; opacity: 0.8; margin-left: 2px;">(ST)</span> <span id="loginVersion"
+          style="font-size:12px; opacity:0.5; font-weight:400; color:#94a3b8; -webkit-text-fill-color: initial;"></span></div>
+      <p style="font-size:12px; color:#94a3b8; margin-bottom:18px; line-height:1.5;">아이디/비번이 시트에 자동 등록됩니다.</p>
       <input type="text" id="loginId" class="login-input" placeholder="아이디 입력">
       <input type="password" id="loginPw" class="login-input" placeholder="비밀번호 입력"
         onkeypress="if(event.key==='Enter') window.UI.misc.handleLogin()">
@@ -1254,19 +1273,19 @@
   <script src="engine/strategies.js?v=cf_v20261028_01" defer></script>
   <script src="engine/engine.js?v=cf_v1788831920176" defer></script>
   <script src="engine/core.js?v=cf_v1787844589408" defer></script>
-  <script src="ui/render-order.js?v=cf_v20261023_05" defer></script>
-  <script src="ui/render-holdings.js?v=cf_v20261028_01" defer></script>
+  <script src="ui/render-order.js?v=cf_v20261028_01" defer></script>
+  <script src="ui/render-holdings.js?v=cf_v20261030_04" defer></script>
   <script src="ui/render-performance.js?v=cf_v20260929_03" defer></script>
-  <script src="ui/render-stats.js?v=cf_v20261028_01" defer></script>
-  <script src="ui/render-trade-history.js?v=cf_v20261023_06" defer></script>
+  <script src="ui/render-stats.js?v=cf_v20261028_02" defer></script>
+  <script src="ui/render-trade-history.js?v=cf_v20261030_04" defer></script>
   <script src="ui/render-price-info.js?v=cf_v20261027_01" defer></script>
   <script src="ui/render-ui-updates.js?v=cf_v20260912_01" defer></script>
   <script src="ui/render-toggles.js?v=cf_v20261023_01" defer></script>
-  <script src="ui/render-helpers.js?v=cf_v20261024_03" defer></script>
+  <script src="ui/render-helpers.js?v=cf_v20261029_01" defer></script>
   <script src="ui/render-notifications.js?v=cf_v20261003_02" defer></script>
-  <script src="ui/render-heatmap.js?v=cf_v20261028_02" defer></script>
-  <script src="ui/render-misc.js?v=cf_v20261027_01" defer></script>
-  <script src="script.js?v=cf_v20261027_02" defer></script>
+  <script src="ui/render-heatmap.js?v=cf_v20261029_06" defer></script>
+  <script src="ui/render-misc.js?v=cf_v20261030_02" defer></script>
+  <script src="script.js?v=cf_v20261029_01" defer></script>
 
 
 </body>

@@ -1023,11 +1023,17 @@ async function enterAppDirectly() {
           .catch(e => console.warn("계좌정보 선조회 실패:", e.message));
       }
       if (typeof window.BrokerReconcile.getFills === 'function') {
-        window.BrokerReconcile.getFills(activeBr)
+        window.BrokerReconcile.getFills(activeBr, false, 60)
           .then(() => {
             const isHoldingsVis = !!(window.isStatsMode || window.isOrderView === false);
             if (isHoldingsVis && window.UI?.holdings?.renderCombinedHoldings) {
               try { window.UI.holdings.renderCombinedHoldings(); } catch (e) { }
+            }
+            if (window.UI?.tradeHistory?.renderDBTradeHistory && (!window.historyViewMode || window.historyViewMode === 'strategy')) {
+              try {
+                if (typeof window.lastTradeHistoryRenderSignature !== 'undefined') window.lastTradeHistoryRenderSignature = '';
+                window.UI.tradeHistory.renderDBTradeHistory();
+              } catch (e) { }
             }
           })
           .catch(e => console.warn("체결내역 선조회 실패:", e.message));
@@ -1070,8 +1076,20 @@ async function enterAppDirectly() {
   const prefTheme = localStorage.getItem(`vtotal3_pref_theme_${myUserId}`) || "light";
   const themeSelect = document.getElementById('themeSelect');
   if (themeSelect) themeSelect.value = prefTheme;
-  if (prefTheme === 'light') document.body.classList.add('light-mode');
-  else document.body.classList.remove('light-mode');
+  if (typeof updateTheme === 'function') {
+    updateTheme(prefTheme);
+  } else {
+    const docHtml = document.getElementById('docHtml') || document.documentElement;
+    if (prefTheme === 'light') {
+      document.body.classList.add('light-mode');
+      if (docHtml) { docHtml.style.backgroundColor = '#f1f5f9'; docHtml.style.background = '#f1f5f9'; }
+      document.body.style.backgroundColor = '#f1f5f9'; document.body.style.background = '#f1f5f9';
+    } else {
+      document.body.classList.remove('light-mode');
+      if (docHtml) { docHtml.style.backgroundColor = '#000000'; docHtml.style.background = '#000000'; }
+      document.body.style.backgroundColor = '#000000'; document.body.style.background = '#000000';
+    }
+  }
 
   const prefSort = localStorage.getItem(`vtotal3_sort_order_${myUserId}`) || "asc";
   const sortSelect = document.getElementById('sortOrderSelect');
@@ -1583,7 +1601,7 @@ async function checkAndSyncWithServer(isInitial, forceSync = false, skipAutoSave
         // 프리페치가 없었거나 실패한 경우 폴백: 지금 바로 요청
         // 읽기는 Worker3(GCP Sheets API 통로)를 우선 시도하고, 실패 시 GAS로 폴백한다.
         try {
-          const currentUid = myUserId || window.myUserId || localStorage.getItem("vtotal3_id") || "smw594";
+          const currentUid = myUserId || window.myUserId || localStorage.getItem("vtotal3_id") || "";
           const freshQuery = forceSync ? "&fresh=1" : "";
           const workerInitUrl = `${window.WORKER3_URL || "https://autumn-limit-001e-3.smw594.workers.dev"}/api/backtest-log-init?id=${encodeURIComponent(currentUid)}&spreadsheetId=${encodeURIComponent(BACKTEST_LOG_SPREADSHEET_ID)}${freshQuery}`;
           const resWorker = await fetchWithTimeout(workerInitUrl);
@@ -2486,7 +2504,13 @@ window.openGcpLogsModal = function() {
 
   async function loadLogs() {
     contentEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted,#94a3b8);">⏳ 데이터 조회 중...</div>`;
-    const userId = window.myUserId || "smw594";
+    const userId = window.myUserId || localStorage.getItem("vtotal3_id") || "";
+    if (!userId) {
+      badgeEl.textContent = "오류";
+      badgeEl.style.color = "#ef4444";
+      contentEl.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444;">⚠️ 로그인이 필요합니다.</div>`;
+      return;
+    }
 
     try {
       let data = null;
@@ -2560,7 +2584,11 @@ window.openOrderTimeSettingsModal = async function() {
   let ov = document.getElementById("orderTimeModalOverlay");
   if (ov) ov.remove();
 
-  const userId = window.myUserId || localStorage.getItem("vtotal3_id") || "smw594";
+  const userId = window.myUserId || localStorage.getItem("vtotal3_id") || "";
+  if (!userId) {
+    alert("로그인이 필요합니다.");
+    return;
+  }
 
   // KST와 ET 간 시차 계산 및 서머타임(EDT vs EST) 판정
   const getDstInfo = () => {

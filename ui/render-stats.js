@@ -1127,7 +1127,7 @@ async function renderKiwoomBalanceOnStatsTable(table) {
 
   const currentUid = (window.BrokerService && typeof window.BrokerService.getUserId === 'function')
     ? window.BrokerService.getUserId()
-    : (localStorage.getItem("vtotal3_id") || "smw594");
+    : (localStorage.getItem("vtotal3_id") || "");
   const cached = window.BrokerReconcile?.getCachedBalance ? window.BrokerReconcile.getCachedBalance(broker) : null;
   const alreadyRenderedSameBroker = (table.dataset?.broker === broker && table.dataset?.userId === currentUid && table.querySelector('.stats-balance-summary-card'));
 
